@@ -18,3 +18,7 @@ yarn-error.log
 /.vscode
 package-lock.json
 composer.lock
+vite.config.js
+/build/*
+.htaccess
+server.php
