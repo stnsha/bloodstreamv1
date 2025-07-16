@@ -23,12 +23,10 @@
                         <a href="{{ route('lab.index') }}"
                             class="{{ request()->is('lab') ? 'text-red-800 hover:text-[#003049]' : 'text-gray-900 hover:text-red-800' }}">Labs</a>
                     </li>
-                    {{-- <li>
-                        <a href="{{ route('sync.index') }}"
-                            class="{{ request()->is('sync') ? 'text-red-800 hover:text-[#003049]' : 'text-gray-900 hover:text-red-800' }}">File
-                            History</a>
-                    </li>
                     <li>
+                        <a href="api/documentation" class="text-gray-900 hover:text-red-800">API Documentation</a>
+                    </li>
+                    {{--  <li>
                         <a href="{{ route('review.index') }}"
                             class="{{ request()->is('review') ? 'text-red-800 hover:text-[#003049]' : 'text-gray-900 hover:text-red-800' }}">AI
                             Review</a>

@@ -1,0 +1,93 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "Blood Stream v1 API",
+        "description": "This API facilitates the secure and structured integration of blood test result data between external laboratory systems and Alpro’s internal infrastructure. It enables seamless transmission, standardization, and accessibility of diagnostic information for clinical interpretation by authorized healthcare professionals.",
+        "contact": {
+            "name": "Digital Innovation"
+        },
+        "version": "1.0"
+    },
+    "servers": [
+        {
+            "url": "http://127.0.0.1:8000",
+            "description": "Local Server"
+        },
+        {
+            "url": "http://172.18.28.51:8002",
+            "description": "MyHealth Server"
+        }
+    ],
+    "paths": {
+        "/api/register": {
+            "post": {
+                "tags": [
+                    "LabCredential"
+                ],
+                "summary": "Register a new lab credential",
+                "description": "Creates a user and a lab credential using email and lab ID.",
+                "operationId": "a718f172ff3ac464d723835815f8fb57",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "email",
+                                    "lab_id"
+                                ],
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "example": "labuser@example.com"
+                                    },
+                                    "lab_id": {
+                                        "type": "integer",
+                                        "example": 1
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Lab credential successfully created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Lab credential successfully created."
+                                        },
+                                        "username": {
+                                            "type": "string",
+                                            "example": "LAB001use"
+                                        },
+                                        "password": {
+                                            "type": "string",
+                                            "example": "randompass123"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "LabCredential",
+            "description": "LabCredential"
+        }
+    ]
+}
