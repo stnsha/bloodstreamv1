@@ -6,12 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Blood Stream v1</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
-
 </head>
 
 <body class="antialiased">
     <div class="flex flex-col min-h-screen max-w-sm mx-auto justify-center">
-        <form action="" method="post">
+        <form action="{{ route('login') }}" method="post">
             @csrf
             <div class="mb-5">
                 <label for="email" class="block mb-2 text-sm font-medium text-gray-900">Email</label>

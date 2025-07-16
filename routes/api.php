@@ -1,5 +1,10 @@
 <?php
 
+use App\Http\Controllers\API\AuthController;
+use App\Http\Controllers\API\ImportController;
+use App\Http\Controllers\API\ResultController;
+use App\Http\Controllers\PatientController;
+use App\Http\Controllers\TestingController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -14,6 +19,26 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
+// Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
+//     return $request->user();
+// });
+
+Route::controller(AuthController::class)->group(function () {
+    Route::post('/register', 'register')->name('register');
+    Route::post('/login', 'login')->name('login');
+    Route::post('/logout', 'logout')->name('logout');
+});
+
+
+Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
+    Route::resource('testing', TestingController::class)->only('index', 'store', 'show', 'update', 'destroy');
+
+    Route::prefix('import')->controller(ImportController::class)->group(function () {
+        Route::post('/store', 'import')->name('store');
+    });
+
+    Route::prefix('result')->controller(ResultController::class)->group(function () {
+        Route::post('/patient', 'labResults')->name('labResults');
+        Route::post('/panel', 'panelResults')->name('panelResults');
+    });
 });

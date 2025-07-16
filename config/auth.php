@@ -40,6 +40,10 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+        'lab' => [
+            'driver' => 'jwt',
+            'provider' => 'lab_credentials',
+        ],
     ],
 
     /*
@@ -64,7 +68,10 @@ return [
             'driver' => 'eloquent',
             'model' => App\Models\User::class,
         ],
-
+        'lab_credentials' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\LabCredential::class,
+        ],
         // 'users' => [
         //     'driver' => 'database',
         //     'table' => 'users',
