@@ -21,7 +21,7 @@ class LoginController extends Controller
             'username' => 'required|string',
             'password' => 'required|string',
         ], [
-            'username.required' => 'Username/Email is required.',
+            'username.required' => 'Username is required.',
             'password.required' => 'Password is required.',
         ]);
 
@@ -29,25 +29,17 @@ class LoginController extends Controller
             $credentials = $request->only('username', 'password');
             $username = $request->input('username');
 
-            // Check if username is an email address
-            if (filter_var($username, FILTER_VALIDATE_EMAIL)) {
-                // If it's an email, use the standard Auth attempt (web guard - User model)
-                if (Auth::guard('web')->attempt(['email' => $username, 'password' => $credentials['password']])) {
+            // If it's not an email, search for username in lab credentials using the relationship
+            $labCredential = LabCredential::where('username', $username)->first();
+
+            if ($labCredential && Hash::check($credentials['password'], $labCredential->password)) {
+                // Get the associated user through the relationship
+                $user = User::find($labCredential->user_id);
+
+                if ($user) {
+                    // Login the user
+                    Auth::login($user);
                     return redirect()->intended('dashboard');
-                }
-            } else {
-                // If it's not an email, search for username in lab credentials using the relationship
-                $labCredential = LabCredential::where('username', $username)->first();
-
-                if ($labCredential && Hash::check($credentials['password'], $labCredential->password)) {
-                    // Get the associated user through the relationship
-                    $user = User::find($labCredential->user_id);
-
-                    if ($user) {
-                        // Login the user
-                        Auth::login($user);
-                        return redirect()->intended('dashboard');
-                    }
                 }
             }
         }

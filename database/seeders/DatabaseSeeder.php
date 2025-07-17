@@ -60,15 +60,34 @@ class DatabaseSeeder extends Seeder
             );
         }
 
-        LabCredential::firstOrCreate(
-            [
-                'user_id' => $user->id,
-            ],
+        LabCredential::create(
             [
                 'user_id' => $user->id,
                 'lab_id' => 1,
                 'username' => 'DUM1ANA',
                 'password' => bcrypt('fzElFOAz1RU1g8a'),
+                'role' => 'lab',
+                'is_active' => true,
+            ]
+        );
+
+        LabCredential::create(
+            [
+                'user_id' => $user->id,
+                'lab_id' => 3,
+                'username' => 'NAV3CHO',
+                'password' => bcrypt('mT5cV6bN4gH8sD1e'),
+                'role' => 'lab',
+                'is_active' => true,
+            ]
+        );
+
+        LabCredential::create(
+            [
+                'user_id' => $user->id,
+                'lab_id' => 2,
+                'username' => 'INN3SAN',
+                'password' => bcrypt('jP8xK2qL7fR9tZ3v'),
                 'role' => 'lab',
                 'is_active' => true,
             ]
