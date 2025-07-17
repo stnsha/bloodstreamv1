@@ -19,6 +19,7 @@ return new class extends Migration
             $table->string('dob')->nullable();
             $table->string('age')->nullable();
             $table->string('gender')->nullable(); //F or M
+            $table->string('tel')->nullable();
             $table->softDeletes();
             $table->timestamps();
         });

@@ -64,7 +64,7 @@ class AuthController extends Controller
 
     /**
      * @OA\Post(
-     *     path="/login",
+     *     path="/api/v1/login",
      *     tags={"Authentication"},
      *     summary="Login with lab credentials",
      *     description="Authenticate lab user and return JWT token",
@@ -124,7 +124,7 @@ class AuthController extends Controller
 
     /**
      * @OA\Post(
-     *     path="/logout",
+     *     path="/api/v1/logout",
      *     tags={"Authentication"},
      *     summary="Logout lab user",
      *     description="Logout the authenticated lab user and invalidate the JWT token",

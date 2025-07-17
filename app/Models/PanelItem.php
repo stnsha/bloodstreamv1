@@ -17,4 +17,10 @@ class PanelItem extends Model
         'unit',
         'sequence'
     ];
+
+    protected $attributes = [
+        'decimal_point' => null,
+        'unit' => null,
+        'sequence' => null,
+    ];
 }

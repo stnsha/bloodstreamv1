@@ -21,6 +21,8 @@ return new class extends Migration
             $table->dateTime('collected_date')->nullable();
             $table->dateTime('received_date')->nullable();
             $table->dateTime('reported_date')->nullable();
+            $table->string('validated_by')->nullable();
+            $table->string('package_name')->nullable();
             $table->boolean('is_completed')->default(false);
             $table->softDeletes();
             $table->timestamps();

@@ -23,4 +23,8 @@ class DeliveryFile extends Model
         'json_content',
         'status',
     ];
+
+    protected $attributes = [
+        'test_result_id' => null,
+    ];
 }

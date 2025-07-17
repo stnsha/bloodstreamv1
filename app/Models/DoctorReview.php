@@ -20,4 +20,8 @@ class DoctorReview extends Model
         'review',
         'is_sync'
     ];
+
+    protected $attributes = [
+        'is_sync' => false,
+    ];
 }

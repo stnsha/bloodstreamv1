@@ -16,4 +16,10 @@ class PanelMetadata extends Model
         'type',
         'identifier'
     ];
+
+    protected $attributes = [
+        'ordinal_id' => null,
+        'type' => null,
+        'identifier' => null,
+    ];
 }

@@ -15,6 +15,12 @@ class LabCredential extends Authenticatable implements JWTSubject
 
     protected $hidden = ['password'];
 
+    protected $attributes = [
+        'expires_at' => null,
+        'role' => null,
+        'is_active' => true,
+    ];
+
     /**
      * Get the identifier that will be stored in the subject claim of the JWT.
      *

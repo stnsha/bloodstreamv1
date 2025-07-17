@@ -13,6 +13,11 @@ class Panel extends Model
 
     protected $fillable = ['lab_id', 'name', 'code', 'sequence', 'overall_notes'];
 
+    protected $attributes = [
+        'sequence' => null,
+        'overall_notes' => null,
+    ];
+
     public function panelItems(): HasMany
     {
         return $this->hasMany(PanelItem::class, 'panel_id', 'id');

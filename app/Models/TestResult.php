@@ -19,6 +19,19 @@ class TestResult extends Model
         'collected_date',
         'received_date',
         'reported_date',
-        'is_completed'
+        'is_completed',
+        'validated_by',
+        'package_name'
+    ];
+
+    protected $attributes = [
+        'ref_id' => null,
+        'bill_code' => null,
+        'collected_date' => null,
+        'received_date' => null,
+        'reported_date' => null,
+        'validated_by' => null,
+        'package_name' => null,
+        'is_completed' => false,
     ];
 }

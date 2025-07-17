@@ -16,4 +16,8 @@ class Lab extends Model
         'code',
         'status'
     ];
+
+    protected $attributes = [
+        'path' => null,
+    ];
 }

@@ -26,7 +26,7 @@ class ResultController extends Controller
 {
     /**
      * @OA\Post(
-     *     path="/result/panel",
+     *     path="/api/v1/result/panel",
      *     summary="Submit individual result panel for a patient.",
      *     description="Receives a formatted JSON payload from an external lab, delivering results per panel for a patient rather than the full set of results.",
      *     operationId="panelResults",
@@ -130,7 +130,7 @@ class ResultController extends Controller
      *                         property="FillerOrderNumber",
      *                         type="string",
      *                         description="Filler order number",
-     *                         example="25-8888861"
+     *                         example="12-3456789"
      *                     ),
      *                     @OA\Property(
      *                         property="PlacerGroupNumber",
@@ -581,7 +581,198 @@ class ResultController extends Controller
     }
 
     /**
-     * General API for Lab Results
+     * @OA\Post(
+     *     path="/api/v1/result/patient",
+     *     summary="Submit lab results for a patient.",
+     *     description="Receives a formatted JSON payload containing complete lab test results for a patient including multiple panels and tests.",
+     *     operationId="labResults",
+     *     tags={"Result"},
+     *     security={{"bearerAuth": {}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         description="Lab results data",
+     *         @OA\JsonContent(
+     *             type="object",
+     *             required={"reference_id", "lab_no", "doctor_code", "patient", "results"},
+     *             @OA\Property(
+     *                 property="reference_id",
+     *                 type="string",
+     *                 description="Reference ID for the test",
+     *                 example="ABC12345"
+     *             ),
+     *             @OA\Property(
+     *                 property="lab_no",
+     *                 type="string",
+     *                 description="Laboratory number",
+     *                 example="123456789"
+     *             ),
+     *             @OA\Property(
+     *                 property="bill_code",
+     *                 type="string",
+     *                 description="Billing code",
+     *                 example="AMC_ALPRO"
+     *             ),
+     *             @OA\Property(
+     *                 property="doctor_code",
+     *                 type="string",
+     *                 description="Doctor code",
+     *                 example="ABC122"
+     *             ),
+     *             @OA\Property(
+     *                 property="received_date",
+     *                 type="string",
+     *                 format="date-time",
+     *                 description="Date when sample was received",
+     *                 example="2025-01-19 00:00:00"
+     *             ),
+     *             @OA\Property(
+     *                 property="reported_date",
+     *                 type="string",
+     *                 format="date-time",
+     *                 description="Date when results were reported",
+     *                 example="2025-01-19 00:00:00"
+     *             ),
+     *             @OA\Property(
+     *                 property="collected_date",
+     *                 type="string",
+     *                 format="date-time",
+     *                 description="Date when sample was collected",
+     *                 example="2025-01-19 00:00:00"
+     *             ),
+     *             @OA\Property(
+     *                 property="validated_by",
+     *                 type="string",
+     *                 description="Person who validated the results",
+     *                 example="Richard Roe, Bsc in Biomedical"
+     *             ),
+     *             @OA\Property(
+     *                 property="patient",
+     *                 type="object",
+     *                 required={"patient_icno", "patient_name"},
+     *                 @OA\Property(
+     *                     property="patient_icno",
+     *                     type="string",
+     *                     description="Patient IC number",
+     *                     example="870521145681"
+     *                 ),
+     *                 @OA\Property(
+     *                     property="patient_gender",
+     *                     type="string",
+     *                     description="Patient gender",
+     *                     example="Male"
+     *                 ),
+     *                 @OA\Property(
+     *                     property="patient_age",
+     *                     type="string",
+     *                     description="Patient age",
+     *                     example="54"
+     *                 ),
+     *                 @OA\Property(
+     *                     property="patient_name",
+     *                     type="string",
+     *                     description="Patient name",
+     *                     example="JOHN DOE"
+     *                 ),
+     *                 @OA\Property(
+     *                     property="patient_tel",
+     *                     type="string",
+     *                     description="Patient telephone number",
+     *                     example="012-3456789"
+     *                 )
+     *             ),
+     *             @OA\Property(
+     *                 property="package_name",
+     *                 type="string",
+     *                 description="Test package name",
+     *                 example="AC ESSENTIAL PACKAGE"
+     *             ),
+     *             @OA\Property(
+     *                 property="results",
+     *                 type="object",
+     *                 description="Test results organized by panel",
+     *                 @OA\Property(
+     *                     property="Haematology",
+     *                     type="object",
+     *                     @OA\Property(
+     *                         property="panel_sequence",
+     *                         type="integer",
+     *                         nullable=true,
+     *                         description="Panel sequence number",
+     *                         example=1
+     *                     ),
+     *                     @OA\Property(
+     *                         property="panel_remarks",
+     *                         type="string",
+     *                         nullable=true,
+     *                         description="Panel remarks",
+     *                         example=null
+     *                     ), @OA\Property(
+     *                         property="result_status",
+     *                         type="boolean",
+     *                         description="Result status,
+     *                         example=null
+     *                     ),
+     *                     @OA\Property(
+     *                         property="tests",
+     *                         type="array",
+     *                         @OA\Items(
+     *                             type="object",
+     *                             @OA\Property(property="test_name", type="string", example="Haemoglobin"),
+     *                             @OA\Property(property="result_value", type="string", example="15.7"),
+     *                             @OA\Property(property="result_flag", type="string", nullable=true, example=null),
+     *                             @OA\Property(property="unit", type="string", example="g/dL"),
+     *                             @OA\Property(property="ref_range", type="string", example="M: 13.0 - 18.0; F: 11.5 - 16.0"),
+     *                             @OA\Property(property="test_note", type="string", nullable=true, example=null),
+     *                             @OA\Property(property="report_sequence", type="integer", example=1)
+     *                         )
+     *                     )
+     *                 )
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Lab results processed successfully",
+     *         @OA\JsonContent(
+     *             type="integer",
+     *             description="Test result ID",
+     *             example=123
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Unauthorized - Invalid or missing authentication token",
+     *         @OA\JsonContent(
+     *             type="object",
+     *             @OA\Property(property="message", type="string", example="Unauthenticated.")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=422,
+     *         description="Validation error - Invalid input data",
+     *         @OA\JsonContent(
+     *             type="object",
+     *             @OA\Property(property="message", type="string", example="The given data was invalid."),
+     *             @OA\Property(
+     *                 property="errors",
+     *                 type="object",
+     *                 @OA\Property(
+     *                     property="patient.patient_icno",
+     *                     type="array",
+     *                     @OA\Items(type="string", example="The patient.patient_icno field is required.")
+     *                 )
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Internal server error - Failed to save data",
+     *         @OA\JsonContent(
+     *             type="object",
+     *             @OA\Property(property="error", type="string", example="Failed to save data")
+     *         )
+     *     )
+     * )
      */
     public function labResults(StorePatientResultRequest $request)
     {
@@ -597,19 +788,20 @@ class ResultController extends Controller
                 if (filled($validated['sending_facility']) && $validated['sending_facility'] === 'INN') {
                     $sending_facility = $validated['sending_facility'];
                     $batch_id = $validated['batch_id'] ?? null;
-                    $is_completed = true;
                 } else {
                     //create new batch if not exist
                     $sending_facility = $user->lab->code . 'API';
                     $batch_id = now()->format('YmdHis') . $user->lab->code;
-                    $is_completed = false;
                 }
 
                 //set validated data to variable
-                $patient_icno = $validated['patient_icno'];
-                $ic_type = $validated['ic_type'];
-                $patient_age = $validated['patient_age'];
-                $patient_gender = $validated['patient_gender'];
+                $patient_icno = $validated['patient']['patient_icno'];
+                $ic_type = $validated['patient']['ic_type'];
+                $patient_age = $validated['patient']['patient_age'];
+                $patient_gender = $validated['patient']['patient_gender'];
+                $patient_tel = $validated['patient']['patient_tel'];
+                $patient_name = $validated['patient']['patient_name'];
+
                 $reference_id = $validated['reference_id'];
                 $bill_code = $validated['bill_code'];
                 $lab_no = $validated['lab_no'];
@@ -617,6 +809,8 @@ class ResultController extends Controller
                 $collected_date = $validated['collected_date'];
                 $received_date = $validated['received_date'];
                 $reported_date = $validated['reported_date'];
+                $validated_by = $validated['validated_by'];
+                $package_name = $validated['package_name'];
                 $results = $validated['results'];
 
                 //create doctor code
@@ -641,10 +835,11 @@ class ResultController extends Controller
                     ],
                     [
                         'ic_type' => $ic_type,
-                        'name' => null,
+                        'name' => $patient_name,
                         'dob' => null,
                         'age' => $patient_age,
-                        'gender' => $patient_gender
+                        'gender' => $patient_gender,
+                        'tel' => $patient_tel,
                     ]
                 );
 
@@ -652,17 +847,23 @@ class ResultController extends Controller
                 $patient_id = $patient->id;
 
                 //create test result 
-                $test_result = TestResult::firstOrCreate([
-                    'doctor_code_id' => $doctor_code_id,
-                    'patient_id' => $patient_id,
-                    'ref_id' => $reference_id,
-                    'bill_code' => $bill_code,
-                    'lab_no' => $lab_no,
-                    'collected_date' => $collected_date,
-                    'received_date' => $received_date,
-                    'reported_date' => $reported_date,
-                    'is_completed' => $is_completed
-                ]);
+                $test_result = TestResult::firstOrCreate(
+                    [
+                        'doctor_code_id' => $doctor_code_id,
+                        'patient_id' => $patient_id,
+                        'lab_no' => $lab_no,
+                    ],
+                    [
+                        'ref_id' => $reference_id,
+                        'bill_code' => $bill_code,
+                        'collected_date' => $collected_date,
+                        'received_date' => $received_date,
+                        'reported_date' => $reported_date,
+                        'is_completed' => true,
+                        'validated_by' => $validated_by,
+                        'package_name' => $package_name,
+                    ]
+                );
 
                 //get test result id
                 $test_result_id = $test_result->id;
@@ -673,7 +874,8 @@ class ResultController extends Controller
                     $panel_name = $key;
                     $panel_code = $item['panel_code'];
                     $panel_sequence = $item['panel_sequence'];
-                    $overall_notes = $item['overall_notes'];
+                    $overall_notes = $item['panel_remarks'];
+                    $result_status = $item['result_status'];
 
                     //create panel
                     $panel = Panel::firstOrCreate(
@@ -728,7 +930,6 @@ class ResultController extends Controller
                             //create test result item (with result value)
                             TestResultItem::firstOrCreate(
                                 [
-
                                     'test_result_id' => $test_result_id,
                                     'reference_range_id' => $ref_range_id,
                                     'value' => $test['result_value']
@@ -737,7 +938,7 @@ class ResultController extends Controller
                                     'flag' => $test['result_flag'],
                                     'test_notes' => $test['test_note'],
                                     'status' => 'C',
-                                    'is_completed' => true
+                                    'is_completed' => $result_status != 1 ? false : true
                                 ]
                             );
                         }
@@ -747,7 +948,6 @@ class ResultController extends Controller
                 //create delivery file for tracking purposes
                 $deliveryFile = DeliveryFile::firstOrCreate(
                     [
-
                         'test_result_id' => $test_result_id,
                     ],
                     [

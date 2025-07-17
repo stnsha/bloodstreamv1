@@ -10,19 +10,19 @@
     },
     "servers": [
         {
-            "url": "http://127.0.0.1:8000/api/v1",
+            "url": "http://127.0.0.1:8000",
             "description": "Development Server"
         }
     ],
     "paths": {
-        "/login": {
+        "/api/v1/login": {
             "post": {
                 "tags": [
                     "Authentication"
                 ],
                 "summary": "Login with lab credentials",
                 "description": "Authenticate lab user and return JWT token",
-                "operationId": "d618a255475240ba3d40cc39692cd924",
+                "operationId": "92de08666e40760bb4a67b9c875bd002",
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -94,14 +94,14 @@
                 }
             }
         },
-        "/logout": {
+        "/api/v1/logout": {
             "post": {
                 "tags": [
                     "Authentication"
                 ],
                 "summary": "Logout lab user",
                 "description": "Logout the authenticated lab user and invalidate the JWT token",
-                "operationId": "1e357eb2c93a1bdabebcebfa088332bf",
+                "operationId": "734ba9bbf120e279bea89fa1b5301620",
                 "responses": {
                     "200": {
                         "description": "Logout successful",
@@ -146,7 +146,7 @@
                 ]
             }
         },
-        "/result/panel": {
+        "/api/v1/result/panel": {
             "post": {
                 "tags": [
                     "Result"
@@ -198,7 +198,7 @@
                                             "PatientLastName": {
                                                 "description": "Patient last name",
                                                 "type": "string",
-                                                "example": "SANJEV TESTING"
+                                                "example": "JOHN DOE"
                                             },
                                             "PatientFirstName": {
                                                 "description": "Patient first name",
@@ -245,7 +245,7 @@
                                                 "FillerOrderNumber": {
                                                     "description": "Filler order number",
                                                     "type": "string",
-                                                    "example": "25-8888861"
+                                                    "example": "12-3456789"
                                                 },
                                                 "PlacerGroupNumber": {
                                                     "description": "Placer group number",
@@ -271,11 +271,11 @@
                                                     "properties": {
                                                         "Code": {
                                                             "type": "string",
-                                                            "example": "NMGL9"
+                                                            "example": "JHDE9"
                                                         },
                                                         "Name": {
                                                             "type": "string",
-                                                            "example": "NG MING LEE (BUKIT BARU)"
+                                                            "example": "DR JOHN DOE"
                                                         }
                                                     },
                                                     "type": "object"
@@ -295,7 +295,7 @@
                                                             },
                                                             "FillerOrderNumber": {
                                                                 "type": "string",
-                                                                "example": "25-8888861"
+                                                                "example": "12-3456789"
                                                             },
                                                             "ProcedureCode": {
                                                                 "type": "string",
@@ -337,11 +337,11 @@
                                                                 "properties": {
                                                                     "Code": {
                                                                         "type": "string",
-                                                                        "example": "NMGL9"
+                                                                        "example": "JHDE9"
                                                                     },
                                                                     "Name": {
                                                                         "type": "string",
-                                                                        "example": "NG MING LEE (BUKIT BARU)"
+                                                                        "example": "DR JOHN DOE"
                                                                     }
                                                                 },
                                                                 "type": "object"
@@ -475,6 +475,257 @@
                                                     "items": {
                                                         "type": "string",
                                                         "example": "The patient.AlternatePatientID field is required."
+                                                    }
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error - Failed to save data",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string",
+                                            "example": "Failed to save data"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/result/patient": {
+            "post": {
+                "tags": [
+                    "Result"
+                ],
+                "summary": "Submit lab results for a patient.",
+                "description": "Receives a formatted JSON payload containing complete lab test results for a patient including multiple panels and tests.",
+                "operationId": "labResults",
+                "requestBody": {
+                    "description": "Lab results data",
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "reference_id",
+                                    "lab_no",
+                                    "doctor_code",
+                                    "patient",
+                                    "results"
+                                ],
+                                "properties": {
+                                    "reference_id": {
+                                        "description": "Reference ID for the test",
+                                        "type": "string",
+                                        "example": "ABC12345"
+                                    },
+                                    "lab_no": {
+                                        "description": "Laboratory number",
+                                        "type": "string",
+                                        "example": "123456789"
+                                    },
+                                    "bill_code": {
+                                        "description": "Billing code",
+                                        "type": "string",
+                                        "example": "AMC_ALPRO"
+                                    },
+                                    "doctor_code": {
+                                        "description": "Doctor code",
+                                        "type": "string",
+                                        "example": "ABC122"
+                                    },
+                                    "received_date": {
+                                        "description": "Date when sample was received",
+                                        "type": "string",
+                                        "format": "date-time",
+                                        "example": "2025-01-19 00:00:00"
+                                    },
+                                    "reported_date": {
+                                        "description": "Date when results were reported",
+                                        "type": "string",
+                                        "format": "date-time",
+                                        "example": "2025-01-19 00:00:00"
+                                    },
+                                    "collected_date": {
+                                        "description": "Date when sample was collected",
+                                        "type": "string",
+                                        "format": "date-time",
+                                        "example": "2025-01-19 00:00:00"
+                                    },
+                                    "validated_by": {
+                                        "description": "Person who validated the results",
+                                        "type": "string",
+                                        "example": "Richard Roe, Bsc in Biomedical"
+                                    },
+                                    "patient": {
+                                        "required": [
+                                            "patient_icno",
+                                            "patient_name"
+                                        ],
+                                        "properties": {
+                                            "patient_icno": {
+                                                "description": "Patient IC number",
+                                                "type": "string",
+                                                "example": "870521145681"
+                                            },
+                                            "patient_gender": {
+                                                "description": "Patient gender",
+                                                "type": "string",
+                                                "example": "Male"
+                                            },
+                                            "patient_age": {
+                                                "description": "Patient age",
+                                                "type": "string",
+                                                "example": "54"
+                                            },
+                                            "patient_name": {
+                                                "description": "Patient name",
+                                                "type": "string",
+                                                "example": "JOHN DOE"
+                                            },
+                                            "patient_tel": {
+                                                "description": "Patient telephone number",
+                                                "type": "string",
+                                                "example": "012-3456789"
+                                            }
+                                        },
+                                        "type": "object"
+                                    },
+                                    "package_name": {
+                                        "description": "Test package name",
+                                        "type": "string",
+                                        "example": "AC ESSENTIAL PACKAGE"
+                                    },
+                                    "results": {
+                                        "description": "Test results organized by panel",
+                                        "properties": {
+                                            "Haematology": {
+                                                "properties": {
+                                                    "panel_sequence": {
+                                                        "description": "Panel sequence number",
+                                                        "type": "integer",
+                                                        "example": 1
+                                                    },
+                                                    "panel_remarks": {
+                                                        "description": "Panel remarks",
+                                                        "type": "string",
+                                                        "example": null,
+                                                        "nullable": true
+                                                    },
+                                                    "tests": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "properties": {
+                                                                "test_name": {
+                                                                    "type": "string",
+                                                                    "example": "Haemoglobin"
+                                                                },
+                                                                "result_value": {
+                                                                    "type": "string",
+                                                                    "example": "15.7"
+                                                                },
+                                                                "result_flag": {
+                                                                    "type": "string",
+                                                                    "example": null,
+                                                                    "nullable": true
+                                                                },
+                                                                "unit": {
+                                                                    "type": "string",
+                                                                    "example": "g/dL"
+                                                                },
+                                                                "ref_range": {
+                                                                    "type": "string",
+                                                                    "example": "M: 13.0 - 18.0; F: 11.5 - 16.0"
+                                                                },
+                                                                "test_note": {
+                                                                    "type": "string",
+                                                                    "example": null,
+                                                                    "nullable": true
+                                                                },
+                                                                "report_sequence": {
+                                                                    "type": "integer",
+                                                                    "example": 1
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        }
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Lab results processed successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "description": "Test result ID",
+                                    "type": "integer"
+                                },
+                                "example": 123
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - Invalid or missing authentication token",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Unauthenticated."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error - Invalid input data",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "The given data was invalid."
+                                        },
+                                        "errors": {
+                                            "properties": {
+                                                "patient.patient_icno": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "string",
+                                                        "example": "The patient.patient_icno field is required."
                                                     }
                                                 }
                                             },

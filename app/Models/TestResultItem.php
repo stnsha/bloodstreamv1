@@ -19,4 +19,12 @@ class TestResultItem extends Model
         'status',
         'is_completed'
     ];
+
+    protected $attributes = [
+        'value' => null,
+        'flag' => null,
+        'test_notes' => null,
+        'status' => null,
+        'is_completed' => false,
+    ];
 }

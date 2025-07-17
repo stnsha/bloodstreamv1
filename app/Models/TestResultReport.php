@@ -15,4 +15,8 @@ class TestResultReport extends Model
         'text',
         'is_completed',
     ];
+
+    protected $attributes = [
+        'is_completed' => false,
+    ];
 }
