@@ -10,19 +10,22 @@
 
 <body class="antialiased bg-stone-50">
     <nav class="border-b-2 border-stone-100">
-        <div class="flex justify-between max-w-screen-xl px-4 py-3 mx-auto">
+        <div class="flex justify-between max-w-screen-xl pl-4 pr-32 py-3 mx-auto">
             <div class="flex items-center">
                 <ul class="flex flex-row font-medium mt-0 space-x-8 rtl:space-x-reverse text-sm">
-                    <li>
-                        <a href="{{ route('dashboard') }}"
-                            class="{{ request()->is('dashboard') ? 'text-red-800 hover:text-[#003049]' : 'text-gray-900 hover:text-red-800' }}">
-                            Dashboard
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{{ route('lab.index') }}"
-                            class="{{ request()->is('lab') ? 'text-red-800 hover:text-[#003049]' : 'text-gray-900 hover:text-red-800' }}">Labs</a>
-                    </li>
+                    @if (Auth::user()->credential->role == 'admin')
+                        <li>
+                            <a href="{{ route('dashboard') }}"
+                                class="{{ request()->is('dashboard') ? 'text-red-800 hover:text-[#003049]' : 'text-gray-900 hover:text-red-800' }}">
+                                Dashboard
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('lab.index') }}"
+                                class="{{ request()->is('lab') ? 'text-red-800 hover:text-[#003049]' : 'text-gray-900 hover:text-red-800' }}">Labs</a>
+                        </li>
+                    @endif
+
                     <li>
                         <a href="api/documentation" class="text-gray-900 hover:text-red-800">API Documentation</a>
                     </li>
@@ -37,7 +40,7 @@
                     </li> --}}
                 </ul>
             </div>
-            <div class="flex items-center">
+            <div class="flex ">
                 <a href="{{ route('logout') }}" type="button"
                     class="text-white bg-[#003049] hover:bg-blue-900 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm w-full sm:w-auto px-5 py-2.5 text-center">Logout</a>
             </div>

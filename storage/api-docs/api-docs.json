@@ -2,7 +2,7 @@
     "openapi": "3.0.0",
     "info": {
         "title": "Blood Stream v1 API",
-        "description": "This API facilitates the secure and structured integration of blood test result data between external laboratory systems and Alpro's internal infrastructure. It enables seamless transmission, standardization, and accessibility of diagnostic information for clinical interpretation by authorized healthcare professionals.",
+        "description": "",
         "contact": {
             "name": "Digital Innovation"
         },
@@ -525,7 +525,6 @@
                         "application/json": {
                             "schema": {
                                 "required": [
-                                    "reference_id",
                                     "lab_no",
                                     "doctor_code",
                                     "patient",

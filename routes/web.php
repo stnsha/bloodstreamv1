@@ -35,6 +35,3 @@ Route::middleware(['auth'])->group(function () {
 
     Route::resource('lab', LabController::class);
 });
-Route::get('/check-auth', function () {
-    return Auth::guard('web')->check() ? 'Logged in' : 'Not logged in';
-});

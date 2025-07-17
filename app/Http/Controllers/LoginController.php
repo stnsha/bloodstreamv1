@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Models\LabCredential;
+use App\Models\User;
+use Illuminate\Support\Facades\Hash;
 
 class LoginController extends Controller
 {
@@ -15,21 +18,41 @@ class LoginController extends Controller
     public function login(Request $request)
     {
         $validated = $request->validate([
-            'email' => 'required|email',
+            'username' => 'required|string',
             'password' => 'required|string',
         ], [
-            'email.required' => 'Email is required.',
+            'username.required' => 'Username/Email is required.',
             'password.required' => 'Password is required.',
         ]);
 
         if ($validated) {
-            $credentials = $request->only('email', 'password');
+            $credentials = $request->only('username', 'password');
+            $username = $request->input('username');
 
-            if (Auth::attempt($credentials)) {
-                return redirect()->intended('dashboard');
+            // Check if username is an email address
+            if (filter_var($username, FILTER_VALIDATE_EMAIL)) {
+                // If it's an email, use the standard Auth attempt (web guard - User model)
+                if (Auth::guard('web')->attempt(['email' => $username, 'password' => $credentials['password']])) {
+                    return redirect()->intended('dashboard');
+                }
+            } else {
+                // If it's not an email, search for username in lab credentials using the relationship
+                $labCredential = LabCredential::where('username', $username)->first();
+
+                if ($labCredential && Hash::check($credentials['password'], $labCredential->password)) {
+                    // Get the associated user through the relationship
+                    $user = User::find($labCredential->user_id);
+
+                    if ($user) {
+                        // Login the user
+                        Auth::login($user);
+                        return redirect()->intended('dashboard');
+                    }
+                }
             }
         }
-        return back()->withErrors(['login' => 'Invalid email or password. Please contact admin.']);
+
+        return back()->withErrors(['login' => 'Invalid username or password. Please contact admin.']);
     }
 
     public function logout(Request $request)

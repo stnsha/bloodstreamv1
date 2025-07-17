@@ -13,11 +13,12 @@
         <form action="{{ route('login') }}" method="post">
             @csrf
             <div class="mb-5">
-                <label for="email" class="block mb-2 text-sm font-medium text-gray-900">Email</label>
-                <input type="email" id="email" name="email"
+                <label for="username" class="block mb-2 text-sm font-medium text-gray-900">Username/Email</label>
+                <input type="text" id="username" name="username"
                     class="bg-gray-50 border border-gray-300 text-gray-900 text- rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" />
-                @error('email')
-                    <div class="bg-red-100 text-red-800 text-xs font-medium me-2 px-2.5 py-0.5 rounded">{{ $message }}
+                @error('username')
+                    <div class="bg-red-100 text-red-800 text-xs font-medium mt-2 me-2 px-2.5 py-0.5 rounded">
+                        {{ $message }}
                     </div>
                 @enderror
             </div>
@@ -26,11 +27,12 @@
                 <input type="password" id="password" name="password"
                     class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" />
                 @error('password')
-                    <div class="bg-red-100 text-red-800 text-xs font-medium me-2 px-2.5 py-1.5 rounded">{{ $message }}
+                    <div class="bg-red-100 text-red-800 text-xs font-medium mt-2 me-2 px-2.5 py-1.5 rounded">
+                        {{ $message }}
                     </div>
                 @enderror
             </div>
-            @if ($errors->any())
+            @if ($errors->has('login'))
                 <div class="bg-red-100 text-red-800 text-xs font-medium me-2 px-2.5 py-1.5 rounded mb-5">
                     <ul>
                         @foreach ($errors->all() as $error)

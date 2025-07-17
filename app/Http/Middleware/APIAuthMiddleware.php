@@ -18,14 +18,17 @@ class APIAuthMiddleware
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // Log::info('APIAuthMiddleware: Starting authentication check');
-        // Log::info('Authorization header: ' . $request->header('Authorization'));
+        $token = $request->bearerToken() ?? $request->cookie('jwt_token');
 
-        $user = Auth::guard('lab')->user();
-        // Log::info('Authenticated user: ' . ($user ? $user->id : 'null'));
-
-        if (!$user) {
+        if (!$token) {
             return response()->json(['error' => 'Unauthorized. Token is required.'], 401);
+        }
+
+        try {
+            $user = Auth::guard('lab')->setToken($token)->user();
+            Auth::guard('lab')->setUser($user);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Invalid token'], 401);
         }
 
         $labCredential = LabCredential::where('lab_id', $user->lab_id)->first();
@@ -33,6 +36,7 @@ class APIAuthMiddleware
         if ($labCredential && !in_array($labCredential->role, ['lab', 'admin'])) {
             return response()->json(['error' => 'Access restricted'], 403);
         }
+
         return $next($request);
     }
 }

@@ -594,7 +594,7 @@ class ResultController extends Controller
      *         description="Lab results data",
      *         @OA\JsonContent(
      *             type="object",
-     *             required={"reference_id", "lab_no", "doctor_code", "patient", "results"},
+     *             required={"lab_no", "doctor_code", "patient", "results"},
      *             @OA\Property(
      *                 property="reference_id",
      *                 type="string",
