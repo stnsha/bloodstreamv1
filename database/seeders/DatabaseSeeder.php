@@ -39,6 +39,12 @@ class DatabaseSeeder extends Seeder
             [
                 'name' => 'Innoquest Pathology Sdn Bhd',
             ],
+            [
+                'name' => 'Navipath Diagnostics Sdn Bhd',
+            ],
+            [
+                'name' => 'Premier Integrated Labs Sdn Bhd',
+            ],
         ];
 
         foreach ($labs as $lab) {
