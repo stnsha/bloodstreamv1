@@ -18,14 +18,13 @@ class APIAuthMiddleware
      */
     public function handle(Request $request, Closure $next): Response
     {
-        Log::info('APIAuthMiddleware: Starting authentication check');
-        Log::info('Authorization header: ' . $request->header('Authorization'));
+        // Log::info('APIAuthMiddleware: Starting authentication check');
+        // Log::info('Authorization header: ' . $request->header('Authorization'));
 
         $user = Auth::guard('lab')->user();
-        Log::info('Authenticated user: ' . ($user ? $user->id : 'null'));
+        // Log::info('Authenticated user: ' . ($user ? $user->id : 'null'));
 
         if (!$user) {
-            Log::warning('APIAuthMiddleware: No authenticated user found');
             return response()->json(['error' => 'Unauthorized. Token is required.'], 401);
         }
 
