@@ -2,7 +2,7 @@
     "openapi": "3.0.0",
     "info": {
         "title": "Blood Stream v1 API",
-        "description": "This API facilitates the secure and structured integration of blood test result data between external laboratory systems and Alpro’s internal infrastructure. It enables seamless transmission, standardization, and accessibility of diagnostic information for clinical interpretation by authorized healthcare professionals.",
+        "description": "This API facilitates the secure and structured integration of blood test result data between external laboratory systems and Alpro's internal infrastructure. It enables seamless transmission, standardization, and accessibility of diagnostic information for clinical interpretation by authorized healthcare professionals.",
         "contact": {
             "name": "Digital Innovation"
         },
@@ -10,41 +10,36 @@
     },
     "servers": [
         {
-            "url": "http://127.0.0.1:8000",
-            "description": "Local Server"
-        },
-        {
-            "url": "http://172.18.28.51:8002",
-            "description": "MyHealth Server"
+            "url": "http://127.0.0.1:8000/api/v1",
+            "description": "Development Server"
         }
     ],
     "paths": {
-        "/api/register": {
+        "/login": {
             "post": {
                 "tags": [
-                    "LabCredential"
+                    "Authentication"
                 ],
-                "summary": "Register a new lab credential",
-                "description": "Creates a user and a lab credential using email and lab ID.",
-                "operationId": "a718f172ff3ac464d723835815f8fb57",
+                "summary": "Login with lab credentials",
+                "description": "Authenticate lab user and return JWT token",
+                "operationId": "d618a255475240ba3d40cc39692cd924",
                 "requestBody": {
                     "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
                                 "required": [
-                                    "email",
-                                    "lab_id"
+                                    "username",
+                                    "password"
                                 ],
                                 "properties": {
-                                    "email": {
+                                    "username": {
                                         "type": "string",
-                                        "format": "email",
-                                        "example": "labuser@example.com"
+                                        "example": "LAB001user"
                                     },
-                                    "lab_id": {
-                                        "type": "integer",
-                                        "example": 1
+                                    "password": {
+                                        "type": "string",
+                                        "example": "password123"
                                     }
                                 },
                                 "type": "object"
@@ -54,22 +49,38 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Lab credential successfully created",
+                        "description": "Login successful",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "properties": {
-                                        "message": {
+                                        "access_token": {
                                             "type": "string",
-                                            "example": "Lab credential successfully created."
+                                            "example": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
                                         },
-                                        "username": {
+                                        "token_type": {
                                             "type": "string",
-                                            "example": "LAB001use"
+                                            "example": "bearer"
                                         },
-                                        "password": {
+                                        "expires_in": {
+                                            "type": "integer",
+                                            "example": 3600
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
                                             "type": "string",
-                                            "example": "randompass123"
+                                            "example": "Unauthorized"
                                         }
                                     },
                                     "type": "object"
@@ -82,12 +93,441 @@
                     }
                 }
             }
+        },
+        "/logout": {
+            "post": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Logout lab user",
+                "description": "Logout the authenticated lab user and invalidate the JWT token",
+                "operationId": "1e357eb2c93a1bdabebcebfa088332bf",
+                "responses": {
+                    "200": {
+                        "description": "Logout successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Successfully logged out."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Logout failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Failed to logout, please try again."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - Invalid or missing token"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/result/panel": {
+            "post": {
+                "tags": [
+                    "Result"
+                ],
+                "summary": "Submit individual result panel for a patient.",
+                "description": "Receives a formatted JSON payload from an external lab, delivering results per panel for a patient rather than the full set of results.",
+                "operationId": "panelResults",
+                "requestBody": {
+                    "description": "Innoquest format panel results data",
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "patient",
+                                    "Orders"
+                                ],
+                                "properties": {
+                                    "SendingFacility": {
+                                        "description": "Facility sending the results",
+                                        "type": "string",
+                                        "example": "LABCMS"
+                                    },
+                                    "MessageControlID": {
+                                        "description": "Batch control ID",
+                                        "type": "string",
+                                        "example": "123456789"
+                                    },
+                                    "patient": {
+                                        "required": [
+                                            "AlternatePatientID"
+                                        ],
+                                        "properties": {
+                                            "PatientID": {
+                                                "description": "Internal patient ID",
+                                                "type": "string",
+                                                "example": ""
+                                            },
+                                            "PatientExternalID": {
+                                                "description": "External patient reference ID",
+                                                "type": "string",
+                                                "example": ""
+                                            },
+                                            "AlternatePatientID": {
+                                                "description": "Patient IC number",
+                                                "type": "string",
+                                                "example": "901234567890"
+                                            },
+                                            "PatientLastName": {
+                                                "description": "Patient last name",
+                                                "type": "string",
+                                                "example": "SANJEV TESTING"
+                                            },
+                                            "PatientFirstName": {
+                                                "description": "Patient first name",
+                                                "type": "string",
+                                                "example": ""
+                                            },
+                                            "PatientMiddleName": {
+                                                "description": "Patient middle name",
+                                                "type": "string",
+                                                "example": ""
+                                            },
+                                            "PatientDOB": {
+                                                "description": "Patient date of birth in YYYYMMDD format",
+                                                "type": "string",
+                                                "example": "20010325"
+                                            },
+                                            "PatientGender": {
+                                                "description": "Patient gender (M/F)",
+                                                "type": "string",
+                                                "example": "F"
+                                            },
+                                            "PatientAddress": {
+                                                "description": "Patient address",
+                                                "type": "string",
+                                                "example": "KLANG"
+                                            },
+                                            "PatientNationality": {
+                                                "description": "Patient nationality",
+                                                "type": "string",
+                                                "example": ""
+                                            }
+                                        },
+                                        "type": "object"
+                                    },
+                                    "Orders": {
+                                        "type": "array",
+                                        "items": {
+                                            "properties": {
+                                                "PlacerOrderNumber": {
+                                                    "description": "Placer order number",
+                                                    "type": "string",
+                                                    "example": "LAB12345"
+                                                },
+                                                "FillerOrderNumber": {
+                                                    "description": "Filler order number",
+                                                    "type": "string",
+                                                    "example": "25-8888861"
+                                                },
+                                                "PlacerGroupNumber": {
+                                                    "description": "Placer group number",
+                                                    "type": "string",
+                                                    "example": ""
+                                                },
+                                                "Status": {
+                                                    "description": "Order status",
+                                                    "type": "string",
+                                                    "example": ""
+                                                },
+                                                "Quantity": {
+                                                    "description": "Order quantity",
+                                                    "type": "string",
+                                                    "example": ""
+                                                },
+                                                "TransactionDateTime": {
+                                                    "description": "Transaction date time",
+                                                    "type": "string",
+                                                    "example": ""
+                                                },
+                                                "OrderingProvider": {
+                                                    "properties": {
+                                                        "Code": {
+                                                            "type": "string",
+                                                            "example": "NMGL9"
+                                                        },
+                                                        "Name": {
+                                                            "type": "string",
+                                                            "example": "NG MING LEE (BUKIT BARU)"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "Organization": {
+                                                    "description": "Organization",
+                                                    "type": "string",
+                                                    "example": ""
+                                                },
+                                                "Observations": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "properties": {
+                                                            "PlacerOrderNumber": {
+                                                                "type": "string",
+                                                                "example": "LAB12345"
+                                                            },
+                                                            "FillerOrderNumber": {
+                                                                "type": "string",
+                                                                "example": "25-8888861"
+                                                            },
+                                                            "ProcedureCode": {
+                                                                "type": "string",
+                                                                "example": "FBC"
+                                                            },
+                                                            "ProcedureDescription": {
+                                                                "type": "string",
+                                                                "example": "FULL BLOOD COUNT"
+                                                            },
+                                                            "PackageCode": {
+                                                                "type": "string",
+                                                                "example": ""
+                                                            },
+                                                            "Priority": {
+                                                                "type": "string",
+                                                                "example": ""
+                                                            },
+                                                            "RequestedDateTime": {
+                                                                "type": "string",
+                                                                "example": "20250404"
+                                                            },
+                                                            "StartDateTime": {
+                                                                "type": "string",
+                                                                "example": "202507101000"
+                                                            },
+                                                            "EndDateTime": {
+                                                                "type": "string",
+                                                                "example": ""
+                                                            },
+                                                            "ClinicalInformation": {
+                                                                "type": "string",
+                                                                "example": ""
+                                                            },
+                                                            "SpecimenDateTime": {
+                                                                "type": "string",
+                                                                "example": "202507100918"
+                                                            },
+                                                            "OrderingProvider": {
+                                                                "properties": {
+                                                                    "Code": {
+                                                                        "type": "string",
+                                                                        "example": "NMGL9"
+                                                                    },
+                                                                    "Name": {
+                                                                        "type": "string",
+                                                                        "example": "NG MING LEE (BUKIT BARU)"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            },
+                                                            "ResultStatus": {
+                                                                "type": "string",
+                                                                "example": "F"
+                                                            },
+                                                            "ServiceDateTime": {
+                                                                "type": "string",
+                                                                "example": "20250404"
+                                                            },
+                                                            "ResultPriority": {
+                                                                "type": "string",
+                                                                "example": "R"
+                                                            },
+                                                            "Results": {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "properties": {
+                                                                        "ID": {
+                                                                            "type": "string",
+                                                                            "example": "1"
+                                                                        },
+                                                                        "Type": {
+                                                                            "type": "string",
+                                                                            "example": "FT"
+                                                                        },
+                                                                        "Identifier": {
+                                                                            "type": "string",
+                                                                            "example": "REPORT"
+                                                                        },
+                                                                        "Text": {
+                                                                            "type": "string",
+                                                                            "example": ""
+                                                                        },
+                                                                        "CodingSystem": {
+                                                                            "type": "string",
+                                                                            "example": "LN"
+                                                                        },
+                                                                        "Value": {
+                                                                            "type": "string",
+                                                                            "example": "130"
+                                                                        },
+                                                                        "Units": {
+                                                                            "type": "string",
+                                                                            "example": "g/L"
+                                                                        },
+                                                                        "ReferenceRange": {
+                                                                            "type": "string",
+                                                                            "example": "120-150"
+                                                                        },
+                                                                        "Flags": {
+                                                                            "type": "string",
+                                                                            "example": "N"
+                                                                        },
+                                                                        "Status": {
+                                                                            "type": "string",
+                                                                            "example": "F"
+                                                                        },
+                                                                        "ObservationDateTime": {
+                                                                            "type": "string",
+                                                                            "example": "202507101610"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                }
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    }
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "EncodedBase64pdf": {
+                                        "description": "Base64 encoded PDF report",
+                                        "type": "string",
+                                        "example": "JVBERi0xLjQKJcOkw7zDtsO..."
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Panel results processed successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "description": "Test result ID",
+                                    "type": "integer"
+                                },
+                                "example": 123
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - Invalid or missing authentication token",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Unauthenticated."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error - Invalid input data",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "The given data was invalid."
+                                        },
+                                        "errors": {
+                                            "properties": {
+                                                "patient.AlternatePatientID": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "string",
+                                                        "example": "The patient.AlternatePatientID field is required."
+                                                    }
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error - Failed to save data",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string",
+                                            "example": "Failed to save data"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "bearerFormat": "JWT",
+                "scheme": "bearer"
+            }
         }
     },
     "tags": [
         {
-            "name": "LabCredential",
-            "description": "LabCredential"
+            "name": "Authentication",
+            "description": "Authentication"
+        },
+        {
+            "name": "Result",
+            "description": "Result"
         }
     ]
 }

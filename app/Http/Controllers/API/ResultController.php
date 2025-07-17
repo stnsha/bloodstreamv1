@@ -25,192 +25,248 @@ use Carbon\Carbon;
 class ResultController extends Controller
 {
     /**
-     * General API for Lab Results
-     */
-    public function labResults(StorePatientResultRequest $request)
-    {
-        $validated = $request->validated();
-        try {
-            if ($validated) {
-                DB::beginTransaction();
-                $user = Auth::guard('lab')->user();
-                $lab_id = $user->lab_id;
-
-                if (filled($validated['sending_facility']) && $validated['sending_facility'] === 'INN') {
-                    $sending_facility = $validated['sending_facility'];
-                    $batch_id = $validated['batch_id'] ?? null;
-                    $is_completed = true;
-                } else {
-                    $sending_facility = $user->lab->code . 'API';
-                    $batch_id = now()->format('YmdHis') . $user->lab->code;
-                    $is_completed = false;
-                }
-
-                $patient_icno = $validated['patient_icno'];
-                $ic_type = $validated['ic_type'];
-                $patient_age = $validated['patient_age'];
-                $patient_gender = $validated['patient_gender'];
-                $reference_id = $validated['reference_id'];
-                $bill_code = $validated['bill_code'];
-                $lab_no = $validated['lab_no'];
-                $doctor_code = $validated['doctor_code'];
-                $collected_date = $validated['collected_date'];
-                $received_date = $validated['received_date'];
-                $reported_date = $validated['reported_date'];
-                $results = $validated['results'];
-
-                $doctor_code = DoctorCode::firstOrCreate(
-                    [
-
-                        'lab_id' => $lab_id,
-                        'name' => $doctor_code,
-                    ],
-                    [
-                        'code' => $doctor_code
-                    ]
-                );
-
-                $doctor_code_id = $doctor_code->id;
-
-                $patient = Patient::firstOrCreate(
-                    [
-                        'icno' => $patient_icno
-                    ],
-                    [
-                        'ic_type' => $ic_type,
-                        'name' => null,
-                        'dob' => null,
-                        'age' => $patient_age,
-                        'gender' => $patient_gender
-                    ]
-                );
-
-                $patient_id = $patient->id;
-
-                $test_result = TestResult::firstOrCreate([
-                    'doctor_code_id' => $doctor_code_id,
-                    'patient_id' => $patient_id,
-                    'ref_id' => $reference_id,
-                    'bill_code' => $bill_code,
-                    'lab_no' => $lab_no,
-                    'collected_date' => $collected_date,
-                    'received_date' => $received_date,
-                    'reported_date' => $reported_date,
-                    'is_completed' => $is_completed
-                ]);
-
-                $test_result_id = $test_result->id;
-
-                foreach ($results as $key => $item) {
-                    $panel_name = $key;
-                    $panel_code = $item['panel_code'];
-                    $panel_sequence = $item['panel_sequence'];
-                    $overall_notes = $item['overall_notes'];
-
-                    $panel = Panel::firstOrCreate(
-                        [
-                            'lab_id' => $lab_id,
-                            'name' => $panel_name,
-                        ],
-                        [
-                            'code' => $panel_code,
-                            'sequence' => $panel_sequence,
-                            'overall_notes' => $overall_notes
-                        ]
-                    );
-                    $panel_id = $panel->id;
-
-                    if (filled($item['tests'])) {
-                        foreach ($item['tests'] as $index => $test) {
-                            $panel_item = PanelItem::firstOrCreate(
-                                [
-                                    'panel_id' => $panel_id,
-                                    'name' => $test['test_name'],
-                                ],
-                                [
-                                    'decimal_point' => $test['decimal_point'],
-                                    'unit' => $test['unit'],
-                                    'item_sequence' => $test['item_sequence']
-                                ]
-                            );
-                            $panel_item_id = $panel_item->id;
-
-                            if (filled($test['ref_range'])) {
-                                $ref_range = ReferenceRange::firstOrCreate(
-                                    [
-                                        'value' => $test['ref_range'],
-                                        'panel_item_id' => $panel_item_id,
-                                    ]
-                                );
-
-                                $ref_range_id = $ref_range->id;
-                            }
-
-                            TestResultItem::firstOrCreate(
-                                [
-
-                                    'test_result_id' => $test_result_id,
-                                    'reference_range_id' => $ref_range_id,
-                                    'value' => $test['result_value']
-                                ],
-                                [
-                                    'flag' => $test['result_flag'],
-                                    'test_notes' => $test['test_note'],
-                                    'status' => 'C',
-                                    'is_completed' => true
-                                ]
-                            );
-                        }
-                    }
-                }
-
-                $deliveryFile = DeliveryFile::firstOrCreate(
-                    [
-
-                        'test_result_id' => $test_result_id,
-                    ],
-                    [
-                        'lab_id' => $lab_id,
-                        'sending_facility' => $sending_facility,
-                        'batch_id' => $batch_id,
-                        'json_content' => json_encode($validated),
-                        'status' => DeliveryFile::compl,
-                    ]
-                );
-
-                DB::commit();
-                return response()->json([
-                    'status' => 'success',
-                    'message' => 'Blood test results successfully submitted.',
-                    'result_id' => $test_result_id
-                ]);
-            }
-        } catch (\Throwable $e) {
-            DB::rollBack();
-
-            /** @var \Illuminate\Http\Request $request */
-            Log::error('Failed to save data', [
-                'exception' => $e->getMessage(),
-                'data' => json_encode($request->all()),
-            ]);
-
-            if (isset($deliveryFile)) {
-                DeliveryFileHistory::create([
-                    'delivery_file_id' => $deliveryFile->id,
-                    'message' => $e->getMessage(),
-                    'err_code' => '500',
-                ]);
-
-                $deliveryFile->update(['status' => DeliveryFile::fld]);
-            }
-
-            return response()->json([
-                'error' => 'Failed to save data',
-            ], 500);
-        }
-    }
-
-    /**
+     * @OA\Post(
+     *     path="/result/panel",
+     *     summary="Submit individual result panel for a patient.",
+     *     description="Receives a formatted JSON payload from an external lab, delivering results per panel for a patient rather than the full set of results.",
+     *     operationId="panelResults",
+     *     tags={"Result"},
+     *     security={{"bearerAuth": {}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         description="Innoquest format panel results data",
+     *         @OA\JsonContent(
+     *             type="object",
+     *             required={"patient", "Orders"},
+     *             @OA\Property(
+     *                 property="SendingFacility",
+     *                 type="string",
+     *                 description="Facility sending the results",
+     *                 example="LABCMS"
+     *             ),
+     *             @OA\Property(
+     *                 property="MessageControlID",
+     *                 type="string",
+     *                 description="Batch control ID",
+     *                 example="123456789"
+     *             ),
+     *             @OA\Property(
+     *                 property="patient",
+     *                 type="object",
+     *                 required={"AlternatePatientID"},
+     *                 @OA\Property(
+     *                     property="PatientID",
+     *                     type="string",
+     *                     description="Internal patient ID",
+     *                     example=""
+     *                 ),
+     *                 @OA\Property(
+     *                     property="PatientExternalID",
+     *                     type="string",
+     *                     description="External patient reference ID",
+     *                     example=""
+     *                 ),
+     *                 @OA\Property(
+     *                     property="AlternatePatientID",
+     *                     type="string",
+     *                     description="Patient IC number",
+     *                     example="901234567890"
+     *                 ),
+     *                 @OA\Property(
+     *                     property="PatientLastName",
+     *                     type="string",
+     *                     description="Patient last name",
+     *                     example="JOHN DOE"
+     *                 ),
+     *                 @OA\Property(
+     *                     property="PatientFirstName",
+     *                     type="string",
+     *                     description="Patient first name",
+     *                     example=""
+     *                 ),
+     *                 @OA\Property(
+     *                     property="PatientMiddleName",
+     *                     type="string",
+     *                     description="Patient middle name",
+     *                     example=""
+     *                 ),
+     *                 @OA\Property(
+     *                     property="PatientDOB",
+     *                     type="string",
+     *                     description="Patient date of birth in YYYYMMDD format",
+     *                     example="20010325"
+     *                 ),
+     *                 @OA\Property(
+     *                     property="PatientGender",
+     *                     type="string",
+     *                     description="Patient gender (M/F)",
+     *                     example="F"
+     *                 ),
+     *                 @OA\Property(
+     *                     property="PatientAddress",
+     *                     type="string",
+     *                     description="Patient address",
+     *                     example="KLANG"
+     *                 ),
+     *                 @OA\Property(
+     *                     property="PatientNationality",
+     *                     type="string",
+     *                     description="Patient nationality",
+     *                     example=""
+     *                 )
+     *             ),
+     *             @OA\Property(
+     *                 property="Orders",
+     *                 type="array",
+     *                 @OA\Items(
+     *                     type="object",
+     *                     @OA\Property(
+     *                         property="PlacerOrderNumber",
+     *                         type="string",
+     *                         description="Placer order number",
+     *                         example="LAB12345"
+     *                     ),
+     *                     @OA\Property(
+     *                         property="FillerOrderNumber",
+     *                         type="string",
+     *                         description="Filler order number",
+     *                         example="25-8888861"
+     *                     ),
+     *                     @OA\Property(
+     *                         property="PlacerGroupNumber",
+     *                         type="string",
+     *                         description="Placer group number",
+     *                         example=""
+     *                     ),
+     *                     @OA\Property(
+     *                         property="Status",
+     *                         type="string",
+     *                         description="Order status",
+     *                         example=""
+     *                     ),
+     *                     @OA\Property(
+     *                         property="Quantity",
+     *                         type="string",
+     *                         description="Order quantity",
+     *                         example=""
+     *                     ),
+     *                     @OA\Property(
+     *                         property="TransactionDateTime",
+     *                         type="string",
+     *                         description="Transaction date time",
+     *                         example=""
+     *                     ),
+     *                     @OA\Property(
+     *                         property="OrderingProvider",
+     *                         type="object",
+     *                         @OA\Property(property="Code", type="string", example="JHDE9"),
+     *                         @OA\Property(property="Name", type="string", example="DR JOHN DOE")
+     *                     ),
+     *                     @OA\Property(
+     *                         property="Organization",
+     *                         type="string",
+     *                         description="Organization",
+     *                         example=""
+     *                     ),
+     *                     @OA\Property(
+     *                         property="Observations",
+     *                         type="array",
+     *                         @OA\Items(
+     *                             type="object",
+     *                             @OA\Property(property="PlacerOrderNumber", type="string", example="LAB12345"),
+     *                             @OA\Property(property="FillerOrderNumber", type="string", example="12-3456789"),
+     *                             @OA\Property(property="ProcedureCode", type="string", example="FBC"),
+     *                             @OA\Property(property="ProcedureDescription", type="string", example="FULL BLOOD COUNT"),
+     *                             @OA\Property(property="PackageCode", type="string", example=""),
+     *                             @OA\Property(property="Priority", type="string", example=""),
+     *                             @OA\Property(property="RequestedDateTime", type="string", example="20250404"),
+     *                             @OA\Property(property="StartDateTime", type="string", example="202507101000"),
+     *                             @OA\Property(property="EndDateTime", type="string", example=""),
+     *                             @OA\Property(property="ClinicalInformation", type="string", example=""),
+     *                             @OA\Property(property="SpecimenDateTime", type="string", example="202507100918"),
+     *                             @OA\Property(
+     *                                 property="OrderingProvider",
+     *                                 type="object",
+     *                                 @OA\Property(property="Code", type="string", example="JHDE9"),
+     *                                 @OA\Property(property="Name", type="string", example="DR JOHN DOE")
+     *                             ),
+     *                             @OA\Property(property="ResultStatus", type="string", example="F"),
+     *                             @OA\Property(property="ServiceDateTime", type="string", example="20250404"),
+     *                             @OA\Property(property="ResultPriority", type="string", example="R"),
+     *                             @OA\Property(
+     *                                 property="Results",
+     *                                 type="array",
+     *                                 @OA\Items(
+     *                                     type="object",
+     *                                     @OA\Property(property="ID", type="string", example="1"),
+     *                                     @OA\Property(property="Type", type="string", example="FT"),
+     *                                     @OA\Property(property="Identifier", type="string", example="REPORT"),
+     *                                     @OA\Property(property="Text", type="string", example=""),
+     *                                     @OA\Property(property="CodingSystem", type="string", example="LN"),
+     *                                     @OA\Property(property="Value", type="string", example="130"),
+     *                                     @OA\Property(property="Units", type="string", example="g/L"),
+     *                                     @OA\Property(property="ReferenceRange", type="string", example="120-150"),
+     *                                     @OA\Property(property="Flags", type="string", example="N"),
+     *                                     @OA\Property(property="Status", type="string", example="F"),
+     *                                     @OA\Property(property="ObservationDateTime", type="string", example="202507101610")
+     *                                 )
+     *                             )
+     *                         )
+     *                     )
+     *                 )
+     *             ),
+     *             @OA\Property(
+     *                 property="EncodedBase64pdf",
+     *                 type="string",
+     *                 description="Base64 encoded PDF report",
+     *                 example="JVBERi0xLjQKJcOkw7zDtsO..."
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Panel results processed successfully",
+     *         @OA\JsonContent(
+     *             type="integer",
+     *             description="Test result ID",
+     *             example=123
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Unauthorized - Invalid or missing authentication token",
+     *         @OA\JsonContent(
+     *             type="object",
+     *             @OA\Property(property="message", type="string", example="Unauthenticated.")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=422,
+     *         description="Validation error - Invalid input data",
+     *         @OA\JsonContent(
+     *             type="object",
+     *             @OA\Property(property="message", type="string", example="The given data was invalid."),
+     *             @OA\Property(
+     *                 property="errors",
+     *                 type="object",
+     *                 @OA\Property(
+     *                     property="patient.AlternatePatientID",
+     *                     type="array",
+     *                     @OA\Items(type="string", example="The patient.AlternatePatientID field is required.")
+     *                 )
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Internal server error - Failed to save data",
+     *         @OA\JsonContent(
+     *             type="object",
+     *             @OA\Property(property="error", type="string", example="Failed to save data")
+     *         )
+     *     )
+     * )
+     * 
      * Innoquest custom API
      */
     public function panelResults(InnoquestResultRequest $request)
@@ -219,29 +275,34 @@ class ResultController extends Controller
         try {
             if ($validated) {
                 DB::beginTransaction();
+                //get current user role
                 $user = Auth::guard('lab')->user();
                 $lab_id = $user->lab_id;
 
+                //check for batch
                 if (filled($validated['SendingFacility'])) {
                     $sending_facility = $validated['SendingFacility'];
                     $batch_id = $validated['MessageControlID'] ?? null;
                 }
 
-                //refid
-                $reference_id = $validated['patient']['PatientExternalID'] ?? null;
+                //check for reference id in field (before confirmed)
+                $reference_id = filled($validated['patient']['PatientExternalID']) ?? null;
 
+                //check for age and gender
                 $icInfo = checkIcno($validated['patient']['AlternatePatientID']);
                 $icno = $icInfo['icno'];
                 $ic_type = $icInfo['type'];
                 $patient_gender = $icInfo['gender'];
                 $age = $icInfo['age'];
+
+                //get from json if available
                 $patient_name = filled($validated['patient']['PatientLastName']) ? $validated['patient']['PatientLastName'] : null;
                 $patient_dob = filled($validated['patient']['PatientDOB']) ? $validated['patient']['PatientDOB'] : null;
                 $gender = filled($validated['patient']['PatientGender']) ? $validated['patient']['PatientGender'] : $patient_gender;
 
+                //create patient
                 $patient = Patient::firstOrCreate(
                     [
-
                         'icno' => $icno,
                     ],
                     [
@@ -253,15 +314,21 @@ class ResultController extends Controller
                     ]
                 );
 
+                //get patient id
                 $patient_id = $patient->id;
 
+                //loop through orders
                 foreach ($validated['Orders'] as $key => $od) {
+                    //check if observations exist
                     if (filled($od['Observations'])) {
+                        //loop through observations
                         foreach ($od['Observations'] as $key => $obv) {
 
+                            //get doctor name and code
                             $doctor_name = $obv['OrderingProvider']['Name'];
                             $doctor_code = $obv['OrderingProvider']['Code'];
 
+                            //create doctor code
                             $doctor_code = DoctorCode::firstOrCreate(
                                 [
 
@@ -273,11 +340,19 @@ class ResultController extends Controller
                                 ]
                             );
 
+                            //get doctor id
                             $doctor_code_id = $doctor_code->id;
 
+                            //get labno
                             $lab_no = $obv['FillerOrderNumber'];
+                            //confirm field for reference id = PlacerOrderNumber
+                            //check if previous reference id is null and PlacerOrderNumber exist
                             if (is_null($reference_id) && filled($obv['PlacerOrderNumber'])) $reference_id = $obv['PlacerOrderNumber'];
-                            $bill_code = filled($obv['PackageCode']) ? $obv['PackageCode'] : null;
+
+                            //bill code is not sent in json payload
+                            $bill_code = null;
+
+                            //get collected and referred (reported)date
                             $collected_date = $this->convertDatetime($obv['SpecimenDateTime']);
                             // $received_date = $obv['EndDateTime'];
                             $reported_date = $this->convertDatetime($obv['RequestedDateTime']);
@@ -295,12 +370,15 @@ class ResultController extends Controller
                                 'is_completed' => false
                             ]);
 
+                            //get test result id
                             $test_result_id = $test_result->id;
 
+                            //get panel code
                             $panel_code = $obv['ProcedureCode'];
                             $panel_name = $obv['ProcedureDescription'];
                             $panel_notes = filled($obv['ClinicalInformation']) ? $obv['ClinicalInformation'] : null; //overall notes
 
+                            //create panel
                             $panel = Panel::firstOrCreate(
                                 [
                                     'lab_id' => $lab_id,
@@ -312,25 +390,33 @@ class ResultController extends Controller
                                     'overall_notes' => $panel_notes
                                 ]
                             );
+
+                            //get panel id
                             $panel_id = $panel->id;
 
+                            //check if result is completed
                             $is_completed_result = (filled($obv['ResultStatus']) && $obv['ResultStatus'] == 'F')  ? true : false;
 
                             //results
                             $results = $obv['Results'];
+                            //check if results exist
                             if (filled($results)) {
+                                //loop through results
                                 foreach ($results as $key => $res) {
+                                    //store field value to variable
                                     $ordinal_id = $res['ID'];
                                     $type = $res['Type'];
                                     $identifier = $res['Identifier'];
 
+                                    //check if value exist and store to variable
                                     $result_value = filled($res['Value']) ? $res['Value'] : null;
                                     $unit = filled($res['Units']) ? $res['Units'] : null;
                                     $result_flag = filled($res['Flags']) ? $res['Flags'] : null;
                                     $result_status = filled($res['Status']) ? $res['Status'] : null;
 
-                                    //result items
+                                    //result items 
                                     if (filled($res['Text']) && $res['Text'] != 'COMMENT') {
+                                        //create panel items
                                         $panel_item = PanelItem::firstOrCreate(
                                             [
                                                 'panel_id' => $panel_id,
@@ -342,9 +428,11 @@ class ResultController extends Controller
                                                 'item_sequence' => null
                                             ]
                                         );
+
+                                        //get panel item id
                                         $panel_item_id = $panel_item->id;
 
-                                        //reference range
+                                        //create reference range
                                         if (filled($res['ReferenceRange'])) {
                                             $ref_range = ReferenceRange::firstOrCreate(
                                                 [
@@ -353,10 +441,11 @@ class ResultController extends Controller
                                                 ]
                                             );
 
+                                            //get reference range
                                             $ref_range_id = $ref_range->id;
                                         }
 
-                                        //loinc identifier
+                                        //loinc identifier - unique for panel item
                                         PanelMetadata::firstOrCreate(
                                             [
 
@@ -369,7 +458,7 @@ class ResultController extends Controller
                                             ]
                                         );
 
-                                        //final insert
+                                        //final insert result ite 
                                         TestResultItem::firstOrCreate(
                                             [
 
@@ -400,7 +489,7 @@ class ResultController extends Controller
                                         );
                                     }
 
-                                    //panel compiled report
+                                    //panel compiled report (formatted)
                                     if ($res['Identifier'] == 'REPORT') {
                                         TestResultReport::firstOrCreate([
                                             'test_result_id' => $test_result_id,
@@ -448,6 +537,7 @@ class ResultController extends Controller
                     }
                 }
 
+                //create delivery file for tracking purposes
                 $deliveryFile = DeliveryFile::firstOrCreate(
                     [
 
@@ -463,12 +553,8 @@ class ResultController extends Controller
                 );
 
                 DB::commit();
-
-                return response()->json([
-                    'status' => 'success',
-                    'message' => 'Blood test results successfully submitted.',
-                    'result_id' => $test_result_id
-                ]);
+                //return result id
+                return response()->json($test_result_id, 200);
             }
         } catch (\Throwable $e) {
 
@@ -494,6 +580,213 @@ class ResultController extends Controller
         }
     }
 
+    /**
+     * General API for Lab Results
+     */
+    public function labResults(StorePatientResultRequest $request)
+    {
+        $validated = $request->validated();
+        try {
+            if ($validated) {
+                DB::beginTransaction();
+                //get current user role
+                $user = Auth::guard('lab')->user();
+                $lab_id = $user->lab_id;
+
+                //checking for batch file
+                if (filled($validated['sending_facility']) && $validated['sending_facility'] === 'INN') {
+                    $sending_facility = $validated['sending_facility'];
+                    $batch_id = $validated['batch_id'] ?? null;
+                    $is_completed = true;
+                } else {
+                    //create new batch if not exist
+                    $sending_facility = $user->lab->code . 'API';
+                    $batch_id = now()->format('YmdHis') . $user->lab->code;
+                    $is_completed = false;
+                }
+
+                //set validated data to variable
+                $patient_icno = $validated['patient_icno'];
+                $ic_type = $validated['ic_type'];
+                $patient_age = $validated['patient_age'];
+                $patient_gender = $validated['patient_gender'];
+                $reference_id = $validated['reference_id'];
+                $bill_code = $validated['bill_code'];
+                $lab_no = $validated['lab_no'];
+                $doctor_code = $validated['doctor_code'];
+                $collected_date = $validated['collected_date'];
+                $received_date = $validated['received_date'];
+                $reported_date = $validated['reported_date'];
+                $results = $validated['results'];
+
+                //create doctor code
+                $doctor_code = DoctorCode::firstOrCreate(
+                    [
+
+                        'lab_id' => $lab_id,
+                        'name' => $doctor_code,
+                    ],
+                    [
+                        'code' => $doctor_code
+                    ]
+                );
+
+                //get doctor code id
+                $doctor_code_id = $doctor_code->id;
+
+                //create patient
+                $patient = Patient::firstOrCreate(
+                    [
+                        'icno' => $patient_icno
+                    ],
+                    [
+                        'ic_type' => $ic_type,
+                        'name' => null,
+                        'dob' => null,
+                        'age' => $patient_age,
+                        'gender' => $patient_gender
+                    ]
+                );
+
+                //get patient id
+                $patient_id = $patient->id;
+
+                //create test result 
+                $test_result = TestResult::firstOrCreate([
+                    'doctor_code_id' => $doctor_code_id,
+                    'patient_id' => $patient_id,
+                    'ref_id' => $reference_id,
+                    'bill_code' => $bill_code,
+                    'lab_no' => $lab_no,
+                    'collected_date' => $collected_date,
+                    'received_date' => $received_date,
+                    'reported_date' => $reported_date,
+                    'is_completed' => $is_completed
+                ]);
+
+                //get test result id
+                $test_result_id = $test_result->id;
+
+                //loop through results
+                foreach ($results as $key => $item) {
+                    //assign array key as panel name
+                    $panel_name = $key;
+                    $panel_code = $item['panel_code'];
+                    $panel_sequence = $item['panel_sequence'];
+                    $overall_notes = $item['overall_notes'];
+
+                    //create panel
+                    $panel = Panel::firstOrCreate(
+                        [
+                            'lab_id' => $lab_id,
+                            'name' => $panel_name,
+                        ],
+                        [
+                            'code' => $panel_code,
+                            'sequence' => $panel_sequence,
+                            'overall_notes' => $overall_notes
+                        ]
+                    );
+
+                    //get panel id
+                    $panel_id = $panel->id;
+
+                    //check if array tests available
+                    if (filled($item['tests'])) {
+                        //loop through tests
+                        foreach ($item['tests'] as $index => $test) {
+                            //create panel item
+                            $panel_item = PanelItem::firstOrCreate(
+                                [
+                                    'panel_id' => $panel_id,
+                                    'name' => $test['test_name'],
+                                ],
+                                [
+                                    'decimal_point' => $test['decimal_point'],
+                                    'unit' => $test['unit'],
+                                    'item_sequence' => $test['item_sequence']
+                                ]
+                            );
+
+                            //get panel item id
+                            $panel_item_id = $panel_item->id;
+
+                            //check if panel item has reference range
+                            if (filled($test['ref_range'])) {
+                                //create reference range
+                                $ref_range = ReferenceRange::firstOrCreate(
+                                    [
+                                        'value' => $test['ref_range'],
+                                        'panel_item_id' => $panel_item_id,
+                                    ]
+                                );
+
+                                //get reference range id
+                                $ref_range_id = $ref_range->id;
+                            }
+
+                            //create test result item (with result value)
+                            TestResultItem::firstOrCreate(
+                                [
+
+                                    'test_result_id' => $test_result_id,
+                                    'reference_range_id' => $ref_range_id,
+                                    'value' => $test['result_value']
+                                ],
+                                [
+                                    'flag' => $test['result_flag'],
+                                    'test_notes' => $test['test_note'],
+                                    'status' => 'C',
+                                    'is_completed' => true
+                                ]
+                            );
+                        }
+                    }
+                }
+
+                //create delivery file for tracking purposes
+                $deliveryFile = DeliveryFile::firstOrCreate(
+                    [
+
+                        'test_result_id' => $test_result_id,
+                    ],
+                    [
+                        'lab_id' => $lab_id,
+                        'sending_facility' => $sending_facility,
+                        'batch_id' => $batch_id,
+                        'json_content' => json_encode($validated),
+                        'status' => DeliveryFile::compl,
+                    ]
+                );
+
+                DB::commit();
+                //return result id
+                return response()->json($test_result_id, 200);
+            }
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            /** @var \Illuminate\Http\Request $request */
+            Log::error('Failed to save data', [
+                'exception' => $e->getMessage(),
+                'data' => json_encode($request->all()),
+            ]);
+
+            if (isset($deliveryFile)) {
+                DeliveryFileHistory::create([
+                    'delivery_file_id' => $deliveryFile->id,
+                    'message' => $e->getMessage(),
+                    'err_code' => '500',
+                ]);
+
+                $deliveryFile->update(['status' => DeliveryFile::fld]);
+            }
+
+            return response()->json([
+                'error' => 'Failed to save data',
+            ], 500);
+        }
+    }
 
     /**
      * Convert datetime string to Carbon instance

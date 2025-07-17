@@ -11,7 +11,7 @@ class Patient extends Model
     use HasFactory, SoftDeletes;
 
     const nric = 'NRIC';
-    const passport = 'PP';
+    const others = 'OTHERS';
 
     const female = 'F';
     const male = 'M';

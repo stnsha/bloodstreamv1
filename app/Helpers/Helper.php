@@ -28,7 +28,7 @@ if (!function_exists('get_email_abbrv')) {
 if (!function_exists('checkIcno')) {
     function checkIcno($icno): array
     {
-        $type = Patient::passport;
+        $type = Patient::others;
         $gender = null;
         $age = null;
 

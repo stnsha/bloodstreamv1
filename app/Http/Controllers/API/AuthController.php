@@ -19,35 +19,6 @@ class AuthController extends Controller
         return 'username';
     }
 
-    /**
-     * @OA\Post(
-     *     path="/api/register",
-     *     summary="Register a new lab credential",
-     *     description="Creates a user and a lab credential using email and lab ID.",
-     *     tags={"LabCredential"},
-     *     @OA\RequestBody(
-     *         required=true,
-     *         @OA\JsonContent(
-     *             required={"email", "lab_id"},
-     *             @OA\Property(property="email", type="string", format="email", example="labuser@example.com"),
-     *             @OA\Property(property="lab_id", type="integer", example=1)
-     *         )
-     *     ),
-     *     @OA\Response(
-     *         response=200,
-     *         description="Lab credential successfully created",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="message", type="string", example="Lab credential successfully created."),
-     *             @OA\Property(property="username", type="string", example="LAB001use"),
-     *             @OA\Property(property="password", type="string", example="randompass123")
-     *         )
-     *     ),
-     *     @OA\Response(
-     *         response=422,
-     *         description="Validation error"
-     *     )
-     * )
-     * */
     public function register(Request $request)
     {
         $validated = $request->validate([
@@ -85,13 +56,48 @@ class AuthController extends Controller
             ]);
 
             return response()->json([
-                'message' => 'Lab credential successfully created.',
                 'username' => $username,
                 'password' => $plainPassword
-            ]);
+            ], 200);
         }
     }
 
+    /**
+     * @OA\Post(
+     *     path="/login",
+     *     tags={"Authentication"},
+     *     summary="Login with lab credentials",
+     *     description="Authenticate lab user and return JWT token",
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"username","password"},
+     *             @OA\Property(property="username", type="string", example="LAB001user"),
+     *             @OA\Property(property="password", type="string", example="password123")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Login successful",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="access_token", type="string", example="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."),
+     *             @OA\Property(property="token_type", type="string", example="bearer"),
+     *             @OA\Property(property="expires_in", type="integer", example=3600)
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Unauthorized",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="error", type="string", example="Unauthorized")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=422,
+     *         description="Validation error"
+     *     )
+     * )
+     */
     public function login(APIAuthRequest $request)
     {
         $credentials = $request->only($this->username(), 'password');
@@ -113,9 +119,36 @@ class AuthController extends Controller
             'access_token' => $token,
             'token_type' => 'bearer',
             'expires_in' => $expiresIn
-        ]);
+        ], 200);
     }
 
+    /**
+     * @OA\Post(
+     *     path="/logout",
+     *     tags={"Authentication"},
+     *     summary="Logout lab user",
+     *     description="Logout the authenticated lab user and invalidate the JWT token",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Logout successful",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="Successfully logged out.")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Logout failed",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="Failed to logout, please try again.")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Unauthorized - Invalid or missing token"
+     *     )
+     * )
+     */
     public function logout()
     {
         try {
