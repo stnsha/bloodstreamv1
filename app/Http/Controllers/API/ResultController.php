@@ -286,7 +286,7 @@ class ResultController extends Controller
                 }
 
                 //check for reference id in field (before confirmed)
-                $reference_id = filled($validated['patient']['PatientExternalID']) ?? null;
+                $reference_id = null;
 
                 //check for age and gender
                 $icInfo = checkIcno($validated['patient']['AlternatePatientID']);
@@ -319,6 +319,7 @@ class ResultController extends Controller
 
                 //loop through orders
                 foreach ($validated['Orders'] as $key => $od) {
+                    if (is_null($reference_id) && filled($od['PlacerOrderNumber'])) $reference_id = $od['PlacerOrderNumber'];
                     //check if observations exist
                     if (filled($od['Observations'])) {
                         //loop through observations
@@ -706,11 +707,12 @@ class ResultController extends Controller
      *                         nullable=true,
      *                         description="Panel remarks",
      *                         example=null
-     *                     ), @OA\Property(
+     *                     ), 
+     *                      @OA\Property(
      *                         property="result_status",
-     *                         type="boolean",
-     *                         description="Result status,
-     *                         example=null
+     *                         type="integer",
+     *                         description="Result status",
+     *                         example=1
      *                     ),
      *                     @OA\Property(
      *                         property="tests",
@@ -972,15 +974,27 @@ class ResultController extends Controller
                 'data' => json_encode($request->all()),
             ]);
 
-            if (isset($deliveryFile)) {
-                DeliveryFileHistory::create([
-                    'delivery_file_id' => $deliveryFile->id,
-                    'message' => $e->getMessage(),
-                    'err_code' => '500',
+            // Create delivery file if it doesn't exist for error tracking
+            if (!isset($deliveryFile)) {
+                $deliveryFile = DeliveryFile::create([
+                    'lab_id' => $lab_id ?? null,
+                    'test_result_id' => $test_result_id ?? null,
+                    'sending_facility' => $sending_facility ?? 'UNKNOWN',
+                    'batch_id' => $batch_id ?? 'ERROR_' . now()->format('YmdHis'),
+                    'json_content' => json_encode($validated),
+                    'status' => DeliveryFile::fld,
                 ]);
-
-                $deliveryFile->update(['status' => DeliveryFile::fld]);
             }
+
+            // Always create delivery file history for errors
+            DeliveryFileHistory::create([
+                'delivery_file_id' => $deliveryFile->id,
+                'message' => $e->getMessage(),
+                'err_code' => '500',
+            ]);
+
+            // Update delivery file status to failed
+            $deliveryFile->update(['status' => DeliveryFile::fld]);
 
             return response()->json([
                 'error' => 'Failed to save data',

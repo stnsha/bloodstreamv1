@@ -622,13 +622,19 @@
                                                     "panel_sequence": {
                                                         "description": "Panel sequence number",
                                                         "type": "integer",
-                                                        "example": 1
+                                                        "example": 1,
+                                                        "nullable": true
                                                     },
                                                     "panel_remarks": {
                                                         "description": "Panel remarks",
                                                         "type": "string",
                                                         "example": null,
                                                         "nullable": true
+                                                    },
+                                                    "result_status": {
+                                                        "description": "Result status",
+                                                        "type": "integer",
+                                                        "example": 1
                                                     },
                                                     "tests": {
                                                         "type": "array",
