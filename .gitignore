@@ -22,4 +22,4 @@ vite.config.js
 /build/*
 .htaccess
 server.php
-/storage/api-docs
+/storage/api-docs/api-docs.json
