@@ -37,6 +37,10 @@
                 {{-- <span>Production:</span> --}}
                 <span class="font-mono text-green-700 text-sm">https://mytotalhealth.com.my/production</span>
             </li>
+            <li class="font-normal text-sm tracking-wide pb-1.5">
+                <span class="font-mono text-green-700 text-sm">/api/v1</span>
+                <span>— the versioned API prefix</span>
+            </li>
         </ul>
         <span class="font-normal text-sm text-justify tracking-wide mb-3">📌Note: These URLs are accessible over the
             internet. Ensure your system can make outbound HTTPS requests
