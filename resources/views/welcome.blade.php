@@ -10,10 +10,8 @@
 
 <body class="antialiased">
     @if (app()->environment('production'))
-        <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4" role="alert">
-            <p class="font-bold">403 Forbidden</p>
-            <p>You don't have permission to access this resource.</p>
-        </div>
+        <h1 class="font-bold">403 Forbidden</h1>
+        <p>You don't have permission to access this resource.</p>
     @else
         <div class="flex flex-col min-h-screen max-w-sm mx-auto justify-center">
             <form action="{{ route('login') }}" method="post">
