@@ -23,7 +23,7 @@ namespace App\Http\Controllers;
  * @OA\Schema(
  *     schema="Result",
  *     type="object",
- *     required={"lab_no", "doctor_code", "patient", "results"},
+ *     required={"lab_no", "doctor_code", "validated_by", "patient", "package_name", "results"},
  *     @OA\Property(property="reference_id", type="string", example="ABC12345"),
  *     @OA\Property(property="lab_no", type="string", example="123456789"),
  *     @OA\Property(property="bill_code", type="string", example="AMC_ALPRO"),
@@ -35,7 +35,7 @@ namespace App\Http\Controllers;
  *     @OA\Property(
  *         property="patient",
  *         type="object",
- *         required={"patient_icno", "patient_name"},
+ *         required={"patient_icno", "patient_name", "patient_gender", "patient_age"},
  *         @OA\Property(property="patient_icno", type="string", example="870521145681"),
  *         @OA\Property(property="patient_gender", type="string", example="Male"),
  *         @OA\Property(property="patient_age", type="string", example="54"),
@@ -49,6 +49,7 @@ namespace App\Http\Controllers;
  *         @OA\Property(
  *             property="Haematology",
  *             type="object",
+ *             required={"result_status", "tests"},
  *             @OA\Property(property="panel_sequence", type="integer", nullable=true, example=1),
  *             @OA\Property(property="panel_remarks", type="string", nullable=true, example=null),
  *             @OA\Property(property="result_status", type="integer", example=1),
@@ -57,6 +58,7 @@ namespace App\Http\Controllers;
  *                 type="array",
  *                 @OA\Items(
  *                     type="object",
+ *                     required={"test_name", "item_sequence"},
  *                     @OA\Property(property="test_name", type="string", example="Haemoglobin"),
  *                     @OA\Property(property="result_value", type="string", example="15.7"),
  *                     @OA\Property(property="result_flag", type="string", nullable=true, example=null),
