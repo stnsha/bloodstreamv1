@@ -36,8 +36,6 @@ class StorePatientResultRequest extends FormRequest
         return [
             'sending_facility' => 'nullable|string',
             'batch_id' => 'nullable|string',
-            'patient_age' => 'nullable|integer',
-            'patient_gender' => 'nullable|in:F,M',
             'reference_id' => 'nullable|string',
             'lab_no' => 'required|string',
             'bill_code' => 'nullable|string',
