@@ -779,6 +779,11 @@ class ResultController extends Controller
     public function labResults(StorePatientResultRequest $request)
     {
         $validated = $request->validated();
+        $lab_id = null;
+        $test_result_id = null;
+        $sending_facility = null;
+        $batch_id = null;
+
         try {
             if ($validated) {
                 DB::beginTransaction();
@@ -978,7 +983,7 @@ class ResultController extends Controller
             if (!isset($deliveryFile)) {
                 $deliveryFile = DeliveryFile::create([
                     'lab_id' => $lab_id ?? null,
-                    'test_result_id' => $test_result_id ?? null,
+                    'test_result_id' => null,
                     'sending_facility' => $sending_facility ?? 'UNKNOWN',
                     'batch_id' => $batch_id ?? 'ERROR_' . now()->format('YmdHis'),
                     'json_content' => json_encode($validated),

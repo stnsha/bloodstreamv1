@@ -2,41 +2,44 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\LabCredential;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
-use Symfony\Component\HttpFoundation\Response;
+use Tymon\JWTAuth\Facades\JWTAuth;
+use Tymon\JWTAuth\Exceptions\JWTException;
+use Tymon\JWTAuth\Exceptions\TokenExpiredException;
+use Tymon\JWTAuth\Exceptions\TokenInvalidException;
 
 class APIAuthMiddleware
 {
-    /**
-     * Handle an incoming request.
-     *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
-     */
-    public function handle(Request $request, Closure $next): Response
+    public function handle(Request $request, Closure $next)
     {
-        $token = $request->bearerToken() ?? $request->cookie('jwt_token');
-
-        if (!$token) {
-            return response()->json(['error' => 'Unauthorized. Token is required.'], 401);
-        }
-
         try {
+            // Get token from request
+            $token = $request->bearerToken() ?? $request->cookie('jwt_token');
+
+            if (!$token) {
+                return response()->json(['error' => 'Unauthorized. Token is required.'], 401);
+            }
+
+            // Authenticate using the lab guard with the token
             $user = Auth::guard('lab')->setToken($token)->user();
-            Auth::guard('lab')->setUser($user);
+
+            if (!$user) {
+                return response()->json(['error' => 'Invalid token'], 401);
+            }
+
+            // The user is already authenticated by the guard, no need to call setUser again
+            // Just proceed to the next middleware/controller
+            return $next($request);
+        } catch (TokenExpiredException $e) {
+            return response()->json(['error' => 'Token has expired'], 401);
+        } catch (TokenInvalidException $e) {
+            return response()->json(['error' => 'Token is invalid'], 401);
+        } catch (JWTException $e) {
+            return response()->json(['error' => 'Token error'], 401);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Invalid token'], 401);
+            return response()->json(['error' => 'Authentication failed'], 401);
         }
-
-        $labCredential = LabCredential::where('lab_id', $user->lab_id)->first();
-
-        if ($labCredential && !in_array($labCredential->role, ['lab', 'admin'])) {
-            return response()->json(['error' => 'Access restricted'], 403);
-        }
-
-        return $next($request);
     }
 }

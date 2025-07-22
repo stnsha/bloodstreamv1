@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('delivery_files', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('lab_id');
+            $table->unsignedBigInteger('lab_id')->nullable();
             $table->string('sending_facility');
             $table->string('batch_id');
             $table->unsignedBigInteger('test_result_id')->nullable();
@@ -32,6 +32,7 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::disableForeignKeyConstraints();
         Schema::dropIfExists('delivery_files');
     }
 };

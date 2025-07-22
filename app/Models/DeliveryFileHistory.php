@@ -11,4 +11,9 @@ class DeliveryFileHistory extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = ['delivery_file_id', 'message', 'err_code'];
+
+    protected $attributes = [
+        'message' => null,
+        'err_code' => null,
+    ];
 }

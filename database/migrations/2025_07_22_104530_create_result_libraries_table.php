@@ -13,11 +13,15 @@ return new class extends Migration
     {
         Schema::create('result_libraries', function (Blueprint $table) {
             $table->id();
-            $table->string('column_name');
+            $table->string('type');
+            $table->string('value');
             $table->string('code')->nullable();
             $table->string('description')->nullable();
             $table->softDeletes();
             $table->timestamps();
+
+            // Composite unique constraint on value and code combination
+            $table->unique(['value', 'code'], 'hl7_value_code_unique');
         });
     }
 

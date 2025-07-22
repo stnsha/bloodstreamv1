@@ -11,8 +11,16 @@ class ResultLibrary extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'column_name',
+        'type',
+        'value',
         'code',
         'description',
+    ];
+
+    protected $attributes = [
+        'type' => null,
+        'value' => null,
+        'code' => null,
+        'description' => null,
     ];
 }

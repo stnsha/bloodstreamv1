@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('test_result_items', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('test_result_id');
-            $table->unsignedBigInteger('panel_item_id');
+            $table->unsignedBigInteger('reference_range_id');
             $table->string('value')->nullable();
             $table->string('flag')->nullable();
             $table->longText('test_notes')->nullable();
@@ -24,7 +24,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->foreign('test_result_id')->references('id')->on('test_results')->onDelete('cascade');
-            $table->foreign('panel_item_id')->references('id')->on('panel_items')->onDelete('cascade');
+            $table->foreign('reference_range_id')->references('id')->on('reference_ranges')->onDelete('cascade');
         });
     }
 
@@ -33,6 +33,7 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::disableForeignKeyConstraints();
         Schema::dropIfExists('test_result_items');
     }
 };

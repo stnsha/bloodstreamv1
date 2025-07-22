@@ -11,17 +11,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('panel_items', function (Blueprint $table) {
+        Schema::create('reference_ranges', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('panel_id');
-            $table->string('name');
-            $table->string('decimal_point')->nullable();
-            $table->string('unit')->nullable();
-            $table->string('sequence')->nullable();
+            $table->unsignedBigInteger('panel_item_id');
+            $table->string('value');
             $table->softDeletes();
             $table->timestamps();
 
-            $table->foreign('panel_id')->references('id')->on('panels')->onDelete('cascade');
+            $table->foreign('panel_item_id')->references('id')->on('panel_items')->onDelete('cascade');
         });
     }
 
@@ -30,6 +27,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('panel_items');
+        Schema::disableForeignKeyConstraints();
+        Schema::dropIfExists('reference_ranges');
     }
 };

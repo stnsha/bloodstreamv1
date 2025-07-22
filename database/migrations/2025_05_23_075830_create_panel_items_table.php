@@ -11,17 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('panels', function (Blueprint $table) {
+        Schema::create('panel_items', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('lab_id');
+            $table->unsignedBigInteger('panel_id');
             $table->string('name');
-            $table->string('code');
+            $table->string('decimal_point')->nullable();
+            $table->string('unit')->nullable();
             $table->string('sequence')->nullable();
-            $table->string('overall_notes')->nullable();
             $table->softDeletes();
             $table->timestamps();
 
-            $table->foreign('lab_id')->references('id')->on('labs')->onDelete('cascade');
+            $table->foreign('panel_id')->references('id')->on('panels')->onDelete('cascade');
         });
     }
 
@@ -30,6 +30,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('panels');
+        Schema::disableForeignKeyConstraints();
+        Schema::dropIfExists('panel_items');
     }
 };

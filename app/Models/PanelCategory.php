@@ -14,4 +14,8 @@ class PanelCategory extends Model
         'name',
         'code'
     ];
+
+    protected $attributes = [
+        'code' => null,
+    ];
 }

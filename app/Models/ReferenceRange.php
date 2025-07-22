@@ -11,4 +11,8 @@ class ReferenceRange extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = ['panel_item_id', 'value'];
+
+    protected $attributes = [
+        'value' => null,
+    ];
 }

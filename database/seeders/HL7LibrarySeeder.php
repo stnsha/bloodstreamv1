@@ -2,8 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\HL7Library;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Models\ResultLibrary;
 use Illuminate\Database\Seeder;
 
 class HL7LibrarySeeder extends Seeder
@@ -79,8 +78,8 @@ class HL7LibrarySeeder extends Seeder
         ];
 
         foreach ($data as $item) {
-            HL7Library::firstOrCreate(
-                ['value' => $item['value'], 'code' => $item['code']],
+            ResultLibrary::firstOrCreate(
+                ['type' => 'HL7', 'value' => $item['value'], 'code' => $item['code']],
                 ['description' => $item['description']]
             );
         }

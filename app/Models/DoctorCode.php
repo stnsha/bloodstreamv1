@@ -11,4 +11,8 @@ class DoctorCode extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = ['lab_id', 'name', 'code'];
+
+    protected $attributes = [
+        'code' => null,
+    ];
 }
