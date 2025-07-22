@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('test_results', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('doctor_code_id');
+            $table->unsignedBigInteger('doctor_id');
             $table->unsignedBigInteger('patient_id');
             $table->string('ref_id')->nullable();
             $table->string('bill_code')->nullable();
@@ -22,12 +22,11 @@ return new class extends Migration
             $table->dateTime('received_date')->nullable();
             $table->dateTime('reported_date')->nullable();
             $table->string('validated_by')->nullable();
-            $table->string('package_name')->nullable();
             $table->boolean('is_completed')->default(false);
             $table->softDeletes();
             $table->timestamps();
 
-            $table->foreign('doctor_code_id')->references('id')->on('doctor_codes')->onDelete('cascade');
+            $table->foreign('doctor_id')->references('id')->on('doctors')->onDelete('cascade');
             $table->foreign('patient_id')->references('id')->on('patients')->onDelete('cascade');
         });
     }

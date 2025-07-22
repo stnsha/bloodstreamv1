@@ -7,11 +7,13 @@ use App\Http\Requests\InnoquestResultRequest;
 use App\Http\Requests\StorePatientResultRequest;
 use App\Models\DeliveryFile;
 use App\Models\DeliveryFileHistory;
-use App\Models\DoctorCode;
+use App\Models\Doctor;
 use App\Models\Panel;
+use App\Models\PanelCategory;
 use App\Models\PanelComment;
 use App\Models\PanelItem;
 use App\Models\PanelMetadata;
+use App\Models\PanelProfile;
 use App\Models\Patient;
 use App\Models\ReferenceRange;
 use App\Models\TestResult;
@@ -327,14 +329,14 @@ class ResultController extends Controller
 
                             //get doctor name and code
                             $doctor_name = $obv['OrderingProvider']['Name'];
-                            $doctor_code = $obv['OrderingProvider']['Code'];
+                            $doctor_id = $obv['OrderingProvider']['Code'];
 
                             //create doctor code
-                            $doctor_code = DoctorCode::firstOrCreate(
+                            $doctor_id = Doctor::firstOrCreate(
                                 [
 
                                     'lab_id' => $lab_id,
-                                    'code' => $doctor_code
+                                    'code' => $doctor_id
                                 ],
                                 [
                                     'name' => $doctor_name,
@@ -342,7 +344,7 @@ class ResultController extends Controller
                             );
 
                             //get doctor id
-                            $doctor_code_id = $doctor_code->id;
+                            $doctor_id = $doctor_id->id;
 
                             //get labno
                             $lab_no = $obv['FillerOrderNumber'];
@@ -360,7 +362,7 @@ class ResultController extends Controller
 
                             //create test result
                             $test_result = TestResult::firstOrCreate([
-                                'doctor_code_id' => $doctor_code_id,
+                                'doctor_id' => $doctor_id,
                                 'patient_id' => $patient_id,
                                 'ref_id' => $reference_id,
                                 'bill_code' => $bill_code,
@@ -566,15 +568,28 @@ class ResultController extends Controller
                 'data' => json_encode($request->all()),
             ]);
 
-            if (isset($deliveryFile)) {
-                DeliveryFileHistory::create([
-                    'delivery_file_id' => $deliveryFile->id,
-                    'message' => $e->getMessage(),
-                    'err_code' => '500',
+            // Create delivery file if it doesn't exist for error tracking
+            if (!isset($deliveryFile)) {
+                $deliveryFile = DeliveryFile::create([
+                    'lab_id' => $lab_id ?? null,
+                    'test_result_id' => null,
+                    'sending_facility' => $sending_facility ?? 'UNKNOWN',
+                    'batch_id' => $batch_id ?? 'ERROR_' . now()->format('YmdHis'),
+                    'json_content' => json_encode($validated),
+                    'status' => DeliveryFile::fld,
                 ]);
-
-                $deliveryFile->update(['status' => DeliveryFile::fld]);
             }
+
+            // Always create delivery file history for errors
+            DeliveryFileHistory::create([
+                'delivery_file_id' => $deliveryFile->id,
+                'message' => $e->getMessage(),
+                'err_code' => '500',
+            ]);
+
+            // Update delivery file status to failed
+            $deliveryFile->update(['status' => DeliveryFile::fld]);
+
             return response()->json([
                 'error' => 'Failed to save data',
             ], 500);
@@ -594,7 +609,7 @@ class ResultController extends Controller
      *         description="Lab results data",
      *         @OA\JsonContent(
      *             type="object",
-     *             required={"lab_no", "doctor_code", "patient", "results"},
+     *             required={"lab_no", "doctor_id", "patient", "results"},
      *             @OA\Property(
      *                 property="reference_id",
      *                 type="string",
@@ -614,7 +629,7 @@ class ResultController extends Controller
      *                 example="AMC_ALPRO"
      *             ),
      *             @OA\Property(
-     *                 property="doctor_code",
+     *                 property="doctor_id",
      *                 type="string",
      *                 description="Doctor code",
      *                 example="ABC122"
@@ -802,17 +817,22 @@ class ResultController extends Controller
                 }
 
                 //set validated data to variable
-                $patient_icno = $validated['patient']['patient_icno'];
+                $doctor_code = $validated['doctor']['code'];
+                $doctor_name = $validated['doctor']['name'];
+                $doctor_address = $validated['doctor']['address'];
+                $doctor_phone = $validated['doctor']['phone'];
+                $doctor_type = $validated['doctor']['type'];
+
+                $patient_icno = $validated['patient']['icno'];
                 $ic_type = $validated['patient']['ic_type'];
-                $patient_age = $validated['patient']['patient_age'];
-                $patient_gender = $validated['patient']['patient_gender'];
-                $patient_tel = $validated['patient']['patient_tel'];
-                $patient_name = $validated['patient']['patient_name'];
+                $patient_age = $validated['patient']['age'];
+                $patient_gender = $validated['patient']['gender'];
+                $patient_tel = $validated['patient']['tel'];
+                $patient_name = $validated['patient']['name'];
 
                 $reference_id = $validated['reference_id'];
                 $bill_code = $validated['bill_code'];
                 $lab_no = $validated['lab_no'];
-                $doctor_code = $validated['doctor_code'];
                 $collected_date = $validated['collected_date'];
                 $received_date = $validated['received_date'];
                 $reported_date = $validated['reported_date'];
@@ -820,20 +840,25 @@ class ResultController extends Controller
                 $package_name = $validated['package_name'];
                 $results = $validated['results'];
 
-                //create doctor code
-                $doctor_code = DoctorCode::firstOrCreate(
+                $doctor = Doctor::firstOrCreate(
                     [
-
                         'lab_id' => $lab_id,
-                        'name' => $doctor_code,
+                        'code' => $doctor_code,
                     ],
                     [
-                        'code' => $doctor_code
+                        'name' => $doctor_name,
+                        'type' => $doctor_type,
+                        'outlet_name' => $doctor_name,
+                        'outlet_address' => $doctor_address,
+                        'outlet_phone' => $doctor_phone,
                     ]
                 );
 
+                $doctor->code = $doctor->code . $doctor->id . substr($doctor->type, 0, 3);
+                $doctor->save();
+
                 //get doctor code id
-                $doctor_code_id = $doctor_code->id;
+                $doctor_id = $doctor->id;
 
                 //create patient
                 $patient = Patient::firstOrCreate(
@@ -856,7 +881,7 @@ class ResultController extends Controller
                 //create test result 
                 $test_result = TestResult::firstOrCreate(
                     [
-                        'doctor_code_id' => $doctor_code_id,
+                        'doctor_id' => $doctor_id,
                         'patient_id' => $patient_id,
                         'lab_no' => $lab_no,
                     ],
@@ -868,9 +893,15 @@ class ResultController extends Controller
                         'reported_date' => $reported_date,
                         'is_completed' => true,
                         'validated_by' => $validated_by,
-                        'package_name' => $package_name,
                     ]
                 );
+
+                $panel_profile = PanelProfile::firstOrCreate(['name' => $package_name]);
+                $panel_profile_id = $panel_profile->id;
+
+                //create same category with profile
+                $panel_category = PanelCategory::firstOrCreate(['panel_profile_id' => $panel_profile_id], ['name' => $package_name]);
+                $panel_category_id = $panel_category->id;
 
                 //get test result id
                 $test_result_id = $test_result->id;
@@ -889,9 +920,10 @@ class ResultController extends Controller
                         [
                             'lab_id' => $lab_id,
                             'name' => $panel_name,
+                            'panel_category_id' => $panel_category_id,
+                            'code' => $panel_code,
                         ],
                         [
-                            'code' => $panel_code,
                             'sequence' => $panel_sequence,
                             'overall_notes' => $overall_notes
                         ]

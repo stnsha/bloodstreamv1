@@ -6,7 +6,7 @@ use App\Http\Requests\InnoquestResultRequest;
 use App\Http\Requests\StorePatientResultRequest;
 use App\Models\DeliveryFile;
 use App\Models\DeliveryFileHistory;
-use App\Models\DoctorCode;
+use App\Models\Doctor;
 use App\Models\Panel;
 use App\Models\PanelComment;
 use App\Models\PanelItem;

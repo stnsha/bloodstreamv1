@@ -10,7 +10,7 @@ use Illuminate\Foundation\Http\FormRequest;
  * @property string $reference_id
  * @property string $lab_no
  * @property string $bill_code
- * @property string $doctor_code
+ * @property string $doctor_id
  * @property string $received_date
  * @property string $reported_date
  * @property string $collected_date
@@ -45,6 +45,7 @@ class StorePatientResultRequest extends FormRequest
             'doctor.name' => 'nullable|string',
             'doctor.address' => 'nullable|string',
             'doctor.phone' => 'nullable|string',
+            'doctor.type' => 'nullable|string',
 
             'received_date' => 'nullable',
             'reported_date' => 'nullable',
@@ -53,11 +54,11 @@ class StorePatientResultRequest extends FormRequest
             'package_name' => 'nullable|string',
 
             'patient' => 'required|array',
-            'patient.patient_icno' => 'required|string',
-            'patient.patient_gender' => 'nullable|in:Female,Male',
-            'patient.patient_age' => 'nullable|string',
-            'patient.patient_name' => 'nullable|string',
-            'patient.patient_tel' => 'nullable|string',
+            'patient.icno' => 'required|string',
+            'patient.gender' => 'nullable|in:Female,Male',
+            'patient.age' => 'nullable|string',
+            'patient.name' => 'nullable|string',
+            'patient.tel' => 'nullable|string',
             'patient.ic_type' => 'in:NRIC,OTHERS',
 
             'results' => 'required|array',
@@ -77,6 +78,54 @@ class StorePatientResultRequest extends FormRequest
             'results.*.tests.*.test_note' => 'nullable|string',
             'results.*.tests.*.item_sequence' => 'nullable|integer',
         ];
+    }
+
+    /**
+     * Generate a 3-letter location code from doctor name
+     * Extracts location name after "clinic" or "pharmacy" keywords
+     * 
+     * @param string $doctorName
+     * @return string|null
+     */
+    private function generateLocationCode(string $doctorName): ?string
+    {
+        $doctorName = strtolower($doctorName);
+
+        // Find position after "clinic" or "pharmacy"
+        $clinicPos = stripos($doctorName, 'clinic');
+        $pharmacyPos = stripos($doctorName, 'pharmacy');
+
+        $startPos = null;
+        if ($clinicPos !== false) {
+            $startPos = $clinicPos + strlen('clinic');
+        } elseif ($pharmacyPos !== false) {
+            $startPos = $pharmacyPos + strlen('pharmacy');
+        }
+
+        if ($startPos === null) {
+            return null;
+        }
+
+        // Extract location name after clinic/pharmacy
+        $locationPart = trim(substr($doctorName, $startPos));
+
+        // Remove common words and get meaningful location words
+        $locationWords = preg_split('/\s+/', $locationPart);
+        $locationWords = array_filter($locationWords, function ($word) {
+            // Filter out common words
+            $commonWords = ['the', 'and', 'of', 'in', 'at', 'on', 'for', 'with', 'by'];
+            return !in_array(strtolower($word), $commonWords) && strlen($word) > 1;
+        });
+
+        if (empty($locationWords)) {
+            return null;
+        }
+
+        // Take first meaningful word and get 3 letters
+        $firstWord = reset($locationWords);
+        $code = strtoupper(substr(preg_replace('/[^a-zA-Z]/', '', $firstWord), 0, 3));
+
+        return strlen($code) >= 3 ? $code : null;
     }
 
     /**
@@ -122,11 +171,41 @@ class StorePatientResultRequest extends FormRequest
             }
         }
 
+        $cleanedDoctor = [];
+        if (is_array($this->doctor)) {
+            $doctorName = strtolower(trim($this->doctor['name'] ?? ''));
+            $doctorCode = trim($this->doctor['code'] ?? '');
+
+            // Determine doctor type based on name content
+            $doctorType = null;
+            if (stripos($doctorName, 'clinic') !== false) {
+                $doctorType = 'clinic';
+            } elseif (stripos($doctorName, 'pharmacy') !== false) {
+                $doctorType = 'pharmacy';
+            }
+
+            // Generate doctor code if empty, based on location name after clinic/pharmacy
+            if (empty($doctorCode) && !empty($doctorName)) {
+                $locationCode = $this->generateLocationCode($doctorName);
+                if ($locationCode) {
+                    $doctorCode = $locationCode;
+                }
+            }
+
+            $cleanedDoctor = [
+                'code' => $doctorCode,
+                'name' => strtoupper($doctorName),
+                'address' => trim($this->doctor['address'] ?? ''),
+                'phone' => trim($this->doctor['phone'] ?? ''),
+                'type' => strtoupper($doctorType),
+            ];
+        }
+
         $cleanedPatient = [];
         if (is_array($this->patient)) {
-            $patientIcno = trim($this->patient['patient_icno'] ?? '');
-            $patientGender = trim($this->patient['patient_gender'] ?? '');
-            $patientAge = trim($this->patient['patient_age'] ?? '');
+            $patientIcno = trim($this->patient['icno'] ?? '');
+            $patientGender = trim($this->patient['gender'] ?? '');
+            $patientAge = trim($this->patient['age'] ?? '');
 
             $icInfo = checkIcno($patientIcno);
             $icType = $icInfo['type'] ?? null;
@@ -138,11 +217,11 @@ class StorePatientResultRequest extends FormRequest
             }
 
             $cleanedPatient = [
-                'patient_icno' => $patientIcno,
-                'patient_gender' => $patientGender,
-                'patient_age' => $patientAge,
-                'patient_name' => trim($this->patient['patient_name'] ?? ''),
-                'patient_tel' => trim($this->patient['patient_tel'] ?? ''),
+                'icno' => $patientIcno,
+                'gender' => $patientGender,
+                'age' => $patientAge,
+                'name' => trim($this->patient['name'] ?? ''),
+                'tel' => trim($this->patient['tel'] ?? ''),
                 'ic_type' => $icType,
             ];
         }
@@ -154,6 +233,7 @@ class StorePatientResultRequest extends FormRequest
             'received_date' => convertToDateTimeString($this->received_date),
             'reported_date' => convertToDateTimeString($this->reported_date),
             'collected_date' => convertToDateTimeString($this->collected_date),
+            'doctor' => $cleanedDoctor,
             'patient' => $cleanedPatient,
             'results' => $cleanedResults,
         ]);

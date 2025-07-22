@@ -11,7 +11,7 @@ class TestResult extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'doctor_code_id',
+        'doctor_id',
         'patient_id',
         'ref_id',
         'bill_code',
@@ -21,7 +21,6 @@ class TestResult extends Model
         'reported_date',
         'is_completed',
         'validated_by',
-        'package_name'
     ];
 
     protected $attributes = [
@@ -31,7 +30,6 @@ class TestResult extends Model
         'received_date' => null,
         'reported_date' => null,
         'validated_by' => null,
-        'package_name' => null,
         'is_completed' => false,
     ];
 }

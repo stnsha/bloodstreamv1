@@ -11,6 +11,7 @@ class PanelCategory extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
+        'panel_profile_id',
         'name',
         'code'
     ];
