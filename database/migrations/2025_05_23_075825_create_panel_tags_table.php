@@ -11,17 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('result_libraries', function (Blueprint $table) {
+        Schema::create('panel_tags', function (Blueprint $table) {
             $table->id();
-            $table->string('type');
-            $table->string('value');
-            $table->string('code')->nullable();
-            $table->string('description')->nullable();
+            $table->unsignedBigInteger('panel_id');
+            $table->string('name');
+            $table->string('code');
             $table->softDeletes();
             $table->timestamps();
 
-            // Composite unique constraint on value and code combination
-            $table->unique(['value', 'code'], 'hl7_value_code_unique');
+            $table->foreign('panel_id')->references('id')->on('panels')->onDelete('cascade');
         });
     }
 
@@ -31,6 +29,6 @@ return new class extends Migration
     public function down(): void
     {
         Schema::disableForeignKeyConstraints();
-        Schema::dropIfExists('result_libraries');
+        Schema::dropIfExists('panel_tags');
     }
 };

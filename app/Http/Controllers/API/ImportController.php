@@ -24,19 +24,13 @@ class ImportController extends Controller
             }
 
             $import = new CodeMappingImport();
-            $import->onlySheets('2. Profile Code', '3. Doctor Code', '5. Reported Test', '6. Bill Code');
+            $import->onlySheets('2. Profile Code', '3. Doctor Code', '4. Tag On', '5. Reported Test', '6. Bill Code');
             Excel::import($import, $filePath);
-            // return response()->json(200, ['message' => 'Excel data successfully imported.']);
         } catch (\Exception $e) {
             Log::error('Error in innoquestCodeMapping import', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-
-            // return response()->json([
-            //     'success' => false,
-            //     'message' => 'Import failed: ' . $e->getMessage()
-            // ], 500);
         }
     }
 }
