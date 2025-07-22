@@ -33,12 +33,12 @@ Route::controller(AuthController::class)->group(function () {
 Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
     Route::resource('testing', TestingController::class)->only('index', 'store', 'show', 'update', 'destroy');
 
-    Route::prefix('import')->controller(ImportController::class)->group(function () {
-        Route::post('/store', 'import')->name('store');
-    });
-
     Route::prefix('result')->controller(ResultController::class)->group(function () {
         Route::post('/patient', 'labResults')->name('labResults');
         Route::post('/panel', 'panelResults')->name('panelResults');
+    });
+
+    Route::prefix('import')->controller(ImportController::class)->group(function () {
+        Route::get('/innoquestCodeMapping', 'innoquestCodeMapping')->name('innoquestCodeMapping');
     });
 });

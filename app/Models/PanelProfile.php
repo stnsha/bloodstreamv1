@@ -11,6 +11,7 @@ class PanelProfile extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
+        'lab_id',
         'name',
         'code',
     ];

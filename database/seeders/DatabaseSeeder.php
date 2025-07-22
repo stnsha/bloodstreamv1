@@ -14,7 +14,8 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             HL7LibrarySeeder::class,
-            LabCredentialSeeder::class
+            LabCredentialSeeder::class,
+            InnoquestCodeMappingSeeder::class,
         ]);
     }
 }

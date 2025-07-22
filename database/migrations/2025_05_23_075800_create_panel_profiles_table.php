@@ -13,10 +13,13 @@ return new class extends Migration
     {
         Schema::create('panel_profiles', function (Blueprint $table) {
             $table->id();
+            $table->unsignedBigInteger('lab_id');
             $table->string('name');
             $table->string('code')->nullable();
             $table->softDeletes();
             $table->timestamps();
+
+            $table->foreign('lab_id')->references('id')->on('labs');
         });
     }
 

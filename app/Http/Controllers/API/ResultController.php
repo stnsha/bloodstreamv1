@@ -896,11 +896,11 @@ class ResultController extends Controller
                     ]
                 );
 
-                $panel_profile = PanelProfile::firstOrCreate(['name' => $package_name]);
+                $panel_profile = PanelProfile::firstOrCreate(['lab_id', $lab_id, 'name' => $package_name]);
                 $panel_profile_id = $panel_profile->id;
 
                 //create same category with profile
-                $panel_category = PanelCategory::firstOrCreate(['panel_profile_id' => $panel_profile_id], ['name' => $package_name]);
+                $panel_category = PanelCategory::firstOrCreate(['lab_id', $lab_id, 'panel_profile_id' => $panel_profile_id], ['name' => $package_name]);
                 $panel_category_id = $panel_category->id;
 
                 //get test result id
