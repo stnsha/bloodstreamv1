@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('decimal_point')->nullable();
             $table->string('unit')->nullable();
             $table->string('sequence')->nullable();
+            $table->string('result_type')->nullable();
             $table->softDeletes();
             $table->timestamps();
 

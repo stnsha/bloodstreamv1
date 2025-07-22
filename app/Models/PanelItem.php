@@ -15,12 +15,14 @@ class PanelItem extends Model
         'name',
         'decimal_point',
         'unit',
-        'sequence'
+        'sequence',
+        'result_type',
     ];
 
     protected $attributes = [
         'decimal_point' => null,
         'unit' => null,
         'sequence' => null,
+        'result_type' => null,
     ];
 }

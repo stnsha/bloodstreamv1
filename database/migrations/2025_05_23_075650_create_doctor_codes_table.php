@@ -15,7 +15,11 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('lab_id');
             $table->string('name');
-            $table->string('code');
+            $table->string('code')->nullable();
+            $table->string('type')->nullable();
+            $table->string('outlet_name')->nullable();
+            $table->string('outlet_address')->nullable();
+            $table->string('outlet_phone')->nullable();
             $table->softDeletes();
             $table->timestamps();
 

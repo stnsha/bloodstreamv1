@@ -39,7 +39,13 @@ class StorePatientResultRequest extends FormRequest
             'reference_id' => 'nullable|string',
             'lab_no' => 'required|string',
             'bill_code' => 'nullable|string',
-            'doctor_code' => 'required|string',
+
+            'doctor' => 'required|array',
+            'doctor.code' => 'nullable|string',
+            'doctor.name' => 'nullable|string',
+            'doctor.address' => 'nullable|string',
+            'doctor.phone' => 'nullable|string',
+
             'received_date' => 'nullable',
             'reported_date' => 'nullable',
             'collected_date' => 'nullable',

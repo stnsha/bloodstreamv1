@@ -14,4 +14,8 @@ class PanelProfile extends Model
         'name',
         'code',
     ];
+
+    protected $attributes = [
+        'code' => null,
+    ];
 }
