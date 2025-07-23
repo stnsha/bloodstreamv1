@@ -445,11 +445,6 @@ class ResultController extends Controller
                             if (filled($results)) {
                                 //loop through results
                                 foreach ($results as $key => $res) {
-                                    //store field value to variable
-                                    $ordinal_id = $res['ID'];
-                                    $type = $res['Type'];
-                                    $identifier = $res['Identifier'];
-
                                     //check if value exist and store to variable
                                     $result_value = filled($res['Value']) ? $res['Value'] : null;
                                     $unit = filled($res['Units']) ? $res['Units'] : null;
@@ -488,18 +483,37 @@ class ResultController extends Controller
                                             $ref_range_id = $ref_range->id;
                                         }
 
-                                        //loinc identifier - unique for panel item
-                                        PanelMetadata::firstOrCreate(
-                                            [
+                                        //store field value to variable
+                                        $ordinal_id = $res['ID'];
+                                        $type = $res['Type'];
+                                        $identifier = $res['Identifier'];
 
+                                        $main = explode('#', $identifier)[0];
+                                        $suffix = strpos($identifier, '#') !== false ? explode('#', $identifier)[1] : null;
+
+                                        $query = PanelMetadata::where('panel_item_id', $panel_item_id)
+                                            ->whereRaw("SUBSTRING_INDEX(identifier, '#', 1) = ?", [$main]);
+
+                                        if (!is_null($suffix)) {
+                                            $query->where('code', $suffix);
+                                        }
+
+                                        $panel_metadata = $query->first();
+
+                                        if ($panel_metadata) {
+                                            $panel_metadata->update([
+                                                'type' => $type,
+                                                'ordinal_id' => $ordinal_id,
+                                            ]);
+                                        } else {
+                                            PanelMetadata::create([
                                                 'panel_item_id' => $panel_item_id,
                                                 'ordinal_id' => $ordinal_id,
-                                            ],
-                                            [
                                                 'type' => $type,
-                                                'identifier' => $identifier
-                                            ]
-                                        );
+                                                'identifier' => $identifier,
+                                                'code' => $suffix,
+                                            ]);
+                                        }
 
                                         //final insert result ite 
                                         TestResultItem::firstOrCreate(

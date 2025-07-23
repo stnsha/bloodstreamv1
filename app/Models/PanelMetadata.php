@@ -14,12 +14,14 @@ class PanelMetadata extends Model
         'panel_item_id',
         'ordinal_id',
         'type',
-        'identifier'
+        'identifier',
+        'code'
     ];
 
     protected $attributes = [
         'ordinal_id' => null,
         'type' => null,
         'identifier' => null,
+        'code' => null,
     ];
 }

@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('ordinal_id')->nullable();
             $table->string('type')->nullable();
             $table->string('identifier')->nullable();
+            $table->string('code')->nullable();
             $table->softDeletes();
             $table->timestamps();
 
