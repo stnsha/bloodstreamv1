@@ -379,13 +379,18 @@ class ResultController extends Controller
 
                             //get profile code
                             $profile_code = $obv['PackageCode'];
-
-                            $panel_profile = PanelProfile::firstOrCreate(
-                                [
-                                    'lab_id' => $lab_id,
-                                    'code' => $profile_code,
-                                ]
-                            );
+                            $panel_profile = PanelProfile::where('lab_id', $lab_id)->where('code', $profile_code)->first();
+                            if (!$panel_profile) {
+                                $panel_profile = PanelProfile::firstOrCreate(
+                                    [
+                                        'lab_id' => $lab_id,
+                                        'code' => $profile_code,
+                                    ],
+                                    [
+                                        'name' => $profile_code,
+                                    ]
+                                );
+                            }
 
                             $panel_profile_id = $panel_profile->id;
                             $panel_category_id = null;
