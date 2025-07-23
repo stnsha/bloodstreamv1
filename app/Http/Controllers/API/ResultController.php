@@ -413,6 +413,7 @@ class ResultController extends Controller
                                         // Create the panel category if it doesn't exist
                                         $panel_category = PanelCategory::firstOrCreate(
                                             [
+                                                'lab_id' => $lab_id,
                                                 'panel_profile_id' => $panel_profile_id,
                                                 'name' => $lab_category,
                                             ],
