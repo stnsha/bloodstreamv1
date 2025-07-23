@@ -381,7 +381,6 @@ class ResultController extends Controller
                             $profile_code = $obv['PackageCode'];
                             $panel_profile_id = null;
                             $panel_profile = PanelProfile::where('lab_id', $lab_id)->where('code', $profile_code)->first();
-                            $panel_profile_id = $panel_profile->id;
 
                             if (!$panel_profile) {
                                 $panel_profile = PanelProfile::firstOrCreate(
@@ -394,6 +393,8 @@ class ResultController extends Controller
                                     ]
                                 );
                                 $panel_profile_id = $panel_profile->id;
+                            } else {
+                                $panel_profile_id = $panel_profile->id;
                             }
 
                             $panel_category_id = null;
@@ -403,8 +404,25 @@ class ResultController extends Controller
                                 $words = preg_split('/\s+/', $value);
                                 $lab_category = $words[0];
 
-                                $panel_category = PanelCategory::where('panel_profile_id', $panel_profile_id)->where('name', $lab_category)->first();
-                                $panel_category_id = $panel_category->id;
+                                if ($panel_profile_id != null) {
+                                    $panel_category = PanelCategory::where('panel_profile_id', $panel_profile_id)->where('name', $lab_category)->first();
+
+                                    if ($panel_category) {
+                                        $panel_category_id = $panel_category->id;
+                                    } else {
+                                        // Create the panel category if it doesn't exist
+                                        $panel_category = PanelCategory::firstOrCreate(
+                                            [
+                                                'panel_profile_id' => $panel_profile_id,
+                                                'name' => $lab_category,
+                                            ],
+                                            [
+                                                'code' => $lab_category, // or generate appropriate code
+                                            ]
+                                        );
+                                        $panel_category_id = $panel_category->id;
+                                    }
+                                }
                             }
 
                             //get panel code
