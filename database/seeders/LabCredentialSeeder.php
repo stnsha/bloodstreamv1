@@ -65,7 +65,7 @@ class LabCredentialSeeder extends Seeder
             ],
             [
                 'lab_id' => 2,
-                'username' => 'INN3SAN',
+                'username' => 'INN2SAN',
                 'password' => 'jP8xK2qL7fR9tZ3v',
             ],
         ];

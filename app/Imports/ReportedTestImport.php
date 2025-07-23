@@ -27,7 +27,6 @@ class ReportedTestImport implements ToArray, WithHeadingRow
 
     public function store(array $processedData)
     {
-        $panelItems = [];
         foreach ($processedData as $data) {
             $panel = Panel::where('code', $data['panel_code'])->first();
             if (!empty($panel)) {
@@ -43,15 +42,17 @@ class ReportedTestImport implements ToArray, WithHeadingRow
                 }
             }
 
-            $panelItems[] = [
-                'panel_id' => $panel_id,
-                'panel_tag_id' => $panel_tag_id,
-                'name' => $data['name'],
-                'unit' => $data['unit'],
-                'result_type' => $data['result_type'],
-            ];
+            PanelItem::firstOrCreate(
+                [
+                    'panel_id' => $panel_id,
+                    'panel_tag_id' => $panel_tag_id,
+                    'name' => $data['name'],
+                ],
+                [
+                    'unit' => $data['unit'],
+                    'result_type' => $data['result_type'],
+                ]
+            );
         }
-
-        PanelItem::insert($panelItems);
     }
 }
