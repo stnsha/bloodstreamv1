@@ -14,6 +14,7 @@ use App\Models\PanelComment;
 use App\Models\PanelItem;
 use App\Models\PanelMetadata;
 use App\Models\PanelProfile;
+use App\Models\PanelTag;
 use App\Models\Patient;
 use App\Models\ReferenceRange;
 use App\Models\TestResult;
@@ -376,25 +377,63 @@ class ResultController extends Controller
                             //get test result id
                             $test_result_id = $test_result->id;
 
+                            //get profile code
+                            $profile_code = $obv['PackageCode'];
+
+                            $panel_profile = PanelProfile::firstOrCreate(
+                                [
+                                    'lab_id' => $lab_id,
+                                    'code' => $profile_code,
+                                ]
+                            );
+
+                            $panel_profile_id = $panel_profile->id;
+                            $panel_category_id = null;
+
+                            if ($obv['Results'][0]['Identifier'] == 'REPORT') {
+                                $value = trim($obv['Results'][0]['Value']);
+                                $words = preg_split('/\s+/', $value);
+                                $lab_category = $words[0];
+
+                                $panel_category = PanelCategory::where('panel_profile_id', $panel_profile_id)->where('name', $lab_category)->first();
+                                $panel_category_id = $panel_category->id;
+                            }
+
                             //get panel code
                             $panel_code = $obv['ProcedureCode'];
                             $panel_name = $obv['ProcedureDescription'];
                             $panel_notes = filled($obv['ClinicalInformation']) ? $obv['ClinicalInformation'] : null; //overall notes
 
-                            //create panel
-                            $panel = Panel::firstOrCreate(
-                                [
-                                    'lab_id' => $lab_id,
-                                    'name' => $panel_name,
-                                ],
-                                [
-                                    'code' => $panel_code,
-                                    'sequence' => null,
-                                    'overall_notes' => $panel_notes
-                                ]
-                            );
+                            $panel = Panel::where('code', $panel_code)->where('name', $panel_name)->first();
+                            $panel_tag_id = null;
+                            if (!$panel) {
+                                //search if tag on code
+                                $panel_tag = PanelTag::where('code', $panel_code)->where('name', $panel_name)->first();
 
-                            //get panel id
+                                if (!$panel_tag) {
+                                    //create panel if no tag on code
+                                    $panel = Panel::firstOrCreate(
+                                        [
+                                            'lab_id' => $lab_id,
+                                            'panel_category_id' => $panel_category_id,
+                                            'name' => $panel_name,
+                                        ],
+                                        [
+                                            'code' => $panel_code,
+                                            'sequence' => null,
+                                            'overall_notes' => $panel_notes
+                                        ]
+                                    );
+
+                                    //get panel id
+                                    $panel_id = $panel->id;
+                                } else {
+                                    //if panel tag exist
+                                    $panel_tag_id = $panel_tag->id;
+                                    $panel_id = $panel_tag->panel_id;
+                                }
+                            }
+
                             $panel_id = $panel->id;
 
                             //check if result is completed
@@ -423,6 +462,7 @@ class ResultController extends Controller
                                         $panel_item = PanelItem::firstOrCreate(
                                             [
                                                 'panel_id' => $panel_id,
+                                                'panel_tag_id' => $panel_tag_id,
                                                 'name' => $res['Text'],
                                             ],
                                             [
