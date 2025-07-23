@@ -379,7 +379,10 @@ class ResultController extends Controller
 
                             //get profile code
                             $profile_code = $obv['PackageCode'];
+                            $panel_profile_id = null;
                             $panel_profile = PanelProfile::where('lab_id', $lab_id)->where('code', $profile_code)->first();
+                            $panel_profile_id = $panel_profile->id;
+
                             if (!$panel_profile) {
                                 $panel_profile = PanelProfile::firstOrCreate(
                                     [
@@ -390,9 +393,9 @@ class ResultController extends Controller
                                         'name' => $profile_code,
                                     ]
                                 );
+                                $panel_profile_id = $panel_profile->id;
                             }
 
-                            $panel_profile_id = $panel_profile->id;
                             $panel_category_id = null;
 
                             if ($obv['Results'][0]['Identifier'] == 'REPORT') {
@@ -624,6 +627,9 @@ class ResultController extends Controller
             /** @var \Illuminate\Http\Request $request */
             Log::error('Failed to save data', [
                 'exception' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
                 'data' => json_encode($request->all()),
             ]);
 
@@ -1067,6 +1073,9 @@ class ResultController extends Controller
             /** @var \Illuminate\Http\Request $request */
             Log::error('Failed to save data', [
                 'exception' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
                 'data' => json_encode($request->all()),
             ]);
 
