@@ -58,6 +58,7 @@ class InnoquestResultRequest extends FormRequest
         return [
             'SendingFacility' => 'required|string',
             'MessageControlID' => 'required|string',
+
             'patient.PatientID' => 'nullable|string',
             'patient.PatientExternalID' => 'nullable|string', //refid?
             'patient.AlternatePatientID' => 'required|string', //icno
@@ -89,7 +90,7 @@ class InnoquestResultRequest extends FormRequest
             'Orders.*.Observations.*.FillerOrderNumber' => 'required|string', //labno
             'Orders.*.Observations.*.ProcedureCode' => 'required|string', //panel code
             'Orders.*.Observations.*.ProcedureDescription' => 'required|string', //panel name
-            'Orders.*.Observations.*.PackageCode' => 'nullable|string', //promotion?
+            'Orders.*.Observations.*.PackageCode' => 'nullable|string', //profile
             'Orders.*.Observations.*.Priority' => 'nullable|string',
             'Orders.*.Observations.*.RequestedDateTime' => 'nullable|string', //collected date
             'Orders.*.Observations.*.StartDateTime' => 'nullable|string', //received date

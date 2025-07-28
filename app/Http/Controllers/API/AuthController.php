@@ -102,11 +102,15 @@ class AuthController extends Controller
     {
         $credentials = $request->only($this->username(), 'password');
 
+        // Set JWT TTL to 30 days (43,200 minutes) before attempting login
+        Auth::guard('lab')->factory()->setTTL(43200);
+
         if (!$token = Auth::guard('lab')->attempt($credentials)) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
-        $expiresIn = Auth::guard('lab')->factory()->getTTL() * 60;
+        // Calculate expiration time in seconds (30 days)
+        $expiresIn = 43200 * 60; // 43,200 minutes * 60 seconds = 2,592,000 seconds
 
         $labCredential = LabCredential::where('username', $credentials['username'])->first();
 

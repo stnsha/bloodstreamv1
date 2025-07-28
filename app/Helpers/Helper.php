@@ -31,6 +31,7 @@ if (!function_exists('checkIcno')) {
         $type = Patient::others;
         $gender = null;
         $age = null;
+        // $nationality = Patient::non;
 
         if (strlen($icno) === 12) {
             $year = (int) substr($icno, 0, 2);
@@ -43,10 +44,9 @@ if (!function_exists('checkIcno')) {
 
             if (checkdate($month, $day, $fullYear)) {
                 $type = Patient::nric;
-
                 $gender = $lastDigit % 2 === 0 ? Patient::female : Patient::male;
-
                 $age = $currentYear - $fullYear;
+                // $nationality = Patient::my;
             }
         }
 
@@ -55,6 +55,7 @@ if (!function_exists('checkIcno')) {
             'type' => $type,
             'gender' => $gender,
             'age' => $age,
+            // 'nationality' => $nationality
         ];
     }
 }
