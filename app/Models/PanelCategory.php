@@ -12,7 +12,6 @@ class PanelCategory extends Model
 
     protected $fillable = [
         'lab_id',
-        'panel_profile_id',
         'name',
         'code'
     ];

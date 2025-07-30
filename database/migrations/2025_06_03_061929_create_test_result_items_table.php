@@ -19,6 +19,7 @@ return new class extends Migration
             $table->string('flag')->nullable();
             $table->longText('test_notes')->nullable();
             $table->string('status')->nullable();
+            $table->boolean('is_tagon')->default(false);
             $table->boolean('is_completed')->default(false);
             $table->softDeletes();
             $table->timestamps();

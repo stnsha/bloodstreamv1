@@ -17,6 +17,7 @@ class ReportedTestImport implements ToArray, WithHeadingRow
         foreach ($array as $row) {
             $processedData[] = [
                 'panel_code' => $row['panel'],
+                'panel_name' => $row['name'],
                 'item' => $row['item'],
                 'name' => $row['name_1'],
                 'external_item' => $row['external_item'],
@@ -34,37 +35,32 @@ class ReportedTestImport implements ToArray, WithHeadingRow
             $panel = Panel::where('code', $data['panel_code'])->first();
             if (!empty($panel)) {
                 $panel_id = $panel->id;
-                $panel_tag_id = null;
             } else {
                 $panelTag = PanelTag::where('code', $data['panel_code'])->first();
                 if (!empty($panelTag)) {
-                    $panel_tag_id = $panelTag->id;
                     $panel_id = $panelTag->panel_id;
                 } else {
-                    continue;
+                    $panel = Panel::firstOrCreate([
+                        'lab_id' => 2, // Set appropriate lab_id
+                        'code' => $data['panel_code']
+                    ], [
+                        'panel_category_id' => null,
+                        'name' => $data['panel_name'],
+                    ]);
+
+                    $panel_id = $panel->id;
                 }
             }
 
-            $panel_item = PanelItem::firstOrCreate(
+            PanelItem::firstOrCreate(
                 [
                     'panel_id' => $panel_id,
-                    'panel_tag_id' => $panel_tag_id,
                     'name' => $data['name'],
+                    'identifier' => $data['external_item'],
                 ],
                 [
                     'unit' => $data['unit'],
                     'result_type' => $data['result_type'],
-                ]
-            );
-
-            $panel_item_id = $panel_item->id;
-
-            PanelMetadata::firstOrCreate(
-                [
-                    'panel_item_id' => $panel_item_id,
-                    'identifier' => $data['external_item'],
-                ],
-                [
                     'code' => $data['item']
                 ]
             );

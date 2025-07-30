@@ -45,10 +45,8 @@ class ProfileCodeImport implements ToArray, WithHeadingRow
             // 2. Create or get PanelCategory
             $panelCategory = PanelCategory::firstOrCreate([
                 'lab_id' => 2,
-                'panel_profile_id' => $panelProfile->id,
                 'name' => $data['panel_category']
             ], [
-                'panel_profile_id' => $panelProfile->id,
                 'name' => $data['panel_category'],
                 'code' => null
             ]);

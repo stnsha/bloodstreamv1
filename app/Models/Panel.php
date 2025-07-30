@@ -14,6 +14,7 @@ class Panel extends Model
     protected $fillable = ['lab_id', 'panel_category_id', 'name', 'code', 'sequence', 'overall_notes'];
 
     protected $attributes = [
+        'panel_category_id' => null,
         'sequence' => null,
         'overall_notes' => null,
     ];

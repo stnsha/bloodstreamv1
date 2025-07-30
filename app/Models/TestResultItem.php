@@ -17,6 +17,7 @@ class TestResultItem extends Model
         'flag',
         'test_notes',
         'status',
+        'is_tagon',
         'is_completed'
     ];
 
@@ -25,6 +26,7 @@ class TestResultItem extends Model
         'flag' => null,
         'test_notes' => null,
         'status' => null,
+        'is_tagon' => false,
         'is_completed' => false,
     ];
 }

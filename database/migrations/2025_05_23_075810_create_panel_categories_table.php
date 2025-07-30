@@ -14,14 +14,12 @@ return new class extends Migration
         Schema::create('panel_categories', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('lab_id');
-            $table->unsignedBigInteger('panel_profile_id');
             $table->string('name');
             $table->string('code')->nullable();
             $table->softDeletes();
             $table->timestamps();
 
             $table->foreign('lab_id')->references('id')->on('labs')->onDelete('cascade');
-            $table->foreign('panel_profile_id')->references('id')->on('panel_profiles')->onDelete('cascade');
         });
     }
 
