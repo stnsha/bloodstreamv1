@@ -32,7 +32,11 @@ class ReportedTestImport implements ToArray, WithHeadingRow
     public function store(array $processedData)
     {
         foreach ($processedData as $data) {
-            $panel = Panel::where('code', $data['panel_code'])->first();
+            // Search with both lab_id and code
+            $panel = Panel::where('lab_id', 2)
+                         ->where('code', $data['panel_code'])
+                         ->first();
+            
             if (!empty($panel)) {
                 $panel_id = $panel->id;
             } else {
@@ -41,11 +45,12 @@ class ReportedTestImport implements ToArray, WithHeadingRow
                     $panel_id = $panelTag->panel_id;
                 } else {
                     $panel = Panel::firstOrCreate([
-                        'lab_id' => 2, // Set appropriate lab_id
+                        'lab_id' => 2,
                         'code' => $data['panel_code']
                     ], [
                         'panel_category_id' => null,
                         'name' => $data['panel_name'],
+                        'overall_notes' => 'from reported test'
                     ]);
 
                     $panel_id = $panel->id;

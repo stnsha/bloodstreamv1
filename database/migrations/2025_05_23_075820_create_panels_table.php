@@ -25,6 +25,9 @@ return new class extends Migration
 
             $table->foreign('lab_id')->references('id')->on('labs')->onDelete('cascade');
             $table->foreign('panel_category_id')->references('id')->on('panel_categories')->onDelete('cascade');
+
+            // Add unique constraint to prevent duplicate panels for same lab
+            $table->unique(['lab_id', 'code'], 'panels_lab_id_code_unique');
         });
     }
 
