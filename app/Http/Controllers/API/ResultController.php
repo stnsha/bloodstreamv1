@@ -116,27 +116,10 @@ class ResultController extends Controller
                             // $received_date = $obv['EndDateTime'];
                             $reported_date = $this->convertDatetime($obv['RequestedDateTime']);
 
-                            //create test result
-                            $test_result = TestResult::firstOrCreate([
-                                'doctor_id' => $doctor_id,
-                                'patient_id' => $patient_id,
-                                'ref_id' => $reference_id,
-                                'bill_code' => $bill_code,
-                                'lab_no' => $lab_no,
-                                'collected_date' => $collected_date,
-                                'received_date' => null,
-                                'reported_date' => $reported_date,
-                                'is_completed' => false
-                            ]);
-
-                            //get test result id
-                            $test_result_id = $test_result->id;
-
                             //get profile code
                             $profile_code = $obv['PackageCode'];
                             $panel_profile_id = null;
                             $panel_profile = PanelProfile::where('lab_id', $lab_id)->where('code', $profile_code)->first();
-
                             if (!$panel_profile) {
                                 $panel_profile = PanelProfile::firstOrCreate(
                                     [
@@ -152,34 +135,51 @@ class ResultController extends Controller
                                 $panel_profile_id = $panel_profile->id;
                             }
 
-                            $panel_category_id = null;
+                            //create test result
+                            $test_result = TestResult::firstOrCreate([
+                                'doctor_id' => $doctor_id,
+                                'patient_id' => $patient_id,
+                                'ref_id' => $reference_id,
+                                'bill_code' => $bill_code,
+                                'lab_no' => $lab_no,
+                                'panel_profile_id' => $panel_profile_id,
+                                'collected_date' => $collected_date,
+                                'received_date' => null,
+                                'reported_date' => $reported_date,
+                                'is_completed' => false
+                            ]);
 
-                            if ($obv['Results'][0]['Identifier'] == 'REPORT') {
-                                $value = trim($obv['Results'][0]['Value']);
-                                $words = preg_split('/\s+/', $value);
-                                $lab_category = $words[0];
+                            //get test result id
+                            $test_result_id = $test_result->id;
 
-                                if ($panel_profile_id != null) {
-                                    $panel_category = PanelCategory::where('panel_profile_id', $panel_profile_id)->where('name', $lab_category)->first();
+                            // $panel_category_id = null;
 
-                                    if ($panel_category) {
-                                        $panel_category_id = $panel_category->id;
-                                    } else {
-                                        // Create the panel category if it doesn't exist
-                                        $panel_category = PanelCategory::firstOrCreate(
-                                            [
-                                                'lab_id' => $lab_id,
-                                                'panel_profile_id' => $panel_profile_id,
-                                                'name' => $lab_category,
-                                            ],
-                                            [
-                                                'code' => $lab_category, // or generate appropriate code
-                                            ]
-                                        );
-                                        $panel_category_id = $panel_category->id;
-                                    }
-                                }
-                            }
+                            // if ($obv['Results'][0]['Identifier'] == 'REPORT') {
+                            //     $value = trim($obv['Results'][0]['Value']);
+                            //     $words = preg_split('/\s+/', $value);
+                            //     $lab_category = $words[0];
+
+                            //     if ($panel_profile_id != null) {
+                            //         $panel_category = PanelCategory::where('panel_profile_id', $panel_profile_id)->where('name', $lab_category)->first();
+
+                            //         if ($panel_category) {
+                            //             $panel_category_id = $panel_category->id;
+                            //         } else {
+                            //             // Create the panel category if it doesn't exist
+                            //             $panel_category = PanelCategory::firstOrCreate(
+                            //                 [
+                            //                     'lab_id' => $lab_id,
+                            //                     'panel_profile_id' => $panel_profile_id,
+                            //                     'name' => $lab_category,
+                            //                 ],
+                            //                 [
+                            //                     'code' => $lab_category, // or generate appropriate code
+                            //                 ]
+                            //             );
+                            //             $panel_category_id = $panel_category->id;
+                            //         }
+                            //     }
+                            // }
 
                             //get panel code
                             $panel_code = $obv['ProcedureCode'];
@@ -197,7 +197,6 @@ class ResultController extends Controller
                                     $panel = Panel::firstOrCreate(
                                         [
                                             'lab_id' => $lab_id,
-                                            'panel_category_id' => $panel_category_id,
                                             'name' => $panel_name,
                                         ],
                                         [
@@ -233,19 +232,30 @@ class ResultController extends Controller
                                     $result_flag = filled($res['Flags']) ? $res['Flags'] : null;
                                     $result_status = filled($res['Status']) ? $res['Status'] : null;
 
+
+                                    //store field value to variable
+                                    $ordinal_id = $res['ID'];
+                                    $type = $res['Type'];
+                                    $identifier = $res['Identifier'];
+
+                                    $main = explode('#', $identifier)[0];
+                                    $suffix = strpos($identifier, '#') !== false ? explode('#', $identifier)[1] : null;
+
                                     //result items 
                                     if (filled($res['Text']) && $res['Text'] != 'COMMENT') {
                                         //create panel items
                                         $panel_item = PanelItem::firstOrCreate(
                                             [
                                                 'panel_id' => $panel_id,
-                                                'panel_tag_id' => $panel_tag_id,
                                                 'name' => $res['Text'],
                                             ],
                                             [
                                                 'decimal_point' => null,
                                                 'unit' => $unit,
-                                                'item_sequence' => null
+                                                'item_sequence' => null,
+                                                'type' => $type,
+                                                'identifier' => $identifier,
+                                                'code' => $suffix,
                                             ]
                                         );
 
@@ -265,42 +275,34 @@ class ResultController extends Controller
                                             $ref_range_id = $ref_range->id;
                                         }
 
-                                        //store field value to variable
-                                        $ordinal_id = $res['ID'];
-                                        $type = $res['Type'];
-                                        $identifier = $res['Identifier'];
 
-                                        $main = explode('#', $identifier)[0];
-                                        $suffix = strpos($identifier, '#') !== false ? explode('#', $identifier)[1] : null;
+                                        // $query = PanelMetadata::where('panel_item_id', $panel_item_id)
+                                        //     ->whereRaw("SUBSTRING_INDEX(identifier, '#', 1) = ?", [$main]);
 
-                                        $query = PanelMetadata::where('panel_item_id', $panel_item_id)
-                                            ->whereRaw("SUBSTRING_INDEX(identifier, '#', 1) = ?", [$main]);
+                                        // if (!is_null($suffix)) {
+                                        //     $query->where('code', $suffix);
+                                        // }
 
-                                        if (!is_null($suffix)) {
-                                            $query->where('code', $suffix);
-                                        }
+                                        // $panel_metadata = $query->first();
 
-                                        $panel_metadata = $query->first();
-
-                                        if ($panel_metadata) {
-                                            $panel_metadata->update([
-                                                'type' => $type,
-                                                'ordinal_id' => $ordinal_id,
-                                            ]);
-                                        } else {
-                                            PanelMetadata::create([
-                                                'panel_item_id' => $panel_item_id,
-                                                'ordinal_id' => $ordinal_id,
-                                                'type' => $type,
-                                                'identifier' => $identifier,
-                                                'code' => $suffix,
-                                            ]);
-                                        }
+                                        // if ($panel_metadata) {
+                                        //     $panel_metadata->update([
+                                        //         'type' => $type,
+                                        //         'ordinal_id' => $ordinal_id,
+                                        //     ]);
+                                        // } else {
+                                        //     PanelMetadata::create([
+                                        //         'panel_item_id' => $panel_item_id,
+                                        //         'ordinal_id' => $ordinal_id,
+                                        //         'type' => $type,
+                                        //         'identifier' => $identifier,
+                                        //         'code' => $suffix,
+                                        //     ]);
+                                        // }
 
                                         //final insert result ite 
                                         TestResultItem::firstOrCreate(
                                             [
-
                                                 'test_result_id' => $test_result_id,
                                                 'reference_range_id' => $ref_range_id,
                                                 'value' => $result_value
