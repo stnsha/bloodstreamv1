@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 
 class ResultController extends Controller
 {
@@ -957,5 +958,14 @@ class ResultController extends Controller
             ]);
             return null;
         }
+    }
+
+    public function testPanel(Request $request)
+    {
+        Log::info('Request Data:', $request->all());
+        return response()->json([
+            'message' => 'Request received',
+            'data' => $request->all(),
+        ], 200);
     }
 }
