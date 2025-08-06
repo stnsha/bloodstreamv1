@@ -56,69 +56,76 @@ class InnoquestResultRequest extends FormRequest
     public function rules(): array
     {
         return [
+            // Root Level - Always Expected
             'SendingFacility' => 'required|string',
             'MessageControlID' => 'required|string',
 
-            'patient.PatientID' => 'nullable|string',
-            'patient.PatientExternalID' => 'nullable|string', //refid?
-            'patient.AlternatePatientID' => 'required|string', //icno
-            'patient.PatientLastName' => 'required|string', //name
-            'patient.PatientDOB' => 'required|string', //dob
-            'patient.PatientGender' => 'required|string', //gender
+            // Patient Information
+            'patient' => 'required|array',
+            'patient.PatientID' => 'nullable|string', // Optional (MRN)
+            'patient.PatientExternalID' => 'nullable|string', // not used
+            'patient.AlternatePatientID' => 'nullable|string', // Optional (NRIC)
+            'patient.PatientLastName' => 'required|string', // Always Expected (Full Name)
+            'patient.PatientFirstName' => 'nullable|string', // not used
+            'patient.PatientMiddleName' => 'nullable|string', // not used
+            'patient.PatientDOB' => 'required|string', // Always Expected (YYYYMMDD)
+            'patient.PatientGender' => 'required|string|in:M,F', // Always Expected (M/F)
+            'patient.PatientAddress' => 'nullable|string', // Optional
+            'patient.PatientNationality' => 'nullable|string', // Optional
 
-            'patient.PatientFirstName' => 'nullable|string',
-            'patient.PatientMiddleName' => 'nullable|string',
-            'patient.PatientAddress' => 'nullable|string',
-            'patient.PatientNationality' => 'nullable|string',
-
-            'Orders' => 'required|array',
-            'Orders.*.PlacerOrderNumber' => 'nullable|string',
-            'Orders.*.FillerOrderNumber' => 'nullable|string',
-            'Orders.*.PlacerGroupNumber' => 'nullable|string',
+            // Orders
+            'Orders' => 'required|array|min:1',
+            'Orders.*.PlacerOrderNumber' => 'nullable|string', // Optional (Client Order Number)
+            'Orders.*.FillerOrderNumber' => 'required|string', // Always Expected (IQMY Request Number)
+            'Orders.*.PlacerGroupNumber' => 'nullable|string', // not used
             'Orders.*.Status' => 'nullable|string',
-            'Orders.*.Quantity' => 'nullable|string',
+            'Orders.*.Quantity' => 'nullable|string', // not used
             'Orders.*.TransactionDateTime' => 'nullable|string',
+            'Orders.*.Organization' => 'nullable|string', // not used
 
+            // Ordering Provider - Always Expected
             'Orders.*.OrderingProvider' => 'required|array',
-            'Orders.*.OrderingProvider.Code' => 'required|string',
-            'Orders.*.OrderingProvider.Name' => 'required|string',
+            'Orders.*.OrderingProvider.Code' => 'required|string', // Always Expected (IQMY Doctor Code)
+            'Orders.*.OrderingProvider.Name' => 'required|string', // Always Expected (Doctor Name)
 
-            'Orders.*.Organization' => 'nullable|string',
+            // Observations
+            'Orders.*.Observations' => 'required|array|min:1',
+            'Orders.*.Observations.*.PlacerOrderNumber' => 'nullable|string', // Optional (Client Order Number)
+            'Orders.*.Observations.*.FillerOrderNumber' => 'required|string', // Always Expected (IQMY Request Number)
+            'Orders.*.Observations.*.ProcedureCode' => 'required|string', // Always Expected (Testing Panel Code)
+            'Orders.*.Observations.*.ProcedureDescription' => 'required|string', // Always Expected (Panel Description)
+            'Orders.*.Observations.*.PackageCode' => 'nullable|string', // Optional (Package code)
+            'Orders.*.Observations.*.Priority' => 'nullable|string', // Optional (Test Priority Flag)
+            'Orders.*.Observations.*.RequestedDateTime' => 'nullable|string', // Optional
+            'Orders.*.Observations.*.StartDateTime' => 'nullable|string', // Optional
+            'Orders.*.Observations.*.EndDateTime' => 'nullable|string', // Optional
+            'Orders.*.Observations.*.ClinicalInformation' => 'nullable|string', // Optional
+            'Orders.*.Observations.*.SpecimenDateTime' => 'nullable|string', // Optional
 
-            'Orders.*.Observations' => 'required|array',
-            'Orders.*.Observations.*.PlacerOrderNumber' => 'nullable|string', //refid?
-            'Orders.*.Observations.*.FillerOrderNumber' => 'required|string', //labno
-            'Orders.*.Observations.*.ProcedureCode' => 'required|string', //panel code
-            'Orders.*.Observations.*.ProcedureDescription' => 'required|string', //panel name
-            'Orders.*.Observations.*.PackageCode' => 'nullable|string', //profile
-            'Orders.*.Observations.*.Priority' => 'nullable|string',
-            'Orders.*.Observations.*.RequestedDateTime' => 'nullable|string', //collected date
-            'Orders.*.Observations.*.StartDateTime' => 'nullable|string', //received date
-            'Orders.*.Observations.*.EndDateTime' => 'nullable|string', //reported date?
-            'Orders.*.Observations.*.ClinicalInformation' => 'nullable|string', //panel test notes?
-            'Orders.*.Observations.*.SpecimenDateTime' => 'nullable|string', //reported date?s
-
+            // Observation Ordering Provider - Always Expected
             'Orders.*.Observations.*.OrderingProvider' => 'required|array',
-            'Orders.*.Observations.*.OrderingProvider.Code' => 'required|string', //doctor code
-            'Orders.*.Observations.*.OrderingProvider.Name' => 'required|string', //doctor name
+            'Orders.*.Observations.*.OrderingProvider.Code' => 'required|string', // Always Expected (IQMY Doctor Code)
+            'Orders.*.Observations.*.OrderingProvider.Name' => 'required|string', // Always Expected (Doctor Name)
 
-            'Orders.*.Observations.*.ResultStatus' => 'required|string', //panel result status
-            'Orders.*.Observations.*.ServiceDateTime' => 'required|string',
-            'Orders.*.Observations.*.ResultPriority' => 'required|string',
+            'Orders.*.Observations.*.ResultStatus' => 'required|string', // Always Expected
+            'Orders.*.Observations.*.ServiceDateTime' => 'required|string', // Always Expected
+            'Orders.*.Observations.*.ResultPriority' => 'required|string', // Always Expected
 
-            'Orders.*.Observations.*.Results' => 'required|array',
-            'Orders.*.Observations.*.Results.*.ID' => 'required|string', //ordinal id
-            'Orders.*.Observations.*.Results.*.Type' => 'required|string', //type
-            'Orders.*.Observations.*.Results.*.Identifier' => 'required|string', //identifier
-            'Orders.*.Observations.*.Results.*.Text' => 'nullable|string',
-            'Orders.*.Observations.*.Results.*.CodingSystem' => 'required|string',
-            'Orders.*.Observations.*.Results.*.Value' => 'required|string',
-            'Orders.*.Observations.*.Results.*.Units' => 'nullable|string',
-            'Orders.*.Observations.*.Results.*.ReferenceRange' => 'nullable|string',
-            'Orders.*.Observations.*.Results.*.Flags' => 'nullable|string',
-            'Orders.*.Observations.*.Results.*.Status' => 'nullable|string', //actual result status
-            'Orders.*.Observations.*.Results.*.ObservationDateTime' => 'nullable|string',
+            // Results
+            'Orders.*.Observations.*.Results' => 'required|array|min:1',
+            'Orders.*.Observations.*.Results.*.ID' => 'required|string', // Always Expected (ordinal id)
+            'Orders.*.Observations.*.Results.*.Type' => 'required|string', // Always Expected
+            'Orders.*.Observations.*.Results.*.Identifier' => 'required|string', // Always Expected
+            'Orders.*.Observations.*.Results.*.Text' => 'nullable|string', // Optional
+            'Orders.*.Observations.*.Results.*.CodingSystem' => 'required|string', // Always Expected
+            'Orders.*.Observations.*.Results.*.Value' => 'required|string', // Always Expected
+            'Orders.*.Observations.*.Results.*.Units' => 'nullable|string', // Optional
+            'Orders.*.Observations.*.Results.*.ReferenceRange' => 'nullable|string', // Optional
+            'Orders.*.Observations.*.Results.*.Flags' => 'nullable|string', // Optional
+            'Orders.*.Observations.*.Results.*.Status' => 'required|string', // Always Expected
+            'Orders.*.Observations.*.Results.*.ObservationDateTime' => 'required|string', // Always Expected
 
+            // Additional field
             'EncodedBase64pdf' => 'nullable|string'
         ];
     }

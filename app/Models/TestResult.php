@@ -16,6 +16,7 @@ class TestResult extends Model
         'ref_id',
         'bill_code',
         'lab_no',
+        'panel_profile_id',
         'collected_date',
         'received_date',
         'reported_date',
@@ -26,6 +27,7 @@ class TestResult extends Model
     protected $attributes = [
         'ref_id' => null,
         'bill_code' => null,
+        'panel_profile_id' => null,
         'collected_date' => null,
         'received_date' => null,
         'reported_date' => null,

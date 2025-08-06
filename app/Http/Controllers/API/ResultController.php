@@ -31,6 +31,12 @@ class ResultController extends Controller
     public function panelResults(InnoquestResultRequest $request)
     {
         $validated = $request->validated();
+        $lab_id = null;
+        $test_result = null;
+        $deliveryFile = null;
+        $sending_facility = null;
+        $batch_id = null;
+
         try {
             if ($validated) {
                 DB::beginTransaction();
@@ -47,17 +53,27 @@ class ResultController extends Controller
                 //check for reference id in field (before confirmed)
                 $reference_id = null;
 
-                //check for age and gender
-                $icInfo = checkIcno($validated['patient']['AlternatePatientID']);
-                $icno = $icInfo['icno'];
-                $ic_type = $icInfo['type'];
-                $patient_gender = $icInfo['gender'];
-                $age = $icInfo['age'];
+                //check for age and gender from AlternatePatientID (NRIC) if available
+                $icno = null;
+                $ic_type = 'OTHERS';
+                $patient_gender = null;
+                $age = null;
 
-                //get from json if available
-                $patient_name = filled($validated['patient']['PatientLastName']) ? $validated['patient']['PatientLastName'] : null;
+                if (filled($validated['patient']['AlternatePatientID'])) {
+                    $icInfo = checkIcno($validated['patient']['AlternatePatientID']);
+                    $icno = $icInfo['icno'];
+                    $ic_type = $icInfo['type'];
+                    $patient_gender = $icInfo['gender'];
+                    $age = $icInfo['age'];
+                } else {
+                    // Use PatientID as fallback if AlternatePatientID not available
+                    $icno = $validated['patient']['PatientID'] ?? 'UNKNOWN_' . time();
+                }
+
+                //get from json (PatientLastName is always expected)
+                $patient_name = $validated['patient']['PatientLastName'];
                 $patient_dob = filled($validated['patient']['PatientDOB']) ? $validated['patient']['PatientDOB'] : null;
-                $gender = filled($validated['patient']['PatientGender']) ? $validated['patient']['PatientGender'] : $patient_gender;
+                $gender = $validated['patient']['PatientGender']; // Always expected
 
                 //create patient
                 $patient = Patient::firstOrCreate(
@@ -69,7 +85,7 @@ class ResultController extends Controller
                         'name' => $patient_name,
                         'dob' => $patient_dob,
                         'age' => $age,
-                        'gender' => $gender
+                        'gender' => $gender ?? $patient_gender
                     ]
                 );
 
@@ -117,11 +133,11 @@ class ResultController extends Controller
                             // $received_date = $obv['EndDateTime'];
                             $reported_date = $this->convertDatetime($obv['RequestedDateTime']);
 
-                            //get profile code
-                            $profile_code = $obv['PackageCode'];
+                            //get profile code (optional)
+                            $profile_code = $obv['PackageCode'] ?? null;
                             $panel_profile_id = null;
-                            $panel_profile = PanelProfile::where('lab_id', $lab_id)->where('code', $profile_code)->first();
-                            if (!$panel_profile) {
+
+                            if (filled($profile_code)) {
                                 $panel_profile = PanelProfile::firstOrCreate(
                                     [
                                         'lab_id' => $lab_id,
@@ -131,8 +147,6 @@ class ResultController extends Controller
                                         'name' => $profile_code,
                                     ]
                                 );
-                                $panel_profile_id = $panel_profile->id;
-                            } else {
                                 $panel_profile_id = $panel_profile->id;
                             }
 
@@ -189,6 +203,7 @@ class ResultController extends Controller
 
                             $panel = Panel::where('code', $panel_code)->where('name', $panel_name)->first();
                             $panel_tag_id = null;
+
                             if (!$panel) {
                                 //search if tag on code
                                 $panel_tag = PanelTag::where('code', $panel_code)->where('name', $panel_name)->first();
@@ -206,17 +221,15 @@ class ResultController extends Controller
                                             'overall_notes' => $panel_notes
                                         ]
                                     );
-
-                                    //get panel id
                                     $panel_id = $panel->id;
                                 } else {
                                     //if panel tag exist
                                     $panel_tag_id = $panel_tag->id;
                                     $panel_id = $panel_tag->panel_id;
                                 }
+                            } else {
+                                $panel_id = $panel->id;
                             }
-
-                            $panel_id = $panel->id;
 
                             //check if result is completed
                             $is_completed_result = (filled($obv['ResultStatus']) && $obv['ResultStatus'] == 'F')  ? true : false;
@@ -264,6 +277,7 @@ class ResultController extends Controller
                                         $panel_item_id = $panel_item->id;
 
                                         //create reference range
+                                        $ref_range_id = null;
                                         if (filled($res['ReferenceRange'])) {
                                             $ref_range = ReferenceRange::firstOrCreate(
                                                 [
@@ -271,37 +285,10 @@ class ResultController extends Controller
                                                     'panel_item_id' => $panel_item_id,
                                                 ]
                                             );
-
-                                            //get reference range
                                             $ref_range_id = $ref_range->id;
                                         }
 
-
-                                        // $query = PanelMetadata::where('panel_item_id', $panel_item_id)
-                                        //     ->whereRaw("SUBSTRING_INDEX(identifier, '#', 1) = ?", [$main]);
-
-                                        // if (!is_null($suffix)) {
-                                        //     $query->where('code', $suffix);
-                                        // }
-
-                                        // $panel_metadata = $query->first();
-
-                                        // if ($panel_metadata) {
-                                        //     $panel_metadata->update([
-                                        //         'type' => $type,
-                                        //         'ordinal_id' => $ordinal_id,
-                                        //     ]);
-                                        // } else {
-                                        //     PanelMetadata::create([
-                                        //         'panel_item_id' => $panel_item_id,
-                                        //         'ordinal_id' => $ordinal_id,
-                                        //         'type' => $type,
-                                        //         'identifier' => $identifier,
-                                        //         'code' => $suffix,
-                                        //     ]);
-                                        // }
-
-                                        //final insert result ite 
+                                        //final insert result item
                                         TestResultItem::firstOrCreate(
                                             [
                                                 'test_result_id' => $test_result_id,
@@ -318,7 +305,7 @@ class ResultController extends Controller
                                     }
 
                                     //panel comments
-                                    if ($res['Text'] == 'COMMENT') {
+                                    if ($res['Text'] == 'COMMENT' && isset($panel_item_id)) {
                                         PanelComment::firstOrCreate(
                                             [
                                                 'panel_item_id' => $panel_item_id,
@@ -347,7 +334,7 @@ class ResultController extends Controller
                 }
 
                 //check embedded pdf exist to complete blood report status
-                if (isset($validated['EncodedBase64pdf']) && filled($validated['EncodedBase64pdf'])) {
+                if (isset($validated['EncodedBase64pdf']) && filled($validated['EncodedBase64pdf']) && $test_result) {
                     try {
                         $test_result->is_completed = true;
                         $test_result->save();
@@ -355,7 +342,7 @@ class ResultController extends Controller
                         // $pdfData = base64_decode($validated['EncodedBase64pdf']);
 
                         //Generate a unique filename
-                        // $filename = 'test_result_' . $test_result_id . '_' . time() . '.pdf';
+                        // $filename = 'test_result_' . $test_result->id . '_' . time() . '.pdf';
 
                         //Store the PDF file in storage/app/public/test_results directory
                         // $filePath = 'pdf/' . $filename;
@@ -364,12 +351,12 @@ class ResultController extends Controller
                         // Update test result with PDF file path and mark as completed
 
                         // Log::info('PDF file saved successfully', [
-                        //     'test_result_id' => $test_result_id,
+                        //     'test_result_id' => $test_result->id,
                         //     'file_path' => $filePath
                         // ]);
                     } catch (\Exception $e) {
                         Log::error('Failed to decode and save PDF', [
-                            'test_result_id' => $test_result_id,
+                            'test_result_id' => $test_result->id,
                             'error' => $e->getMessage()
                         ]);
 
@@ -380,23 +367,24 @@ class ResultController extends Controller
                 }
 
                 //create delivery file for tracking purposes
-                $deliveryFile = DeliveryFile::firstOrCreate(
-                    [
-
-                        'test_result_id' => $test_result_id,
-                    ],
-                    [
-                        'lab_id' => $lab_id,
-                        'sending_facility' => $sending_facility,
-                        'batch_id' => $batch_id,
-                        'json_content' => json_encode($validated),
-                        'status' => DeliveryFile::compl,
-                    ]
-                );
+                if ($test_result) {
+                    $deliveryFile = DeliveryFile::firstOrCreate(
+                        [
+                            'test_result_id' => $test_result->id,
+                        ],
+                        [
+                            'lab_id' => $lab_id,
+                            'sending_facility' => $sending_facility,
+                            'batch_id' => $batch_id,
+                            'json_content' => json_encode($validated),
+                            'status' => DeliveryFile::compl,
+                        ]
+                    );
+                }
 
                 DB::commit();
                 //return result id
-                return response()->json($test_result_id, 200);
+                return response()->json($test_result->id ?? null, 200);
             }
         } catch (\Throwable $e) {
 
@@ -411,13 +399,13 @@ class ResultController extends Controller
             ]);
 
             // Create delivery file if it doesn't exist for error tracking
-            if (!isset($deliveryFile)) {
+            if (!$deliveryFile) {
                 $deliveryFile = DeliveryFile::create([
                     'lab_id' => $lab_id ?? null,
-                    'test_result_id' => null,
+                    'test_result_id' => $test_result->id ?? null,
                     'sending_facility' => $sending_facility ?? 'UNKNOWN',
                     'batch_id' => $batch_id ?? 'ERROR_' . now()->format('YmdHis'),
-                    'json_content' => json_encode($validated),
+                    'json_content' => json_encode($validated ?? []),
                     'status' => DeliveryFile::fld,
                 ]);
             }
