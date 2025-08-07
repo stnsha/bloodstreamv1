@@ -14,9 +14,10 @@ class TagOnImport implements ToArray, WithHeadingRow
         $processedData = [];
         foreach ($array as $row) {
             $processedData[] = [
-                'panel_code' => $row['panel_code'],
-                'code' => $row['tag_on_code'],
-                'name' => $row['tag_on_name'],
+                'panel_code' => trim($row['panel_code']),
+                'panel_name' => trim($row['panel_name']),
+                'code' => trim($row['tag_on_code']),
+                'name' => trim($row['tag_on_name']),
             ];
         }
 
@@ -26,15 +27,21 @@ class TagOnImport implements ToArray, WithHeadingRow
     public function store(array $processedData)
     {
         foreach ($processedData as $data) {
-            $panel = Panel::where('code', $data['panel_code'])->first();
+            $panel = Panel::where('lab_id', 2)
+                ->where('code', trim($data['panel_code']))
+                ->first();
             if (!$panel) {
-                continue;
+                $panel = Panel::create([
+                    'lab_id' => 2,
+                    'code' => trim($data['panel_code']),
+                    'name' => trim($data['panel_name']),
+                ]);
             }
 
             PanelTag::create([
                 'panel_id' => $panel->id,
-                'code' => $data['code'],
-                'name' => $data['name'],
+                'code' => trim($data['code']),
+                'name' => trim($data['name']),
             ]);
         }
     }

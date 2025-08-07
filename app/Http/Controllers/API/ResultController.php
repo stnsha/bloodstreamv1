@@ -31,6 +31,7 @@ class ResultController extends Controller
     public function panelResults(InnoquestResultRequest $request)
     {
         $validated = $request->validated();
+        // dd($validated);
         $lab_id = null;
         $test_result = null;
         $deliveryFile = null;
@@ -55,7 +56,7 @@ class ResultController extends Controller
 
                 //check for age and gender from AlternatePatientID (NRIC) if available
                 $icno = null;
-                $ic_type = 'OTHERS';
+                $ic_type = Patient::IC_TYPE_OTHERS;
                 $patient_gender = null;
                 $age = null;
 
@@ -67,7 +68,7 @@ class ResultController extends Controller
                     $age = $icInfo['age'];
                 } else {
                     // Use PatientID as fallback if AlternatePatientID not available
-                    $icno = $validated['patient']['PatientID'] ?? 'UNKNOWN_' . time();
+                    $icno = $validated['patient']['PatientID'] ?? 'N/A_' . $batch_id;
                 }
 
                 //get from json (PatientLastName is always expected)
@@ -95,6 +96,11 @@ class ResultController extends Controller
                 //loop through orders
                 foreach ($validated['Orders'] as $key => $od) {
                     if (is_null($reference_id) && filled($od['PlacerOrderNumber'])) $reference_id = $od['PlacerOrderNumber'];
+
+                    //get doctor name and code
+                    $doctor_name = $od['OrderingProvider']['Name'];
+                    $doctor_id = $od['OrderingProvider']['Code'];
+
                     //check if observations exist
                     if (filled($od['Observations'])) {
                         //loop through observations
@@ -121,7 +127,7 @@ class ResultController extends Controller
 
                             //get labno
                             $lab_no = $obv['FillerOrderNumber'];
-                            //confirm field for reference id = PlacerOrderNumber
+
                             //check if previous reference id is null and PlacerOrderNumber exist
                             if (is_null($reference_id) && filled($obv['PlacerOrderNumber'])) $reference_id = $obv['PlacerOrderNumber'];
 
@@ -166,35 +172,6 @@ class ResultController extends Controller
 
                             //get test result id
                             $test_result_id = $test_result->id;
-
-                            // $panel_category_id = null;
-
-                            // if ($obv['Results'][0]['Identifier'] == 'REPORT') {
-                            //     $value = trim($obv['Results'][0]['Value']);
-                            //     $words = preg_split('/\s+/', $value);
-                            //     $lab_category = $words[0];
-
-                            //     if ($panel_profile_id != null) {
-                            //         $panel_category = PanelCategory::where('panel_profile_id', $panel_profile_id)->where('name', $lab_category)->first();
-
-                            //         if ($panel_category) {
-                            //             $panel_category_id = $panel_category->id;
-                            //         } else {
-                            //             // Create the panel category if it doesn't exist
-                            //             $panel_category = PanelCategory::firstOrCreate(
-                            //                 [
-                            //                     'lab_id' => $lab_id,
-                            //                     'panel_profile_id' => $panel_profile_id,
-                            //                     'name' => $lab_category,
-                            //                 ],
-                            //                 [
-                            //                     'code' => $lab_category, // or generate appropriate code
-                            //                 ]
-                            //             );
-                            //             $panel_category_id = $panel_category->id;
-                            //         }
-                            //     }
-                            // }
 
                             //get panel code
                             $panel_code = $obv['ProcedureCode'];

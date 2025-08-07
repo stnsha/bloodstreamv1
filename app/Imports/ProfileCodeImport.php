@@ -13,15 +13,14 @@ class ProfileCodeImport implements ToArray, WithHeadingRow
     public function array(array $array)
     {
         $processedData = [];
-
         foreach ($array as $row) {
             $processedData[] = [
-                'profile_code' => $row['lis_profilepackage_code'], // LIS Profile/Package Code
-                'profile_name' => $row['lis_profile_test_name'], // LIS Profile Test Name
-                'panel_code' => $row['panel'], // Panel
-                'panel_name' => $row['panel_name'], // Panel Name
-                'panel_category' => $row['lab_category'], // Lab Category
-                'remarks' => $row['remarks'], // Remarks
+                'profile_code' => trim($row['lis_profilepackage_code']), // LIS Profile/Package Code
+                'profile_name' => trim($row['lis_profile_test_name']), // LIS Profile Test Name
+                'panel_code' => trim($row['panel']), // Panel
+                'panel_name' => trim($row['panel_name']), // Panel Name
+                'panel_category' => trim($row['lab_category']), // Lab Category
+                'remarks' => ($value = trim($row['remarks'])) === '' ? null : $value, // Remarks
             ];
         }
 
@@ -36,32 +35,30 @@ class ProfileCodeImport implements ToArray, WithHeadingRow
             // 1. Create or get PanelProfile
             $panelProfile = PanelProfile::firstOrCreate([
                 'lab_id' => 2,
-                'code' => $data['profile_code']
+                'code' => trim($data['profile_code'])
             ], [
-                'name' => $data['profile_name'],
-                'code' => $data['profile_code']
+                'name' => trim($data['profile_name']),
+                'code' => trim($data['profile_code'])
             ]);
 
             // 2. Create or get PanelCategory
             $panelCategory = PanelCategory::firstOrCreate([
                 'lab_id' => 2,
-                'name' => $data['panel_category']
+                'name' => trim($data['panel_category'])
             ], [
-                'name' => $data['panel_category'],
+                'name' => trim($data['panel_category']),
                 'code' => null
             ]);
 
-            // 3. Create or get Panel
-            $panel = Panel::firstOrCreate([
-                'lab_id' => 2, // Set appropriate lab_id
-                'panel_category_id' => $panelCategory->id,
-                'code' => $data['panel_code']
+            // 3. Create or update Panel
+            $panel = Panel::updateOrCreate([
+                'lab_id' => 2,
+                'code' => trim($data['panel_code'])
             ], [
                 'panel_category_id' => $panelCategory->id,
-                'name' => $data['panel_name'],
-                'code' => $data['panel_code'],
+                'name' => trim($data['panel_name']),
                 'sequence' => null,
-                'overall_notes' => $data['remarks']
+                'overall_notes' => $data['remarks'] ? trim($data['remarks']) : null
             ]);
 
             $results[] = [

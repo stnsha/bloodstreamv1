@@ -12,21 +12,21 @@ class PanelItem extends Model
 
     protected $fillable = [
         'panel_id',
+        'code',
         'name',
         'decimal_point',
         'unit',
         'sequence',
         'result_type',
         'identifier',
-        'code',
     ];
 
     protected $attributes = [
+        'code' => null,
         'decimal_point' => null,
         'unit' => null,
         'sequence' => null,
         'result_type' => null,
         'identifier' => null,
-        'code' => null,
     ];
 }

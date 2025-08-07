@@ -14,11 +14,11 @@ class DoctorCodeImport implements ToArray, WithHeadingRow
 
         foreach ($array as $row) {
             $processedData[] = [
-                'type' => $row['clinicpharmacy'],
-                'code' => $row['dr_code'],
-                'name' => $row['doctor_name'],
-                'outlet_name' => $row['outlet'],
-                'outlet_address' => $row['address']
+                'type' => trim($row['clinicpharmacy']),
+                'code' => trim($row['dr_code']),
+                'name' => trim($row['doctor_name']),
+                'outlet_name' => trim($row['outlet']),
+                'outlet_address' => trim($row['address'])
             ];
         }
 
@@ -32,13 +32,13 @@ class DoctorCodeImport implements ToArray, WithHeadingRow
             $doctor = Doctor::firstOrCreate(
                 [
                     'lab_id' => 2,
-                    'code' => $data['code'],
+                    'code' => trim($data['code']),
                 ],
                 [
-                    'name' => $data['name'],
-                    'type' => $data['type'],
-                    'outlet_name' => $data['outlet_name'],
-                    'outlet_address' => $data['outlet_address'],
+                    'name' => trim($data['name']),
+                    'type' => trim($data['type']),
+                    'outlet_name' => trim($data['outlet_name']),
+                    'outlet_address' => trim($data['outlet_address']),
                     'outlet_phone' => null,
                 ]
             );

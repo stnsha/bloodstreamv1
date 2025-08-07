@@ -10,11 +10,11 @@ class Patient extends Model
 {
     use HasFactory, SoftDeletes;
 
-    const nric = 'NRIC';
-    const others = 'OTHERS';
+    const IC_TYPE_NRIC = 'NRIC';
+    const IC_TYPE_OTHERS = 'OTHERS';
 
-    const female = 'F';
-    const male = 'M';
+    const GENDER_FEMALE = 'F';
+    const GENDER_MALE = 'M';
 
     protected $fillable = ['icno', 'ic_type', 'name', 'dob', 'age', 'gender', 'tel'];
 

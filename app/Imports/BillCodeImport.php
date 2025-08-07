@@ -13,11 +13,11 @@ class BillCodeImport implements ToArray, WithHeadingRow
         foreach ($array as $row) {
             ResultLibrary::firstOrCreate(
                 [
-                    'code' => $row['billing_code'],
+                    'code' => trim($row['billing_code']),
                 ],
                 [
                     'type' => 'bill_code',
-                    'value' => $row['billing_code'],
+                    'value' => trim($row['billing_code']),
                     'description' => 'Innoquest billing code',
                 ]
             );

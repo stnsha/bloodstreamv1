@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('panel_tags', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('panel_id');
+            $table->unsignedBigInteger('panel_id')->nullable();
             $table->string('name');
             $table->string('code');
             $table->softDeletes();

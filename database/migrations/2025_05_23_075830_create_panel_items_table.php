@@ -15,12 +15,12 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('panel_id');
             $table->string('name');
+            $table->string('code')->nullable();
             $table->string('decimal_point')->nullable();
             $table->string('unit')->nullable();
             $table->string('sequence')->nullable();
             $table->string('result_type')->nullable(); //get from json
             $table->string('identifier')->nullable();
-            $table->string('code')->nullable();
             $table->softDeletes();
             $table->timestamps();
 

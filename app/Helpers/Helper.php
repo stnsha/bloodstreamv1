@@ -28,7 +28,7 @@ if (!function_exists('get_email_abbrv')) {
 if (!function_exists('checkIcno')) {
     function checkIcno($icno): array
     {
-        $type = Patient::others;
+        $type = Patient::IC_TYPE_OTHERS;
         $gender = null;
         $age = null;
         // $nationality = Patient::non;
@@ -43,8 +43,8 @@ if (!function_exists('checkIcno')) {
             $fullYear = $year > ($currentYear % 100) ? 1900 + $year : 2000 + $year;
 
             if (checkdate($month, $day, $fullYear)) {
-                $type = Patient::nric;
-                $gender = $lastDigit % 2 === 0 ? Patient::female : Patient::male;
+                $type = Patient::IC_TYPE_NRIC;
+                $gender = $lastDigit % 2 === 0 ? Patient::GENDER_FEMALE : Patient::GENDER_MALE;
                 $age = $currentYear - $fullYear;
                 // $nationality = Patient::my;
             }

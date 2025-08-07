@@ -15,4 +15,8 @@ class PanelTag extends Model
         'name',
         'code',
     ];
+
+    protected $attributes = [
+        'panel_id' => null,
+    ];
 }
