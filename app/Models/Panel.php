@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Panel extends Model
@@ -19,7 +20,13 @@ class Panel extends Model
         'overall_notes' => null,
     ];
 
-    public function panelItems(): HasMany
+    public function panelItems(): BelongsToMany
+    {
+        return $this->belongsToMany(PanelItem::class, 'panel_panel_item');
+    }
+
+    // Keep the old relationship for backward compatibility during migration
+    public function legacyPanelItems(): HasMany
     {
         return $this->hasMany(PanelItem::class, 'panel_id', 'id');
     }

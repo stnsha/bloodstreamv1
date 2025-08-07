@@ -49,9 +49,9 @@ class ReportedTestImport implements ToArray, WithHeadingRow
     {
         $panel = Panel::where('code', $data['panel_code'])->first();
         if ($panel) {
-            PanelItem::firstOrCreate(
+            // Find or create the PanelItem
+            $panelItem = PanelItem::firstOrCreate(
                 [
-                    'panel_id' => $panel->id,
                     'code' => $data['panel_item_code'],
                 ],
                 [
@@ -61,6 +61,9 @@ class ReportedTestImport implements ToArray, WithHeadingRow
                     'unit' => $data['unit'],
                 ]
             );
+            
+            // Attach the panel to this panel item (many-to-many)
+            $panel->panelItems()->syncWithoutDetaching([$panelItem->id]);
         }
     }
 

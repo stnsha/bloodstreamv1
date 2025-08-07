@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class PanelItem extends Model
@@ -11,7 +12,6 @@ class PanelItem extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'panel_id',
         'code',
         'name',
         'decimal_point',
@@ -29,4 +29,9 @@ class PanelItem extends Model
         'result_type' => null,
         'identifier' => null,
     ];
+
+    public function panels(): BelongsToMany
+    {
+        return $this->belongsToMany(Panel::class, 'panel_panel_item');
+    }
 }

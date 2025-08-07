@@ -237,18 +237,23 @@ class ResultController extends Controller
                                         //create panel items
                                         $panel_item = PanelItem::firstOrCreate(
                                             [
-                                                'panel_id' => $panel_id,
                                                 'name' => $res['Text'],
                                             ],
                                             [
                                                 'decimal_point' => null,
                                                 'unit' => $unit,
-                                                'item_sequence' => null,
-                                                'type' => $type,
+                                                'sequence' => null,
+                                                'result_type' => $type,
                                                 'identifier' => $identifier,
                                                 'code' => $suffix,
                                             ]
                                         );
+                                        
+                                        // Attach the panel to this panel item (many-to-many)
+                                        $panel = Panel::find($panel_id);
+                                        if ($panel) {
+                                            $panel->panelItems()->syncWithoutDetaching([$panel_item->id]);
+                                        }
 
                                         //get panel item id
                                         $panel_item_id = $panel_item->id;
@@ -790,20 +795,23 @@ class ResultController extends Controller
                             //create panel item
                             $panel_item = PanelItem::firstOrCreate(
                                 [
-                                    'panel_id' => $panel_id,
                                     'name' => $test['test_name'],
                                 ],
                                 [
                                     'decimal_point' => $test['decimal_point'],
                                     'unit' => $test['unit'],
-                                    'item_sequence' => $test['item_sequence']
+                                    'sequence' => $test['item_sequence']
                                 ]
                             );
+                            
+                            // Attach the panel to this panel item (many-to-many)
+                            $panel->panelItems()->syncWithoutDetaching([$panel_item->id]);
 
                             //get panel item id
                             $panel_item_id = $panel_item->id;
 
                             //check if panel item has reference range
+                            $ref_range_id = null;
                             if (filled($test['ref_range'])) {
                                 //create reference range
                                 $ref_range = ReferenceRange::firstOrCreate(

@@ -13,7 +13,6 @@ return new class extends Migration
     {
         Schema::create('panel_items', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('panel_id');
             $table->string('name');
             $table->string('code')->nullable();
             $table->string('decimal_point')->nullable();
@@ -23,8 +22,8 @@ return new class extends Migration
             $table->string('identifier')->nullable();
             $table->softDeletes();
             $table->timestamps();
-
-            $table->foreign('panel_id')->references('id')->on('panels')->onDelete('cascade');
+            
+            // Removed panel_id as we now use many-to-many relationship via pivot table
         });
     }
 
