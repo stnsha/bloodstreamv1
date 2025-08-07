@@ -72,3 +72,14 @@ if (!function_exists('convertToDateTimeString')) {
         return date('Y-m-d H:i:s', $timestamp);
     }
 }
+
+if (!function_exists('trimOrNull')) {
+    function trimOrNull($value)
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+        $trimmed = trim($value);
+        return $trimmed === '' ? null : $trimmed;
+    }
+}
