@@ -36,16 +36,43 @@ class AuthController extends Controller
     //  *         )
     //  *     ),
     //  *     @OA\Response(
-    //  *         response=200,
+    //  *         response=201,
     //  *         description="Registration successful",
     //  *         @OA\JsonContent(
-    //  *             @OA\Property(property="username", type="string", example="LAB001user"),
-    //  *             @OA\Property(property="password", type="string", example="randomPassword123")
+    //  *             @OA\Property(property="success", type="boolean", example=true),
+    //  *             @OA\Property(property="message", type="string", example="User registered successfully"),
+    //  *             @OA\Property(
+    //  *                 property="data",
+    //  *                 type="object",
+    //  *                 @OA\Property(property="username", type="string", example="LAB001user"),
+    //  *                 @OA\Property(property="password", type="string", example="randomPassword123")
+    //  *             )
     //  *         )
     //  *     ),
     //  *     @OA\Response(
     //  *         response=422,
-    //  *         description="Validation error"
+    //  *         description="Validation error",
+    //  *         @OA\JsonContent(
+    //  *             @OA\Property(property="message", type="string", example="The given data was invalid."),
+    //  *             @OA\Property(
+    //  *                 property="errors",
+    //  *                 type="object",
+    //  *                 @OA\Property(
+    //  *                     property="email",
+    //  *                     type="array",
+    //  *                     @OA\Items(type="string", example="The email field is required.")
+    //  *                 )
+    //  *             )
+    //  *         )
+    //  *     ),
+    //  *     @OA\Response(
+    //  *         response=500,
+    //  *         description="Internal server error",
+    //  *         @OA\JsonContent(
+    //  *             @OA\Property(property="success", type="boolean", example=false),
+    //  *             @OA\Property(property="message", type="string", example="Registration failed. Please try again."),
+    //  *             @OA\Property(property="error", type="string", example="Internal server error")
+    //  *         )
     //  *     )
     //  * )
     //  */
@@ -144,21 +171,50 @@ class AuthController extends Controller
      *         response=200,
      *         description="Login successful",
      *         @OA\JsonContent(
-     *             @OA\Property(property="access_token", type="string", example="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."),
-     *             @OA\Property(property="token_type", type="string", example="bearer"),
-     *             @OA\Property(property="expires_in", type="integer", example=3600)
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Login successful"),
+     *             @OA\Property(
+     *                 property="data",
+     *                 type="object",
+     *                 @OA\Property(property="access_token", type="string", example="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."),
+     *                 @OA\Property(property="token_type", type="string", example="bearer"),
+     *                 @OA\Property(property="expires_in", type="integer", example=3600)
+     *             )
      *         )
      *     ),
      *     @OA\Response(
      *         response=401,
      *         description="Unauthorized",
      *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=false),
+     *             @OA\Property(property="message", type="string", example="Invalid credentials"),
      *             @OA\Property(property="error", type="string", example="Unauthorized")
      *         )
      *     ),
      *     @OA\Response(
      *         response=422,
-     *         description="Validation error"
+     *         description="Validation error",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="The given data was invalid."),
+     *             @OA\Property(
+     *                 property="errors",
+     *                 type="object",
+     *                 @OA\Property(
+     *                     property="username",
+     *                     type="array",
+     *                     @OA\Items(type="string", example="The username field is required.")
+     *                 )
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Internal server error",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=false),
+     *             @OA\Property(property="message", type="string", example="Login failed. Please try again."),
+     *             @OA\Property(property="error", type="string", example="Internal server error")
+     *         )
      *     )
      * )
      */
@@ -238,14 +294,17 @@ class AuthController extends Controller
      *         response=200,
      *         description="Logout successful",
      *         @OA\JsonContent(
-     *             @OA\Property(property="message", type="string", example="Successfully logged out.")
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Successfully logged out")
      *         )
      *     ),
      *     @OA\Response(
      *         response=500,
      *         description="Logout failed",
      *         @OA\JsonContent(
-     *             @OA\Property(property="message", type="string", example="Failed to logout, please try again.")
+     *             @OA\Property(property="success", type="boolean", example=false),
+     *             @OA\Property(property="message", type="string", example="Failed to logout, please try again"),
+     *             @OA\Property(property="error", type="string", example="Internal server error")
      *         )
      *     ),
      *     @OA\Response(

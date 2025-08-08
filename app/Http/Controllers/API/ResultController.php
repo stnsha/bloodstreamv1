@@ -129,16 +129,22 @@ class ResultController extends Controller
      *         response=200,
      *         description="Panel results processed successfully",
      *         @OA\JsonContent(
-     *             type="integer",
-     *             description="Test result ID",
-     *             example=123
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Panel results processed successfully"),
+     *             @OA\Property(
+     *                 property="data",
+     *                 type="object",
+     *                 @OA\Property(property="test_result_id", type="integer", example=123)
+     *             )
      *         )
      *     ),
      *     @OA\Response(
      *         response=500,
-     *         description="Failed to save data",
+     *         description="Internal server error",
      *         @OA\JsonContent(
-     *             @OA\Property(property="error", type="string", example="Failed to save data")
+     *             @OA\Property(property="success", type="boolean", example=false),
+     *             @OA\Property(property="message", type="string", example="Failed to process panel results"),
+     *             @OA\Property(property="error", type="string", example="Internal server error")
      *         )
      *     )
      * )
@@ -795,9 +801,13 @@ class ResultController extends Controller
      *         response=200,
      *         description="Lab results processed successfully",
      *         @OA\JsonContent(
-     *             type="integer",
-     *             description="Test result ID",
-     *             example=123
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Lab results processed successfully"),
+     *             @OA\Property(
+     *                 property="data",
+     *                 type="object",
+     *                 @OA\Property(property="test_result_id", type="integer", example=123)
+     *             )
      *         )
      *     ),
      *     @OA\Response(
@@ -827,10 +837,11 @@ class ResultController extends Controller
      *     ),
      *     @OA\Response(
      *         response=500,
-     *         description="Internal server error - Failed to save data",
+     *         description="Internal server error",
      *         @OA\JsonContent(
-     *             type="object",
-     *             @OA\Property(property="error", type="string", example="Failed to save data")
+     *             @OA\Property(property="success", type="boolean", example=false),
+     *             @OA\Property(property="message", type="string", example="Failed to process lab results"),
+     *             @OA\Property(property="error", type="string", example="Internal server error")
      *         )
      *     )
      * )
@@ -893,7 +904,7 @@ class ResultController extends Controller
                 $doctor = Doctor::firstOrCreate(
                     [
                         'lab_id' => $lab_id,
-                        'code' => $doctor_code,
+                        'code' => $doctor_code . substr($doctor_type, 0, 3),
                     ],
                     [
                         'name' => $doctor_name,
@@ -903,9 +914,6 @@ class ResultController extends Controller
                         'outlet_phone' => $doctor_phone,
                     ]
                 );
-
-                $doctor->code = $doctor->code . $doctor->id . substr($doctor->type, 0, 3);
-                $doctor->save();
 
                 //get doctor code id
                 $doctor_id = $doctor->id;
@@ -1145,7 +1153,7 @@ class ResultController extends Controller
     /**
      * @OA\Post(
      *     path="/api/v1/testPanel",
-     *     tags={"Result"},
+     *     tags={"Test"},
      *     summary="Test endpoint for panel data",
      *     description="Test endpoint that logs and returns the request data",
      *     security={{"bearerAuth":{}}},
@@ -1160,8 +1168,18 @@ class ResultController extends Controller
      *         response=200,
      *         description="Test response with request data",
      *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
      *             @OA\Property(property="message", type="string", example="Request received"),
      *             @OA\Property(property="data", type="object", description="The request data that was sent")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Internal server error",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=false),
+     *             @OA\Property(property="message", type="string", example="Test panel request failed"),
+     *             @OA\Property(property="error", type="string", example="Internal server error")
      *         )
      *     )
      * )
@@ -1211,18 +1229,22 @@ class ResultController extends Controller
      *         response=200,
      *         description="Test result retrieved successfully",
      *         @OA\JsonContent(
-     *             type="object",
-     *             @OA\Property(property="reference_id", type="string", nullable=true, example="ABC12345"),
-     *             @OA\Property(property="lab_no", type="string", example="123456789"),
-     *             @OA\Property(property="bill_code", type="string", nullable=true, example="AMC_ALPRO"),
-     *             @OA\Property(property="collected_date", type="string", nullable=true, example="2025-01-19 00:00:00"),
-     *             @OA\Property(property="received_date", type="string", nullable=true, example="2025-01-19 00:00:00"),
-     *             @OA\Property(property="reported_date", type="string", nullable=true, example="2025-01-19 00:00:00"),
-     *             @OA\Property(property="validated_by", type="string", nullable=true, example="Richard Roe, Bsc in Biomedical"),
-     *             @OA\Property(property="is_completed", type="boolean", example=true),
-     *             @OA\Property(property="is_tagon", type="boolean", example=false),
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Test result retrieved successfully"),
      *             @OA\Property(
-     *                 property="doctor",
+     *                 property="data",
+     *                 type="object",
+     *                 @OA\Property(property="reference_id", type="string", nullable=true, example="ABC12345"),
+     *                 @OA\Property(property="lab_no", type="string", example="123456789"),
+     *                 @OA\Property(property="bill_code", type="string", nullable=true, example="AMC_ALPRO"),
+     *                 @OA\Property(property="collected_date", type="string", nullable=true, example="2025-01-19 00:00:00"),
+     *                 @OA\Property(property="received_date", type="string", nullable=true, example="2025-01-19 00:00:00"),
+     *                 @OA\Property(property="reported_date", type="string", nullable=true, example="2025-01-19 00:00:00"),
+     *                 @OA\Property(property="validated_by", type="string", nullable=true, example="Richard Roe, Bsc in Biomedical"),
+     *                 @OA\Property(property="is_completed", type="boolean", example=true),
+     *                 @OA\Property(property="is_tagon", type="boolean", example=false),
+     *                 @OA\Property(
+     *                     property="doctor",
      *                 type="object",
      *                 @OA\Property(property="name", type="string", example="Dr. John Smith"),
      *                 @OA\Property(property="code", type="string", nullable=true, example="DOC123"),
@@ -1277,13 +1299,16 @@ class ResultController extends Controller
      *                     )
      *                 )
      *             )
+     *             )
      *         )
      *     ),
      *     @OA\Response(
      *         response=404,
      *         description="Test result not found",
      *         @OA\JsonContent(
-     *             @OA\Property(property="error", type="string", example="Test result not found")
+     *             @OA\Property(property="success", type="boolean", example=false),
+     *             @OA\Property(property="message", type="string", example="Test result not found"),
+     *             @OA\Property(property="error", type="string", example="Not found")
      *         )
      *     ),
      *     @OA\Response(
@@ -1294,7 +1319,9 @@ class ResultController extends Controller
      *         response=500,
      *         description="Internal server error",
      *         @OA\JsonContent(
-     *             @OA\Property(property="error", type="string", example="Failed to retrieve test result")
+     *             @OA\Property(property="success", type="boolean", example=false),
+     *             @OA\Property(property="message", type="string", example="Failed to retrieve test result"),
+     *             @OA\Property(property="error", type="string", example="Internal server error")
      *         )
      *     )
      * )
