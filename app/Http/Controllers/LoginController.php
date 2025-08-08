@@ -35,10 +35,10 @@ class LoginController extends Controller
             if ($labCredential && Hash::check($credentials['password'], $labCredential->password)) {
                 // Get the associated user through the relationship
                 $user = User::find($labCredential->user_id);
-
                 if ($user) {
                     // Login the user
                     Auth::login($user);
+                    session()->put('lab_id', $labCredential->lab_id);
                     return redirect()->intended('dashboard');
                 }
             }

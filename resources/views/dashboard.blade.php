@@ -164,191 +164,248 @@
                             in HL7-like format.</span>
 
                         <div class="mb-3">
-                            <span class="font-semibold text-sm pb-1 tracking-wide block">IQMY Pathology Results JSON Specification:</span>
+                            <span class="font-semibold text-sm pb-1 tracking-wide block">IQMY Pathology Results JSON
+                                Specification:</span>
                             <div class="overflow-x-auto">
                                 <table class="min-w-full border border-gray-200 text-xs">
                                     <thead class="bg-gray-100">
                                         <tr>
-                                            <th class="border border-gray-200 px-2 py-1 text-left font-semibold">Field</th>
-                                            <th class="border border-gray-200 px-2 py-1 text-left font-semibold">Type</th>
-                                            <th class="border border-gray-200 px-2 py-1 text-left font-semibold">Expected</th>
-                                            <th class="border border-gray-200 px-2 py-1 text-left font-semibold">Description</th>
+                                            <th class="border border-gray-200 px-2 py-1 text-left font-semibold">Field
+                                            </th>
+                                            <th class="border border-gray-200 px-2 py-1 text-left font-semibold">Type
+                                            </th>
+                                            <th class="border border-gray-200 px-2 py-1 text-left font-semibold">
+                                                Expected</th>
+                                            <th class="border border-gray-200 px-2 py-1 text-left font-semibold">
+                                                Description</th>
                                         </tr>
                                     </thead>
                                     <tbody class="bg-gray-50">
                                         <!-- Root Level -->
                                         <tr class="bg-blue-50">
-                                            <td colspan="4" class="border border-gray-200 px-2 py-1 font-semibold text-blue-800">Root Level</td>
+                                            <td colspan="4"
+                                                class="border border-gray-200 px-2 py-1 font-semibold text-blue-800">
+                                                Root Level</td>
                                         </tr>
                                         <tr>
                                             <td class="border border-gray-200 px-2 py-1 font-mono">SendingFacility</td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
-                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected</td>
-                                            <td class="border border-gray-200 px-2 py-1">Identifier for the sending facility</td>
+                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected
+                                            </td>
+                                            <td class="border border-gray-200 px-2 py-1">Identifier for the sending
+                                                facility</td>
                                         </tr>
                                         <tr>
                                             <td class="border border-gray-200 px-2 py-1 font-mono">MessageControlID</td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
-                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected</td>
+                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected
+                                            </td>
                                             <td class="border border-gray-200 px-2 py-1">Unique message identifier</td>
                                         </tr>
-                                        
+
                                         <!-- Patient Information -->
                                         <tr class="bg-green-50">
-                                            <td colspan="4" class="border border-gray-200 px-2 py-1 font-semibold text-green-800">Patient Information</td>
+                                            <td colspan="4"
+                                                class="border border-gray-200 px-2 py-1 font-semibold text-green-800">
+                                                Patient Information</td>
                                         </tr>
                                         <tr>
                                             <td class="border border-gray-200 px-2 py-1 font-mono">PatientID</td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
                                             <td class="border border-gray-200 px-2 py-1 text-orange-600">Optional</td>
-                                            <td class="border border-gray-200 px-2 py-1">Unique identifier for the patient (MRN)</td>
+                                            <td class="border border-gray-200 px-2 py-1">Unique identifier for the
+                                                patient (MRN)</td>
                                         </tr>
                                         <tr>
-                                            <td class="border border-gray-200 px-2 py-1 font-mono">AlternatePatientID</td>
+                                            <td class="border border-gray-200 px-2 py-1 font-mono">AlternatePatientID
+                                            </td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
                                             <td class="border border-gray-200 px-2 py-1 text-orange-600">Optional</td>
-                                            <td class="border border-gray-200 px-2 py-1">Alternate patient identifier (NRIC)</td>
+                                            <td class="border border-gray-200 px-2 py-1">Alternate patient identifier
+                                                (NRIC)</td>
                                         </tr>
                                         <tr>
                                             <td class="border border-gray-200 px-2 py-1 font-mono">PatientLastName</td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
-                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected</td>
-                                            <td class="border border-gray-200 px-2 py-1">Full Name of Patient will be in this field</td>
+                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected
+                                            </td>
+                                            <td class="border border-gray-200 px-2 py-1">Full Name of Patient will be
+                                                in this field</td>
                                         </tr>
                                         <tr>
                                             <td class="border border-gray-200 px-2 py-1 font-mono">PatientDOB</td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
-                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected</td>
-                                            <td class="border border-gray-200 px-2 py-1">Date of birth of the patient (YYYYMMDD)</td>
+                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected
+                                            </td>
+                                            <td class="border border-gray-200 px-2 py-1">Date of birth of the patient
+                                                (YYYYMMDD)</td>
                                         </tr>
                                         <tr>
                                             <td class="border border-gray-200 px-2 py-1 font-mono">PatientGender</td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
-                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected</td>
-                                            <td class="border border-gray-200 px-2 py-1">Gender of the patient ('M','F')</td>
+                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected
+                                            </td>
+                                            <td class="border border-gray-200 px-2 py-1">Gender of the patient
+                                                ('M','F')</td>
                                         </tr>
                                         <tr>
                                             <td class="border border-gray-200 px-2 py-1 font-mono">PatientAddress</td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
                                             <td class="border border-gray-200 px-2 py-1 text-orange-600">Optional</td>
-                                            <td class="border border-gray-200 px-2 py-1">Address of the patient - not always stored</td>
+                                            <td class="border border-gray-200 px-2 py-1">Address of the patient - not
+                                                always stored</td>
                                         </tr>
 
                                         <!-- Orders -->
                                         <tr class="bg-purple-50">
-                                            <td colspan="4" class="border border-gray-200 px-2 py-1 font-semibold text-purple-800">Orders</td>
+                                            <td colspan="4"
+                                                class="border border-gray-200 px-2 py-1 font-semibold text-purple-800">
+                                                Orders</td>
                                         </tr>
                                         <tr>
-                                            <td class="border border-gray-200 px-2 py-1 font-mono">FillerOrderNumber</td>
+                                            <td class="border border-gray-200 px-2 py-1 font-mono">FillerOrderNumber
+                                            </td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
-                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected</td>
+                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected
+                                            </td>
                                             <td class="border border-gray-200 px-2 py-1">IQMY Request Number</td>
                                         </tr>
                                         <tr>
-                                            <td class="border border-gray-200 px-2 py-1 font-mono">OrderingProvider.Code</td>
+                                            <td class="border border-gray-200 px-2 py-1 font-mono">
+                                                OrderingProvider.Code</td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
-                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected</td>
+                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected
+                                            </td>
                                             <td class="border border-gray-200 px-2 py-1">IQMY Doctor Code</td>
                                         </tr>
                                         <tr>
-                                            <td class="border border-gray-200 px-2 py-1 font-mono">OrderingProvider.Name</td>
+                                            <td class="border border-gray-200 px-2 py-1 font-mono">
+                                                OrderingProvider.Name</td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
-                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected</td>
+                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected
+                                            </td>
                                             <td class="border border-gray-200 px-2 py-1">Doctor Name</td>
                                         </tr>
 
                                         <!-- Observations -->
                                         <tr class="bg-yellow-50">
-                                            <td colspan="4" class="border border-gray-200 px-2 py-1 font-semibold text-yellow-800">Observations</td>
+                                            <td colspan="4"
+                                                class="border border-gray-200 px-2 py-1 font-semibold text-yellow-800">
+                                                Observations</td>
                                         </tr>
                                         <tr>
                                             <td class="border border-gray-200 px-2 py-1 font-mono">ProcedureCode</td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
-                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected</td>
+                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected
+                                            </td>
                                             <td class="border border-gray-200 px-2 py-1">Testing Panel Code</td>
                                         </tr>
                                         <tr>
-                                            <td class="border border-gray-200 px-2 py-1 font-mono">ProcedureDescription</td>
+                                            <td class="border border-gray-200 px-2 py-1 font-mono">ProcedureDescription
+                                            </td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
-                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected</td>
+                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected
+                                            </td>
                                             <td class="border border-gray-200 px-2 py-1">Panel Description</td>
                                         </tr>
                                         <tr>
                                             <td class="border border-gray-200 px-2 py-1 font-mono">ResultStatus</td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
-                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected</td>
+                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected
+                                            </td>
                                             <td class="border border-gray-200 px-2 py-1">Status of the result</td>
                                         </tr>
                                         <tr>
                                             <td class="border border-gray-200 px-2 py-1 font-mono">ServiceDateTime</td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
-                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected</td>
+                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected
+                                            </td>
                                             <td class="border border-gray-200 px-2 py-1">Date and time of service</td>
                                         </tr>
 
                                         <!-- Results -->
                                         <tr class="bg-red-50">
-                                            <td colspan="4" class="border border-gray-200 px-2 py-1 font-semibold text-red-800">Results</td>
+                                            <td colspan="4"
+                                                class="border border-gray-200 px-2 py-1 font-semibold text-red-800">
+                                                Results</td>
                                         </tr>
                                         <tr>
                                             <td class="border border-gray-200 px-2 py-1 font-mono">Results.ID</td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
-                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected</td>
-                                            <td class="border border-gray-200 px-2 py-1">Ordinal ID within this results message</td>
+                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected
+                                            </td>
+                                            <td class="border border-gray-200 px-2 py-1">Ordinal ID within this results
+                                                message</td>
                                         </tr>
                                         <tr>
                                             <td class="border border-gray-200 px-2 py-1 font-mono">Results.Type</td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
-                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected</td>
-                                            <td class="border border-gray-200 px-2 py-1">Type of result (numerical, text)</td>
+                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected
+                                            </td>
+                                            <td class="border border-gray-200 px-2 py-1">Type of result (numerical,
+                                                text)</td>
                                         </tr>
                                         <tr>
-                                            <td class="border border-gray-200 px-2 py-1 font-mono">Results.Identifier</td>
+                                            <td class="border border-gray-200 px-2 py-1 font-mono">Results.Identifier
+                                            </td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
-                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected</td>
-                                            <td class="border border-gray-200 px-2 py-1">Unique identifier for the test/analyte (LOINC)</td>
+                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected
+                                            </td>
+                                            <td class="border border-gray-200 px-2 py-1">Unique identifier for the
+                                                test/analyte (LOINC)</td>
                                         </tr>
                                         <tr>
                                             <td class="border border-gray-200 px-2 py-1 font-mono">Results.Text</td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
-                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected</td>
+                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected
+                                            </td>
                                             <td class="border border-gray-200 px-2 py-1">Test description</td>
                                         </tr>
                                         <tr>
                                             <td class="border border-gray-200 px-2 py-1 font-mono">Results.Value</td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
-                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected</td>
+                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected
+                                            </td>
                                             <td class="border border-gray-200 px-2 py-1">Result value</td>
                                         </tr>
                                         <tr>
                                             <td class="border border-gray-200 px-2 py-1 font-mono">Results.Units</td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
-                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected</td>
+                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected
+                                            </td>
                                             <td class="border border-gray-200 px-2 py-1">Units of measurement</td>
                                         </tr>
                                         <tr>
-                                            <td class="border border-gray-200 px-2 py-1 font-mono">Results.ReferenceRange</td>
+                                            <td class="border border-gray-200 px-2 py-1 font-mono">
+                                                Results.ReferenceRange</td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
-                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected</td>
+                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected
+                                            </td>
                                             <td class="border border-gray-200 px-2 py-1">Normal reference range</td>
                                         </tr>
                                         <tr>
                                             <td class="border border-gray-200 px-2 py-1 font-mono">Results.Flags</td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
-                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected</td>
-                                            <td class="border border-gray-200 px-2 py-1">Flags indicating abnormalities</td>
+                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected
+                                            </td>
+                                            <td class="border border-gray-200 px-2 py-1">Flags indicating abnormalities
+                                            </td>
                                         </tr>
                                         <tr>
                                             <td class="border border-gray-200 px-2 py-1 font-mono">Results.Status</td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
-                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected</td>
+                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected
+                                            </td>
                                             <td class="border border-gray-200 px-2 py-1">Result status</td>
                                         </tr>
                                         <tr>
-                                            <td class="border border-gray-200 px-2 py-1 font-mono">Results.ObservationDateTime</td>
+                                            <td class="border border-gray-200 px-2 py-1 font-mono">
+                                                Results.ObservationDateTime</td>
                                             <td class="border border-gray-200 px-2 py-1">String</td>
-                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected</td>
-                                            <td class="border border-gray-200 px-2 py-1">Date and time of test (YYYYMMDDhhmm)</td>
+                                            <td class="border border-gray-200 px-2 py-1 text-green-600">Always Expected
+                                            </td>
+                                            <td class="border border-gray-200 px-2 py-1">Date and time of test
+                                                (YYYYMMDDhhmm)</td>
                                         </tr>
                                     </tbody>
                                 </table>

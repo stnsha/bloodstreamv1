@@ -10,7 +10,7 @@ class DashboardController extends Controller
     public function index()
     {
         $user_name = Auth::user()->name;
-        $lab_id = Auth::user()->credential ? Auth::user()->credential->lab_id : null;
+        $lab_id = session()->get('lab_id');
         return view('dashboard', compact('user_name', 'lab_id'));
     }
 }
