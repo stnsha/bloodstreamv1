@@ -25,7 +25,7 @@ server.php
 /storage/api-docs/api-docs.json
 .php-version
 .DS_STORE
-
+.claude
 # API Documentation generation files
 BloodStream_API_Documentation*.html
 BloodStream_API_Documentation*.md
