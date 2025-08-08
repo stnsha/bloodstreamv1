@@ -349,19 +349,23 @@ class ResultController extends Controller
                             }
 
                             //create test result
-                            $test_result = TestResult::firstOrCreate([
-                                'doctor_id' => $doctor_id,
-                                'patient_id' => $patient_id,
-                                'ref_id' => $reference_id,
-                                'bill_code' => $bill_code,
-                                'lab_no' => $lab_no,
-                                'panel_profile_id' => $panel_profile_id,
-                                'is_tagon' => $isTagOn,
-                                'collected_date' => $collected_date,
-                                'received_date' => null,
-                                'reported_date' => $reported_date,
-                                'is_completed' => false
-                            ]);
+                            $test_result = TestResult::firstOrCreate(
+                                [
+                                    'ref_id' => $reference_id,
+                                    'lab_no' => $lab_no,
+                                ],
+                                [
+                                    'doctor_id' => $doctor_id,
+                                    'patient_id' => $patient_id,
+                                    'bill_code' => $bill_code,
+                                    'panel_profile_id' => $panel_profile_id,
+                                    'is_tagon' => $isTagOn,
+                                    'collected_date' => $collected_date,
+                                    'received_date' => null,
+                                    'reported_date' => $reported_date,
+                                    'is_completed' => false
+                                ]
+                            );
 
                             //get test result id
                             $test_result_id = $test_result->id;
