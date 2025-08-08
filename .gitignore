@@ -25,3 +25,10 @@ server.php
 /storage/api-docs/api-docs.json
 .php-version
 .DS_STORE
+
+# API Documentation generation files
+BloodStream_API_Documentation*.html
+BloodStream_API_Documentation*.md
+BloodStream_API_Documentation*.pdf
+create_pdf_docs.py
+generate_pdf.py

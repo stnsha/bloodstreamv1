@@ -37,6 +37,7 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
         Route::post('/patient', 'labResults')->name('labResults');
         Route::post('/panel', 'panelResults')->name('panelResults');
         Route::post('/testPanel', 'testPanel')->name('testPanel');
+        Route::get('/{id}', 'show')->name('show');
         // Route::post('/panel', 'panel')->name('panel');
     });
 

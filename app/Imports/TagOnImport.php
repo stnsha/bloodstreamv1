@@ -39,6 +39,7 @@ class TagOnImport implements ToArray, WithHeadingRow
             }
 
             PanelTag::create([
+                'lab_id' => 2,
                 'panel_id' => $panel->id,
                 'code' => $data['code'],
                 'name' => $data['name'],

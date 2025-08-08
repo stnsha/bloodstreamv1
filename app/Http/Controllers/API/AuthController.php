@@ -19,6 +19,34 @@ class AuthController extends Controller
         return 'username';
     }
 
+    // /**
+    //  * @OA\Post(
+    //  *     path="/api/v1/register",
+    //  *     tags={"Authentication"},
+    //  *     summary="Register a new lab user",
+    //  *     description="Create a new lab user account with generated username and password",
+    //  *     @OA\RequestBody(
+    //  *         required=true,
+    //  *         @OA\JsonContent(
+    //  *             required={"email", "lab_id"},
+    //  *             @OA\Property(property="email", type="string", format="email", example="user@example.com"),
+    //  *             @OA\Property(property="lab_id", type="integer", example=1)
+    //  *         )
+    //  *     ),
+    //  *     @OA\Response(
+    //  *         response=200,
+    //  *         description="Registration successful",
+    //  *         @OA\JsonContent(
+    //  *             @OA\Property(property="username", type="string", example="LAB001user"),
+    //  *             @OA\Property(property="password", type="string", example="randomPassword123")
+    //  *         )
+    //  *     ),
+    //  *     @OA\Response(
+    //  *         response=422,
+    //  *         description="Validation error"
+    //  *     )
+    //  * )
+    //  */
     public function register(Request $request)
     {
         $validated = $request->validate([

@@ -13,12 +13,14 @@ return new class extends Migration
     {
         Schema::create('panel_tags', function (Blueprint $table) {
             $table->id();
+            $table->unsignedBigInteger('lab_id');
             $table->unsignedBigInteger('panel_id')->nullable();
             $table->string('name');
             $table->string('code');
             $table->softDeletes();
             $table->timestamps();
 
+            $table->foreign('lab_id')->references('id')->on('labs')->onDelete('cascade');
             $table->foreign('panel_id')->references('id')->on('panels')->onDelete('cascade');
         });
     }

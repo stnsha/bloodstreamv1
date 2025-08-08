@@ -52,6 +52,7 @@ class ReportedTestImport implements ToArray, WithHeadingRow
             // Find or create the PanelItem
             $panelItem = PanelItem::firstOrCreate(
                 [
+                    'lab_id' => 2,
                     'code' => $data['panel_item_code'],
                 ],
                 [
@@ -61,7 +62,7 @@ class ReportedTestImport implements ToArray, WithHeadingRow
                     'unit' => $data['unit'],
                 ]
             );
-            
+
             // Attach the panel to this panel item (many-to-many)
             $panel->panelItems()->syncWithoutDetaching([$panelItem->id]);
         }
@@ -85,6 +86,7 @@ class ReportedTestImport implements ToArray, WithHeadingRow
                 $panel_id = $isPanelExist->id;
 
                 PanelTag::create([
+                    'lab_id' => 2,
                     'panel_id' => $panel_id,
                     'name' => $data['panel_name'],
                     'code' => $data['panel_code'],

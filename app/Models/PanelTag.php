@@ -11,6 +11,7 @@ class PanelTag extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
+        'lab_id',
         'panel_id',
         'name',
         'code',

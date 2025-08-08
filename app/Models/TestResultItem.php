@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class TestResultItem extends Model
@@ -29,4 +30,19 @@ class TestResultItem extends Model
         'status' => null,
         'is_completed' => false,
     ];
+
+    public function testResult(): BelongsTo
+    {
+        return $this->belongsTo(TestResult::class);
+    }
+
+    public function panelItem(): BelongsTo
+    {
+        return $this->belongsTo(PanelItem::class);
+    }
+
+    public function referenceRange(): BelongsTo
+    {
+        return $this->belongsTo(ReferenceRange::class);
+    }
 }

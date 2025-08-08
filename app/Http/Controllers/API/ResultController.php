@@ -28,6 +28,122 @@ use Illuminate\Support\Str;
 
 class ResultController extends Controller
 {
+    /**
+     * @OA\Post(
+     *     path="/api/v1/result/panel",
+     *     tags={"Result"},
+     *     summary="Submit Innoquest panel results",
+     *     description="Process lab results from Innoquest system in HL7-like format",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         description="Innoquest panel results data",
+     *         @OA\JsonContent(
+     *             type="object",
+     *             required={"patient", "Orders"},
+     *             @OA\Property(property="SendingFacility", type="string", example="BIOMARK"),
+     *             @OA\Property(property="MessageControlID", type="string", example="169126507"),
+     *             @OA\Property(
+     *                 property="patient",
+     *                 type="object",
+     *                 required={"PatientLastName", "PatientGender"},
+     *                 @OA\Property(property="PatientID", type="string", example=""),
+     *                 @OA\Property(property="PatientExternalID", type="string", example=""),
+     *                 @OA\Property(property="AlternatePatientID", type="string", example="010325055234"),
+     *                 @OA\Property(property="PatientLastName", type="string", example="SANJEV TESTING"),
+     *                 @OA\Property(property="PatientFirstName", type="string", example=""),
+     *                 @OA\Property(property="PatientMiddleName", type="string", example=""),
+     *                 @OA\Property(property="PatientDOB", type="string", example="20010325"),
+     *                 @OA\Property(property="PatientGender", type="string", example="F"),
+     *                 @OA\Property(property="PatientAddress", type="string", example="KLANG"),
+     *                 @OA\Property(property="PatientNationality", type="string", example="")
+     *             ),
+     *             @OA\Property(
+     *                 property="Orders",
+     *                 type="array",
+     *                 @OA\Items(
+     *                     type="object",
+     *                     @OA\Property(property="PlacerOrderNumber", type="string", example="INN12345"),
+     *                     @OA\Property(property="FillerOrderNumber", type="string", example="25-8888861"),
+     *                     @OA\Property(property="PlacerGroupNumber", type="string", example=""),
+     *                     @OA\Property(property="Status", type="string", example=""),
+     *                     @OA\Property(property="Quantity", type="string", example=""),
+     *                     @OA\Property(property="TransactionDateTime", type="string", example=""),
+     *                     @OA\Property(
+     *                         property="OrderingProvider",
+     *                         type="object",
+     *                         @OA\Property(property="Code", type="string", example="NMGL9"),
+     *                         @OA\Property(property="Name", type="string", example="NG MING LEE (BUKIT BARU)")
+     *                     ),
+     *                     @OA\Property(property="Organization", type="string", example=""),
+     *                     @OA\Property(
+     *                         property="Observations",
+     *                         type="array",
+     *                         @OA\Items(
+     *                             type="object",
+     *                             @OA\Property(property="PlacerOrderNumber", type="string", example=""),
+     *                             @OA\Property(property="FillerOrderNumber", type="string", example="25-8888861"),
+     *                             @OA\Property(property="ProcedureCode", type="string", example="FBC"),
+     *                             @OA\Property(property="ProcedureDescription", type="string", example="FULL BLOOD COUNT"),
+     *                             @OA\Property(property="PackageCode", type="string", example=""),
+     *                             @OA\Property(property="Priority", type="string", example=""),
+     *                             @OA\Property(property="RequestedDateTime", type="string", example="20250404"),
+     *                             @OA\Property(property="StartDateTime", type="string", example="202507101000"),
+     *                             @OA\Property(property="EndDateTime", type="string", example=""),
+     *                             @OA\Property(property="ClinicalInformation", type="string", example=""),
+     *                             @OA\Property(property="SpecimenDateTime", type="string", example="202507100918"),
+     *                             @OA\Property(
+     *                                 property="OrderingProvider",
+     *                                 type="object",
+     *                                 @OA\Property(property="Code", type="string", example="NMGL9"),
+     *                                 @OA\Property(property="Name", type="string", example="NG MING LEE (BUKIT BARU)")
+     *                             ),
+     *                             @OA\Property(property="ResultStatus", type="string", example="F"),
+     *                             @OA\Property(property="ServiceDateTime", type="string", example="20250404"),
+     *                             @OA\Property(property="ResultPriority", type="string", example="R"),
+     *                             @OA\Property(
+     *                                 property="Results",
+     *                                 type="array",
+     *                                 @OA\Items(
+     *                                     type="object",
+     *                                     @OA\Property(property="ID", type="string", example="1"),
+     *                                     @OA\Property(property="Type", type="string", example="NM"),
+     *                                     @OA\Property(property="Identifier", type="string", example="718-7"),
+     *                                     @OA\Property(property="Text", type="string", example="Haemoglobin"),
+     *                                     @OA\Property(property="CodingSystem", type="string", example="LN"),
+     *                                     @OA\Property(property="Value", type="string", example="130"),
+     *                                     @OA\Property(property="Units", type="string", example="g/L"),
+     *                                     @OA\Property(property="ReferenceRange", type="string", example="120-150"),
+     *                                     @OA\Property(property="Flags", type="string", example="N"),
+     *                                     @OA\Property(property="Status", type="string", example="F"),
+     *                                     @OA\Property(property="ObservationDateTime", type="string", example="202507101608")
+     *                                 )
+     *                             )
+     *                         )
+     *                     )
+     *                 )
+     *             ),
+     *             @OA\Property(property="EncodedBase64pdf", type="string", nullable=true, description="Base64 encoded PDF report")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Panel results processed successfully",
+     *         @OA\JsonContent(
+     *             type="integer",
+     *             description="Test result ID",
+     *             example=123
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Failed to save data",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="error", type="string", example="Failed to save data")
+     *         )
+     *     )
+     * )
+     */
     public function panelResults(InnoquestResultRequest $request)
     {
         $validated = $request->validated();
@@ -162,7 +278,7 @@ class ResultController extends Controller
                             $panel_name = $obv['ProcedureDescription'];
                             $panel_notes = filled($obv['ClinicalInformation']) ? $obv['ClinicalInformation'] : null; //overall notes
 
-                            $panel = Panel::where('code', $panel_code)->where('name', $panel_name)->first();
+                            $panel = Panel::where('lab_id', $lab_id)->where('code', $panel_code)->where('name', $panel_name)->first();
                             $isTagOn = false;
                             if (!$panel) {
                                 $isTagOn = $this->isTagOnItem($panel_name);
@@ -171,7 +287,7 @@ class ResultController extends Controller
                                     $isTagOn = true;
 
                                     //search if tag on code
-                                    $panelTag = PanelTag::where('code', $panel_code)->first();
+                                    $panelTag = PanelTag::where('lab_id', $lab_id)->where('code', $panel_code)->first();
 
                                     //If not found
                                     if (!$panelTag) {
@@ -193,6 +309,7 @@ class ResultController extends Controller
                                         //create new panel tag
                                         PanelTag::firstOrCreate(
                                             [
+                                                'lab_id' => $lab_id,
                                                 'panel_id' => $panel_id,
                                                 'code' => $panel_code,
                                             ],
@@ -206,6 +323,7 @@ class ResultController extends Controller
                                 } else {
                                     $createPanel = Panel::firstOrCreate(
                                         [
+                                            'lab_id' => $lab_id,
                                             'code' => $panel_code,
                                         ],
                                         [
@@ -264,6 +382,7 @@ class ResultController extends Controller
                                         //create panel items
                                         $panel_item = PanelItem::firstOrCreate(
                                             [
+                                                'lab_id' => $lab_id,
                                                 'name' => $res['Text'],
                                             ],
                                             [
@@ -471,36 +590,30 @@ class ResultController extends Controller
      *             @OA\Property(
      *                 property="doctor",
      *                 type="object",
-     *                 required={},
+     *                 required={"name"},
      *                 @OA\Property(
      *                     property="code",
      *                     type="string",
      *                     description="Doctor code",
-     *                     example="ABC122"
+     *                     example=""
      *                 ),
      *                 @OA\Property(
      *                     property="name",
      *                     type="string",
      *                     description="Doctor name",
-     *                     example="Dr. John Smith"
+     *                     example="AMC NETWORK SDN BHD (ALPRO PHARMACY LUAK BAY)"
      *                 ),
      *                 @OA\Property(
      *                     property="address",
      *                     type="string",
      *                     description="Doctor address",
-     *                     example="123 Medical Center Street, City"
+     *                     example="Lot 8524 Block 1, Lambir Land District, Jalan Luak Bay, 98000 Miri, Sarawak"
      *                 ),
      *                 @OA\Property(
      *                     property="phone",
      *                     type="string",
      *                     description="Doctor phone number",
-     *                     example="03-12345678"
-     *                 ),
-     *                 @OA\Property(
-     *                     property="type",
-     *                     type="string",
-     *                     description="Doctor type",
-     *                     example="clinic"
+     *                     example="0192672923"
      *                 )
      *             ),
      *             @OA\Property(
@@ -533,7 +646,7 @@ class ResultController extends Controller
      *             @OA\Property(
      *                 property="patient",
      *                 type="object",
-     *                 required={"icno"},
+     *                 required={"icno", "name"},
      *                 @OA\Property(
      *                     property="icno",
      *                     type="string",
@@ -562,14 +675,7 @@ class ResultController extends Controller
      *                     property="tel",
      *                     type="string",
      *                     description="Patient telephone number",
-     *                     example="012-3456789"
-     *                 ),
-     *                 @OA\Property(
-     *                     property="ic_type",
-     *                     type="string",
-     *                     description="IC type",
-     *                     enum={"NRIC", "OTHERS"},
-     *                     example="NRIC"
+     *                     example="0123456789"
      *                 )
      *             ),
      *             @OA\Property(
@@ -585,13 +691,6 @@ class ResultController extends Controller
      *                 @OA\Property(
      *                     property="Haematology",
      *                     type="object",
-     *                     @OA\Property(
-     *                         property="panel_code",
-     *                         type="string",
-     *                         nullable=true,
-     *                         description="Panel code",
-     *                         example="HAE"
-     *                     ),
      *                     @OA\Property(
      *                         property="panel_sequence",
      *                         type="integer",
@@ -617,14 +716,56 @@ class ResultController extends Controller
      *                         type="array",
      *                         @OA\Items(
      *                             type="object",
+     *                             required={"test_name", "report_sequence"},
      *                             @OA\Property(property="test_name", type="string", example="Haemoglobin"),
      *                             @OA\Property(property="result_value", type="string", example="15.7"),
-     *                             @OA\Property(property="decimal_point", type="string", nullable=true, example="1"),
      *                             @OA\Property(property="result_flag", type="string", nullable=true, example=null),
      *                             @OA\Property(property="unit", type="string", example="g/dL"),
      *                             @OA\Property(property="ref_range", type="string", example="M: 13.0 - 18.0; F: 11.5 - 16.0"),
      *                             @OA\Property(property="test_note", type="string", nullable=true, example=null),
-     *                             @OA\Property(property="item_sequence", type="integer", example=1)
+     *                             @OA\Property(property="report_sequence", type="integer", example=1)
+     *                         )
+     *                     )
+     *                 ),
+     *                 @OA\Property(
+     *                     property="Liver Function Tests",
+     *                     type="object",
+     *                     @OA\Property(property="panel_sequence", type="integer", example=2),
+     *                     @OA\Property(property="panel_remarks", type="string", nullable=true, example=null),
+     *                     @OA\Property(property="result_status", type="integer", example=1),
+     *                     @OA\Property(
+     *                         property="tests",
+     *                         type="array",
+     *                         @OA\Items(
+     *                             type="object",
+     *                             @OA\Property(property="test_name", type="string", example="Total Bilirubin"),
+     *                             @OA\Property(property="result_value", type="string", example="9.7"),
+     *                             @OA\Property(property="result_flag", type="string", nullable=true, example=null),
+     *                             @OA\Property(property="unit", type="string", example="µmol/L"),
+     *                             @OA\Property(property="ref_range", type="string", example="<25.7"),
+     *                             @OA\Property(property="test_note", type="string", nullable=true, example=null),
+     *                             @OA\Property(property="report_sequence", type="integer", example=17)
+     *                         )
+     *                     )
+     *                 ),
+     *                 @OA\Property(
+     *                     property="~ Urine: Microscopic",
+     *                     type="object",
+     *                     @OA\Property(property="panel_sequence", type="integer", example=5),
+     *                     @OA\Property(property="panel_remarks", type="string", nullable=true, example=null),
+     *                     @OA\Property(property="result_status", type="integer", example=1),
+     *                     @OA\Property(
+     *                         property="tests",
+     *                         type="array",
+     *                         @OA\Items(
+     *                             type="object",
+     *                             @OA\Property(property="test_name", type="string", example="Erythrocytes (Red blood cells)"),
+     *                             @OA\Property(property="result_value", type="string", example="Nil"),
+     *                             @OA\Property(property="result_flag", type="string", nullable=true, example=null),
+     *                             @OA\Property(property="unit", type="string", example="/HPF"),
+     *                             @OA\Property(property="ref_range", type="string", example="0-3"),
+     *                             @OA\Property(property="test_note", type="string", nullable=true, example=null),
+     *                             @OA\Property(property="report_sequence", type="integer", example=69)
      *                         )
      *                     )
      *                 )
@@ -762,6 +903,13 @@ class ResultController extends Controller
                 //get patient id
                 $patient_id = $patient->id;
 
+                //get package name
+                $panel_profile_id = null;
+                if (filled($package_name)) {
+                    $panel_profile = PanelProfile::firstOrCreate(['lab_id' => $lab_id, 'name' => $package_name]);
+                    $panel_profile_id = $panel_profile->id;
+                }
+
                 //create test result 
                 $test_result = TestResult::firstOrCreate(
                     [
@@ -771,6 +919,7 @@ class ResultController extends Controller
                     ],
                     [
                         'ref_id' => $reference_id,
+                        'panel_profile_id' => $panel_profile_id,
                         'bill_code' => $bill_code,
                         'collected_date' => $collected_date,
                         'received_date' => $received_date,
@@ -780,12 +929,6 @@ class ResultController extends Controller
                     ]
                 );
 
-                $panel_profile = PanelProfile::firstOrCreate(['lab_id' => $lab_id, 'name' => $package_name]);
-                $panel_profile_id = $panel_profile->id;
-
-                //create same category with profile
-                $panel_category = PanelCategory::firstOrCreate(['lab_id' => $lab_id, 'panel_profile_id' => $panel_profile_id], ['name' => $package_name]);
-                $panel_category_id = $panel_category->id;
 
                 //get test result id
                 $test_result_id = $test_result->id;
@@ -795,7 +938,7 @@ class ResultController extends Controller
                     //assign array key as panel name
                     $panel_name = $key;
                     $panel_code = $item['panel_code'];
-                    $panel_sequence = $item['panel_sequence'];
+                    $panel_sequence = $item['panel_sequence'] ?? null;
                     $overall_notes = $item['panel_remarks'];
                     $result_status = $item['result_status'];
 
@@ -804,7 +947,6 @@ class ResultController extends Controller
                         [
                             'lab_id' => $lab_id,
                             'name' => $panel_name,
-                            'panel_category_id' => $panel_category_id,
                             'code' => $panel_code,
                         ],
                         [
@@ -813,9 +955,6 @@ class ResultController extends Controller
                         ]
                     );
 
-                    //get panel id
-                    $panel_id = $panel->id;
-
                     //check if array tests available
                     if (filled($item['tests'])) {
                         //loop through tests
@@ -823,12 +962,14 @@ class ResultController extends Controller
                             //create panel item
                             $panel_item = PanelItem::firstOrCreate(
                                 [
+                                    'lab_id' => $lab_id,
+                                    'code' => $test['test_code'],
                                     'name' => $test['test_name'],
                                 ],
                                 [
                                     'decimal_point' => $test['decimal_point'],
                                     'unit' => $test['unit'],
-                                    'sequence' => $test['item_sequence']
+                                    'sequence' => $test['report_sequence']
                                 ]
                             );
 
@@ -857,6 +998,7 @@ class ResultController extends Controller
                             TestResultItem::firstOrCreate(
                                 [
                                     'test_result_id' => $test_result_id,
+                                    'panel_item_id' => $panel_item_id,
                                     'reference_range_id' => $ref_range_id,
                                     'value' => $test['result_value']
                                 ],
@@ -929,10 +1071,10 @@ class ResultController extends Controller
         }
     }
 
-    /**
-     * Convert datetime string to Carbon instance
-     * Handles formats: YYYYMMDD and YYYYMMDDHHMM
-     */
+    // /**
+    //  * Convert datetime string to Carbon instance
+    //  * Handles formats: YYYYMMDD and YYYYMMDDHHMM
+    //  */
     private function convertDatetime($dateString)
     {
         if (empty($dateString)) {
@@ -961,6 +1103,30 @@ class ResultController extends Controller
         }
     }
 
+    /**
+     * @OA\Post(
+     *     path="/api/v1/testPanel",
+     *     tags={"Result"},
+     *     summary="Test endpoint for panel data",
+     *     description="Test endpoint that logs and returns the request data",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\RequestBody(
+     *         required=false,
+     *         @OA\JsonContent(
+     *             type="object",
+     *             description="Any JSON data for testing"
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Test response with request data",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="Request received"),
+     *             @OA\Property(property="data", type="object", description="The request data that was sent")
+     *         )
+     *     )
+     * )
+     */
     public function testPanel(Request $request)
     {
         Log::info('Request Data:', $request->all());
@@ -968,6 +1134,252 @@ class ResultController extends Controller
             'message' => 'Request received',
             'data' => $request->all(),
         ], 200);
+    }
+
+    /**
+     * @OA\Get(
+     *     path="/api/v1/result/{id}",
+     *     tags={"Result"},
+     *     summary="Retrieve test result by ID",
+     *     description="Get a specific test result with all associated data including patient, doctor, panel results and test items",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="id",
+     *         in="path",
+     *         required=true,
+     *         description="Test result ID",
+     *         @OA\Schema(type="integer", example=123)
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Test result retrieved successfully",
+     *         @OA\JsonContent(
+     *             type="object",
+     *             @OA\Property(property="reference_id", type="string", nullable=true, example="ABC12345"),
+     *             @OA\Property(property="lab_no", type="string", example="123456789"),
+     *             @OA\Property(property="bill_code", type="string", nullable=true, example="AMC_ALPRO"),
+     *             @OA\Property(property="collected_date", type="string", nullable=true, example="2025-01-19 00:00:00"),
+     *             @OA\Property(property="received_date", type="string", nullable=true, example="2025-01-19 00:00:00"),
+     *             @OA\Property(property="reported_date", type="string", nullable=true, example="2025-01-19 00:00:00"),
+     *             @OA\Property(property="validated_by", type="string", nullable=true, example="Richard Roe, Bsc in Biomedical"),
+     *             @OA\Property(property="is_completed", type="boolean", example=true),
+     *             @OA\Property(property="is_tagon", type="boolean", example=false),
+     *             @OA\Property(
+     *                 property="doctor",
+     *                 type="object",
+     *                 @OA\Property(property="name", type="string", example="Dr. John Smith"),
+     *                 @OA\Property(property="code", type="string", nullable=true, example="DOC123"),
+     *                 @OA\Property(property="type", type="string", nullable=true, example="clinic"),
+     *                 @OA\Property(property="outlet_name", type="string", nullable=true, example="Smith Clinic"),
+     *                 @OA\Property(property="outlet_address", type="string", nullable=true, example="123 Medical Street"),
+     *                 @OA\Property(property="outlet_phone", type="string", nullable=true, example="03-12345678")
+     *             ),
+     *             @OA\Property(
+     *                 property="patient",
+     *                 type="object",
+     *                 @OA\Property(property="icno", type="string", example="870521145681"),
+     *                 @OA\Property(property="ic_type", type="string", example="NRIC"),
+     *                 @OA\Property(property="name", type="string", nullable=true, example="JOHN DOE"),
+     *                 @OA\Property(property="dob", type="string", nullable=true, example="1987-05-21"),
+     *                 @OA\Property(property="age", type="string", nullable=true, example="37"),
+     *                 @OA\Property(property="gender", type="string", nullable=true, example="M"),
+     *                 @OA\Property(property="tel", type="string", nullable=true, example="012-3456789")
+     *             ),
+     *             @OA\Property(
+     *                 property="package",
+     *                 type="object",
+     *                 nullable=true,
+     *                 @OA\Property(property="name", type="string", example="AC ESSENTIAL PACKAGE"),
+     *                 @OA\Property(property="code", type="string", nullable=true, example="AC_ESS")
+     *             ),
+     *             @OA\Property(
+     *                 property="results",
+     *                 type="array",
+     *                 @OA\Items(
+     *                     type="object",
+     *                     @OA\Property(property="panel_name", type="string", example="Haematology"),
+     *                     @OA\Property(property="panel_code", type="string", nullable=true, example="HAE"),
+     *                     @OA\Property(property="panel_sequence", type="integer", nullable=true, example=1),
+     *                     @OA\Property(property="overall_notes", type="string", nullable=true, example=null),
+     *                     @OA\Property(
+     *                         property="tests",
+     *                         type="array",
+     *                         @OA\Items(
+     *                             type="object",
+     *                             @OA\Property(property="test_name", type="string", example="Haemoglobin"),
+     *                             @OA\Property(property="test_code", type="string", nullable=true, example="HGB"),
+     *                             @OA\Property(property="result_value", type="string", nullable=true, example="15.7"),
+     *                             @OA\Property(property="unit", type="string", nullable=true, example="g/dL"),
+     *                             @OA\Property(property="reference_range", type="string", nullable=true, example="M: 13.0 - 18.0; F: 11.5 - 16.0"),
+     *                             @OA\Property(property="result_flag", type="string", nullable=true, example=null),
+     *                             @OA\Property(property="test_notes", type="string", nullable=true, example=null),
+     *                             @OA\Property(property="status", type="string", nullable=true, example="F"),
+     *                             @OA\Property(property="is_completed", type="boolean", example=true),
+     *                             @OA\Property(property="sequence", type="integer", nullable=true, example=1)
+     *                         )
+     *                     )
+     *                 )
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=404,
+     *         description="Test result not found",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="error", type="string", example="Test result not found")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Unauthorized - Invalid or missing authentication token"
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Internal server error",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="error", type="string", example="Failed to retrieve test result")
+     *         )
+     *     )
+     * )
+     */
+    public function show($id)
+    {
+        try {
+            // Get current user's lab ID
+            $user = Auth::guard('lab')->user();
+            $lab_id = $user->lab_id;
+
+            // Find test result with lab_id constraint through doctor relationship using Eloquent
+            $testResult = TestResult::whereHas('doctor', function ($query) use ($lab_id) {
+                $query->where('lab_id', $lab_id);
+            })->with([
+                'doctor',
+                'patient',
+                'panelProfile',
+                'testResultItems' => function ($query) use ($lab_id) {
+                    $query->with([
+                        'panelItem' => function ($query) use ($lab_id) {
+                            $query->where('lab_id', $lab_id)->with(['panels' => function ($query) use ($lab_id) {
+                                $query->where('lab_id', $lab_id);
+                            }]);
+                        },
+                        'referenceRange'
+                    ]);
+                }
+            ])->find($id);
+
+            if (!$testResult) {
+                return response()->json([
+                    'error' => 'Test result not found'
+                ], 404);
+            }
+
+            // Group test result items by panel
+            $groupedResults = [];
+            foreach ($testResult->testResultItems as $item) {
+                $panelItem = $item->panelItem;
+                $panels = $panelItem ? $panelItem->panels : collect();
+
+                // Handle cases where panel item might not have panels or has multiple panels
+                if ($panels->isEmpty()) {
+                    $panelName = 'Uncategorized';
+                    $panelCode = null;
+                    $panelSequence = null;
+                    $overallNotes = null;
+                } else {
+                    // Take the first panel if multiple panels exist
+                    $panel = $panels->first();
+                    $panelName = $panel->name;
+                    $panelCode = $panel->code;
+                    $panelSequence = $panel->sequence;
+                    $overallNotes = $panel->overall_notes;
+                }
+
+                if (!isset($groupedResults[$panelName])) {
+                    $groupedResults[$panelName] = [
+                        'panel_name' => $panelName,
+                        'panel_code' => $panelCode,
+                        'panel_sequence' => $panelSequence,
+                        'overall_notes' => $overallNotes,
+                        'tests' => []
+                    ];
+                }
+
+                $groupedResults[$panelName]['tests'][] = [
+                    'test_name' => $panelItem ? $panelItem->name : null,
+                    'test_code' => $panelItem ? $panelItem->code : null,
+                    'result_value' => $item->value,
+                    'unit' => $panelItem ? $panelItem->unit : null,
+                    'reference_range' => $item->referenceRange ? $item->referenceRange->value : null,
+                    'result_flag' => $item->flag,
+                    'test_notes' => $item->test_notes,
+                    'status' => $item->status,
+                    'is_completed' => (bool) $item->is_completed,
+                    'sequence' => $panelItem ? $panelItem->sequence : null
+                ];
+            }
+
+            // Sort grouped results by panel sequence
+            uasort($groupedResults, function ($a, $b) {
+                return ($a['panel_sequence'] ?? 999) <=> ($b['panel_sequence'] ?? 999);
+            });
+
+            // Sort tests within each panel by sequence
+            foreach ($groupedResults as &$panel) {
+                usort($panel['tests'], function ($a, $b) {
+                    return ($a['sequence'] ?? 999) <=> ($b['sequence'] ?? 999);
+                });
+            }
+
+            // Prepare response data
+            $responseData = [
+                'reference_id' => $testResult->ref_id,
+                'lab_no' => $testResult->lab_no,
+                'bill_code' => $testResult->bill_code,
+                'collected_date' => $testResult->collected_date,
+                'received_date' => $testResult->received_date,
+                'reported_date' => $testResult->reported_date,
+                'validated_by' => $testResult->validated_by,
+                'is_completed' => (bool) $testResult->is_completed,
+                'is_tagon' => (bool) $testResult->is_tagon,
+                'doctor' => $testResult->doctor ? [
+                    'name' => $testResult->doctor->name,
+                    'code' => $testResult->doctor->code,
+                    'type' => $testResult->doctor->type,
+                    'outlet_name' => $testResult->doctor->outlet_name,
+                    'outlet_address' => $testResult->doctor->outlet_address,
+                    'outlet_phone' => $testResult->doctor->outlet_phone
+                ] : null,
+                'patient' => $testResult->patient ? [
+                    'icno' => $testResult->patient->icno,
+                    'ic_type' => $testResult->patient->ic_type,
+                    'name' => $testResult->patient->name,
+                    'dob' => $testResult->patient->dob,
+                    'age' => $testResult->patient->age,
+                    'gender' => $testResult->patient->gender,
+                    'tel' => $testResult->patient->tel
+                ] : null,
+                'package' => $testResult->panelProfile ? [
+                    'name' => $testResult->panelProfile->name,
+                    'code' => $testResult->panelProfile->code
+                ] : null,
+                'results' => array_values($groupedResults)
+            ];
+
+            return response()->json($responseData, 200);
+        } catch (\Throwable $e) {
+            Log::error('Failed to retrieve test result', [
+                'test_result_id' => $id,
+                'exception' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'error' => 'Failed to retrieve test result'
+            ], 500);
+        }
     }
 
     private function isTagOnItem($panelName)

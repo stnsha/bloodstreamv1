@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ReferenceRange extends Model
@@ -15,4 +16,9 @@ class ReferenceRange extends Model
     protected $attributes = [
         'value' => null,
     ];
+
+    public function panelItem(): BelongsTo
+    {
+        return $this->belongsTo(PanelItem::class);
+    }
 }

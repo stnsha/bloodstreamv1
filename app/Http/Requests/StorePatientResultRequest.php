@@ -6,6 +6,7 @@ use App\Models\Patient;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
+ * @property array $doctor
  * @property array $patient
  * @property string $reference_id
  * @property string $lab_no
@@ -70,13 +71,15 @@ class StorePatientResultRequest extends FormRequest
             'results.*.tests' => 'required|array',
 
             'results.*.tests.*.test_name' => 'required|string',
+            'results.*.tests.*.test_code' => 'nullable|string',
+            'results.*.panel_code' => 'nullable|string',
             'results.*.tests.*.result_value' => 'nullable|string',
             'results.*.tests.*.decimal_point' => 'nullable|string',
             'results.*.tests.*.result_flag' => 'nullable|string',
             'results.*.tests.*.unit' => 'nullable|string',
             'results.*.tests.*.ref_range' => 'nullable|string',
             'results.*.tests.*.test_note' => 'nullable|string',
-            'results.*.tests.*.item_sequence' => 'nullable|integer',
+            'results.*.tests.*.report_sequence' => 'nullable|integer',
         ];
     }
 
@@ -133,7 +136,7 @@ class StorePatientResultRequest extends FormRequest
      *
      * This method cleans up the input data before validation:
      * - Removes non-numeric characters from patient_icno
-     * - Casts panel_sequence and item_sequence to integers
+     * - Casts panel_sequence and report_sequence to integers
      * - Trims whitespace from string fields in test items
      * - Skips panels or tests if improperly structured
      */
@@ -149,15 +152,17 @@ class StorePatientResultRequest extends FormRequest
                 }
 
                 $data['tests'] = array_map(function ($test) {
+                    $test_code = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $test['test_name']), 0, 3));
                     return [
                         'test_name' => trim($test['test_name'] ?? null),
+                        'test_code' => trim($test_code ?? null),
                         'result_value' => trim((string) ($test['result_value'] ?? null)),
                         'decimal_point' => trim((string) ($test['decimal_point'] ?? null)),
                         'result_flag' => $test['result_flag'] ?? null,
                         'unit' => trim($test['unit'] ?? null),
                         'ref_range' => trim($test['ref_range'] ?? null),
                         'test_note' => $test['test_note'] ?? null,
-                        'item_sequence' => (int) ($test['item_sequence'] ?? null),
+                        'report_sequence' => (int) ($test['report_sequence'] ?? null),
                     ];
                 }, $data['tests']);
 
