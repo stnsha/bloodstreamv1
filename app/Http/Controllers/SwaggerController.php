@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 /**
  * @OA\Info(
  *     version="1.0",
- *     title="Blood Stream v1 API",
+ *     title="BloodStream v1 API",
  *     description="",
  *     @OA\Contact(name="Digital Innovation")
  * )

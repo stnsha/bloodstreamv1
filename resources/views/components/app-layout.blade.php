@@ -27,7 +27,7 @@
                     @endif
 
                     <li>
-                        <a href="api/documentation" class="text-gray-900 hover:text-red-800">API Documentation</a>
+                        <a href="api/documentation" class="text-gray-900 hover:text-red-800">Swagger Documentation</a>
                     </li>
                     {{--  <li>
                         <a href="{{ route('review.index') }}"
