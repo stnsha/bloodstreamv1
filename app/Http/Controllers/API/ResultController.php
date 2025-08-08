@@ -12,7 +12,6 @@ use App\Models\Panel;
 use App\Models\PanelCategory;
 use App\Models\PanelComment;
 use App\Models\PanelItem;
-use App\Models\PanelMetadata;
 use App\Models\PanelProfile;
 use App\Models\PanelTag;
 use App\Models\Patient;
@@ -25,6 +24,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class ResultController extends Controller
 {
@@ -156,6 +156,69 @@ class ResultController extends Controller
                                 $panel_profile_id = $panel_profile->id;
                             }
 
+
+                            //get panel code
+                            $panel_code = $obv['ProcedureCode'];
+                            $panel_name = $obv['ProcedureDescription'];
+                            $panel_notes = filled($obv['ClinicalInformation']) ? $obv['ClinicalInformation'] : null; //overall notes
+
+                            $panel = Panel::where('code', $panel_code)->where('name', $panel_name)->first();
+                            $isTagOn = false;
+                            if (!$panel) {
+                                $isTagOn = $this->isTagOnItem($panel_name);
+
+                                if ($isTagOn) {
+                                    $isTagOn = true;
+
+                                    //search if tag on code
+                                    $panelTag = PanelTag::where('code', $panel_code)->first();
+
+                                    //If not found
+                                    if (!$panelTag) {
+                                        //remove word tag on on panel name to search in panel 
+                                        $tempPanelName = $this->extractBasePanelName($panel_name);
+
+                                        //Search panel by name
+                                        $isPanelExist = Panel::where(function ($query) use ($tempPanelName) {
+                                            $query->whereRaw('LOWER(name) = ?', [strtolower($tempPanelName)]);
+                                        })
+                                            ->where('lab_id', $lab_id)
+                                            ->first();
+
+                                        //If found
+                                        if ($isPanelExist) {
+                                            $panel_id = $isPanelExist->id;
+                                        }
+
+                                        //create new panel tag
+                                        PanelTag::firstOrCreate(
+                                            [
+                                                'panel_id' => $panel_id,
+                                                'code' => $panel_code,
+                                            ],
+                                            [
+                                                'name' => $panel_name,
+                                            ]
+                                        );
+                                    } else {
+                                        $panel_id = $panelTag->panel_id;
+                                    }
+                                } else {
+                                    $createPanel = Panel::firstOrCreate(
+                                        [
+                                            'code' => $panel_code,
+                                        ],
+                                        [
+                                            'name' => $panel_name,
+                                        ]
+                                    );
+
+                                    $panel_id = $createPanel->id;
+                                }
+                            } else {
+                                $panel_id = $panel->id;
+                            }
+
                             //create test result
                             $test_result = TestResult::firstOrCreate([
                                 'doctor_id' => $doctor_id,
@@ -164,6 +227,7 @@ class ResultController extends Controller
                                 'bill_code' => $bill_code,
                                 'lab_no' => $lab_no,
                                 'panel_profile_id' => $panel_profile_id,
+                                'is_tagon' => $isTagOn,
                                 'collected_date' => $collected_date,
                                 'received_date' => null,
                                 'reported_date' => $reported_date,
@@ -172,41 +236,6 @@ class ResultController extends Controller
 
                             //get test result id
                             $test_result_id = $test_result->id;
-
-                            //get panel code
-                            $panel_code = $obv['ProcedureCode'];
-                            $panel_name = $obv['ProcedureDescription'];
-                            $panel_notes = filled($obv['ClinicalInformation']) ? $obv['ClinicalInformation'] : null; //overall notes
-
-                            $panel = Panel::where('code', $panel_code)->where('name', $panel_name)->first();
-                            $panel_tag_id = null;
-
-                            if (!$panel) {
-                                //search if tag on code
-                                $panel_tag = PanelTag::where('code', $panel_code)->where('name', $panel_name)->first();
-
-                                if (!$panel_tag) {
-                                    //create panel if no tag on code
-                                    $panel = Panel::firstOrCreate(
-                                        [
-                                            'lab_id' => $lab_id,
-                                            'name' => $panel_name,
-                                        ],
-                                        [
-                                            'code' => $panel_code,
-                                            'sequence' => null,
-                                            'overall_notes' => $panel_notes
-                                        ]
-                                    );
-                                    $panel_id = $panel->id;
-                                } else {
-                                    //if panel tag exist
-                                    $panel_tag_id = $panel_tag->id;
-                                    $panel_id = $panel_tag->panel_id;
-                                }
-                            } else {
-                                $panel_id = $panel->id;
-                            }
 
                             //check if result is completed
                             $is_completed_result = (filled($obv['ResultStatus']) && $obv['ResultStatus'] == 'F')  ? true : false;
@@ -225,11 +254,9 @@ class ResultController extends Controller
 
 
                                     //store field value to variable
-                                    $ordinal_id = $res['ID'];
                                     $type = $res['Type'];
                                     $identifier = $res['Identifier'];
 
-                                    $main = explode('#', $identifier)[0];
                                     $suffix = strpos($identifier, '#') !== false ? explode('#', $identifier)[1] : null;
 
                                     //result items 
@@ -248,7 +275,7 @@ class ResultController extends Controller
                                                 'code' => $suffix,
                                             ]
                                         );
-                                        
+
                                         // Attach the panel to this panel item (many-to-many)
                                         $panel = Panel::find($panel_id);
                                         if ($panel) {
@@ -274,6 +301,7 @@ class ResultController extends Controller
                                         TestResultItem::firstOrCreate(
                                             [
                                                 'test_result_id' => $test_result_id,
+                                                'panel_item_id' => $panel_item_id,
                                                 'reference_range_id' => $ref_range_id,
                                                 'value' => $result_value
                                             ],
@@ -380,7 +408,7 @@ class ResultController extends Controller
                 'data' => json_encode($request->all()),
             ]);
 
-            // Create delivery file if it doesn't exist for error tracking
+            //sCreate delivery file if it doesn't exist for error tracking
             if (!$deliveryFile) {
                 $deliveryFile = DeliveryFile::create([
                     'lab_id' => $lab_id ?? null,
@@ -803,7 +831,7 @@ class ResultController extends Controller
                                     'sequence' => $test['item_sequence']
                                 ]
                             );
-                            
+
                             // Attach the panel to this panel item (many-to-many)
                             $panel->panelItems()->syncWithoutDetaching([$panel_item->id]);
 
@@ -940,5 +968,37 @@ class ResultController extends Controller
             'message' => 'Request received',
             'data' => $request->all(),
         ], 200);
+    }
+
+    private function isTagOnItem($panelName)
+    {
+        // Handle case where panelName might be an array or null
+        $trimmed = trimOrNull($panelName);
+        if (!$trimmed) {
+            return false;
+        }
+
+        $tagOnKeywords = ['TAG ON', 'TAGON', 'TAG-ON'];
+        foreach ($tagOnKeywords as $keyword) {
+            if (Str::contains(strtoupper($trimmed), $keyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function extractBasePanelName($panelName)
+    {
+        // Handle case where panelName might be an array or null
+        $trimmed = trimOrNull($panelName);
+        if (!$trimmed) {
+            return '';
+        }
+
+        // Remove TAG ON related keywords and clean up
+        $baseName = preg_replace('/\s*\(?\s*(TAG[\s\-]?ON)\s*\)?/i', '', $trimmed);
+        $baseName = preg_replace('/\s*TAGON\s*/i', '', $baseName);
+
+        return trimOrNull($baseName) ?: '';
     }
 }

@@ -14,18 +14,21 @@ return new class extends Migration
         Schema::create('test_result_items', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('test_result_id');
-            $table->unsignedBigInteger('reference_range_id');
+            $table->unsignedBigInteger('panel_item_id');
+            $table->unsignedBigInteger('reference_range_id')->nullable();
             $table->string('value')->nullable();
             $table->string('flag')->nullable();
             $table->longText('test_notes')->nullable();
             $table->string('status')->nullable();
-            $table->boolean('is_tagon')->default(false);
             $table->boolean('is_completed')->default(false);
             $table->softDeletes();
             $table->timestamps();
 
             $table->foreign('test_result_id')->references('id')->on('test_results')->onDelete('cascade');
             $table->foreign('reference_range_id')->references('id')->on('reference_ranges')->onDelete('cascade');
+            $table->foreign('panel_item_id')->references('id')->on('panel_items')->onDelete('cascade');
+
+            $table->index(['reference_range_id', 'panel_item_id']);
         });
     }
 

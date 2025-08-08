@@ -19,6 +19,7 @@ return new class extends Migration
             $table->string('bill_code')->nullable();
             $table->string('lab_no');
             $table->unsignedBigInteger('panel_profile_id')->nullable();
+            $table->boolean('is_tagon')->default(false);
             $table->dateTime('collected_date')->nullable();
             $table->dateTime('received_date')->nullable();
             $table->dateTime('reported_date')->nullable();

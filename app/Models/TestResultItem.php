@@ -12,21 +12,21 @@ class TestResultItem extends Model
 
     protected $fillable = [
         'test_result_id',
+        'panel_item_id',
         'reference_range_id',
         'value',
         'flag',
         'test_notes',
         'status',
-        'is_tagon',
         'is_completed'
     ];
 
     protected $attributes = [
+        'reference_range_id' => null,
         'value' => null,
         'flag' => null,
         'test_notes' => null,
         'status' => null,
-        'is_tagon' => false,
         'is_completed' => false,
     ];
 }
