@@ -9,7 +9,6 @@ use App\Models\DeliveryFile;
 use App\Models\DeliveryFileHistory;
 use App\Models\Doctor;
 use App\Models\Panel;
-use App\Models\PanelCategory;
 use App\Models\PanelComment;
 use App\Models\PanelItem;
 use App\Models\PanelProfile;
@@ -155,6 +154,12 @@ class ResultController extends Controller
         $batch_id = null;
 
         try {
+            Log::info('Panel results submission started', [
+                'lab_id' => Auth::guard('lab')->user()->lab_id ?? null,
+                'sending_facility' => $validated['SendingFacility'] ?? null,
+                'message_control_id' => $validated['MessageControlID'] ?? null
+            ]);
+
             if ($validated) {
                 DB::beginTransaction();
                 //get current user role
@@ -512,8 +517,20 @@ class ResultController extends Controller
                 }
 
                 DB::commit();
-                //return result id
-                return response()->json($test_result->id ?? null, 200);
+
+                Log::info('Panel results processed successfully', [
+                    'test_result_id' => $test_result->id ?? null,
+                    'lab_id' => $lab_id,
+                    'patient_id' => $patient_id ?? null
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'test_result_id' => $test_result->id ?? null
+                    ],
+                    'message' => 'Panel results processed successfully'
+                ], 200);
             }
         } catch (\Throwable $e) {
 
@@ -550,7 +567,9 @@ class ResultController extends Controller
             $deliveryFile->update(['status' => DeliveryFile::fld]);
 
             return response()->json([
-                'error' => 'Failed to save data',
+                'success' => false,
+                'message' => 'Failed to process results',
+                'error' => 'Internal server error'
             ], 500);
         }
     }
@@ -825,6 +844,12 @@ class ResultController extends Controller
         $batch_id = null;
 
         try {
+            Log::info('Lab results submission started', [
+                'lab_id' => Auth::guard('lab')->user()->lab_id ?? null,
+                'lab_no' => $validated['lab_no'] ?? null,
+                'patient_icno' => $validated['patient']['icno'] ?? null
+            ]);
+
             if ($validated) {
                 DB::beginTransaction();
                 //get current user role
@@ -1028,8 +1053,20 @@ class ResultController extends Controller
                 );
 
                 DB::commit();
-                //return result id
-                return response()->json($test_result_id, 200);
+
+                Log::info('Lab results processed successfully', [
+                    'test_result_id' => $test_result_id,
+                    'lab_id' => $lab_id,
+                    'patient_id' => $patient_id
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'test_result_id' => $test_result_id
+                    ],
+                    'message' => 'Lab results processed successfully'
+                ], 200);
             }
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -1066,7 +1103,9 @@ class ResultController extends Controller
             $deliveryFile->update(['status' => DeliveryFile::fld]);
 
             return response()->json([
-                'error' => 'Failed to save data',
+                'success' => false,
+                'message' => 'Failed to process results',
+                'error' => 'Internal server error'
             ], 500);
         }
     }
@@ -1129,11 +1168,29 @@ class ResultController extends Controller
      */
     public function testPanel(Request $request)
     {
-        Log::info('Request Data:', $request->all());
-        return response()->json([
-            'message' => 'Request received',
-            'data' => $request->all(),
-        ], 200);
+        try {
+            Log::info('Test panel endpoint accessed', [
+                'data' => $request->all()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Request received',
+                'data' => $request->all()
+            ], 200);
+        } catch (\Throwable $e) {
+            Log::error('Test panel endpoint error', [
+                'exception' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Test panel request failed',
+                'error' => 'Internal server error'
+            ], 500);
+        }
     }
 
     /**
@@ -1269,8 +1326,15 @@ class ResultController extends Controller
             ])->find($id);
 
             if (!$testResult) {
+                Log::warning('Test result not found', [
+                    'test_result_id' => $id,
+                    'lab_id' => $lab_id
+                ]);
+
                 return response()->json([
-                    'error' => 'Test result not found'
+                    'success' => false,
+                    'message' => 'Test result not found',
+                    'error' => 'Not found'
                 ], 404);
             }
 
@@ -1366,7 +1430,16 @@ class ResultController extends Controller
                 'results' => array_values($groupedResults)
             ];
 
-            return response()->json($responseData, 200);
+            Log::info('Test result retrieved successfully', [
+                'test_result_id' => $id,
+                'lab_id' => $lab_id
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => $responseData,
+                'message' => 'Test result retrieved successfully'
+            ], 200);
         } catch (\Throwable $e) {
             Log::error('Failed to retrieve test result', [
                 'test_result_id' => $id,
@@ -1377,7 +1450,9 @@ class ResultController extends Controller
             ]);
 
             return response()->json([
-                'error' => 'Failed to retrieve test result'
+                'success' => false,
+                'message' => 'Failed to retrieve test result',
+                'error' => 'Internal server error'
             ], 500);
         }
     }

@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Http\Controllers\API\ImportController;
+use App\Http\Controllers\ImportController;
 use Illuminate\Database\Seeder;
 
 class InnoquestCodeMappingSeeder extends Seeder

@@ -10,7 +10,9 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
@@ -49,22 +51,26 @@ class AuthController extends Controller
     //  */
     public function register(Request $request)
     {
-        $validated = $request->validate([
-            'email' => 'required|email|unique:users',
-            'lab_id' => 'required|integer|exists:labs,id',
-        ], [
-            'lab_id.required' => 'Lab ID is required.',
-            'lab_id.integer' => 'Invalid lab ID.',
-            'lab_id.exists' => 'Lab ID does not exist.',
-        ]);
+        try {
+            $validated = $request->validate([
+                'email' => 'required|email|unique:users',
+                'lab_id' => 'required|integer|exists:labs,id',
+            ], [
+                'lab_id.required' => 'Lab ID is required.',
+                'lab_id.integer' => 'Invalid lab ID.',
+                'lab_id.exists' => 'Lab ID does not exist.',
+            ]);
 
-        if ($validated) {
+            Log::info('User registration attempt', [
+                'email' => $validated['email'],
+                'lab_id' => $validated['lab_id']
+            ]);
+
             $lab = Lab::findOrFail($validated['lab_id']);
 
             do {
                 $username = $lab->code .  $lab->id . get_email_abbrv($request->email);
             } while (LabCredential::where('username', $username)->exists());
-
 
             $plainPassword = Str::random(15);
 
@@ -83,10 +89,40 @@ class AuthController extends Controller
                 'is_active' => true,
             ]);
 
-            return response()->json([
+            Log::info('User registered successfully', [
+                'user_id' => $user->id,
                 'username' => $username,
-                'password' => $plainPassword
-            ], 200);
+                'lab_id' => $lab->id
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'username' => $username,
+                    'password' => $plainPassword
+                ],
+                'message' => 'User registered successfully'
+            ], 201);
+
+        } catch (ValidationException $e) {
+            Log::warning('Registration validation failed', [
+                'errors' => $e->errors(),
+                'input' => $request->only(['email', 'lab_id'])
+            ]);
+            throw $e;
+        } catch (\Throwable $e) {
+            Log::error('Registration failed', [
+                'exception' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'input' => $request->only(['email', 'lab_id'])
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Registration failed. Please try again.',
+                'error' => 'Internal server error'
+            ], 500);
         }
     }
 
@@ -128,30 +164,67 @@ class AuthController extends Controller
      */
     public function login(APIAuthRequest $request)
     {
-        $credentials = $request->only($this->username(), 'password');
+        try {
+            $credentials = $request->only($this->username(), 'password');
 
-        // Set JWT TTL to 30 days (43,200 minutes) before attempting login
-        Auth::guard('lab')->factory()->setTTL(43200);
+            Log::info('Login attempt', [
+                'username' => $credentials['username']
+            ]);
 
-        if (!$token = Auth::guard('lab')->attempt($credentials)) {
-            return response()->json(['error' => 'Unauthorized'], 401);
+            // Set JWT TTL to 30 days (43,200 minutes) before attempting login
+            Auth::guard('lab')->factory()->setTTL(43200);
+
+            if (!$token = Auth::guard('lab')->attempt($credentials)) {
+                Log::warning('Login failed - invalid credentials', [
+                    'username' => $credentials['username']
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid credentials',
+                    'error' => 'Unauthorized'
+                ], 401);
+            }
+
+            // Calculate expiration time in seconds (30 days)
+            $expiresIn = 43200 * 60; // 43,200 minutes * 60 seconds = 2,592,000 seconds
+
+            $labCredential = LabCredential::where('username', $credentials['username'])->first();
+
+            if ($labCredential) {
+                $labCredential->expires_at = $expiresIn;
+                $labCredential->save();
+            }
+
+            Log::info('Login successful', [
+                'username' => $credentials['username'],
+                'lab_id' => $labCredential ? $labCredential->lab_id : null
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'access_token' => $token,
+                    'token_type' => 'bearer',
+                    'expires_in' => $expiresIn
+                ],
+                'message' => 'Login successful'
+            ], 200);
+
+        } catch (\Throwable $e) {
+            Log::error('Login error', [
+                'exception' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'username' => $credentials['username'] ?? null
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Login failed. Please try again.',
+                'error' => 'Internal server error'
+            ], 500);
         }
-
-        // Calculate expiration time in seconds (30 days)
-        $expiresIn = 43200 * 60; // 43,200 minutes * 60 seconds = 2,592,000 seconds
-
-        $labCredential = LabCredential::where('username', $credentials['username'])->first();
-
-        if ($labCredential) {
-            $labCredential->expires_at = $expiresIn;
-            $labCredential->save();
-        }
-
-        return response()->json([
-            'access_token' => $token,
-            'token_type' => 'bearer',
-            'expires_in' => $expiresIn
-        ], 200);
     }
 
     /**
@@ -184,14 +257,35 @@ class AuthController extends Controller
     public function logout()
     {
         try {
+            $user = Auth::guard('lab')->user();
+            $username = $user ? $user->username : 'unknown';
+
+            Log::info('Logout attempt', [
+                'username' => $username
+            ]);
+
             Auth::guard('lab')->logout();
 
+            Log::info('Logout successful', [
+                'username' => $username
+            ]);
+
             return response()->json([
-                'message' => 'Successfully logged out.'
+                'success' => true,
+                'message' => 'Successfully logged out'
             ], 200);
-        } catch (\Exception $e) {
+
+        } catch (\Throwable $e) {
+            Log::error('Logout failed', [
+                'exception' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+
             return response()->json([
-                'message' => 'Failed to logout, please try again.'
+                'success' => false,
+                'message' => 'Failed to logout, please try again',
+                'error' => 'Internal server error'
             ], 500);
         }
     }

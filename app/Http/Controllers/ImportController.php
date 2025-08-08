@@ -1,56 +1,15 @@
 <?php
 
-namespace App\Http\Controllers\API;
+namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Imports\BillCodeImport;
 use App\Imports\CodeMappingImport;
-use App\Imports\DoctorCodeImport;
-use App\Imports\ProfileCodeImport;
-use App\Imports\ReportedTestImport;
-use App\Imports\TagOnImport;
-use App\Imports\SequentialProfileCodeImport;
-use App\Imports\SequentialTagOnImport;
-use App\Imports\SequentialReportedTestImport;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\File;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ImportController extends Controller
 {
-    // /**
-    //  * @OA\Post(
-    //  *     path="/api/v1/import/innoquest-code-mapping",
-    //  *     tags={"Import"},
-    //  *     summary="Import Innoquest code mapping from Excel files",
-    //  *     description="Process all Excel files in public/files directory to import code mappings for Profile, Tag On, Reported Test, Doctor Code, and Bill Code",
-    //  *     security={{"bearerAuth":{}}},
-    //  *     @OA\Response(
-    //  *         response=200,
-    //  *         description="Import process completed successfully",
-    //  *         @OA\JsonContent(
-    //  *             @OA\Property(property="success", type="boolean", example=true),
-    //  *             @OA\Property(property="message", type="string", example="Processed 3 Excel files")
-    //  *         )
-    //  *     ),
-    //  *     @OA\Response(
-    //  *         response=404,
-    //  *         description="No Excel files found",
-    //  *         @OA\JsonContent(
-    //  *             @OA\Property(property="success", type="boolean", example=false),
-    //  *             @OA\Property(property="message", type="string", example="No Excel files found in public/files directory")
-    //  *         )
-    //  *     ),
-    //  *     @OA\Response(
-    //  *         response=500,
-    //  *         description="Import process failed",
-    //  *         @OA\JsonContent(
-    //  *             @OA\Property(property="success", type="boolean", example=false),
-    //  *             @OA\Property(property="message", type="string", example="Error processing Excel files: {error_message}")
-    //  *         )
-    //  *     )
-    //  * )
-    //  */
     public static function innoquestCodeMapping()
     {
         try {
