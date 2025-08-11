@@ -5,6 +5,7 @@ namespace App\Imports;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use Exception;
 
 class CodeMappingImport
 {
@@ -37,7 +38,7 @@ class CodeMappingImport
             $spreadsheet = IOFactory::load($filePath);
             $sheetNames = $spreadsheet->getSheetNames();
             if (empty($sheetNames)) {
-                throw new \Exception('No sheets found in Excel file');
+                throw new Exception('No sheets found in Excel file');
             }
 
             Log::info('Found sheets in Excel file:', $sheetNames);
@@ -48,7 +49,7 @@ class CodeMappingImport
 
             // Import sheets in dependency order
             $this->importSheetsInOrder($filePath, $availableSheets);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('CodeMappingImport failed', [
                 'file' => $filePath,
                 'error' => $e->getMessage(),
@@ -101,34 +102,36 @@ class CodeMappingImport
             Log::info("Starting import for sheet: {$sheetName} using {$importClass}");
 
             $import = new $importClass();
-            
+
             // Create a wrapper import class that selects only the specific sheet
             $sheetSpecificImport = new class($import, $sheetName) implements \Maatwebsite\Excel\Concerns\WithMultipleSheets {
                 private $import;
                 private $sheetName;
-                
-                public function __construct($import, $sheetName) {
+
+                public function __construct($import, $sheetName)
+                {
                     $this->import = $import;
                     $this->sheetName = $sheetName;
                 }
-                
-                public function sheets(): array {
+
+                public function sheets(): array
+                {
                     return [
                         $this->sheetName => $this->import
                     ];
                 }
             };
-            
+
             Excel::import($sheetSpecificImport, $filePath);
 
             Log::info("Successfully completed import for sheet: {$sheetName}");
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error("Failed to import sheet: {$sheetName}", [
                 'import_class' => $importClass,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            throw new \Exception("Import failed for sheet '{$sheetName}': " . $e->getMessage(), 0, $e);
+            throw new Exception("Import failed for sheet '{$sheetName}': " . $e->getMessage(), 0, $e);
         }
     }
 

@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Concerns\ToArray;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithValidation;
+use Exception;
 
 abstract class BaseCodeMappingImport implements ToArray, WithHeadingRow, WithValidation
 {
@@ -25,7 +26,7 @@ abstract class BaseCodeMappingImport implements ToArray, WithHeadingRow, WithVal
     {
         try {
             $processedData = [];
-            
+
             // Initialize stats
             $this->importStats['total_rows'] = count($array);
             $this->importStats['empty_rows'] = 0;
@@ -58,7 +59,7 @@ abstract class BaseCodeMappingImport implements ToArray, WithHeadingRow, WithVal
 
             // Log comprehensive statistics
             $this->logImportSummary();
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error(static::class . ' import failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
@@ -120,7 +121,7 @@ abstract class BaseCodeMappingImport implements ToArray, WithHeadingRow, WithVal
     {
         $className = class_basename(static::class);
         $sheetName = str_replace('Import', '', $className);
-        
+
         $summaryData = array_merge($this->importStats, [
             'sheet_type' => $sheetName,
             'is_first_file' => static::$isFirstFile

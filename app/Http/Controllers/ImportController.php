@@ -3,10 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Imports\BaseCodeMappingImport;
 use App\Imports\CodeMappingImport;
+use Exception;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\File;
-use Maatwebsite\Excel\Facades\Excel;
 
 class ImportController extends Controller
 {
@@ -41,9 +42,9 @@ class ImportController extends Controller
             }
 
             Log::info("Starting Innoquest code mapping import for {$totalFiles} files (oldest first)");
-            
+
             // Reset file status for new import session
-            \App\Imports\BaseCodeMappingImport::resetFileStatus();
+            BaseCodeMappingImport::resetFileStatus();
 
             // Process each Excel file (sorted oldest first)
             foreach ($excelFiles as $fileIndex => $file) {
@@ -58,16 +59,16 @@ class ImportController extends Controller
                     $codeMappingImport->import($file->getPathname());
 
                     $processedFiles++;
-                    
+
                     // Log file completion summary
                     Log::info("✅ File " . ($fileIndex + 1) . "/{$totalFiles} completed: {$filename}");
                     Log::info("=================== FILE IMPORT SUMMARY ===================");
-                    
+
                     // Mark subsequent files (not first file anymore)
                     if ($fileIndex === 0) {
-                        \App\Imports\BaseCodeMappingImport::markAsSubsequentFile();
+                        BaseCodeMappingImport::markAsSubsequentFile();
                     }
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     $error = [
                         'file' => $filename,
                         'error' => $e->getMessage(),
@@ -112,7 +113,7 @@ class ImportController extends Controller
                 ],
                 'errors' => $errors
             ], $processedFiles > 0 ? 200 : 500);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Critical error in innoquestCodeMapping import', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()

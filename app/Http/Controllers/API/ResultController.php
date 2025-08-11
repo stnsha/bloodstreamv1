@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Exception;
 
 class ResultController extends Controller
 {
@@ -498,7 +499,7 @@ class ResultController extends Controller
                         //     'test_result_id' => $test_result->id,
                         //     'file_path' => $filePath
                         // ]);
-                    } catch (\Exception $e) {
+                    } catch (Exception $e) {
                         Log::error('Failed to decode and save PDF', [
                             'test_result_id' => $test_result->id,
                             'error' => $e->getMessage()
@@ -1145,7 +1146,7 @@ class ResultController extends Controller
             else {
                 return Carbon::parse($dateString);
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::warning('Failed to parse datetime', [
                 'dateString' => $dateString,
                 'error' => $e->getMessage()
