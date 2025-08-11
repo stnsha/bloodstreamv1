@@ -96,7 +96,7 @@
 
                     <div class="mb-3">
                         <span class="font-semibold text-sm pb-1 tracking-wide block">CURL Example:</span>
-                        <pre class="bg-gray-800 text-green-300 p-3 rounded text-xs font-mono overflow-x-auto"><code>curl -X POST "https://mytotalhealth.com.my/production/api/v1/login" \
+                        <pre class="bg-gray-800 text-green-300 p-3 rounded text-xs font-mono overflow-x-auto"><code>curl -X POST "https://mytotalhealth.com.my/staging/api/v1/login" \
      -H "Content-Type: application/json" \
      -d '{
        "username": "LAB001user",
@@ -141,7 +141,7 @@
 
                     <div class="mb-2">
                         <span class="font-semibold text-sm pb-1 tracking-wide block">CURL Example:</span>
-                        <pre class="bg-gray-800 text-green-300 p-3 rounded text-xs font-mono overflow-x-auto"><code>curl -X POST "https://mytotalhealth.com.my/production/api/v1/logout" \
+                        <pre class="bg-gray-800 text-green-300 p-3 rounded text-xs font-mono overflow-x-auto"><code>curl -X POST "https://mytotalhealth.com.my/staging/api/v1/logout" \
      -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."</code></pre>
                     </div>
                 </div>
@@ -476,7 +476,7 @@ Content-Type: application/json</code></pre>
 
                         <div class="mb-3">
                             <span class="font-semibold text-sm pb-1 tracking-wide block">CURL Example:</span>
-                            <pre class="bg-gray-800 text-green-300 p-3 rounded text-xs font-mono overflow-x-auto"><code>curl -X POST "https://mytotalhealth.com.my/production/api/v1/result/panel" \
+                            <pre class="bg-gray-800 text-green-300 p-3 rounded text-xs font-mono overflow-x-auto"><code>curl -X POST "https://mytotalhealth.com.my/staging/api/v1/result/panel" \
      -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..." \
      -H "Content-Type: application/json" \
      -d '{
@@ -576,7 +576,7 @@ Content-Type: application/json</code></pre>
                             <span class="font-semibold text-sm pb-1 tracking-wide block">Key Required Fields:</span>
                             <div class="overflow-x-auto">
                                 <table class="min-w-full border border-gray-200 text-xs">
-                                    <thead class="bg-gray-50">
+                                    <thead class="bg-gray-100">
                                         <tr>
                                             <th class="border border-gray-200 px-2 py-1 text-left font-semibold">Field
                                             </th>
@@ -589,7 +589,7 @@ Content-Type: application/json</code></pre>
                                                 Description</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
+                                    <tbody class="bg-gray-50">
                                         <tr>
                                             <td class="border border-gray-200 px-2 py-1 font-mono">lab_no</td>
                                             <td class="border border-gray-200 px-2 py-3">string</td>
@@ -698,7 +698,7 @@ Content-Type: application/json</code></pre>
 
                         <div class="mb-3">
                             <span class="font-semibold text-sm pb-1 tracking-wide block">CURL Example:</span>
-                            <pre class="bg-gray-800 text-green-300 p-3 rounded text-xs font-mono overflow-x-auto"><code>curl -X POST "https://mytotalhealth.com.my/production/api/v1/result/patient" \
+                            <pre class="bg-gray-800 text-green-300 p-3 rounded text-xs font-mono overflow-x-auto"><code>curl -X POST "https://mytotalhealth.com.my/staging/api/v1/result/patient" \
      -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..." \
      -H "Content-Type: application/json" \
      -d '{
@@ -803,7 +803,7 @@ Content-Type: application/json</code></pre>
 
                     <div class="mb-2">
                         <span class="font-semibold text-sm pb-1 tracking-wide block">CURL Example:</span>
-                        <pre class="bg-gray-800 text-green-300 p-3 rounded text-xs font-mono overflow-x-auto"><code>curl -X GET "https://mytotalhealth.com.my/production/api/v1/result/123" \
+                        <pre class="bg-gray-800 text-green-300 p-3 rounded text-xs font-mono overflow-x-auto"><code>curl -X GET "https://mytotalhealth.com.my/staging/api/v1/result/123" \
      -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."</code></pre>
                     </div>
                 </div>
@@ -819,7 +819,7 @@ Content-Type: application/json</code></pre>
 
                     <div class="mb-2">
                         <span class="font-semibold text-sm pb-1 tracking-wide block">CURL Example:</span>
-                        <pre class="bg-gray-800 text-green-300 p-3 rounded text-xs font-mono overflow-x-auto"><code>curl -X POST "https://mytotalhealth.com.my/production/api/v1/testPanel" \
+                        <pre class="bg-gray-800 text-green-300 p-3 rounded text-xs font-mono overflow-x-auto"><code>curl -X POST "https://mytotalhealth.com.my/staging/api/v1/testPanel" \
      -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..." \
      -H "Content-Type: application/json" \
      -d '{"test": "data"}'</code></pre>

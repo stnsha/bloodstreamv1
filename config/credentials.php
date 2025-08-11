@@ -7,9 +7,9 @@ return [
     |--------------------------------------------------------------------------
     */
     'seeder' => [
-        'admin_email' => env('CREDENTIALS_SEEDER_ADMIN_EMAIL', 'anasuharosli.alphac@gmail.com'),
+        'admin_email' => env('CREDENTIALS_SEEDER_ADMIN_EMAIL', 'admin@gmail.com'),
         'admin_name' => env('CREDENTIALS_SEEDER_ADMIN_NAME', 'superadmin'),
-        'admin_password' => env('CREDENTIALS_SEEDER_ADMIN_PASSWORD', 'fzElFOAz1RU1g8a'),
+        'admin_password' => env('CREDENTIALS_SEEDER_ADMIN_PASSWORD', 'password'),
     ],
 
     /*
@@ -19,16 +19,16 @@ return [
     */
     'lab' => [
         'lab_1' => [
-            'username' => env('CREDENTIALS_LAB_1_USERNAME', 'DUM1ANA'),
-            'password' => env('CREDENTIALS_LAB_1_PASSWORD', 'fzElFOAz1RU1g8a'),
+            'username' => env('CREDENTIALS_LAB_1_USERNAME', 'username'),
+            'password' => env('CREDENTIALS_LAB_1_PASSWORD', 'password'),
         ],
         'lab_2' => [
-            'username' => env('CREDENTIALS_LAB_2_USERNAME', 'INN2SAN'),
-            'password' => env('CREDENTIALS_LAB_2_PASSWORD', 'jP8xK2qL7fR9tZ3v'),
+            'username' => env('CREDENTIALS_LAB_2_USERNAME', 'username'),
+            'password' => env('CREDENTIALS_LAB_2_PASSWORD', 'password'),
         ],
         'lab_3' => [
-            'username' => env('CREDENTIALS_LAB_3_USERNAME', 'NAV3CHO'),
-            'password' => env('CREDENTIALS_LAB_3_PASSWORD', 'mT5cV6bN4gH8sD1e'),
+            'username' => env('CREDENTIALS_LAB_3_USERNAME', 'username'),
+            'password' => env('CREDENTIALS_LAB_3_PASSWORD', 'password'),
         ],
     ],
 ];

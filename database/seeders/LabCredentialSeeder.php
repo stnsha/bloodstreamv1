@@ -16,11 +16,11 @@ class LabCredentialSeeder extends Seeder
     {
         $user = User::firstOrCreate(
             [
-                'email' => env('SEEDER_ADMIN_EMAIL', 'admin@example.com'),
+                'email' => config('credentials.seeder.admin_email'),
             ],
             [
-                'name' => env('SEEDER_ADMIN_NAME', 'superadmin'),
-                'password' => bcrypt(env('SEEDER_ADMIN_PASSWORD', 'defaultpassword'))
+                'name' => config('credentials.seeder.admin_name'),
+                'password' => bcrypt(config('credentials.seeder.admin_password'))
             ]
         );
 
@@ -55,18 +55,18 @@ class LabCredentialSeeder extends Seeder
         $labCredentials = [
             [
                 'lab_id' => 1,
-                'username' => env('LAB_1_USERNAME', 'dummy_user1'),
-                'password' => env('LAB_1_PASSWORD', 'dummy_pass1'),
-            ],
-            [
-                'lab_id' => 3,
-                'username' => env('LAB_3_USERNAME', 'dummy_user3'),
-                'password' => env('LAB_3_PASSWORD', 'dummy_pass3'),
+                'username' => config('credentials.lab.lab_1.username'),
+                'password' => config('credentials.lab.lab_1.password'),
             ],
             [
                 'lab_id' => 2,
-                'username' => env('LAB_2_USERNAME', 'dummy_user2'),
-                'password' => env('LAB_2_PASSWORD', 'dummy_pass2'),
+                'username' => config('credentials.lab.lab_2.username'),
+                'password' => config('credentials.lab.lab_2.password'),
+            ],
+            [
+                'lab_id' => 3,
+                'username' => config('credentials.lab.lab_3.username'),
+                'password' => config('credentials.lab.lab_3.password'),
             ],
         ];
 
