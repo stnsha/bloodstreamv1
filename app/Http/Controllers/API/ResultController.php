@@ -396,17 +396,17 @@ class ResultController extends Controller
                                     //result items 
                                     if (filled($res['Text']) && $res['Text'] != 'COMMENT') {
                                         //create panel items
-                                        $panel_item = PanelItem::firstOrCreate(
+                                        $panel_item = PanelItem::updateOrCreate(
                                             [
                                                 'lab_id' => $lab_id,
-                                                'name' => $res['Text'],
+                                                'identifier' => $identifier,
                                             ],
                                             [
+                                                'name' => $res['Text'],
                                                 'decimal_point' => null,
                                                 'unit' => $unit,
                                                 'sequence' => null,
                                                 'result_type' => $type,
-                                                'identifier' => $identifier,
                                                 'code' => $suffix,
                                             ]
                                         );
