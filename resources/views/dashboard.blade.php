@@ -110,15 +110,21 @@
                             <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold mr-2">200
                                 Success</span>
                             <pre class="bg-gray-100 p-2 rounded text-xs font-mono mt-1"><code>{
-  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
-  "token_type": "bearer",
-  "expires_in": 3600
+  "success": true,
+  "data": {
+    "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+    "token_type": "bearer",
+    "expires_in": 2592000
+  },
+  "message": "Login successful"
 }</code></pre>
                         </div>
                         <div>
                             <span class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold mr-2">401
                                 Unauthorized</span>
                             <pre class="bg-gray-100 p-2 rounded text-xs font-mono mt-1"><code>{
+  "success": false,
+  "message": "Invalid credentials",
   "error": "Unauthorized"
 }</code></pre>
                         </div>
