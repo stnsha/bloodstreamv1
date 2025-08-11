@@ -108,7 +108,7 @@
             try {
                 loginStatus.innerHTML = `<div class="px-3 py-2 bg-blue-100 text-blue-800 rounded text-sm">Logging in...</div>`;
 
-                const response = await fetch('/api/v1/login', {
+                const response = await fetch('https://mytotalhealth.com.my/staging/api/v1/login', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -268,7 +268,7 @@
 
             // Show request info
             const requestDetails = {
-                url: '/api/v1/result/panel',
+                url: 'https://mytotalhealth.com.my/staging/api/v1/result/panel',
                 method: 'POST',
                 headers: headers,
                 timestamp: new Date().toISOString()
@@ -276,7 +276,7 @@
             requestInfo.textContent = JSON.stringify(requestDetails, null, 2);
 
             try {
-                const response = await fetch('/api/v1/result/panel', {
+                const response = await fetch('https://mytotalhealth.com.my/staging/api/v1/result/panel', {
                     method: 'POST',
                     headers: headers,
                     body: JSON.stringify(jsonData)
