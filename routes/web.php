@@ -3,6 +3,7 @@
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LabController;
 use App\Http\Controllers\LoginController;
+use App\Http\Controllers\TestingController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -34,4 +35,6 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::resource('lab', LabController::class);
+
+    Route::resource('testing', TestingController::class);
 });
