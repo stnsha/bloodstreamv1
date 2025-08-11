@@ -5,31 +5,46 @@ namespace App\Imports;
 use App\Models\Panel;
 use App\Models\PanelItem;
 use App\Models\PanelTag;
-use Maatwebsite\Excel\Concerns\ToArray;
-use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Illuminate\Support\Str;
 
-class ReportedTestImport implements ToArray, WithHeadingRow
+class ReportedTestImport extends BaseCodeMappingImport
 {
-    public function array(array $array)
+    protected function processRow(array $row): ?array
     {
-        $processedData = [];
-        foreach ($array as $row) {
-            $processedData[] = [
-                'panel_code' => trimOrNull($row['panel']),
-                'panel_name' => trimOrNull($row['name']),
-                'panel_item_code' => trimOrNull($row['item']),
-                'panel_item_name' => trimOrNull($row['name_1']),
-                'panel_item_identifier' => trimOrNull($row['external_item']),
-                'result_type' => trimOrNull($row['result_type']),
-                'unit' => trimOrNull($row['units']),
-            ];
+        // Skip rows with missing essential data
+        if (!$this->hasEssentialData($row)) {
+            return null;
         }
 
-        $this->store($processedData);
+        return [
+            'panel_code' => $this->trimOrNull($row['panel']),
+            'panel_name' => $this->trimOrNull($row['name']),
+            'panel_item_code' => $this->trimOrNull($row['item']),
+            'panel_item_name' => $this->trimOrNull($row['name_1']),
+            'panel_item_identifier' => $this->trimOrNull($row['external_item']),
+            'result_type' => $this->trimOrNull($row['result_type']),
+            'unit' => $this->trimOrNull($row['units']),
+        ];
     }
 
-    public function store(array $processedData)
+    /**
+     * Check if row has essential data for Reported Test import
+     */
+    protected function hasEssentialData(array $row): bool
+    {
+        // First check if the row is completely empty
+        if ($this->isEmptyRow($row)) {
+            return false;
+        }
+
+        // Reported Test import requires panel code and item code
+        $panelCode = $this->trimOrNull($row['panel'] ?? null);
+        $itemCode = $this->trimOrNull($row['item'] ?? null);
+
+        return !empty($panelCode) && !empty($itemCode);
+    }
+
+    protected function store(array $processedData): void
     {
         foreach ($processedData as $data) {
             if (!str_contains($data['panel_code'], 'QON') && !str_contains($data['panel_code'], 'TON')) {
@@ -48,24 +63,38 @@ class ReportedTestImport implements ToArray, WithHeadingRow
     private function storePanelItem(array $data)
     {
         $panel = Panel::where('code', $data['panel_code'])->first();
-        if ($panel) {
-            // Find or create the PanelItem
-            $panelItem = PanelItem::firstOrCreate(
+        if (!$panel) {
+            //If not found
+            //Create panel
+            $panel = Panel::firstOrCreate(
                 [
-                    'lab_id' => 2,
-                    'code' => $data['panel_item_code'],
+                    'lab_id' => $this->labId,
+                    'code' => $data['panel_code'],
                 ],
                 [
-                    'name' => $data['panel_item_name'],
-                    'identifier' => $data['panel_item_identifier'],
-                    'result_type' => $data['result_type'],
-                    'unit' => $data['unit'],
+                    'name' => $data['panel_name'],
                 ]
             );
-
-            // Attach the panel to this panel item (many-to-many)
-            $panel->panelItems()->syncWithoutDetaching([$panelItem->id]);
+            $this->trackDatabaseOperation('create', $panel->wasRecentlyCreated);
         }
+
+        // Find or create the PanelItem
+        $panelItem = PanelItem::firstOrCreate(
+            [
+                'lab_id' => $this->labId,
+                'code' => $data['panel_item_code'],
+            ],
+            [
+                'name' => $data['panel_item_name'],
+                'identifier' => $data['panel_item_identifier'],
+                'result_type' => $data['result_type'],
+                'unit' => $data['unit'],
+            ]
+        );
+        $this->trackDatabaseOperation('create', $panelItem->wasRecentlyCreated);
+
+        // Attach the panel to this panel item (many-to-many)
+        $panel->panelItems()->syncWithoutDetaching([$panelItem->id]);
     }
 
     private function storePanelTag(array $data)
@@ -85,12 +114,13 @@ class ReportedTestImport implements ToArray, WithHeadingRow
             if ($isPanelExist) {
                 $panel_id = $isPanelExist->id;
 
-                PanelTag::create([
-                    'lab_id' => 2,
+                $panelTag = PanelTag::create([
+                    'lab_id' => $this->labId,
                     'panel_id' => $panel_id,
                     'name' => $data['panel_name'],
                     'code' => $data['panel_code'],
                 ]);
+                $this->trackDatabaseOperation('create', true);
             }
         }
     }
@@ -98,7 +128,7 @@ class ReportedTestImport implements ToArray, WithHeadingRow
     private function isTagOnItem($panelName)
     {
         // Handle case where panelName might be an array or null
-        $trimmed = trimOrNull($panelName);
+        $trimmed = $this->trimOrNull($panelName);
         if (!$trimmed) {
             return false;
         }
@@ -115,7 +145,7 @@ class ReportedTestImport implements ToArray, WithHeadingRow
     private function extractBasePanelName($panelName)
     {
         // Handle case where panelName might be an array or null
-        $trimmed = trimOrNull($panelName);
+        $trimmed = $this->trimOrNull($panelName);
         if (!$trimmed) {
             return '';
         }
@@ -124,6 +154,14 @@ class ReportedTestImport implements ToArray, WithHeadingRow
         $baseName = preg_replace('/\s*\(?\s*(TAG[\s\-]?ON)\s*\)?/i', '', $trimmed);
         $baseName = preg_replace('/\s*TAGON\s*/i', '', $baseName);
 
-        return trimOrNull($baseName) ?: '';
+        return $this->trimOrNull($baseName) ?: '';
+    }
+
+    public function rules(): array
+    {
+        return [
+            '*.panel' => 'nullable|string',
+            '*.item' => 'nullable|string',
+        ];
     }
 }

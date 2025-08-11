@@ -3,35 +3,48 @@
 namespace App\Imports;
 
 use App\Models\Doctor;
-use Maatwebsite\Excel\Concerns\ToArray;
-use Maatwebsite\Excel\Concerns\WithHeadingRow;
 
-class DoctorCodeImport implements ToArray, WithHeadingRow
+class DoctorCodeImport extends BaseCodeMappingImport
 {
-    public function array(array $array)
+    protected function processRow(array $row): ?array
     {
-        $processedData = [];
-
-        foreach ($array as $row) {
-            $processedData[] = [
-                'type' => trimOrNull($row['clinicpharmacy']),
-                'code' => trimOrNull($row['dr_code']),
-                'name' => trimOrNull($row['doctor_name']),
-                'outlet_name' => trimOrNull($row['outlet']),
-                'outlet_address' => trimOrNull($row['address'])
-            ];
+        // Skip rows with missing essential data
+        if (!$this->hasEssentialData($row)) {
+            return null;
         }
 
-        $this->store($processedData);
+        return [
+            'type' => $this->trimOrNull($row['clinicpharmacy']),
+            'code' => $this->trimOrNull($row['dr_code']),
+            'name' => $this->trimOrNull($row['doctor_name']),
+            'outlet_name' => $this->trimOrNull($row['outlet']),
+            'outlet_address' => $this->trimOrNull($row['address'])
+        ];
     }
 
-    public function store(array $processedData)
+    /**
+     * Check if row has essential data for Doctor Code import
+     */
+    protected function hasEssentialData(array $row): bool
     {
-        $doctors = [];
+        // First check if the row is completely empty
+        if ($this->isEmptyRow($row)) {
+            return false;
+        }
+
+        // Doctor Code import requires doctor code and doctor name
+        $doctorCode = $this->trimOrNull($row['dr_code'] ?? null);
+        $doctorName = $this->trimOrNull($row['doctor_name'] ?? null);
+        
+        return !empty($doctorCode) && !empty($doctorName);
+    }
+
+    protected function store(array $processedData): void
+    {
         foreach ($processedData as $data) {
             $doctor = Doctor::firstOrCreate(
                 [
-                    'lab_id' => 2,
+                    'lab_id' => $this->labId,
                     'code' => $data['code'],
                 ],
                 [
@@ -42,10 +55,15 @@ class DoctorCodeImport implements ToArray, WithHeadingRow
                     'outlet_phone' => null,
                 ]
             );
-
-            $doctors[] = $doctor;
+            $this->trackDatabaseOperation('create', $doctor->wasRecentlyCreated);
         }
+    }
 
-        return $doctors;
+    public function rules(): array
+    {
+        return [
+            '*.dr_code' => 'nullable|string',
+            '*.doctor_name' => 'nullable|string',
+        ];
     }
 }

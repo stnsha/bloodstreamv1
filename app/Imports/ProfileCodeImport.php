@@ -5,54 +5,69 @@ namespace App\Imports;
 use App\Models\PanelProfile;
 use App\Models\PanelCategory;
 use App\Models\Panel;
-use Maatwebsite\Excel\Concerns\ToArray;
-use Maatwebsite\Excel\Concerns\WithHeadingRow;
 
-class ProfileCodeImport implements ToArray, WithHeadingRow
+class ProfileCodeImport extends BaseCodeMappingImport
 {
-    public function array(array $array)
+    protected function processRow(array $row): ?array
     {
-        $processedData = [];
-        foreach ($array as $row) {
-            $processedData[] = [
-                'profile_code' => trimOrNull($row['lis_profilepackage_code']), // LIS Profile/Package Code
-                'profile_name' => trimOrNull($row['lis_profile_test_name']), // LIS Profile Test Name
-                'panel_code' => trimOrNull($row['panel']), // Panel
-                'panel_name' => trimOrNull($row['panel_name']), // Panel Name
-                'panel_category' => trimOrNull($row['lab_category']), // Lab Category
-                'remarks' => trimOrNull($row['remarks']), // Remarks
-            ];
+        // Skip rows with missing essential data
+        if (!$this->hasEssentialData($row)) {
+            return null;
         }
 
-        $this->store($processedData);
+        return [
+            'profile_code' => $this->trimOrNull($row['lis_profilepackage_code']), // LIS Profile/Package Code
+            'profile_name' => $this->trimOrNull($row['lis_profile_test_name']), // LIS Profile Test Name
+            'panel_code' => $this->trimOrNull($row['panel']), // Panel
+            'panel_name' => $this->trimOrNull($row['panel_name']), // Panel Name
+            'panel_category' => $this->trimOrNull($row['lab_category']), // Lab Category
+            'remarks' => $this->trimOrNull($row['remarks']), // Remarks
+        ];
     }
 
-    private function store(array $processedData)
+    /**
+     * Check if row has essential data for Profile Code import
+     */
+    protected function hasEssentialData(array $row): bool
     {
-        $results = [];
+        // First check if the row is completely empty
+        if ($this->isEmptyRow($row)) {
+            return false;
+        }
 
+        // Profile Code import requires panel code and panel name
+        $panelCode = $this->trimOrNull($row['panel'] ?? null);
+        $panelName = $this->trimOrNull($row['panel_name'] ?? null);
+        
+        return !empty($panelCode) && !empty($panelName);
+    }
+
+    protected function store(array $processedData): void
+    {
         foreach ($processedData as $data) {
             // 1. Create or get PanelProfile
             $panelProfile = PanelProfile::firstOrCreate([
-                'lab_id' => 2,
+                'lab_id' => $this->labId,
                 'code' => $data['profile_code']
             ], [
                 'name' => $data['profile_name'],
                 'code' => $data['profile_code']
             ]);
+            $this->trackDatabaseOperation('create', $panelProfile->wasRecentlyCreated);
 
             // 2. Create or get PanelCategory
             $panelCategory = PanelCategory::firstOrCreate([
-                'lab_id' => 2,
+                'lab_id' => $this->labId,
                 'name' => $data['panel_category']
             ], [
                 'name' => $data['panel_category'],
                 'code' => null
             ]);
+            $this->trackDatabaseOperation('create', $panelCategory->wasRecentlyCreated);
 
             // 3. Create or update Panel
             $panel = Panel::updateOrCreate([
-                'lab_id' => 2,
+                'lab_id' => $this->labId,
                 'code' => $data['panel_code']
             ], [
                 'panel_category_id' => $panelCategory->id,
@@ -60,14 +75,15 @@ class ProfileCodeImport implements ToArray, WithHeadingRow
                 'sequence' => null,
                 'overall_notes' => $data['remarks']
             ]);
-
-            $results[] = [
-                'panel_profile' => $panelProfile,
-                'panel_category' => $panelCategory,
-                'panel' => $panel
-            ];
+            $this->trackDatabaseOperation('create', $panel->wasRecentlyCreated);
         }
+    }
 
-        return $results;
+    public function rules(): array
+    {
+        return [
+            '*.panel' => 'nullable|string',
+            '*.panel_name' => 'nullable|string',
+        ];
     }
 }
