@@ -229,29 +229,29 @@ class ResultController extends Controller
                     $doctor_name = $od['OrderingProvider']['Name'];
                     $doctor_id = $od['OrderingProvider']['Code'];
 
+                    //create doctor code
+                    $doctor_id = Doctor::firstOrCreate(
+                        [
+
+                            'lab_id' => $lab_id,
+                            'code' => $doctor_id
+                        ],
+                        [
+                            'name' => $doctor_name,
+                        ]
+                    );
+
+                    //get doctor id
+                    $doctor_id = $doctor_id->id;
+
                     //check if observations exist
                     if (filled($od['Observations'])) {
                         //loop through observations
                         foreach ($od['Observations'] as $key => $obv) {
 
-                            //get doctor name and code
-                            $doctor_name = $obv['OrderingProvider']['Name'];
-                            $doctor_id = $obv['OrderingProvider']['Code'];
-
-                            //create doctor code
-                            $doctor_id = Doctor::firstOrCreate(
-                                [
-
-                                    'lab_id' => $lab_id,
-                                    'code' => $doctor_id
-                                ],
-                                [
-                                    'name' => $doctor_name,
-                                ]
-                            );
-
-                            //get doctor id
-                            $doctor_id = $doctor_id->id;
+                            // //get doctor name and code
+                            // $doctor_name = $obv['OrderingProvider']['Name'];
+                            // $doctor_id = $obv['OrderingProvider']['Code'];
 
                             //get labno
                             $lab_no = $obv['FillerOrderNumber'];

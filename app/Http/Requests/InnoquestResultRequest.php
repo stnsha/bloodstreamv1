@@ -103,9 +103,9 @@ class InnoquestResultRequest extends FormRequest
             'Orders.*.Observations.*.SpecimenDateTime' => 'nullable|string', // Optional
 
             // Observation Ordering Provider - Always Expected
-            'Orders.*.Observations.*.OrderingProvider' => 'required|array',
-            'Orders.*.Observations.*.OrderingProvider.Code' => 'required|string', // Always Expected (IQMY Doctor Code)
-            'Orders.*.Observations.*.OrderingProvider.Name' => 'required|string', // Always Expected (Doctor Name)
+            'Orders.*.Observations.*.OrderingProvider' => 'nullable|array',
+            'Orders.*.Observations.*.OrderingProvider.Code' => 'nullable|string', // Always Expected (IQMY Doctor Code)
+            'Orders.*.Observations.*.OrderingProvider.Name' => 'nullable|string', // Always Expected (Doctor Name)
 
             'Orders.*.Observations.*.ResultStatus' => 'required|string', // Always Expected
             'Orders.*.Observations.*.ServiceDateTime' => 'required|string', // Always Expected
