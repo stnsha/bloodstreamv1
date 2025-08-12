@@ -66,22 +66,22 @@ class InnoquestResultRequest extends FormRequest
             'patient.PatientExternalID' => 'nullable|string', // not used
             'patient.AlternatePatientID' => 'nullable|string', // Optional (NRIC)
             'patient.PatientLastName' => 'required|string', // Always Expected (Full Name)
-            'patient.PatientFirstName' => 'nullable|string', // not used
-            'patient.PatientMiddleName' => 'nullable|string', // not used
+            'patient.PatientFirstName' => 'nullable|string', // Present in JSON
+            // 'patient.PatientMiddleName' => 'nullable|string', // not used - COMMENTED OUT (not in JSON)
             'patient.PatientDOB' => 'required|string', // Always Expected (YYYYMMDD)
             'patient.PatientGender' => 'required|string|in:M,F', // Always Expected (M/F)
             'patient.PatientAddress' => 'nullable|string', // Optional
-            'patient.PatientNationality' => 'nullable|string', // Optional
+            // 'patient.PatientNationality' => 'nullable|string', // Optional - COMMENTED OUT (not in JSON)
 
             // Orders
             'Orders' => 'required|array|min:1',
             'Orders.*.PlacerOrderNumber' => 'nullable|string', // Optional (Client Order Number)
             'Orders.*.FillerOrderNumber' => 'required|string', // Always Expected (IQMY Request Number)
-            'Orders.*.PlacerGroupNumber' => 'nullable|string', // not used
-            'Orders.*.Status' => 'nullable|string',
-            'Orders.*.Quantity' => 'nullable|string', // not used
-            'Orders.*.TransactionDateTime' => 'nullable|string',
-            'Orders.*.Organization' => 'nullable|string', // not used
+            // 'Orders.*.PlacerGroupNumber' => 'nullable|string', // not used - COMMENTED OUT (not in JSON)
+            // 'Orders.*.Status' => 'nullable|string', // COMMENTED OUT (not in JSON)
+            // 'Orders.*.Quantity' => 'nullable|string', // not used - COMMENTED OUT (not in JSON)
+            // 'Orders.*.TransactionDateTime' => 'nullable|string', // COMMENTED OUT (not in JSON)
+            // 'Orders.*.Organization' => 'nullable|string', // not used - COMMENTED OUT (not in JSON)
 
             // Ordering Provider - Always Expected
             'Orders.*.OrderingProvider' => 'required|array',
@@ -90,22 +90,22 @@ class InnoquestResultRequest extends FormRequest
 
             // Observations
             'Orders.*.Observations' => 'required|array|min:1',
-            // 'Orders.*.Observations.*.PlacerOrderNumber' => 'nullable|string', // Optional (Client Order Number
+            // 'Orders.*.Observations.*.PlacerOrderNumber' => 'nullable|string', // Optional (Client Order Number) - COMMENTED OUT (not in JSON)
             'Orders.*.Observations.*.FillerOrderNumber' => 'required|string', // Always Expected (IQMY Request Number)
             'Orders.*.Observations.*.ProcedureCode' => 'required|string', // Always Expected (Testing Panel Code)
             'Orders.*.Observations.*.ProcedureDescription' => 'required|string', // Always Expected (Panel Description)
             'Orders.*.Observations.*.PackageCode' => 'nullable|string', // Optional (Package code)
-            'Orders.*.Observations.*.Priority' => 'nullable|string', // Optional (Test Priority Flag)
+            // 'Orders.*.Observations.*.Priority' => 'nullable|string', // Optional (Test Priority Flag) - COMMENTED OUT (not in JSON)
             'Orders.*.Observations.*.RequestedDateTime' => 'nullable|string', // Optional
-            'Orders.*.Observations.*.StartDateTime' => 'nullable|string', // Optional
-            'Orders.*.Observations.*.EndDateTime' => 'nullable|string', // Optional
+            // 'Orders.*.Observations.*.StartDateTime' => 'nullable|string', // Optional - COMMENTED OUT (not in JSON)
+            // 'Orders.*.Observations.*.EndDateTime' => 'nullable|string', // Optional - COMMENTED OUT (not in JSON)
             'Orders.*.Observations.*.ClinicalInformation' => 'nullable|string', // Optional
             'Orders.*.Observations.*.SpecimenDateTime' => 'nullable|string', // Optional
 
-            // Observation Ordering Provider - Always Expected
-            'Orders.*.Observations.*.OrderingProvider' => 'nullable|array',
-            'Orders.*.Observations.*.OrderingProvider.Code' => 'nullable|string', // Always Expected (IQMY Doctor Code)
-            'Orders.*.Observations.*.OrderingProvider.Name' => 'nullable|string', // Always Expected (Doctor Name)
+            // Observation Ordering Provider - COMMENTED OUT (not in JSON)
+            // 'Orders.*.Observations.*.OrderingProvider' => 'nullable|array',
+            // 'Orders.*.Observations.*.OrderingProvider.Code' => 'nullable|string', // Always Expected (IQMY Doctor Code)
+            // 'Orders.*.Observations.*.OrderingProvider.Name' => 'nullable|string', // Always Expected (Doctor Name)
 
             'Orders.*.Observations.*.ResultStatus' => 'required|string', // Always Expected
             'Orders.*.Observations.*.ServiceDateTime' => 'required|string', // Always Expected
