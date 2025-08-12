@@ -421,7 +421,8 @@
                         <div class="mb-3">
                             <span class="font-semibold text-sm pb-1 tracking-wide block">Headers:</span>
                             <pre class="bg-gray-100 p-3 rounded text-xs font-mono overflow-x-auto"><code>Authorization: Bearer {your_jwt_token}
-Content-Type: application/json</code></pre>
+Content-Type: application/json
+Accept: application/json</code></pre>
                         </div>
 
                         <div class="mb-3">
