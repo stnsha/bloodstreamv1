@@ -288,7 +288,6 @@ class ResultController extends Controller
                             //get panel code
                             $panel_code = $obv['ProcedureCode'];
                             $panel_name = $obv['ProcedureDescription'];
-                            $panel_notes = filled($obv['ClinicalInformation']) ? $obv['ClinicalInformation'] : null; //overall notes
 
                             $panel = Panel::where('lab_id', $lab_id)->where('code', $panel_code)->where('name', $panel_name)->first();
                             $isTagOn = false;

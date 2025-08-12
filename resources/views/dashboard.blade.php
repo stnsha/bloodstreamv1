@@ -483,6 +483,7 @@ Content-Type: application/json</code></pre>
                         <div class="mb-3">
                             <span class="font-semibold text-sm pb-1 tracking-wide block">CURL Example:</span>
                             <pre class="bg-gray-800 text-green-300 p-3 rounded text-xs font-mono overflow-x-auto"><code>curl -X POST "https://mytotalhealth.com.my/staging/api/v1/result/panel" \
+     -H "accept: application/json" \
      -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..." \
      -H "Content-Type: application/json" \
      -d '{
@@ -634,7 +635,8 @@ Content-Type: application/json</code></pre>
                         <div class="mb-3">
                             <span class="font-semibold text-sm pb-1 tracking-wide block">Headers:</span>
                             <pre class="bg-gray-100 p-3 rounded text-xs font-mono overflow-x-auto"><code>Authorization: Bearer {your_jwt_token}
-Content-Type: application/json</code></pre>
+Content-Type: application/json
+Accept: application/json</code></pre>
                         </div>
 
                         <div class="mb-3">
@@ -704,7 +706,8 @@ Content-Type: application/json</code></pre>
 
                         <div class="mb-3">
                             <span class="font-semibold text-sm pb-1 tracking-wide block">CURL Example:</span>
-                            <pre class="bg-gray-800 text-green-300 p-3 rounded text-xs font-mono overflow-x-auto"><code>curl -X POST "https://mytotalhealth.com.my/staging/api/v1/result/patient" \
+                            <pre class="bg-gray-800 text-green-300 p-3 rounded text-xs font-mono overflow-x-auto"><code>curl -X POST "https://mytotalhealth.com.my/staging/api/v1/result/patient"
+     -H "accept: application/json' \
      -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..." \
      -H "Content-Type: application/json" \
      -d '{
@@ -826,6 +829,8 @@ Content-Type: application/json</code></pre>
                     <div class="mb-2">
                         <span class="font-semibold text-sm pb-1 tracking-wide block">CURL Example:</span>
                         <pre class="bg-gray-800 text-green-300 p-3 rounded text-xs font-mono overflow-x-auto"><code>curl -X POST "https://mytotalhealth.com.my/staging/api/v1/testPanel" \
+                            
+     -H "accept: application/json" \
      -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..." \
      -H "Content-Type: application/json" \
      -d '{"test": "data"}'</code></pre>
