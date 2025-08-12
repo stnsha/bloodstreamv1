@@ -90,7 +90,7 @@ class InnoquestResultRequest extends FormRequest
 
             // Observations
             'Orders.*.Observations' => 'required|array|min:1',
-            'Orders.*.Observations.*.PlacerOrderNumber' => 'nullable|string', // Optional (Client Order Number)
+            // 'Orders.*.Observations.*.PlacerOrderNumber' => 'nullable|string', // Optional (Client Order Number
             'Orders.*.Observations.*.FillerOrderNumber' => 'required|string', // Always Expected (IQMY Request Number)
             'Orders.*.Observations.*.ProcedureCode' => 'required|string', // Always Expected (Testing Panel Code)
             'Orders.*.Observations.*.ProcedureDescription' => 'required|string', // Always Expected (Panel Description)

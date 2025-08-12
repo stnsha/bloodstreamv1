@@ -257,7 +257,7 @@ class ResultController extends Controller
                             $lab_no = $obv['FillerOrderNumber'];
 
                             //check if previous reference id is null and PlacerOrderNumber exist
-                            if (is_null($reference_id) && filled($obv['PlacerOrderNumber'])) $reference_id = $obv['PlacerOrderNumber'];
+                            // if (is_null($reference_id) && filled($obv['PlacerOrderNumber'])) $reference_id = $obv['PlacerOrderNumber'];
 
                             //bill code is not sent in json payload
                             $bill_code = null;
