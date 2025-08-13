@@ -168,6 +168,10 @@ class ResultController extends Controller
             ]);
 
             if ($validated) {
+                Log::info('Validated JSON accessed', [
+                    'data' => $validated
+                ]);
+
                 DB::beginTransaction();
                 //get current user role
                 $user = Auth::guard('lab')->user();
