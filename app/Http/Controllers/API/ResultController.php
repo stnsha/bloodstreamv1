@@ -472,7 +472,7 @@ class ResultController extends Controller
 
                                     //panel compiled report (formatted)
                                     if ($res['Identifier'] == 'REPORT') {
-                                        TestResultReport::firstOrCreate(
+                                        TestResultReport::updateOrCreate(
                                             [
                                                 'test_result_id' => $test_result_id,
                                                 'panel_id' => $panel_id
@@ -526,12 +526,11 @@ class ResultController extends Controller
                 if ($test_result) {
                     $deliveryFile = DeliveryFile::firstOrCreate(
                         [
-                            'test_result_id' => $test_result->id,
-                        ],
-                        [
                             'lab_id' => $lab_id,
                             'sending_facility' => $sending_facility,
                             'batch_id' => $batch_id,
+                        ],
+                        [
                             'json_content' => json_encode($validated),
                             'status' => DeliveryFile::compl,
                         ]
@@ -570,7 +569,6 @@ class ResultController extends Controller
             if (!$deliveryFile) {
                 $deliveryFile = DeliveryFile::create([
                     'lab_id' => $lab_id ?? null,
-                    'test_result_id' => $test_result->id ?? null,
                     'sending_facility' => $sending_facility ?? 'UNKNOWN',
                     'batch_id' => $batch_id ?? 'ERROR_' . now()->format('YmdHis'),
                     'json_content' => json_encode($validated ?? []),
@@ -1065,12 +1063,11 @@ class ResultController extends Controller
                 //create delivery file for tracking purposes
                 $deliveryFile = DeliveryFile::firstOrCreate(
                     [
-                        'test_result_id' => $test_result_id,
-                    ],
-                    [
                         'lab_id' => $lab_id,
                         'sending_facility' => $sending_facility,
                         'batch_id' => $batch_id,
+                    ],
+                    [
                         'json_content' => json_encode($validated),
                         'status' => DeliveryFile::compl,
                     ]
@@ -1108,7 +1105,6 @@ class ResultController extends Controller
             if (!isset($deliveryFile)) {
                 $deliveryFile = DeliveryFile::create([
                     'lab_id' => $lab_id ?? null,
-                    'test_result_id' => null,
                     'sending_facility' => $sending_facility ?? 'UNKNOWN',
                     'batch_id' => $batch_id ?? 'ERROR_' . now()->format('YmdHis'),
                     'json_content' => json_encode($validated),

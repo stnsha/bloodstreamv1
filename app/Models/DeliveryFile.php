@@ -19,12 +19,7 @@ class DeliveryFile extends Model
         'lab_id',
         'sending_facility',
         'batch_id', //MessageControlId
-        'test_result_id',
         'json_content',
         'status',
-    ];
-
-    protected $attributes = [
-        'test_result_id' => null,
     ];
 }

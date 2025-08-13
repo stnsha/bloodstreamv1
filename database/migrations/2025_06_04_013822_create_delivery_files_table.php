@@ -16,14 +16,12 @@ return new class extends Migration
             $table->unsignedBigInteger('lab_id')->nullable();
             $table->string('sending_facility');
             $table->string('batch_id');
-            $table->unsignedBigInteger('test_result_id')->nullable();
             $table->longText('json_content');
             $table->string('status');
             $table->softDeletes();
             $table->timestamps();
 
             $table->foreign('lab_id')->references('id')->on('labs')->onDelete('cascade');
-            $table->foreign('test_result_id')->references('id')->on('test_results')->onDelete('cascade');
         });
     }
 
