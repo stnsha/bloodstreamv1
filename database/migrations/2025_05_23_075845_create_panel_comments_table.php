@@ -11,18 +11,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('panel_panel_item', function (Blueprint $table) {
+        Schema::create('panel_comments', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('panel_id');
-            $table->unsignedBigInteger('panel_item_id');
+            $table->string('identifier')->nullable();
+            $table->longText('comment');
+            $table->string('sequence')->nullable();
+            $table->softDeletes();
             $table->timestamps();
-            
-            // Foreign key constraints
+
             $table->foreign('panel_id')->references('id')->on('panels')->onDelete('cascade');
-            $table->foreign('panel_item_id')->references('id')->on('panel_items')->onDelete('cascade');
-            
-            // Ensure unique combination
-            $table->unique(['panel_id', 'panel_item_id']);
         });
     }
 
@@ -31,6 +29,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('panel_panel_item');
+        Schema::disableForeignKeyConstraints();
+        Schema::dropIfExists('panel_comments');
     }
 };

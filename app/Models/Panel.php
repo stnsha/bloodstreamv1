@@ -22,7 +22,7 @@ class Panel extends Model
 
     public function panelItems(): BelongsToMany
     {
-        return $this->belongsToMany(PanelItem::class, 'panel_panel_item');
+        return $this->belongsToMany(PanelItem::class, 'panel_panel_items');
     }
 
     // Keep the old relationship for backward compatibility during migration

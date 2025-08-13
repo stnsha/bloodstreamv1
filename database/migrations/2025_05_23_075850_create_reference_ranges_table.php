@@ -13,12 +13,12 @@ return new class extends Migration
     {
         Schema::create('reference_ranges', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('panel_item_id');
+            $table->unsignedBigInteger('panel_panel_item_id');
             $table->string('value');
             $table->softDeletes();
             $table->timestamps();
 
-            $table->foreign('panel_item_id')->references('id')->on('panel_items')->onDelete('cascade');
+            $table->foreign('panel_panel_item_id')->references('id')->on('panel_panel_items')->onDelete('cascade');
         });
     }
 

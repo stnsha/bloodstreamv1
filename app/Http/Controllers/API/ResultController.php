@@ -11,6 +11,7 @@ use App\Models\Doctor;
 use App\Models\Panel;
 use App\Models\PanelComment;
 use App\Models\PanelItem;
+use App\Models\PanelPanelItem;
 use App\Models\PanelProfile;
 use App\Models\PanelTag;
 use App\Models\Patient;
@@ -423,13 +424,16 @@ class ResultController extends Controller
                                         //get panel item id
                                         $panel_item_id = $panel_item->id;
 
+                                        //get panel panel item id
+                                        $panel_panel_item_id = PanelPanelItem::where('panel_id', $panel_id)->where('panel_item_id', $panel_item_id)->first()?->id;
+
                                         //create reference range
                                         $ref_range_id = null;
                                         if (filled($res['ReferenceRange'])) {
                                             $ref_range = ReferenceRange::firstOrCreate(
                                                 [
                                                     'value' => $res['ReferenceRange'],
-                                                    'panel_item_id' => $panel_item_id,
+                                                    'panel_panel_item_id' => $panel_panel_item_id,
                                                 ]
                                             );
                                             $ref_range_id = $ref_range->id;
@@ -439,7 +443,7 @@ class ResultController extends Controller
                                         TestResultItem::firstOrCreate(
                                             [
                                                 'test_result_id' => $test_result_id,
-                                                'panel_item_id' => $panel_item_id,
+                                                'panel_panel_item_id' => $panel_panel_item_id,
                                                 'reference_range_id' => $ref_range_id,
                                                 'value' => $result_value
                                             ],
@@ -453,10 +457,10 @@ class ResultController extends Controller
                                     }
 
                                     //panel comments
-                                    if ($res['Text'] == 'COMMENT' && isset($panel_item_id)) {
+                                    if ($res['Text'] == 'COMMENT' && isset($panel_id)) {
                                         PanelComment::firstOrCreate(
                                             [
-                                                'panel_item_id' => $panel_item_id,
+                                                'panel_id' => $panel_id,
                                                 'identifier' => $identifier
                                             ],
                                             [
@@ -468,12 +472,16 @@ class ResultController extends Controller
 
                                     //panel compiled report (formatted)
                                     if ($res['Identifier'] == 'REPORT') {
-                                        TestResultReport::firstOrCreate([
-                                            'test_result_id' => $test_result_id,
-                                            'panel_id' => $panel_id,
-                                            'text' => $result_value,
-                                            'is_completed' => $is_completed_result,
-                                        ]);
+                                        TestResultReport::firstOrCreate(
+                                            [
+                                                'test_result_id' => $test_result_id,
+                                                'panel_id' => $panel_id
+                                            ],
+                                            [
+                                                'text' => $result_value,
+                                                'is_completed' => $is_completed_result,
+                                            ]
+                                        );
                                     }
                                 }
                             }

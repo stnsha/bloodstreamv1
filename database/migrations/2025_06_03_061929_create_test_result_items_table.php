@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('test_result_items', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('test_result_id');
-            $table->unsignedBigInteger('panel_item_id');
+            $table->unsignedBigInteger('panel_panel_item_id');
             $table->unsignedBigInteger('reference_range_id')->nullable();
             $table->string('value')->nullable();
             $table->string('flag')->nullable();
@@ -26,9 +26,9 @@ return new class extends Migration
 
             $table->foreign('test_result_id')->references('id')->on('test_results')->onDelete('cascade');
             $table->foreign('reference_range_id')->references('id')->on('reference_ranges')->onDelete('cascade');
-            $table->foreign('panel_item_id')->references('id')->on('panel_items')->onDelete('cascade');
+            $table->foreign('panel_panel_item_id')->references('id')->on('panel_panel_items')->onDelete('cascade');
 
-            $table->index(['reference_range_id', 'panel_item_id']);
+            $table->index(['reference_range_id', 'panel_panel_item_id']);
         });
     }
 

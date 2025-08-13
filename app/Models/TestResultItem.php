@@ -13,7 +13,7 @@ class TestResultItem extends Model
 
     protected $fillable = [
         'test_result_id',
-        'panel_item_id',
+        'panel_panel_item_id',
         'reference_range_id',
         'value',
         'flag',

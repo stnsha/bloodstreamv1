@@ -34,7 +34,7 @@ class PanelItem extends Model
 
     public function panels(): BelongsToMany
     {
-        return $this->belongsToMany(Panel::class, 'panel_panel_item');
+        return $this->belongsToMany(Panel::class, 'panel_panel_items');
     }
 
     public function lab(): BelongsTo
