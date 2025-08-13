@@ -10,7 +10,7 @@
 
 <body class="antialiased bg-stone-50">
     <nav class="border-b-2 border-stone-100">
-        <div class="flex justify-between max-w-screen-xl pl-4 pr-32 py-3 mx-auto">
+        <div class="flex justify-between px-4 py-3 mx-auto">
             <div class="flex items-center">
                 <ul class="flex flex-row font-medium mt-0 space-x-8 rtl:space-x-reverse text-sm">
                     @if (Auth::user()->credential->role == 'admin')
@@ -47,7 +47,7 @@
         </div>
     </nav>
 
-    <div class="flex flex-col justify-center mx-auto items-start md:ml-36 md:mt-4 md:mr-36">
+    <div class="flex flex-col justify-center mx-auto items-start px-4">
         {{ $slot }}
     </div>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>

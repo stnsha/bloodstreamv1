@@ -57,16 +57,19 @@ class LabCredentialSeeder extends Seeder
                 'lab_id' => 1,
                 'username' => config('credentials.lab.lab_1.username'),
                 'password' => config('credentials.lab.lab_1.password'),
+                'role' => 'admin',
             ],
             [
                 'lab_id' => 2,
                 'username' => config('credentials.lab.lab_2.username'),
                 'password' => config('credentials.lab.lab_2.password'),
+                'role' => 'lab',
             ],
             [
                 'lab_id' => 3,
                 'username' => config('credentials.lab.lab_3.username'),
                 'password' => config('credentials.lab.lab_3.password'),
+                'role' => 'lab',
             ],
         ];
 
@@ -76,7 +79,7 @@ class LabCredentialSeeder extends Seeder
                 'lab_id' => $credential['lab_id'],
                 'username' => $credential['username'],
                 'password' => bcrypt($credential['password']),
-                'role' => 'lab',
+                'role' => $credential['role'],
                 'is_active' => true,
             ]);
         }

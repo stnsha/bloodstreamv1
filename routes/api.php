@@ -40,5 +40,7 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
 
     Route::prefix('import')->controller(ImportController::class)->group(function () {
         Route::get('/innoquestCodeMapping', 'innoquestCodeMapping')->name('innoquestCodeMapping');
+        Route::get('/panels', 'panels')->name('panels');
+        Route::get('/results', 'results')->name('results');
     });
 });

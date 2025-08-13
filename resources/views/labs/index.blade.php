@@ -1,5 +1,5 @@
 <x-app-layout>
-    <div class="flex flex-col justify-between items-start w-full">
+    <div class="flex flex-col justify-between items-start w-full bg-gray-50 m-4 p-4 rounded-lg shadow-md">
         <span class="font-semibold text-md tracking-wide pb-2">Lab Information</span>
         <div class="relative overflow-x-auto shadow-sm w-full sm:rounded-lg">
             <table class="w-full text-sm text-left rtl:text-right text-gray-500">

@@ -1,5 +1,5 @@
 <x-app-layout>
-    <div class="flex flex-col w-full pr-32">
+    <div class="flex flex-col w-full px-4 py-3">
         <div class="flex justify-start items-end mb-4">
             <img src="{{ asset('logo.svg') }}" class="w-8 h-8 opacity-80 mr-2" />
             <span class="font-semibold text-lg tracking-wide">BloodStream v1 - API Documentation</span>
