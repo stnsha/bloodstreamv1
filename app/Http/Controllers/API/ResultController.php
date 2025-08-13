@@ -136,7 +136,8 @@ class ResultController extends Controller
      *             @OA\Property(
      *                 property="data",
      *                 type="object",
-     *                 @OA\Property(property="test_result_id", type="integer", example=123)
+     *                 @OA\Property(property="test_result_id", type="integer", example=123),
+     *                 @OA\Property(property="panel", type="string", example="Full Blood Count")
      *             )
      *         )
      *     ),
@@ -548,7 +549,8 @@ class ResultController extends Controller
                 return response()->json([
                     'success' => true,
                     'data' => [
-                        'test_result_id' => $test_result->id ?? null
+                        'test_result_id' => $test_result->id ?? null,
+                        'panel' => $panel->name ?? null,
                     ],
                     'message' => 'Panel results processed successfully'
                 ], 200);

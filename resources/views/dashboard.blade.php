@@ -536,7 +536,8 @@ Accept: application/json</code></pre>
   "success": true,
   "message": "Panel results processed successfully",
   "data": {
-    "test_result_id": 123
+    "test_result_id": 123,
+    "panel": "Full Blood Count"
   }
 }</code></pre>
                             </div>
