@@ -166,12 +166,12 @@ class FileImport implements ToModel, WithHeadingRow, WithValidation, WithChunkRe
      */
     public function chunkSize(): int
     {
-        return 50; //process 200 rows at a time
+        return 500; // Larger chunks for better performance with big files
     }
 
     public function batchSize(): int
     {
-        return 100; // Insert 800 rows at a time
+        return 250; // Larger batches for fewer database calls
     }
 
     protected function formatDate($date)

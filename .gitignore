@@ -32,3 +32,6 @@ BloodStream_API_Documentation*.md
 BloodStream_API_Documentation*.pdf
 create_pdf_docs.py
 generate_pdf.py
+
+# Local development helper scripts
+dispatch_job.php
