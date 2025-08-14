@@ -122,18 +122,14 @@ abstract class BaseCodeMappingImport implements ToArray, WithHeadingRow, WithVal
         $className = class_basename(static::class);
         $sheetName = str_replace('Import', '', $className);
 
-        $summaryData = array_merge($this->importStats, [
-            'sheet_type' => $sheetName,
-            'is_first_file' => static::$isFirstFile
+        Log::info($sheetName . ' Sheet Summary', [
+            'total_rows' => $this->importStats['total_rows'],
+            'processed_rows' => $this->importStats['processed_rows'],
+            'created_records' => $this->importStats['created_records'],
+            'updated_records' => $this->importStats['updated_records'],
+            'new_data_count' => $this->importStats['new_data_count'],
+            'skipped_rows' => $this->importStats['skipped_rows'] + $this->importStats['empty_rows']
         ]);
-
-        Log::info("=== {$sheetName} Import Summary ===", $summaryData);
-
-        if (static::$isFirstFile) {
-            Log::info("✅ {$sheetName}: Successfully stored {$this->importStats['created_records']} records into database");
-        } else {
-            Log::info("📊 {$sheetName}: Added {$this->importStats['new_data_count']} new records (Total created: {$this->importStats['created_records']}, Updated: {$this->importStats['updated_records']})");
-        }
     }
 
     /**

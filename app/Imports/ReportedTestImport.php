@@ -5,6 +5,8 @@ namespace App\Imports;
 use App\Models\Panel;
 use App\Models\PanelItem;
 use App\Models\PanelTag;
+use Illuminate\Log\Logger;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class ReportedTestImport extends BaseCodeMappingImport
@@ -16,14 +18,16 @@ class ReportedTestImport extends BaseCodeMappingImport
             return null;
         }
 
+
         return [
-            'panel_code' => $this->trimOrNull($row['panel']),
-            'panel_name' => $this->trimOrNull($row['name']),
-            'panel_item_code' => $this->trimOrNull($row['item']),
-            'panel_item_name' => $this->trimOrNull($row['name_1']),
-            'panel_item_identifier' => $this->trimOrNull($row['external_item']),
-            'result_type' => $this->trimOrNull($row['result_type']),
-            'unit' => $this->trimOrNull($row['units']),
+            'panel_code' => $this->trimOrNull($row['panel'] ?? null),
+            'panel_name' => $this->trimOrNull($row['name'] ?? null),
+            'int_code' => $this->trimOrNull($row['master_format'] ?? null),
+            'panel_item_code' => $this->trimOrNull($row['item'] ?? null),
+            'panel_item_name' => $this->trimOrNull($row['name_1'] ?? null),
+            'panel_item_identifier' => $this->trimOrNull($row['external_item'] ?? null),
+            'result_type' => $this->trimOrNull($row['result_type'] ?? null),
+            'unit' => $this->trimOrNull($row['units'] ?? null),
         ];
     }
 
@@ -49,7 +53,7 @@ class ReportedTestImport extends BaseCodeMappingImport
         foreach ($processedData as $data) {
             if (!str_contains($data['panel_code'], 'QON') && !str_contains($data['panel_code'], 'TON')) {
                 // Check if this is a TAG ON item
-                $isTagOn = $this->isTagOnItem($data['panel_name']);
+                $isTagOn = $this->isTagOnItem($data['panel_name'] ?? null, $data['master_format'] ?? null);
                 //If true
                 if ($isTagOn) {
                     $this->storePanelTag($data);
@@ -62,21 +66,19 @@ class ReportedTestImport extends BaseCodeMappingImport
 
     private function storePanelItem(array $data)
     {
-        $panel = Panel::where('code', $data['panel_code'])->first();
-        if (!$panel) {
-            //If not found
-            //Create panel
-            $panel = Panel::firstOrCreate(
-                [
-                    'lab_id' => $this->labId,
-                    'code' => $data['panel_code'],
-                ],
-                [
-                    'name' => $data['panel_name'],
-                ]
-            );
-            $this->trackDatabaseOperation('create', $panel->wasRecentlyCreated);
-        }
+        // Always use updateOrCreate to ensure int_code is updated
+        $panel = Panel::updateOrCreate(
+            [
+                'lab_id' => $this->labId,
+                'code' => $data['panel_code'],
+            ],
+            [
+                'name' => $data['panel_name'],
+                'int_code' => $data['int_code'],
+                // 'overall_notes' => 'ReportedTestImport'
+            ]
+        );
+        $this->trackDatabaseOperation('create', $panel->wasRecentlyCreated);
 
         // Find or create the PanelItem
         $panelItem = PanelItem::firstOrCreate(
@@ -125,8 +127,13 @@ class ReportedTestImport extends BaseCodeMappingImport
         }
     }
 
-    private function isTagOnItem($panelName)
+    private function isTagOnItem($panelName = null, $masterFormat = null)
     {
+        // Check if master_format is TGA
+        if ($masterFormat && strtoupper(trim($masterFormat)) === 'TGA') {
+            return true;
+        }
+
         // Handle case where panelName might be an array or null
         $trimmed = $this->trimOrNull($panelName);
         if (!$trimmed) {

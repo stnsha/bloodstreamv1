@@ -12,10 +12,11 @@ class Panel extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $fillable = ['lab_id', 'panel_category_id', 'name', 'code', 'sequence', 'overall_notes'];
+    protected $fillable = ['lab_id', 'panel_category_id', 'name', 'code', 'int_code', 'sequence', 'overall_notes'];
 
     protected $attributes = [
         'panel_category_id' => null,
+        'int_code' => null,
         'sequence' => null,
         'overall_notes' => null,
     ];

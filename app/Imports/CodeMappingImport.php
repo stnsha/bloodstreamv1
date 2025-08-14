@@ -41,11 +41,8 @@ class CodeMappingImport
                 throw new Exception('No sheets found in Excel file');
             }
 
-            Log::info('Found sheets in Excel file:', $sheetNames);
-
             // Detect available sheets and their types
             $availableSheets = $this->detectSheetTypes($sheetNames);
-            Log::info('Detected sheet mappings:', $availableSheets);
 
             // Import sheets in dependency order
             $this->importSheetsInOrder($filePath, $availableSheets);
@@ -73,8 +70,6 @@ class CodeMappingImport
                             'sheet_name' => $sheetName,
                             'import_class' => $importClass
                         ];
-                    } else {
-                        Log::info("Ignoring sheet '{$sheetName}' as configured");
                     }
                     break; // Found match, stop checking other patterns
                 }
@@ -90,8 +85,6 @@ class CodeMappingImport
             if (isset($availableSheets[$sheetPattern])) {
                 $sheetData = $availableSheets[$sheetPattern];
                 $this->importSingleSheet($filePath, $sheetData['sheet_name'], $sheetData['import_class']);
-            } else {
-                Log::warning("Sheet pattern '{$sheetPattern}' not found in Excel file, skipping");
             }
         }
     }
@@ -99,8 +92,6 @@ class CodeMappingImport
     private function importSingleSheet(string $filePath, string $sheetName, string $importClass): void
     {
         try {
-            Log::info("Starting import for sheet: {$sheetName} using {$importClass}");
-
             $import = new $importClass();
 
             // Create a wrapper import class that selects only the specific sheet
@@ -124,7 +115,6 @@ class CodeMappingImport
 
             Excel::import($sheetSpecificImport, $filePath);
 
-            Log::info("Successfully completed import for sheet: {$sheetName}");
         } catch (Exception $e) {
             Log::error("Failed to import sheet: {$sheetName}", [
                 'import_class' => $importClass,
