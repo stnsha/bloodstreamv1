@@ -16,7 +16,7 @@ return new class extends Migration
             $table->unsignedBigInteger('test_result_id');
             $table->unsignedBigInteger('panel_panel_item_id');
             $table->unsignedBigInteger('reference_range_id')->nullable();
-            $table->string('value')->nullable();
+            $table->longText('value')->nullable();
             $table->string('flag')->nullable();
             $table->longText('test_notes')->nullable();
             $table->string('status')->nullable();

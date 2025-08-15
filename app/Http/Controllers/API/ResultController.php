@@ -18,6 +18,7 @@ use App\Models\Patient;
 use App\Models\ReferenceRange;
 use App\Models\TestResult;
 use App\Models\TestResultItem;
+use App\Models\TestResultProfile;
 use App\Models\TestResultReport;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -290,7 +291,6 @@ class ResultController extends Controller
                                 $panel_profile_id = $panel_profile->id;
                             }
 
-
                             //get panel code
                             $panel_code = $obv['ProcedureCode'];
                             $panel_name = $obv['ProcedureDescription'];
@@ -364,7 +364,6 @@ class ResultController extends Controller
                                     'doctor_id' => $doctor_id,
                                     'patient_id' => $patient_id,
                                     'bill_code' => $bill_code,
-                                    'panel_profile_id' => $panel_profile_id,
                                     'is_tagon' => $isTagOn,
                                     'collected_date' => $collected_date,
                                     'received_date' => null,
@@ -375,6 +374,16 @@ class ResultController extends Controller
 
                             //get test result id
                             $test_result_id = $test_result->id;
+
+                            if ($panel_profile_id) {
+                                //create test result profile
+                                TestResultProfile::firstOrCreate(
+                                    [
+                                        'test_result_id' => $test_result_id,
+                                        'panel_profile_id' => $panel_profile_id,
+                                    ]
+                                );
+                            }
 
                             //check if result is completed
                             $is_completed_result = (filled($obv['ResultStatus']) && $obv['ResultStatus'] == 'F')  ? true : false;
@@ -967,7 +976,6 @@ class ResultController extends Controller
                     ],
                     [
                         'ref_id' => $reference_id,
-                        'panel_profile_id' => $panel_profile_id,
                         'bill_code' => $bill_code,
                         'collected_date' => $collected_date,
                         'received_date' => $received_date,
@@ -977,6 +985,15 @@ class ResultController extends Controller
                     ]
                 );
 
+                if ($panel_profile_id) {
+                    //create test result profile
+                    TestResultProfile::firstOrCreate(
+                        [
+                            'test_result_id' => $test_result_id,
+                            'panel_profile_id' => $panel_profile_id,
+                        ]
+                    );
+                }
 
                 //get test result id
                 $test_result_id = $test_result->id;

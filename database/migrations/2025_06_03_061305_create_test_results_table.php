@@ -18,7 +18,6 @@ return new class extends Migration
             $table->string('ref_id')->nullable();
             $table->string('bill_code')->nullable();
             $table->string('lab_no');
-            $table->unsignedBigInteger('panel_profile_id')->nullable();
             $table->boolean('is_tagon')->default(false);
             $table->dateTime('collected_date')->nullable();
             $table->dateTime('received_date')->nullable();
@@ -30,7 +29,6 @@ return new class extends Migration
 
             $table->foreign('doctor_id')->references('id')->on('doctors')->onDelete('cascade');
             $table->foreign('patient_id')->references('id')->on('patients')->onDelete('cascade');
-            $table->foreign('panel_profile_id')->references('id')->on('panel_profiles')->onDelete('cascade');
         });
     }
 

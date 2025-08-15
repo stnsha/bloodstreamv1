@@ -18,6 +18,7 @@ return new class extends Migration
             $table->unsignedBigInteger('panel_category_id')->nullable();
             $table->string('name');
             $table->string('code');
+            $table->string('int_code')->nullable();
             $table->string('sequence')->nullable();
             $table->string('overall_notes')->nullable();
             $table->softDeletes();
