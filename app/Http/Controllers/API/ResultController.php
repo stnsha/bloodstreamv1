@@ -170,9 +170,9 @@ class ResultController extends Controller
             ]);
 
             if ($validated) {
-                Log::info('Validated JSON accessed', [
-                    'data' => $validated
-                ]);
+                // Log::info('Validated JSON accessed', [
+                //     'data' => $validated
+                // ]);
 
                 DB::beginTransaction();
                 //get current user role
@@ -355,7 +355,7 @@ class ResultController extends Controller
                             }
 
                             //create test result
-                            $test_result = TestResult::firstOrCreate(
+                            $test_result = TestResult::updateOrCreate(
                                 [
                                     'ref_id' => $reference_id,
                                     'lab_no' => $lab_no,
@@ -456,9 +456,8 @@ class ResultController extends Controller
                                             ]
                                         );
                                     }
-
                                     //panel comments
-                                    if ($res['Text'] == 'COMMENT' && isset($panel_id)) {
+                                    if (($res['Text'] == 'NOTE' || $res['Text'] == 'COMMENT') && isset($panel_id)) {
                                         PanelComment::firstOrCreate(
                                             [
                                                 'panel_id' => $panel_id,

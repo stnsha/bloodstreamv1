@@ -282,7 +282,7 @@ class FileImport implements ToModel, WithHeadingRow, WithValidation, WithChunkRe
             $patient = Patient::create($patientData);
             return $patient;
         } catch (\Exception $e) {
-            return null;
+            throw new \Exception('Error creating patient: ' . $e->getMessage());
         }
     }
 
@@ -350,9 +350,10 @@ class FileImport implements ToModel, WithHeadingRow, WithValidation, WithChunkRe
             // Find existing panel by code first
             $existingPanel = Panel::with('panelItems')->where('code', $panelCode)->first();
 
-            // If not found by code, try searching by int_code
+            // If not found by code, try searching by int_code (get all matching panels)
             if (!$existingPanel) {
-                $existingPanel = Panel::with('panelItems')->where('int_code', $panelCode)->first();
+                $existingPanels = Panel::with('panelItems')->where('int_code', $panelCode)->get();
+                $existingPanel = $existingPanels->first();
             }
 
             if (!$existingPanel) {
@@ -364,28 +365,36 @@ class FileImport implements ToModel, WithHeadingRow, WithValidation, WithChunkRe
                 return null;
             }
 
-            $panelId = $existingPanel->id;
+            $panelIds = isset($existingPanels) && $existingPanels->count() > 0 
+                ? $existingPanels->pluck('id')->toArray() 
+                : [$existingPanel->id];
             $matchFound = false;
             $panelPanelItemId = null;
 
-            // Try to match with existing panel items
-            foreach ($existingPanel->panelItems as $currentPanelItem) {
-                $normalized1 = preg_replace('/[[:punct:]\s]+/', '', strtolower($currentPanelItem->name));
-                $normalized2 = preg_replace('/[[:punct:]\s]+/', '', strtolower($panelItemName));
+            // Try to match with existing panel items across all matching panels
+            $allPanels = isset($existingPanels) && $existingPanels->count() > 0 
+                ? $existingPanels 
+                : collect([$existingPanel]);
+                
+            foreach ($allPanels as $panel) {
+                foreach ($panel->panelItems as $currentPanelItem) {
+                    $normalized1 = preg_replace('/[[:punct:]\s]+/', '', strtolower($currentPanelItem->name));
+                    $normalized2 = preg_replace('/[[:punct:]\s]+/', '', strtolower($panelItemName));
 
-                if (strcasecmp($normalized1, $normalized2) === 0) {
-                    $matchFound = true;
+                    if (strcasecmp($normalized1, $normalized2) === 0) {
+                        $matchFound = true;
 
-                    // Get the panel_panel_item relationship
-                    $panelPanelItem = PanelPanelItem::where('panel_id', $panelId)
-                        ->where('panel_item_id', $currentPanelItem->id)
-                        ->first();
+                        // Get the panel_panel_item relationship
+                        $panelPanelItem = PanelPanelItem::where('panel_id', $panel->id)
+                            ->where('panel_item_id', $currentPanelItem->id)
+                            ->first();
 
-                    if ($panelPanelItem) {
-                        $panelPanelItemId = $panelPanelItem->id;
+                        if ($panelPanelItem) {
+                            $panelPanelItemId = $panelPanelItem->id;
+                        }
+
+                        break 2; // Exit both loops since we found a match
                     }
-
-                    break; // Exit the loop since we found a match
                 }
             }
 
@@ -404,7 +413,7 @@ class FileImport implements ToModel, WithHeadingRow, WithValidation, WithChunkRe
                 $existingPanel->panelItems()->syncWithoutDetaching([$newPanelItem->id]);
 
                 // Get the newly created panel_panel_item relationship
-                $newPanelPanelItem = PanelPanelItem::where('panel_id', $panelId)
+                $newPanelPanelItem = PanelPanelItem::where('panel_id', $existingPanel->id)
                     ->where('panel_item_id', $newPanelItem->id)
                     ->first();
 
