@@ -295,14 +295,12 @@ class ResultController extends Controller
                             $panel_code = $obv['ProcedureCode'];
                             $panel_name = $obv['ProcedureDescription'];
 
+                            // Always check if panel is TAG ON first
+                            $isTagOn = $this->isTagOnItem($panel_name);
+                            
                             $panel = Panel::where('lab_id', $lab_id)->where('code', $panel_code)->where('name', $panel_name)->first();
-                            $isTagOn = false;
                             if (!$panel) {
-                                $isTagOn = $this->isTagOnItem($panel_name);
-
                                 if ($isTagOn) {
-                                    $isTagOn = true;
-
                                     //search if tag on code
                                     $panelTag = PanelTag::where('lab_id', $lab_id)->where('code', $panel_code)->first();
 
@@ -354,7 +352,15 @@ class ResultController extends Controller
                                 $panel_id = $panel->id;
                             }
 
-                            //create test result
+                            //create test result - handle is_tagon properly
+                            $existingTestResult = TestResult::where('ref_id', $reference_id)->where('lab_no', $lab_no)->first();
+                            
+                            // If test result exists and it's already tagged or current panel is tagged, set to true
+                            $finalIsTagOn = $isTagOn;
+                            if ($existingTestResult && ($existingTestResult->is_tagon || $isTagOn)) {
+                                $finalIsTagOn = true;
+                            }
+                            
                             $test_result = TestResult::updateOrCreate(
                                 [
                                     'ref_id' => $reference_id,
@@ -364,7 +370,7 @@ class ResultController extends Controller
                                     'doctor_id' => $doctor_id,
                                     'patient_id' => $patient_id,
                                     'bill_code' => $bill_code,
-                                    'is_tagon' => $isTagOn,
+                                    'is_tagon' => $finalIsTagOn,
                                     'collected_date' => $collected_date,
                                     'received_date' => null,
                                     'reported_date' => $reported_date,
