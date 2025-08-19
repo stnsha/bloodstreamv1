@@ -147,8 +147,9 @@
                             @foreach ($recent_tests as $test)
                                 <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
                                     <td class="px-4 py-4 whitespace-nowrap">
-                                        <div class="text-sm font-medium text-[#003049]">{{ $test->lab_no ?? 'N/A' }}
-                                        </div>
+                                        <a href="{{ route('results.show', $test->id) }}"
+                                            class="text-sm font-medium text-[#003049] hover:text-[#991B1B] hover:border-b-2 hover:border-[#991B1B]">{{ $test->lab_no ?? 'N/A' }}
+                                        </a>
                                     </td>
                                     <td class="px-4 py-4 whitespace-nowrap">
                                         <div class="text-sm text-gray-700">{{ $test->patient->name ?? 'N/A' }}</div>
