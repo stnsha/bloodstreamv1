@@ -19,6 +19,6 @@ class ReferenceRange extends Model
 
     public function panelPanelItem(): BelongsTo
     {
-        return $this->belongsTo(PanelPanelItem::class);
+        return $this->belongsTo(PanelPanelItem::class, 'panel_panel_item_id', 'id');
     }
 }

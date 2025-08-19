@@ -21,9 +21,9 @@ class Panel extends Model
         'overall_notes' => null,
     ];
 
-    public function panelItems(): BelongsToMany
+    public function panelItems(): HasMany
     {
-        return $this->belongsToMany(PanelItem::class, 'panel_panel_items');
+        return $this->hasMany(PanelItem::class, 'panel_id', 'id');
     }
 
     // Keep the old relationship for backward compatibility during migration

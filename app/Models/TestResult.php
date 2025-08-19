@@ -39,21 +39,33 @@ class TestResult extends Model
 
     public function doctor(): BelongsTo
     {
-        return $this->belongsTo(Doctor::class);
+        return $this->belongsTo(Doctor::class, 'doctor_id', 'id');
     }
 
     public function patient(): BelongsTo
     {
-        return $this->belongsTo(Patient::class);
-    }
-
-    public function panelProfile(): BelongsTo
-    {
-        return $this->belongsTo(PanelProfile::class);
+        return $this->belongsTo(Patient::class, 'patient_id', 'id');
     }
 
     public function testResultItems(): HasMany
     {
-        return $this->hasMany(TestResultItem::class);
+        return $this->hasMany(TestResultItem::class, 'test_result_id', 'id');
+    }
+
+    public function testResultProfiles(): HasMany
+    {
+        return $this->hasMany(TestResultProfile::class, 'test_result_id', 'id');
+    }
+
+    public function profiles()
+    {
+        return $this->hasManyThrough(
+            PanelProfile::class,
+            TestResultProfile::class,
+            'test_result_id',
+            'id',
+            'id',
+            'panel_profile_id'
+        );
     }
 }

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Patient extends Model
@@ -26,4 +27,9 @@ class Patient extends Model
         'gender' => null,
         'tel' => null,
     ];
+
+    public function testResults(): HasMany
+    {
+        return $this->hasMany(TestResult::class, 'patient_id', 'id');
+    }
 }

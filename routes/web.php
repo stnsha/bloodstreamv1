@@ -4,6 +4,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LabController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\TestingController;
+use App\Http\Controllers\TestResultController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -29,12 +30,13 @@ Route::controller(LoginController::class)->group(function () {
 });
 
 Route::middleware(['auth'])->group(function () {
+    Route::get('api', function () {
+        $lab_id = session()->get('lab_id');
+        return view('apis.index', compact('lab_id'));
+    })->name('apis.index');
 
-    Route::controller(DashboardController::class)->group(function () {
-        Route::get('dashboard', 'index')->name('dashboard');
-    });
-
+    Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::resource('lab', LabController::class);
-
     Route::resource('testing', TestingController::class);
+    Route::resource('results', TestResultController::class);
 });

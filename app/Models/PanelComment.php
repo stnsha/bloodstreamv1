@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class PanelComment extends Model
@@ -16,4 +17,9 @@ class PanelComment extends Model
         'identifier' => null,
         'sequence' => null,
     ];
+
+    public function panel(): BelongsTo
+    {
+        return $this->belongsTo(Panel::class, 'panel_id', 'id');
+    }
 }

@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use Exception;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\API\ResultController;
+use App\Http\Requests\InnoquestResultRequest;
 use App\Imports\BaseCodeMappingImport;
 use App\Imports\CodeMappingImport;
 use App\Imports\FileImport;
@@ -14,6 +16,7 @@ use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 use Maatwebsite\Excel\Excel as ExcelFormat;
 use Maatwebsite\Excel\Validators\ValidationException;
+use Illuminate\Http\Request;
 
 class ImportController extends Controller
 {
@@ -297,6 +300,161 @@ class ImportController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error processing files: ' . $e->getMessage(),
+                'files' => $processedFiles
+            ], 500);
+        }
+    }
+
+    public function json()
+    {
+        // Increase execution time limit
+        ini_set('max_execution_time', 300); // 5 minutes
+        ini_set('memory_limit', '512M');
+
+        $processedFiles = [];
+
+        try {
+            $path = Lab::find($this->labId)->path;
+            $is_exist = $this->disk->exists('/' . $path);
+
+            if (!$is_exist) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'SFTP path not found',
+                ], 404);
+            }
+
+            // Ensure json directory exists
+            $jsonDir = storage_path('app/public/json');
+            if (!File::exists($jsonDir)) {
+                File::makeDirectory($jsonDir, 0755, true);
+                Log::info('Created json directory: ' . $jsonDir);
+            }
+
+            $files = $this->disk->allFiles($path);
+
+            // Filter JSON files first to avoid processing non-JSON files
+            $jsonFiles = array_filter($files, function ($file) {
+                return pathinfo($file, PATHINFO_EXTENSION) === 'json';
+            });
+
+            Log::info('Found JSON files', ['count' => count($jsonFiles), 'files' => $jsonFiles]);
+
+            foreach ($jsonFiles as $file) {
+                $startTime = microtime(true);
+                Log::info('Processing JSON file', ['file' => $file, 'start_time' => date('Y-m-d H:i:s')]);
+
+                try {
+                    $content = $this->disk->get($file);
+
+                    // Get file base name
+                    $file_name = basename($this->disk->path($file));
+
+                    // Move to json storage
+                    Storage::disk('public')->put("json/{$file_name}", $content);
+
+                    // Get new json path
+                    $temp_path = storage_path("app/public/json/{$file_name}");
+
+                    // Validate JSON content
+                    $jsonData = json_decode($content, true);
+
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        throw new Exception('Invalid JSON format: ' . json_last_error_msg());
+                    }
+
+                    if (empty($jsonData)) {
+                        $processedFiles[] = [
+                            'file_name' => $file_name,
+                            'status' => 'skipped_empty',
+                            'processing_time' => round(microtime(true) - $startTime, 2) . 's'
+                        ];
+                        continue;
+                    }
+
+                    try {
+                        // Create a mock request with JSON data
+                        $mockRequest = Request::create('/api/v1/result/panel', 'POST', $jsonData);
+                        $mockRequest->headers->set('Content-Type', 'application/json');
+                        
+                        // Create InnoquestResultRequest from the mock request
+                        $innoquestRequest = InnoquestResultRequest::createFrom($mockRequest);
+                        $innoquestRequest->setContainer(app());
+                        $innoquestRequest->setRedirector(app(\Illuminate\Routing\Redirector::class));
+                        
+                        // Manually set up the validator for the FormRequest
+                        $factory = app(\Illuminate\Validation\Factory::class);
+                        $validator = $factory->make($jsonData, $innoquestRequest->rules());
+                        $innoquestRequest->setValidator($validator);
+                        
+                        // Call panelResults method from ResultController
+                        $resultController = new ResultController();
+                        $response = $resultController->panelResults($innoquestRequest);
+
+                        // Get response data
+                        $responseData = json_decode($response->getContent(), true);
+                        $statusCode = $response->getStatusCode();
+
+                        if ($statusCode === 200 && $responseData['success']) {
+                            $processedFiles[] = [
+                                'file_name' => $file_name,
+                                'status' => 'processed',
+                                'test_result_id' => $responseData['data']['test_result_id'] ?? null,
+                                'panel' => $responseData['data']['panel'] ?? null,
+                                'processing_time' => round(microtime(true) - $startTime, 2) . 's'
+                            ];
+
+                            Log::info('JSON file processed successfully', [
+                                'file' => $file_name,
+                                'test_result_id' => $responseData['data']['test_result_id'] ?? null,
+                                'processing_time' => round(microtime(true) - $startTime, 2) . 's'
+                            ]);
+                        } else {
+                            throw new Exception('Panel results processing failed: ' . ($responseData['message'] ?? 'Unknown error'));
+                        }
+                    } catch (Exception $e) {
+                        $processedFiles[] = [
+                            'file_name' => $file_name,
+                            'error' => $e->getMessage(),
+                            'status' => 'failed',
+                            'processing_time' => round(microtime(true) - $startTime, 2) . 's'
+                        ];
+
+                        Log::error('Error processing JSON data', [
+                            'file' => $file_name,
+                            'error' => $e->getMessage()
+                        ]);
+                    }
+                } catch (Exception $fileException) {
+                    $processedFiles[] = [
+                        'file_name' => basename($file),
+                        'error' => $fileException->getMessage(),
+                        'status' => 'error',
+                        'processing_time' => round(microtime(true) - $startTime, 2) . 's'
+                    ];
+
+                    Log::error('Error processing file', [
+                        'file' => $file,
+                        'error' => $fileException->getMessage()
+                    ]);
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'JSON files processed successfully',
+                'files' => $processedFiles,
+                'total_json_files' => count($processedFiles)
+            ]);
+        } catch (Exception $e) {
+            Log::error('Critical error in JSON import', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error processing JSON files: ' . $e->getMessage(),
                 'files' => $processedFiles
             ], 500);
         }

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class PanelTag extends Model
@@ -20,4 +21,9 @@ class PanelTag extends Model
     protected $attributes = [
         'panel_id' => null,
     ];
+
+    public function panel(): BelongsTo
+    {
+        return $this->belongsTo(Panel::class, 'panel_id', 'id');
+    }
 }

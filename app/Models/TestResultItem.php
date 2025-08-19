@@ -33,16 +33,40 @@ class TestResultItem extends Model
 
     public function testResult(): BelongsTo
     {
-        return $this->belongsTo(TestResult::class);
+        return $this->belongsTo(TestResult::class, 'test_result_id', 'id');
     }
 
-    public function panelItem(): BelongsTo
+    public function panelPanelItem(): BelongsTo
     {
-        return $this->belongsTo(PanelItem::class);
+        return $this->belongsTo(PanelPanelItem::class, 'panel_panel_item_id', 'id');
+    }
+
+    public function panelItem()
+    {
+        return $this->hasOneThrough(
+            PanelItem::class,
+            PanelPanelItem::class,
+            'id',
+            'id',
+            'panel_panel_item_id',
+            'panel_item_id'
+        );
+    }
+
+    public function panel()
+    {
+        return $this->hasOneThrough(
+            Panel::class,
+            PanelPanelItem::class,
+            'id',
+            'id', 
+            'panel_panel_item_id',
+            'panel_id'
+        );
     }
 
     public function referenceRange(): BelongsTo
     {
-        return $this->belongsTo(ReferenceRange::class);
+        return $this->belongsTo(ReferenceRange::class, 'reference_range_id', 'id');
     }
 }
