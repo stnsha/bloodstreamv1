@@ -96,7 +96,7 @@ class ReportedTestImport extends BaseCodeMappingImport
         $this->trackDatabaseOperation('create', $panelItem->wasRecentlyCreated);
 
         // Attach the panel to this panel item (many-to-many)
-        $panel->panelItems()->syncWithoutDetaching([$panelItem->id]);
+        $panel->panelItemsSync()->syncWithoutDetaching([$panelItem->id]);
     }
 
     private function storePanelTag(array $data)

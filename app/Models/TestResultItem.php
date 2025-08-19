@@ -14,6 +14,7 @@ class TestResultItem extends Model
     protected $fillable = [
         'test_result_id',
         'panel_panel_item_id',
+        'is_tagon',
         'reference_range_id',
         'value',
         'flag',
@@ -23,6 +24,7 @@ class TestResultItem extends Model
     ];
 
     protected $attributes = [
+        'is_tagon' => false,
         'reference_range_id' => null,
         'value' => null,
         'flag' => null,
@@ -59,7 +61,7 @@ class TestResultItem extends Model
             Panel::class,
             PanelPanelItem::class,
             'id',
-            'id', 
+            'id',
             'panel_panel_item_id',
             'panel_id'
         );

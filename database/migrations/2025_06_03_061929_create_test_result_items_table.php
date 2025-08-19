@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('test_result_id');
             $table->unsignedBigInteger('panel_panel_item_id');
+            $table->boolean('is_tagon')->default(false);
             $table->unsignedBigInteger('reference_range_id')->nullable();
             $table->longText('value')->nullable();
             $table->string('flag')->nullable();

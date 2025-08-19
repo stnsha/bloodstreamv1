@@ -365,17 +365,17 @@ class FileImport implements ToModel, WithHeadingRow, WithValidation, WithChunkRe
                 return null;
             }
 
-            $panelIds = isset($existingPanels) && $existingPanels->count() > 0 
-                ? $existingPanels->pluck('id')->toArray() 
+            $panelIds = isset($existingPanels) && $existingPanels->count() > 0
+                ? $existingPanels->pluck('id')->toArray()
                 : [$existingPanel->id];
             $matchFound = false;
             $panelPanelItemId = null;
 
             // Try to match with existing panel items across all matching panels
-            $allPanels = isset($existingPanels) && $existingPanels->count() > 0 
-                ? $existingPanels 
+            $allPanels = isset($existingPanels) && $existingPanels->count() > 0
+                ? $existingPanels
                 : collect([$existingPanel]);
-                
+
             foreach ($allPanels as $panel) {
                 foreach ($panel->panelItems as $currentPanelItem) {
                     $normalized1 = preg_replace('/[[:punct:]\s]+/', '', strtolower($currentPanelItem->name));
@@ -410,7 +410,7 @@ class FileImport implements ToModel, WithHeadingRow, WithValidation, WithChunkRe
                 ]);
 
                 // Attach to panel
-                $existingPanel->panelItems()->syncWithoutDetaching([$newPanelItem->id]);
+                $existingPanel->panelItemsSync()->syncWithoutDetaching([$newPanelItem->id]);
 
                 // Get the newly created panel_panel_item relationship
                 $newPanelPanelItem = PanelPanelItem::where('panel_id', $existingPanel->id)

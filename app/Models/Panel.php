@@ -31,4 +31,14 @@ class Panel extends Model
     {
         return $this->hasMany(PanelItem::class, 'panel_id', 'id');
     }
+
+    public function panelTags(): HasMany
+    {
+        return $this->hasMany(PanelTag::class, 'panel_id', 'id');
+    }
+
+    public function panelItemsSync(): BelongsToMany
+    {
+        return $this->belongsToMany(PanelItem::class, 'panel_panel_items', 'panel_id', 'panel_item_id');
+    }
 }

@@ -82,28 +82,32 @@
                     </div>
                     <h2 class="text-lg sm:text-xl font-semibold text-[#003049]">Test Results</h2>
                 </div>
-                
+
                 <!-- Search Input -->
                 <div class="flex items-center gap-3 flex-1 max-w-md">
                     <div class="relative flex-1">
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                             </svg>
                         </div>
-                        <input type="text" id="search-input" 
-                               placeholder="Search by patient name, lab no, or ref ID..."
-                               class="block w-full pl-10 pr-10 py-2 text-sm border border-gray-300 rounded-lg focus:ring-[#003049] focus:border-[#003049] bg-white">
-                        <button type="button" id="clear-search" class="absolute inset-y-0 right-0 pr-3 flex items-center hidden">
-                            <svg class="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-pointer" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        <input type="text" id="search-input"
+                            placeholder="Search by patient name, lab no, or ref ID..."
+                            class="block w-full pl-10 pr-10 py-2 text-sm border border-gray-300 rounded-lg focus:ring-[#003049] focus:border-[#003049] bg-white">
+                        <button type="button" id="clear-search"
+                            class="absolute inset-y-0 right-0 pr-3 flex items-center hidden">
+                            <svg class="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-pointer" fill="none"
+                                stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M6 18L18 6M6 6l12 12" />
                             </svg>
                         </button>
                     </div>
                 </div>
-                
+
                 <div class="text-xs sm:text-sm text-gray-500 bg-gray-50 px-3 py-1 rounded-full">
-                    <span id="results-count">{{ count($testResults ?? []) }}</span> of 
+                    <span id="results-count">{{ count($testResults ?? []) }}</span> of
                     <span id="total-count">{{ count($testResults ?? []) }}</span>
                     {{ Str::plural('result', count($testResults ?? [])) }}
                 </div>
@@ -115,16 +119,12 @@
                 <thead class="bg-[#003049]/5 border-b border-[#003049]/10">
                     <tr>
                         <th scope="col"
-                            class="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-[#003049] uppercase tracking-wider hidden sm:table-cell">
-                            Lab Name
+                            class="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-[#003049] uppercase tracking-wider">
+                            Lab & Doctor Details
                         </th>
                         <th scope="col"
                             class="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-[#003049] uppercase tracking-wider">
-                            Doctor
-                        </th>
-                        <th scope="col"
-                            class="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-[#003049] uppercase tracking-wider">
-                            Patient
+                            Patient Information
                         </th>
                         <th scope="col"
                             class="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-[#003049] uppercase tracking-wider">
@@ -139,6 +139,10 @@
                             Profiles
                         </th>
                         <th scope="col"
+                            class="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-[#003049] uppercase tracking-wider hidden sm:table-cell">
+                            Status
+                        </th>
+                        <th scope="col"
                             class="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-[#003049] uppercase tracking-wider">
                             Action
                         </th>
@@ -147,31 +151,25 @@
                 <tbody class="bg-white divide-y divide-gray-200" id="results-tbody">
                     @foreach ($testResults ?? [] as $index => $result)
                         <tr class="hover:bg-[#003049]/5 transition-colors duration-200 cursor-pointer result-row"
-                            data-index="{{ $index }}" 
+                            data-index="{{ $index }}"
                             data-patient-name="{{ strtolower($result->patient->name) }}"
                             data-lab-no="{{ strtolower($result->lab_no) }}"
                             data-ref-id="{{ strtolower($result->ref_id ?? '') }}"
                             onclick="toggleAccordion('result-{{ $result->id }}')">
-                            <td class="px-3 sm:px-6 py-3 sm:py-4 hidden sm:table-cell max-w-32">
-                                <div class="text-xs sm:text-sm font-medium text-[#003049] break-words">
-                                    {{ $result->doctor->lab->name }}
-                                </div>
-                            </td>
                             <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
-                                <div class="text-xs sm:text-sm font-medium text-[#003049]">{{ $result->doctor->name }}
-                                    @if ($result->doctor->code)
-                                        ({{ $result->doctor->code }})
+                                <div class="text-xs sm:text-sm">
+                                    <div class="font-medium text-[#003049] mb-0.5">{{ $result->doctor->lab->name }}
+                                    </div>
+                                    <div class="font-medium text-[#003049]">
+                                        {{ $result->doctor->name }}
+                                        @if ($result->doctor->code)
+                                            ({{ $result->doctor->code }})
+                                        @endif
+                                    </div>
+                                    @if ($result->doctor->outlet_name)
+                                        <div class="text-gray-500">{{ $result->doctor->outlet_name }}</div>
                                     @endif
                                 </div>
-                                {{-- <div class="text-xs text-gray-500">
-
-                                    @if ($result->doctor->type)
-                                        {{ $result->doctor->type }}
-                                    @endif
-                                </div> --}}
-                                @if ($result->doctor->outlet_name)
-                                    <div class="text-xs text-gray-500">{{ $result->doctor->outlet_name }}</div>
-                                @endif
                             </td>
                             <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
                                 <div class="flex items-center gap-2 sm:gap-3">
@@ -189,10 +187,9 @@
                                 </div>
                             </td>
                             <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
-                                <a href="{{ route('results.show', $result->id) }}"
-                                    class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#003049]/10 text-[#003049] border border-[#003049]/20 hover:bg-[#003049]/20 hover:text-[#003049] transition-colors duration-200 cursor-pointer">
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#003049]/10 text-[#003049] border border-[#003049]/20">
                                     {{ $result->lab_no }}
-                                </a>
+                                </span>
                             </td>
                             <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap hidden sm:table-cell">
                                 @if ($result->ref_id)
@@ -200,8 +197,6 @@
                                         class="text-sm text-[#003049] font-mono bg-[#003049]/5 px-3 py-1 rounded border border-[#003049]/10">
                                         {{ $result->ref_id }}
                                     </span>
-                                @else
-                                    <span class="text-sm text-gray-500 italic">-</span>
                                 @endif
                             </td>
                             <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
@@ -212,20 +207,65 @@
                                             {{ $profile->code }}
                                         </span>
                                     @endforeach
+
+                                    @if ($result->is_tagon)
+                                        <span
+                                            class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                                            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd"
+                                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                                    clip-rule="evenodd" />
+                                            </svg>
+                                            Tagon
+                                        </span>
+                                    @endif
                                 </div>
                             </td>
+                            <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap hidden sm:table-cell">
+                                @if ($result->is_completed)
+                                    <span
+                                        class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#991B1B]/10 text-[#991B1B] border border-[#991B1B]/20">
+                                        <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd"
+                                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                                clip-rule="evenodd" />
+                                        </svg>
+                                        Completed
+                                    </span>
+                                @else
+                                    <span
+                                        class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">
+                                        <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd"
+                                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
+                                                clip-rule="evenodd" />
+                                        </svg>
+                                        Processing
+                                    </span>
+                                @endif
+                            </td>
                             <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
-                                <button type="button"
-                                    class="inline-flex items-center px-3 py-1 border border-[#003049]/20 rounded-lg text-xs font-medium text-[#003049] bg-[#003049]/5 hover:bg-[#003049]/10 transition-colors duration-200"
-                                    onclick="event.stopPropagation(); toggleAccordion('result-{{ $result->id }}')">
-                                    <svg class="w-3 h-3 mr-1 transform transition-transform duration-200"
-                                        id="chevron-{{ $result->id }}" fill="none" stroke="currentColor"
-                                        viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                    Details
-                                </button>
+                                <div class="flex items-center gap-2">
+                                    <button type="button"
+                                        class="inline-flex items-center px-3 py-1 border border-[#003049]/20 rounded-lg text-xs font-medium text-[#003049] bg-[#003049]/5 hover:bg-[#003049]/10 transition-colors duration-200"
+                                        onclick="event.stopPropagation(); toggleAccordion('result-{{ $result->id }}')">
+                                        <svg class="w-3 h-3 mr-1 transform transition-transform duration-200"
+                                            id="chevron-{{ $result->id }}" fill="none" stroke="currentColor"
+                                            viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                        Preview
+                                    </button>
+                                    <a href="{{ route('results.show', $result->id) }}"
+                                        class="inline-flex items-center px-3 py-1 border border-blue-300 rounded-lg text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors duration-200">
+                                        <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                        </svg>
+                                        Details
+                                    </a>
+                                </div>
                             </td>
                         </tr>
 
@@ -235,6 +275,21 @@
                             <td colspan="7" class="px-3 sm:px-6 py-4 bg-gray-50">
                                 <div class="space-y-4">
                                     @foreach ($result->testResultItems->groupBy('panel.name') as $panelName => $items)
+                                        @php
+                                            // Check if any item in this group has is_tagon = true
+                                            $hasTagOn = $items->contains('is_tagon', true);
+                                            $displayName = $panelName;
+                                            
+                                            if ($hasTagOn) {
+                                                // Get the first item with is_tagon = true to access its panel tag
+                                                $tagOnItem = $items->first(function($item) {
+                                                    return $item->is_tagon;
+                                                });
+                                                if ($tagOnItem && $tagOnItem->panel && $tagOnItem->panel->panelTags->isNotEmpty()) {
+                                                    $displayName = $tagOnItem->panel->panelTags->first()->name;
+                                                }
+                                            }
+                                        @endphp
                                         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
                                             <h4 class="font-semibold text-[#003049] mb-3 flex items-center gap-2">
                                                 <svg class="w-4 h-4 text-[#003049]" fill="none"
@@ -243,7 +298,15 @@
                                                         stroke-width="2"
                                                         d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                                                 </svg>
-                                                {{ $panelName }}
+                                                {{ $displayName }}
+                                                @if($hasTagOn)
+                                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-200">
+                                                        <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                                                        </svg>
+                                                        Tag On
+                                                    </span>
+                                                @endif
                                             </h4>
                                             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                                 @foreach ($items as $item)
@@ -333,7 +396,7 @@
         function performSearch() {
             const searchTerm = document.getElementById('search-input').value.toLowerCase().trim();
             const clearButton = document.getElementById('clear-search');
-            
+
             if (searchTerm === '') {
                 isSearching = false;
                 filteredResults = [];
@@ -354,9 +417,9 @@
                 const patientName = row.dataset.patientName || '';
                 const labNo = row.dataset.labNo || '';
                 const refId = row.dataset.refId || '';
-                
-                if (patientName.includes(searchTerm) || 
-                    labNo.includes(searchTerm) || 
+
+                if (patientName.includes(searchTerm) ||
+                    labNo.includes(searchTerm) ||
                     refId.includes(searchTerm)) {
                     filteredResults.push(index);
                 }
@@ -387,8 +450,26 @@
         function toggleAccordion(rowId) {
             const row = document.getElementById(rowId);
             const chevron = document.getElementById('chevron-' + rowId.split('-')[1]);
+            const isCurrentlyHidden = row.classList.contains('hidden');
 
-            if (row.classList.contains('hidden')) {
+            // Close all other accordions first
+            const allAccordions = document.querySelectorAll('.accordion-row');
+            const allChevrons = document.querySelectorAll('[id^="chevron-"]');
+            
+            allAccordions.forEach(accordion => {
+                if (accordion.id !== rowId) {
+                    accordion.classList.add('hidden');
+                }
+            });
+            
+            allChevrons.forEach(chevronEl => {
+                if (chevronEl.id !== 'chevron-' + rowId.split('-')[1]) {
+                    chevronEl.style.transform = 'rotate(0deg)';
+                }
+            });
+
+            // Toggle the clicked accordion
+            if (isCurrentlyHidden) {
                 row.classList.remove('hidden');
                 chevron.style.transform = 'rotate(180deg)';
             } else {
@@ -443,7 +524,7 @@
         function showFilteredPage(page) {
             const allRows = document.querySelectorAll('.result-row');
             const allAccordions = document.querySelectorAll('.accordion-row');
-            
+
             // Hide all rows and accordions first
             allRows.forEach(row => row.style.display = 'none');
             allAccordions.forEach(accordion => {
@@ -460,7 +541,7 @@
                 const originalIndex = filteredResults[i];
                 const resultRow = document.querySelector(`[data-index="${originalIndex}"].result-row`);
                 const accordionRow = document.querySelector(`[data-index="${originalIndex}"].accordion-row`);
-                
+
                 if (resultRow) {
                     resultRow.style.display = '';
                 }
@@ -563,21 +644,21 @@
         // Initialize pagination when page loads
         document.addEventListener('DOMContentLoaded', function() {
             initializePagination();
-            
+
             // Setup search functionality
             const searchInput = document.getElementById('search-input');
             const clearButton = document.getElementById('clear-search');
-            
+
             // Search on input with debounce
             let searchTimeout;
             searchInput.addEventListener('input', function() {
                 clearTimeout(searchTimeout);
                 searchTimeout = setTimeout(performSearch, 300);
             });
-            
+
             // Clear search button
             clearButton.addEventListener('click', clearSearch);
-            
+
             // Search on Enter key
             searchInput.addEventListener('keypress', function(e) {
                 if (e.key === 'Enter') {

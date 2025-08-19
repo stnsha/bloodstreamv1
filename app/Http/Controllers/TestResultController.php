@@ -22,6 +22,7 @@ class TestResultController extends Controller
             'profiles',
             'testResultItems.panelItem',
             'testResultItems.panel',
+            'testResultItems.panel.panelTags',
             'testResultItems.referenceRange'
         ])->get();
         
@@ -55,6 +56,7 @@ class TestResultController extends Controller
             'profiles',
             'testResultItems.panelItem',
             'testResultItems.panel',
+            'testResultItems.panel.panelTags',
             'testResultItems.referenceRange'
         ])->findOrFail($id);
 

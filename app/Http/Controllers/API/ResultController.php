@@ -297,7 +297,7 @@ class ResultController extends Controller
 
                             // Always check if panel is TAG ON first
                             $isTagOn = $this->isTagOnItem($panel_name);
-                            
+
                             $panel = Panel::where('lab_id', $lab_id)->where('code', $panel_code)->where('name', $panel_name)->first();
                             if (!$panel) {
                                 if ($isTagOn) {
@@ -354,13 +354,13 @@ class ResultController extends Controller
 
                             //create test result - handle is_tagon properly
                             $existingTestResult = TestResult::where('ref_id', $reference_id)->where('lab_no', $lab_no)->first();
-                            
+
                             // If test result exists and it's already tagged or current panel is tagged, set to true
                             $finalIsTagOn = $isTagOn;
                             if ($existingTestResult && ($existingTestResult->is_tagon || $isTagOn)) {
                                 $finalIsTagOn = true;
                             }
-                            
+
                             $test_result = TestResult::updateOrCreate(
                                 [
                                     'ref_id' => $reference_id,
@@ -434,7 +434,7 @@ class ResultController extends Controller
                                         // Attach the panel to this panel item (many-to-many)
                                         $panel = Panel::find($panel_id);
                                         if ($panel) {
-                                            $panel->panelItems()->syncWithoutDetaching([$panel_item->id]);
+                                            $panel->panelItemsSync()->syncWithoutDetaching([$panel_item->id]);
                                         }
 
                                         //get panel item id
@@ -464,6 +464,7 @@ class ResultController extends Controller
                                                 'value' => $result_value
                                             ],
                                             [
+                                                'is_tagon' => $isTagOn,
                                                 'flag' => $result_flag,
                                                 'test_notes' => null,
                                                 'status' => $result_status,
@@ -1045,7 +1046,7 @@ class ResultController extends Controller
                             );
 
                             // Attach the panel to this panel item (many-to-many)
-                            $panel->panelItems()->syncWithoutDetaching([$panel_item->id]);
+                            $panel->panelItemsSync()->syncWithoutDetaching([$panel_item->id]);
 
                             //get panel item id
                             $panel_item_id = $panel_item->id;

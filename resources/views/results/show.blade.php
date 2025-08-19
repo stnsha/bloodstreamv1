@@ -90,7 +90,7 @@
             </div>
 
             <!-- Lab Details Row -->
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <div class="bg-blue-50 rounded-lg p-3 border border-blue-200">
                     <div class="text-xs text-gray-600 mb-1">Lab Number</div>
                     <div class="text-sm font-bold text-[#003049]">{{ $testResult->lab_no }}</div>
@@ -113,6 +113,25 @@
                         @endforeach
                     </div>
                 </div>
+
+                <div class="bg-orange-50 rounded-lg p-3 border border-orange-200">
+                    <div class="text-xs text-gray-600 mb-1">Status</div>
+                    @if($testResult->is_tagon)
+                        <div class="flex items-center gap-1">
+                            <svg class="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                            </svg>
+                            <span class="text-sm font-bold text-green-600">Tagon</span>
+                        </div>
+                    @else
+                        <div class="flex items-center gap-1">
+                            <svg class="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                            <span class="text-sm font-bold text-gray-600">Regular</span>
+                        </div>
+                    @endif
+                </div>
             </div>
         </div>
     </div>
@@ -120,6 +139,21 @@
     <!-- Test Results Panels -->
     <div class="space-y-6">
         @foreach($testResult->testResultItems->groupBy('panel.name') as $panelName => $items)
+            @php
+                // Check if any item in this group has is_tagon = true
+                $hasTagOn = $items->contains('is_tagon', true);
+                $displayName = $panelName;
+                
+                if ($hasTagOn) {
+                    // Get the first item with is_tagon = true to access its panel tag
+                    $tagOnItem = $items->first(function($item) {
+                        return $item->is_tagon;
+                    });
+                    if ($tagOnItem && $tagOnItem->panel && $tagOnItem->panel->panelTags->isNotEmpty()) {
+                        $displayName = $tagOnItem->panel->panelTags->first()->name;
+                    }
+                }
+            @endphp
             <div class="bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden">
                 <div class="p-4 sm:p-6 border-b border-[#003049]/10">
                     <div class="flex items-center gap-3">
@@ -128,7 +162,15 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                             </svg>
                         </div>
-                        <h3 class="text-lg sm:text-xl font-semibold text-[#003049]">{{ $panelName }}</h3>
+                        <h3 class="text-lg sm:text-xl font-semibold text-[#003049]">{{ $displayName }}</h3>
+                        @if($hasTagOn)
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-200">
+                                <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                                </svg>
+                                Tag On
+                            </span>
+                        @endif
                         <div class="text-xs sm:text-sm text-gray-500 bg-gray-50 px-3 py-1 rounded-full ml-auto">
                             {{ count($items) }} {{ Str::plural('item', count($items)) }}
                         </div>
