@@ -39,6 +39,10 @@
                                 class="{{ request()->is('lab') ? 'text-[#991B1B] font-semibold border-b-2 border-[#991B1B] pb-1' : 'text-[#003049] hover:text-[#991B1B] transition-colors duration-200' }}">Labs</a>
                         </li>
                         <li>
+                            <a href="{{ route('panels.index') }}"
+                                class="{{ request()->is('panels') ? 'text-[#991B1B] font-semibold border-b-2 border-[#991B1B] pb-1' : 'text-[#003049] hover:text-[#991B1B] transition-colors duration-200' }}">Panels</a>
+                        </li>
+                        <li>
                             <a href="{{ route('results.index') }}"
                                 class="{{ request()->is('results') ? 'text-[#991B1B] font-semibold border-b-2 border-[#991B1B] pb-1' : 'text-[#003049] hover:text-[#991B1B] transition-colors duration-200' }}">Results</a>
                         </li>
@@ -79,6 +83,14 @@
                     <a href="{{ route('lab.index') }}"
                         class="block py-2 {{ request()->is('lab') ? 'text-[#991B1B] font-semibold' : 'text-[#003049] hover:text-[#991B1B] transition-colors duration-200' }}">
                         Labs
+                    </a>
+                    <a href="{{ route('panels.index') }}"
+                        class="block py-2 {{ request()->is('panels') ? 'text-[#991B1B] font-semibold' : 'text-[#003049] hover:text-[#991B1B] transition-colors duration-200' }}">
+                        Panels
+                    </a>
+                    <a href="{{ route('results.index') }}"
+                        class="block py-2 {{ request()->is('results') ? 'text-[#991B1B] font-semibold' : 'text-[#003049] hover:text-[#991B1B] transition-colors duration-200' }}">
+                        Results
                     </a>
                 @endif
                 <a href="{{ route('apis.index') }}"

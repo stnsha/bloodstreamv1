@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Panel extends Model
@@ -40,5 +41,10 @@ class Panel extends Model
     public function panelItemsSync(): BelongsToMany
     {
         return $this->belongsToMany(PanelItem::class, 'panel_panel_items', 'panel_id', 'panel_item_id');
+    }
+
+    public function lab(): BelongsTo
+    {
+        return $this->belongsTo(Lab::class, 'lab_id', 'id');
     }
 }

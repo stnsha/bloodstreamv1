@@ -932,14 +932,17 @@ class ResultController extends Controller
                 $package_name = $validated['package_name'];
                 $results = $validated['results'];
 
+                // Generate doctor code if not provided
+                $finalDoctorCode = !empty($doctor_code) ? $doctor_code : $this->generateDoctorCode($doctor_name);
+
                 $doctor = Doctor::firstOrCreate(
                     [
                         'lab_id' => $lab_id,
-                        'code' => $doctor_code . substr($doctor_type, 0, 3),
+                        'code' => $finalDoctorCode,
                     ],
                     [
                         'name' => $doctor_name,
-                        'type' => $doctor_type,
+                        'type' => $doctor_type ?? 'PHARMACY',
                         'outlet_name' => $doctor_name,
                         'outlet_address' => $doctor_address,
                         'outlet_phone' => $doctor_phone,
@@ -970,7 +973,14 @@ class ResultController extends Controller
                 //get package name
                 $panel_profile_id = null;
                 if (filled($package_name)) {
-                    $panel_profile = PanelProfile::firstOrCreate(['lab_id' => $lab_id, 'name' => $package_name]);
+                    $panel_profile = PanelProfile::firstOrCreate(
+                        ['lab_id' => $lab_id, 'name' => $package_name]
+                    );
+
+                    $package_code = strtoupper(substr(str_replace(' ', '', $package_name), 0, 3));
+
+                    $panel_profile->update(['code' => $package_code]);
+
                     $panel_profile_id = $panel_profile->id;
                 }
 
@@ -992,6 +1002,9 @@ class ResultController extends Controller
                     ]
                 );
 
+                //get test result id
+                $test_result_id = $test_result->id;
+
                 if ($panel_profile_id) {
                     //create test result profile
                     TestResultProfile::firstOrCreate(
@@ -1002,14 +1015,12 @@ class ResultController extends Controller
                     );
                 }
 
-                //get test result id
-                $test_result_id = $test_result->id;
-
                 //loop through results
                 foreach ($results as $key => $item) {
                     //assign array key as panel name
                     $panel_name = $key;
-                    $panel_code = $item['panel_code'];
+                    // Generate panel code from panel name if not provided
+                    $panel_code = $this->generatePanelCode($panel_name);
                     $panel_sequence = $item['panel_sequence'] ?? null;
                     $overall_notes = $item['panel_remarks'];
                     $result_status = $item['result_status'];
@@ -1031,17 +1042,23 @@ class ResultController extends Controller
                     if (filled($item['tests'])) {
                         //loop through tests
                         foreach ($item['tests'] as $index => $test) {
+                            // Generate test code and identifier from test name if not provided
+                            $test_code = $this->generateTestCode($test['test_name']);
+                            $identifier = $panel_code . '#' . $test_code;
+
                             //create panel item
-                            $panel_item = PanelItem::firstOrCreate(
+                            $panel_item = PanelItem::updateOrCreate(
                                 [
                                     'lab_id' => $lab_id,
-                                    'code' => $test['test_code'],
-                                    'name' => $test['test_name'],
+                                    'identifier' => $identifier,
                                 ],
                                 [
-                                    'decimal_point' => $test['decimal_point'],
+                                    'name' => $test['test_name'],
+                                    'code' => $test_code,
+                                    'decimal_point' => null, // Not provided in the request
                                     'unit' => $test['unit'],
-                                    'sequence' => $test['report_sequence']
+                                    'sequence' => $test['report_sequence'],
+                                    'result_type' => 'NM', // Default to numeric
                                 ]
                             );
 
@@ -1051,6 +1068,9 @@ class ResultController extends Controller
                             //get panel item id
                             $panel_item_id = $panel_item->id;
 
+                            //get panel panel item id
+                            $panel_panel_item_id = PanelPanelItem::where('panel_id', $panel->id)->where('panel_item_id', $panel_item_id)->first()?->id;
+
                             //check if panel item has reference range
                             $ref_range_id = null;
                             if (filled($test['ref_range'])) {
@@ -1058,7 +1078,7 @@ class ResultController extends Controller
                                 $ref_range = ReferenceRange::firstOrCreate(
                                     [
                                         'value' => $test['ref_range'],
-                                        'panel_item_id' => $panel_item_id,
+                                        'panel_panel_item_id' => $panel_panel_item_id,
                                     ]
                                 );
 
@@ -1070,7 +1090,7 @@ class ResultController extends Controller
                             TestResultItem::firstOrCreate(
                                 [
                                     'test_result_id' => $test_result_id,
-                                    'panel_item_id' => $panel_item_id,
+                                    'panel_panel_item_id' => $panel_panel_item_id,
                                     'reference_range_id' => $ref_range_id,
                                     'value' => $test['result_value']
                                 ],
@@ -1153,6 +1173,68 @@ class ResultController extends Controller
                 'error' => 'Internal server error'
             ], 500);
         }
+    }
+
+    /**
+     * Generate panel code from panel name
+     */
+    private function generatePanelCode($panelName)
+    {
+        // Create a simple code by taking first letters of words and removing special characters
+        $code = '';
+        $words = preg_split('/[\s\-\:\~]+/', $panelName);
+        foreach ($words as $word) {
+            if (!empty($word) && $word !== '~') {
+                $code .= strtoupper(substr(trim($word), 0, 1));
+            }
+        }
+        // Fallback if code is too short
+        if (strlen($code) < 3) {
+            $code = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $panelName), 0, 3));
+        }
+        return $code;
+    }
+
+    /**
+     * Generate test code from test name
+     */
+    private function generateTestCode($testName)
+    {
+        // Create a simple code by taking first letters of words
+        $code = '';
+        $words = preg_split('/[\s\-\(\)]+/', $testName);
+        foreach ($words as $word) {
+            if (!empty($word) && strlen($word) > 2) { // Skip short words like "of", "in", etc.
+                $code .= strtoupper(substr(trim($word), 0, 1));
+            }
+        }
+        // Fallback if code is too short
+        if (strlen($code) < 3) {
+            $code = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $testName), 0, 3));
+        }
+        return $code;
+    }
+
+    /**
+     * Generate doctor code from doctor name
+     */
+    private function generateDoctorCode($doctorName)
+    {
+        // Extract meaningful words and create code
+        $code = '';
+        $words = preg_split('/[\s\-\(\)]+/', $doctorName);
+        foreach ($words as $word) {
+            if (!empty($word) && !in_array(strtolower($word), ['sdn', 'bhd', 'network', 'pharmacy', 'the', 'and', 'of'])) {
+                $code .= strtoupper(substr(trim($word), 0, 1));
+            }
+        }
+        // Limit to reasonable length and ensure minimum length
+        if (strlen($code) > 6) {
+            $code = substr($code, 0, 6);
+        } elseif (strlen($code) < 3) {
+            $code = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $doctorName), 0, 6));
+        }
+        return $code;
     }
 
     // /**

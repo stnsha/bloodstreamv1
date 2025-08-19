@@ -14,11 +14,11 @@
                 <p class="text-gray-600 text-xs sm:text-sm">Lab No: {{ $testResult->lab_no }}</p>
             </div>
         </div>
-        
+
         <!-- Back Button -->
         <div class="mb-4">
-            <a href="{{ route('results.index') }}" 
-               class="inline-flex items-center px-4 py-2 text-sm font-medium text-[#003049] bg-white border border-[#003049]/20 rounded-lg hover:bg-[#003049]/5 transition-colors duration-200">
+            <a href="{{ route('results.index') }}"
+                class="inline-flex items-center px-4 py-2 text-sm font-medium text-[#003049] bg-white border border-[#003049]/20 rounded-lg hover:bg-[#003049]/5 transition-colors duration-200">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                 </svg>
@@ -33,7 +33,8 @@
             <div class="flex items-center gap-3 mb-2 sm:mb-0">
                 <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
                     <svg class="w-6 h-6 text-[#003049]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v6a2 2 0 002 2h2m5 0h2a2 2 0 002-2V7a2 2 0 00-2-2h-2m-5 4h6m-6 4h6m-6-8h6" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 5H7a2 2 0 00-2 2v6a2 2 0 002 2h2m5 0h2a2 2 0 002-2V7a2 2 0 00-2-2h-2m-5 4h6m-6 4h6m-6-8h6" />
                     </svg>
                 </div>
                 <h2 class="text-lg sm:text-xl font-semibold text-[#003049]">Test Result Overview</h2>
@@ -46,18 +47,21 @@
                 <div class="bg-gray-50 rounded-xl p-4 border border-gray-200">
                     <h3 class="font-semibold text-[#003049] mb-3 flex items-center gap-2">
                         <svg class="w-5 h-5 text-[#003049]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                         </svg>
                         Patient Information
                     </h3>
                     <div class="space-y-2">
                         <div class="flex items-center gap-3">
                             <div class="w-8 h-8 bg-[#003049] rounded-lg flex items-center justify-center shadow-sm">
-                                <span class="text-white text-xs font-bold">{{ substr($testResult->patient->name, 0, 1) }}</span>
+                                <span
+                                    class="text-white text-xs font-bold">{{ substr($testResult->patient->name, 0, 1) }}</span>
                             </div>
                             <div>
                                 <div class="text-sm font-medium text-[#003049]">{{ $testResult->patient->name }}</div>
-                                <div class="text-xs text-gray-500">{{ $testResult->patient->age }} years, {{ $testResult->patient->gender }}</div>
+                                <div class="text-xs text-gray-500">{{ $testResult->patient->age }} years,
+                                    {{ $testResult->patient->gender }}</div>
                             </div>
                         </div>
                     </div>
@@ -67,22 +71,25 @@
                 <div class="bg-gray-50 rounded-xl p-4 border border-gray-200">
                     <h3 class="font-semibold text-[#003049] mb-3 flex items-center gap-2">
                         <svg class="w-5 h-5 text-[#003049]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                         Doctor Information
                     </h3>
                     <div class="space-y-2">
                         <div class="text-sm font-medium text-[#003049]">{{ $testResult->doctor->name }}</div>
                         <div class="text-xs text-gray-500">
-                            @if($testResult->doctor->code)
+                            @if ($testResult->doctor->code)
                                 Code: {{ $testResult->doctor->code }}
                             @endif
-                            @if($testResult->doctor->type)
-                                @if($testResult->doctor->code) | @endif
+                            @if ($testResult->doctor->type)
+                                @if ($testResult->doctor->code)
+                                    |
+                                @endif
                                 {{ $testResult->doctor->type }}
                             @endif
                         </div>
-                        @if($testResult->doctor->outlet_name)
+                        @if ($testResult->doctor->outlet_name)
                             <div class="text-xs text-gray-500">{{ $testResult->doctor->outlet_name }}</div>
                         @endif
                     </div>
@@ -95,41 +102,49 @@
                     <div class="text-xs text-gray-600 mb-1">Lab Number</div>
                     <div class="text-sm font-bold text-[#003049]">{{ $testResult->lab_no }}</div>
                 </div>
-                
-                @if($testResult->ref_id)
-                <div class="bg-green-50 rounded-lg p-3 border border-green-200">
-                    <div class="text-xs text-gray-600 mb-1">Reference ID</div>
-                    <div class="text-sm font-bold text-[#003049] font-mono">{{ $testResult->ref_id }}</div>
-                </div>
+
+                @if ($testResult->ref_id)
+                    <div class="bg-yellow-50 rounded-lg p-3 border border-yellow-200">
+                        <div class="text-xs text-gray-600 mb-1">Reference ID</div>
+                        <div class="text-sm font-bold text-[#003049] font-mono">{{ $testResult->ref_id }}</div>
+                    </div>
                 @endif
 
                 <div class="bg-purple-50 rounded-lg p-3 border border-purple-200">
                     <div class="text-xs text-gray-600 mb-1">Profiles</div>
                     <div class="flex flex-wrap gap-1">
-                        @foreach($testResult->profiles as $profile)
-                            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
+                        @foreach ($testResult->profiles as $profile)
+                            <span
+                                class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
                                 {{ $profile->code }}
                             </span>
                         @endforeach
                     </div>
                 </div>
 
-                <div class="bg-orange-50 rounded-lg p-3 border border-orange-200">
+                <div
+                    class="{{ $testResult->is_completed ? 'bg-green-50' : 'bg-orange-50' }} rounded-lg p-3 border {{ $testResult->is_completed ? 'border-green-200' : 'border-orange-200' }} ">
                     <div class="text-xs text-gray-600 mb-1">Status</div>
-                    @if($testResult->is_tagon)
-                        <div class="flex items-center gap-1">
-                            <svg class="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    @if ($testResult->is_completed)
+                        <span
+                            class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd"
+                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                    clip-rule="evenodd" />
                             </svg>
-                            <span class="text-sm font-bold text-green-600">Tagon</span>
-                        </div>
+                            Completed
+                        </span>
                     @else
-                        <div class="flex items-center gap-1">
-                            <svg class="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        <span
+                            class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">
+                            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd"
+                                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
+                                    clip-rule="evenodd" />
                             </svg>
-                            <span class="text-sm font-bold text-gray-600">Regular</span>
-                        </div>
+                            Processing
+                        </span>
                     @endif
                 </div>
             </div>
@@ -138,15 +153,15 @@
 
     <!-- Test Results Panels -->
     <div class="space-y-6">
-        @foreach($testResult->testResultItems->groupBy('panel.name') as $panelName => $items)
+        @foreach ($testResult->testResultItems->groupBy('panel.name') as $panelName => $items)
             @php
                 // Check if any item in this group has is_tagon = true
                 $hasTagOn = $items->contains('is_tagon', true);
                 $displayName = $panelName;
-                
+
                 if ($hasTagOn) {
                     // Get the first item with is_tagon = true to access its panel tag
-                    $tagOnItem = $items->first(function($item) {
+                    $tagOnItem = $items->first(function ($item) {
                         return $item->is_tagon;
                     });
                     if ($tagOnItem && $tagOnItem->panel && $tagOnItem->panel->panelTags->isNotEmpty()) {
@@ -158,15 +173,20 @@
                 <div class="p-4 sm:p-6 border-b border-[#003049]/10">
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
-                            <svg class="w-6 h-6 text-[#003049]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                            <svg class="w-6 h-6 text-[#003049]" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                             </svg>
                         </div>
                         <h3 class="text-lg sm:text-xl font-semibold text-[#003049]">{{ $displayName }}</h3>
-                        @if($hasTagOn)
-                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-200">
+                        @if ($hasTagOn)
+                            <span
+                                class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-200">
                                 <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                                    <path fill-rule="evenodd"
+                                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                        clip-rule="evenodd" />
                                 </svg>
                                 Tag On
                             </span>
@@ -179,7 +199,7 @@
 
                 <div class="p-4 sm:p-6">
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        @foreach($items as $item)
+                        @foreach ($items as $item)
                             <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
                                 <div class="text-sm font-medium text-[#003049] mb-1">
                                     {{ $item->panelItem->name }}
@@ -192,7 +212,7 @@
                                         {{ $item->panelItem->unit }}
                                     </span>
                                 </div>
-                                @if($item->referenceRange)
+                                @if ($item->referenceRange)
                                     <div class="text-xs text-gray-600 mt-1">
                                         Range: {{ $item->referenceRange->value }}
                                     </div>
@@ -205,11 +225,14 @@
         @endforeach
     </div>
 
-    @if($testResult->testResultItems->count() === 0)
+    @if ($testResult->testResultItems->count() === 0)
         <div class="bg-white rounded-2xl shadow-lg border border-[#003049]/10 p-6 sm:p-12 text-center">
-            <div class="w-12 h-12 sm:w-16 sm:h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
-                <svg class="w-6 h-6 sm:w-8 sm:h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v6a2 2 0 002 2h2m5 0h2a2 2 0 002-2V7a2 2 0 00-2-2h-2m-5 4h6m-6 4h6m-6-8h6" />
+            <div
+                class="w-12 h-12 sm:w-16 sm:h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                <svg class="w-6 h-6 sm:w-8 sm:h-8 text-gray-400" fill="none" stroke="currentColor"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 5H7a2 2 0 00-2 2v6a2 2 0 002 2h2m5 0h2a2 2 0 002-2V7a2 2 0 00-2-2h-2m-5 4h6m-6 4h6m-6-8h6" />
                 </svg>
             </div>
             <h3 class="text-base sm:text-lg font-medium text-gray-900 mb-2">No test items found</h3>
