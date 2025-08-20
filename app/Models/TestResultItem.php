@@ -20,7 +20,8 @@ class TestResultItem extends Model
         'flag',
         'test_notes',
         'status',
-        'is_completed'
+        'is_completed',
+        'hasAmended'
     ];
 
     protected $attributes = [
@@ -31,6 +32,7 @@ class TestResultItem extends Model
         'test_notes' => null,
         'status' => null,
         'is_completed' => false,
+        'hasAmended' => false,
     ];
 
     public function testResult(): BelongsTo

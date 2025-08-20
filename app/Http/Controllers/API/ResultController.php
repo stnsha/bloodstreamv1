@@ -414,7 +414,7 @@ class ResultController extends Controller
                                     $suffix = strpos($identifier, '#') !== false ? explode('#', $identifier)[1] : null;
 
                                     //result items 
-                                    if (filled($res['Text']) && $res['Text'] != 'COMMENT') {
+                                    if (filled($res['Text']) && ($res['Text'] != 'COMMENT' && $res['Text'] != 'NOTE')) {
                                         //create panel items
                                         $panel_item = PanelItem::updateOrCreate(
                                             [
@@ -455,20 +455,39 @@ class ResultController extends Controller
                                             $ref_range_id = $ref_range->id;
                                         }
 
-                                        //final insert result item
-                                        TestResultItem::firstOrCreate(
+                                        //check for existing result item to determine hasAmended
+                                        $existing_test_result_item = TestResultItem::where('test_result_id', $test_result_id)
+                                            ->where('panel_panel_item_id', $panel_panel_item_id)
+                                            ->first();
+
+                                        $hasAmended = false;
+
+                                        if ($existing_test_result_item) {
+                                            // Compare existing value with new value
+                                            $existing_value = $existing_test_result_item->value;
+
+                                            // Normalize empty strings to null for consistent comparison
+                                            $normalized_existing = $existing_value === '' ? null : $existing_value;
+                                            $normalized_new = $result_value === '' ? null : $result_value;
+
+                                            $hasAmended = $normalized_existing !== $normalized_new;
+                                        }
+
+                                        //final insert/update result item
+                                        TestResultItem::updateOrCreate(
                                             [
                                                 'test_result_id' => $test_result_id,
                                                 'panel_panel_item_id' => $panel_panel_item_id,
-                                                'reference_range_id' => $ref_range_id,
-                                                'value' => $result_value
                                             ],
                                             [
+                                                'reference_range_id' => $ref_range_id,
+                                                'value' => $result_value,
                                                 'is_tagon' => $isTagOn,
                                                 'flag' => $result_flag,
                                                 'test_notes' => null,
                                                 'status' => $result_status,
-                                                'is_completed' => $is_completed_result
+                                                'is_completed' => $is_completed_result,
+                                                'hasAmended' => $hasAmended
                                             ]
                                         );
                                     }
