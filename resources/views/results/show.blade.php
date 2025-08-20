@@ -160,7 +160,9 @@
                     class="w-full p-4 text-left hover:bg-blue-100 transition-colors duration-200 flex items-center justify-between"
                     onclick="toggleProfile({{ $index }})" type="button">
                     <div>
-                        <h2 class="text-xl font-bold text-blue-900">{{ $profileResult['profile']->name }}</h2>
+                        <h2 class="text-xl font-bold text-blue-900">
+                            {{ $profileResult['profile'] ? $profileResult['profile']->name : 'Test Results' }}
+                        </h2>
                         <p class="text-sm text-blue-700">{{ $profileResult['totalItems'] }} total
                             {{ Str::plural('item', $profileResult['totalItems']) }}</p>
                     </div>

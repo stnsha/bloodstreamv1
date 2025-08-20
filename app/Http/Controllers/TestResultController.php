@@ -153,24 +153,63 @@ class TestResultController extends Controller
         // Group test result items by profile, then by panel
         $profileResults = [];
         
-        foreach ($testResult->profiles as $profile) {
-            // Get test result items that belong to panels associated with this profile
-            $profileItems = $testResult->testResultItems->filter(function ($item) use ($testResult, $profile) {
-                $panel = $item->panel;
-                if (!$panel) {
-                    return false;
-                }
+        if ($testResult->profiles->isNotEmpty()) {
+            // Process each profile
+            foreach ($testResult->profiles as $profile) {
+                // Get test result items that belong to panels associated with this profile
+                $profileItems = $testResult->testResultItems->filter(function ($item) use ($testResult, $profile) {
+                    $panel = $item->panel;
+                    if (!$panel) {
+                        return false;
+                    }
+                    
+                    // Find if this panel is used in this profile through TestResultProfile
+                    return $testResult->testResultProfiles
+                        ->where('panel_profile_id', $profile->id)
+                        ->isNotEmpty();
+                });
                 
-                // Find if this panel is used in this profile through TestResultProfile
-                return $testResult->testResultProfiles
-                    ->where('panel_profile_id', $profile->id)
-                    ->isNotEmpty();
-            });
-            
-            if ($profileItems->isNotEmpty()) {
-                // Group items by panel within this profile
+                if ($profileItems->isNotEmpty()) {
+                    // Group items by panel within this profile
+                    $panelGroups = [];
+                    $groupedItems = $profileItems->groupBy('panel.name');
+                    
+                    foreach ($groupedItems as $panelName => $items) {
+                        // Check if any item in this panel has is_tagon = true
+                        $hasTagOn = $items->contains('is_tagon', true);
+                        $displayName = $panelName;
+
+                        if ($hasTagOn) {
+                            // Get the first item with is_tagon = true to access its panel tag
+                            $tagOnItem = $items->first(function ($item) {
+                                return $item->is_tagon;
+                            });
+                            if ($tagOnItem && $tagOnItem->panel && $tagOnItem->panel->panelTags->isNotEmpty()) {
+                                $displayName = $tagOnItem->panel->panelTags->first()->name;
+                            }
+                        }
+                        
+                        $panelGroups[] = [
+                            'panelName' => $panelName,
+                            'items' => $items,
+                            'hasTagOn' => $hasTagOn,
+                            'displayName' => $displayName,
+                            'itemCount' => count($items)
+                        ];
+                    }
+                    
+                    $profileResults[] = [
+                        'profile' => $profile,
+                        'panelGroups' => $panelGroups,
+                        'totalItems' => count($profileItems)
+                    ];
+                }
+            }
+        } else {
+            // Handle case where there are no profiles - just group all items by panel
+            if ($testResult->testResultItems->isNotEmpty()) {
                 $panelGroups = [];
-                $groupedItems = $profileItems->groupBy('panel.name');
+                $groupedItems = $testResult->testResultItems->groupBy('panel.name');
                 
                 foreach ($groupedItems as $panelName => $items) {
                     // Check if any item in this panel has is_tagon = true
@@ -196,10 +235,11 @@ class TestResultController extends Controller
                     ];
                 }
                 
+                // Create a single profile result with no profile but with all panels
                 $profileResults[] = [
-                    'profile' => $profile,
+                    'profile' => null,
                     'panelGroups' => $panelGroups,
-                    'totalItems' => count($profileItems)
+                    'totalItems' => count($testResult->testResultItems)
                 ];
             }
         }
