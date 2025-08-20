@@ -28,7 +28,7 @@
                     </svg>
                 </div>
                 <div>
-                    <h3 class="text-xl font-bold text-[#003049]">{{ count($testResults ?? []) }}</h3>
+                    <h3 class="text-xl font-bold text-[#003049]">{{ $stats['totalResults'] }}</h3>
                     <p class="text-sm text-gray-600 font-medium">Results</p>
                 </div>
             </div>
@@ -44,8 +44,7 @@
                     </svg>
                 </div>
                 <div>
-                    <h3 class="text-xl font-bold text-[#003049]">
-                        {{ ($testResults ?? collect())->pluck('patient')->unique('id')->count() }}</h3>
+                    <h3 class="text-xl font-bold text-[#003049]">{{ $stats['totalPatients'] }}</h3>
                     <p class="text-sm text-gray-600 font-medium">Patients</p>
                 </div>
             </div>
@@ -61,8 +60,7 @@
                     </svg>
                 </div>
                 <div>
-                    <h3 class="text-xl font-bold text-[#003049]">
-                        {{ ($testResults ?? collect())->pluck('doctor.lab')->unique('id')->count() }}</h3>
+                    <h3 class="text-xl font-bold text-[#003049]">{{ $stats['totalLabs'] }}</h3>
                     <p class="text-sm text-gray-600 font-medium">Labs</p>
                 </div>
             </div>
@@ -92,7 +90,7 @@
                     </button>
                 </div>
                 <div class="flex items-center gap-2 text-sm text-gray-600">
-                    <span id="results-count">{{ count($testResults ?? []) }}</span>
+                    <span id="results-count">{{ $stats['totalResults'] }}</span>
                     <span>results found</span>
                 </div>
             </div>
@@ -137,25 +135,25 @@
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200" id="results-tbody">
-                    @foreach ($testResults ?? [] as $index => $result)
+                    @foreach ($processedResults ?? [] as $index => $result)
                         <tr class="hover:bg-[#003049]/5 transition-colors duration-200 cursor-pointer result-row"
                             data-index="{{ $index }}"
-                            data-patient-name="{{ strtolower($result->patient->name) }}"
-                            data-lab-no="{{ strtolower($result->lab_no) }}"
-                            data-ref-id="{{ strtolower($result->ref_id ?? '') }}"
-                            onclick="toggleAccordion('result-{{ $result->id }}')">
+                            data-patient-name="{{ $result['searchData']['patientName'] }}"
+                            data-lab-no="{{ $result['searchData']['labNo'] }}"
+                            data-ref-id="{{ $result['searchData']['refId'] }}">
+                            {{-- onclick="toggleAccordion('result-{{ $result['id'] }}')" --}}
                             <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
                                 <div class="text-xs sm:text-sm">
-                                    <div class="font-medium text-[#003049] mb-0.5">{{ $result->doctor->lab->name }}
+                                    <div class="font-medium text-[#003049] mb-0.5">{{ $result['doctorInfo']['labName'] }}
                                     </div>
                                     <div class="font-medium text-[#003049]">
-                                        {{ $result->doctor->name }}
-                                        @if ($result->doctor->code)
-                                            ({{ $result->doctor->code }})
+                                        {{ $result['doctorInfo']['doctorName'] }}
+                                        @if ($result['doctorInfo']['doctorCode'])
+                                            ({{ $result['doctorInfo']['doctorCode'] }})
                                         @endif
                                     </div>
-                                    @if ($result->doctor->outlet_name)
-                                        <div class="text-gray-500">{{ $result->doctor->outlet_name }}</div>
+                                    @if ($result['doctorInfo']['outletName'])
+                                        <div class="text-gray-500">{{ $result['doctorInfo']['outletName'] }}</div>
                                     @endif
                                 </div>
                             </td>
@@ -168,36 +166,36 @@
                                     </div> --}}
                                     <div>
                                         <div class="text-xs sm:text-sm font-medium text-[#003049]">
-                                            {{ $result->patient->name }}</div>
-                                        <div class="text-xs text-gray-500">{{ $result->patient->age }} years,
-                                            {{ $result->patient->gender == 'F' ? 'Female' : 'Male' }}</div>
+                                            {{ $result['patientInfo']['name'] }}</div>
+                                        <div class="text-xs text-gray-500">{{ $result['patientInfo']['age'] }} years,
+                                            {{ $result['patientInfo']['gender'] }}</div>
                                     </div>
                                 </div>
                             </td>
                             <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
                                 <span
                                     class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#003049]/10 text-[#003049] border border-[#003049]/20">
-                                    {{ $result->lab_no }}
+                                    {{ $result['labNo'] }}
                                 </span>
                             </td>
                             <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap hidden sm:table-cell">
-                                @if ($result->ref_id)
+                                @if ($result['refId'])
                                     <span
                                         class="text-sm text-[#003049] font-mono bg-[#003049]/5 px-3 py-1 rounded border border-[#003049]/10">
-                                        {{ $result->ref_id }}
+                                        {{ $result['refId'] }}
                                     </span>
                                 @endif
                             </td>
                             <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
                                 <div class="flex flex-wrap gap-1">
-                                    @foreach ($result->profiles as $profile)
+                                    @foreach ($result['profiles'] as $profile)
                                         <span
                                             class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
-                                            {{ $profile->code }}
+                                            {{ $profile['code'] }}
                                         </span>
                                     @endforeach
 
-                                    @if ($result->is_tagon)
+                                    @if ($result['isTagOn'])
                                         <span
                                             class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-200">
                                             <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -211,7 +209,7 @@
                                 </div>
                             </td>
                             <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap hidden sm:table-cell">
-                                @if ($result->is_completed)
+                                @if ($result['isCompleted'])
                                     <span
                                         class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
                                         <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -235,7 +233,7 @@
                             </td>
                             <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
                                 <div class="flex items-center gap-2">
-                                    <button type="button"
+                                    {{-- <button type="button"
                                         class="inline-flex items-center px-3 py-1 border border-[#003049]/20 rounded-lg text-xs font-medium text-[#003049] bg-[#003049]/5 hover:bg-[#003049]/10 transition-colors duration-200"
                                         onclick="event.stopPropagation(); toggleAccordion('result-{{ $result->id }}')">
                                         <svg class="w-3 h-3 mr-1 transform transition-transform duration-200"
@@ -245,8 +243,8 @@
                                                 d="M19 9l-7 7-7-7" />
                                         </svg>
                                         Preview
-                                    </button>
-                                    <a href="{{ route('results.show', $result->id) }}"
+                                    </button> --}}
+                                    <a href="{{ route('results.show', $result['id']) }}"
                                         class="inline-flex items-center px-3 py-1 border border-blue-300 rounded-lg text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors duration-200">
                                         <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor"
                                             viewBox="0 0 24 24">
@@ -262,30 +260,11 @@
                         </tr>
 
                         <!-- Accordion Content -->
-                        <tr id="result-{{ $result->id }}" class="hidden accordion-row"
+                        <tr id="result-{{ $result['id'] }}" class="hidden accordion-row"
                             data-index="{{ $index }}">
                             <td colspan="7" class="px-3 sm:px-6 py-4 bg-gray-50">
                                 <div class="space-y-4">
-                                    @foreach ($result->testResultItems->groupBy('panel.name') as $panelName => $items)
-                                        @php
-                                            // Check if any item in this group has is_tagon = true
-                                            $hasTagOn = $items->contains('is_tagon', true);
-                                            $displayName = $panelName;
-
-                                            if ($hasTagOn) {
-                                                // Get the first item with is_tagon = true to access its panel tag
-                                                $tagOnItem = $items->first(function ($item) {
-                                                    return $item->is_tagon;
-                                                });
-                                                if (
-                                                    $tagOnItem &&
-                                                    $tagOnItem->panel &&
-                                                    $tagOnItem->panel->panelTags->isNotEmpty()
-                                                ) {
-                                                    $displayName = $tagOnItem->panel->panelTags->first()->name;
-                                                }
-                                            }
-                                        @endphp
+                                    @foreach ($result['panelGroups'] as $panelGroup)
                                         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
                                             <h4 class="font-semibold text-[#003049] mb-3 flex items-center gap-2">
                                                 <svg class="w-4 h-4 text-[#003049]" fill="none"
@@ -294,8 +273,8 @@
                                                         stroke-width="2"
                                                         d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                                                 </svg>
-                                                {{ $displayName }}
-                                                @if ($hasTagOn)
+                                                {{ $panelGroup['displayName'] }}
+                                                @if ($panelGroup['hasTagOn'])
                                                     <span
                                                         class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-200">
                                                         <svg class="w-3 h-3 mr-1" fill="currentColor"
@@ -309,22 +288,22 @@
                                                 @endif
                                             </h4>
                                             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                                @foreach ($items as $item)
+                                                @foreach ($panelGroup['items'] as $item)
                                                     <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
                                                         <div class="text-sm font-medium text-[#003049] mb-1">
-                                                            {{ $item->panelItem->name }}
+                                                            {{ $item['name'] }}
                                                         </div>
                                                         <div class="flex items-center justify-between">
                                                             <span class="text-lg font-bold text-[#003049]">
-                                                                {{ $item->value }}
+                                                                {{ $item['value'] }}
                                                             </span>
                                                             <span class="text-xs text-gray-500">
-                                                                {{ $item->panelItem->unit }}
+                                                                {{ $item['unit'] }}
                                                             </span>
                                                         </div>
-                                                        @if ($item->referenceRange)
+                                                        @if ($item['referenceRange'])
                                                             <div class="text-xs text-gray-600 mt-1">
-                                                                Range: {{ $item->referenceRange->value }}
+                                                                Range: {{ $item['referenceRange'] }}
                                                             </div>
                                                         @endif
                                                     </div>
@@ -343,7 +322,7 @@
 
     </div>
 
-    @if (count($testResults ?? []) === 0)
+    @if ($stats['totalResults'] === 0)
         <div class="bg-white rounded-2xl shadow-lg border border-[#003049]/10 p-6 sm:p-12 text-center">
             <div
                 class="w-12 h-12 sm:w-16 sm:h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
@@ -363,8 +342,8 @@
         id="pagination-container">
         <div class="flex items-center gap-4">
             <span class="text-sm text-gray-600">
-                Showing <span id="current-range">1-{{ min(15, count($testResults ?? [])) }}</span> of <span
-                    id="total-count">{{ count($testResults ?? []) }}</span>
+                Showing <span id="current-range">1-{{ min(15, $stats['totalResults']) }}</span> of <span
+                    id="total-count">{{ $stats['totalResults'] }}</span>
             </span>
         </div>
         <div class="flex items-center gap-2">

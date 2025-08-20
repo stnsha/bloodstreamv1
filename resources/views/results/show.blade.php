@@ -151,76 +151,88 @@
         </div>
     </div>
 
-    <!-- Test Results Panels -->
-    <div class="space-y-6">
-        @foreach ($testResult->testResultItems->groupBy('panel.name') as $panelName => $items)
-            @php
-                // Check if any item in this group has is_tagon = true
-                $hasTagOn = $items->contains('is_tagon', true);
-                $displayName = $panelName;
-
-                if ($hasTagOn) {
-                    // Get the first item with is_tagon = true to access its panel tag
-                    $tagOnItem = $items->first(function ($item) {
-                        return $item->is_tagon;
-                    });
-                    if ($tagOnItem && $tagOnItem->panel && $tagOnItem->panel->panelTags->isNotEmpty()) {
-                        $displayName = $tagOnItem->panel->panelTags->first()->name;
-                    }
-                }
-            @endphp
-            <div class="bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden">
-                <div class="p-4 sm:p-6 border-b border-[#003049]/10">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
-                            <svg class="w-6 h-6 text-[#003049]" fill="none" stroke="currentColor"
-                                viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                            </svg>
-                        </div>
-                        <h3 class="text-lg sm:text-xl font-semibold text-[#003049]">{{ $displayName }}</h3>
-                        @if ($hasTagOn)
-                            <span
-                                class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-200">
-                                <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd"
-                                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                        clip-rule="evenodd" />
-                                </svg>
-                                Tag On
-                            </span>
-                        @endif
-                        <div class="text-xs sm:text-sm text-gray-500 bg-gray-50 px-3 py-1 rounded-full ml-auto">
-                            {{ count($items) }} {{ Str::plural('item', count($items)) }}
-                        </div>
+    <!-- Test Results Profiles -->
+    <div class="space-y-3">
+        @foreach ($profileResults as $index => $profileResult)
+            <!-- Profile Header -->
+            <div class="bg-blue-50 rounded-2xl border border-blue-200 overflow-hidden">
+                <button
+                    class="w-full p-4 text-left hover:bg-blue-100 transition-colors duration-200 flex items-center justify-between"
+                    onclick="toggleProfile({{ $index }})" type="button">
+                    <div>
+                        <h2 class="text-xl font-bold text-blue-900">{{ $profileResult['profile']->name }}</h2>
+                        <p class="text-sm text-blue-700">{{ $profileResult['totalItems'] }} total
+                            {{ Str::plural('item', $profileResult['totalItems']) }}</p>
                     </div>
-                </div>
+                    <div class="transform transition-transform duration-200" id="arrow-{{ $index }}">
+                        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7">
+                            </path>
+                        </svg>
+                    </div>
+                </button>
+            </div>
 
-                <div class="p-4 sm:p-6">
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        @foreach ($items as $item)
-                            <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                                <div class="text-sm font-medium text-[#003049] mb-1">
-                                    {{ $item->panelItem->name }}
+            <!-- Panels within this Profile -->
+            <div class="space-y-4 overflow-hidden transition-all duration-500 ease-in-out"
+                id="profile-{{ $index }}" style="max-height: 0; opacity: 0; margin-top: 0; padding-top: 0; padding-bottom: 0;">
+                @foreach ($profileResult['panelGroups'] as $panelGroup)
+                    <div class="bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden">
+                        <div class="p-4 sm:p-6 border-b border-[#003049]/10">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-[#003049]" fill="none" stroke="currentColor"
+                                        viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                                    </svg>
                                 </div>
-                                <div class="flex items-center justify-between">
-                                    <span class="text-lg font-bold text-[#003049]">
-                                        {{ $item->value }}
+                                <h3 class="text-lg sm:text-xl font-semibold text-[#003049]">
+                                    {{ $panelGroup['displayName'] }}</h3>
+                                @if ($panelGroup['hasTagOn'])
+                                    <span
+                                        class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-200">
+                                        <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd"
+                                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                                clip-rule="evenodd" />
+                                        </svg>
+                                        Tag On
                                     </span>
-                                    <span class="text-xs text-gray-500">
-                                        {{ $item->panelItem->unit }}
-                                    </span>
-                                </div>
-                                @if ($item->referenceRange)
-                                    <div class="text-xs text-gray-600 mt-1">
-                                        Range: {{ $item->referenceRange->value }}
-                                    </div>
                                 @endif
+                                <div
+                                    class="text-xs sm:text-sm text-gray-500 bg-gray-50 px-3 py-1 rounded-full ml-auto">
+                                    {{ $panelGroup['itemCount'] }} {{ Str::plural('item', $panelGroup['itemCount']) }}
+                                </div>
                             </div>
-                        @endforeach
+                        </div>
+
+                        <div class="p-4 sm:p-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                @foreach ($panelGroup['items'] as $item)
+                                    <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                                        <div class="text-sm font-medium text-[#003049] mb-1">
+                                            {{ $item->panelItem->name }}
+                                        </div>
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-lg font-bold text-[#003049]">
+                                                {{ $item->value }}
+                                            </span>
+                                            <span class="text-xs text-gray-500">
+                                                {{ $item->panelItem->unit }}
+                                            </span>
+                                        </div>
+                                        @if ($item->referenceRange)
+                                            <div class="text-xs text-gray-600 mt-1">
+                                                Range: {{ $item->referenceRange->value }}
+                                            </div>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
                     </div>
-                </div>
+                @endforeach
             </div>
         @endforeach
     </div>
@@ -239,4 +251,76 @@
             <p class="text-sm sm:text-base text-gray-500">This test result doesn't have any panel items yet.</p>
         </div>
     @endif
+
+    <script>
+        function toggleProfile(index) {
+            const allProfiles = document.querySelectorAll('[id^="profile-"]');
+            const allArrows = document.querySelectorAll('[id^="arrow-"]');
+            const currentProfile = document.getElementById('profile-' + index);
+            const currentArrow = document.getElementById('arrow-' + index);
+            
+            const isCurrentlyOpen = currentProfile.style.maxHeight !== '0px' && currentProfile.style.maxHeight !== '';
+
+            // Close all other profiles smoothly
+            allProfiles.forEach((profile, i) => {
+                if (i !== index) {
+                    // Set current height before closing for smooth transition
+                    profile.style.maxHeight = profile.scrollHeight + 'px';
+                    // Force reflow
+                    profile.offsetHeight;
+                    // Close
+                    profile.style.maxHeight = '0';
+                    profile.style.opacity = '0';
+                    profile.style.marginTop = '0';
+                    profile.style.paddingTop = '0';
+                    profile.style.paddingBottom = '0';
+                }
+            });
+
+            // Reset all other arrows
+            allArrows.forEach((arrow, i) => {
+                if (i !== index) {
+                    arrow.style.transform = 'rotate(0deg)';
+                }
+            });
+
+            // Toggle current profile
+            if (!isCurrentlyOpen) {
+                // Open current profile
+                currentProfile.style.maxHeight = currentProfile.scrollHeight + 'px';
+                currentProfile.style.opacity = '1';
+                currentProfile.style.marginTop = '0.75rem';
+                currentProfile.style.paddingTop = '1rem';
+                currentProfile.style.paddingBottom = '1rem';
+                currentArrow.style.transform = 'rotate(90deg)';
+
+                // After animation completes, set to auto for dynamic content
+                setTimeout(() => {
+                    if (currentProfile.style.opacity === '1') {
+                        currentProfile.style.maxHeight = 'none';
+                    }
+                }, 500);
+            } else {
+                // Close current profile
+                currentProfile.style.maxHeight = currentProfile.scrollHeight + 'px';
+                // Force reflow
+                currentProfile.offsetHeight;
+                currentProfile.style.maxHeight = '0';
+                currentProfile.style.opacity = '0';
+                currentProfile.style.marginTop = '0';
+                currentProfile.style.paddingTop = '0';
+                currentProfile.style.paddingBottom = '0';
+                currentArrow.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        // Open first profile by default
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(() => {
+                if (document.getElementById('profile-0')) {
+                    toggleProfile(0);
+                }
+            }, 100);
+        });
+    </script>
 </x-app-layout>

@@ -1004,7 +1004,7 @@ class ResultController extends Controller
                 }
 
                 //create test result 
-                $test_result = TestResult::firstOrCreate(
+                $test_result = TestResult::updateOrCreate(
                     [
                         'doctor_id' => $doctor_id,
                         'patient_id' => $patient_id,
@@ -1117,7 +1117,8 @@ class ResultController extends Controller
                                     'flag' => $test['result_flag'],
                                     'test_notes' => $test['test_note'],
                                     'status' => 'C',
-                                    'is_completed' => $result_status != 1 ? false : true
+                                    'is_completed' => $result_status != 1 ? false : true,
+                                    'hasAmended' => false
                                 ]
                             );
                         }
