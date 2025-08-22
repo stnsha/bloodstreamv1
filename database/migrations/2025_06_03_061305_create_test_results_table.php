@@ -16,9 +16,8 @@ return new class extends Migration
             $table->unsignedBigInteger('doctor_id');
             $table->unsignedBigInteger('patient_id');
             $table->string('ref_id')->nullable();
-            $table->string('bill_code')->nullable();
+            // $table->string('bill_code')->nullable();
             $table->string('lab_no');
-            $table->boolean('is_tagon')->default(false);
             $table->dateTime('collected_date')->nullable();
             $table->dateTime('received_date')->nullable();
             $table->dateTime('reported_date')->nullable();

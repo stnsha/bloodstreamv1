@@ -3,6 +3,7 @@
 namespace App\Imports;
 
 use App\Models\Lab;
+use App\Models\MasterPanelItem;
 use App\Models\Panel;
 use App\Models\PanelItem;
 use App\Models\PanelPanelItem;
@@ -347,14 +348,23 @@ class FileImport implements ToModel, WithHeadingRow, WithValidation, WithChunkRe
                 return null;
             }
 
-            // Find existing panel by code first
-            $existingPanel = Panel::with('panelItems')->where('code', $panelCode)->first();
+            // Find existing panel by int_code first (new structure)
+            $existingPanels = Panel::with(['panelItems.masterPanelItem', 'masterPanel'])
+                ->where('lab_id', $this->labId)
+                ->where('int_code', $panelCode)
+                ->get();
 
-            // If not found by code, try searching by int_code (get all matching panels)
-            if (!$existingPanel) {
-                $existingPanels = Panel::with('panelItems')->where('int_code', $panelCode)->get();
-                $existingPanel = $existingPanels->first();
+            // If not found by int_code, try searching by master panel code
+            if ($existingPanels->isEmpty()) {
+                $existingPanels = Panel::with(['panelItems.masterPanelItem', 'masterPanel'])
+                    ->where('lab_id', $this->labId)
+                    ->whereHas('masterPanel', function($query) use ($panelCode) {
+                        $query->where('code', $panelCode);
+                    })
+                    ->get();
             }
+
+            $existingPanel = $existingPanels->first();
 
             if (!$existingPanel) {
                 // Track missing panels
@@ -365,20 +375,27 @@ class FileImport implements ToModel, WithHeadingRow, WithValidation, WithChunkRe
                 return null;
             }
 
-            $panelIds = isset($existingPanels) && $existingPanels->count() > 0
+            $panelIds = $existingPanels->count() > 0
                 ? $existingPanels->pluck('id')->toArray()
                 : [$existingPanel->id];
             $matchFound = false;
             $panelPanelItemId = null;
 
             // Try to match with existing panel items across all matching panels
-            $allPanels = isset($existingPanels) && $existingPanels->count() > 0
+            $allPanels = $existingPanels->count() > 0
                 ? $existingPanels
                 : collect([$existingPanel]);
 
             foreach ($allPanels as $panel) {
                 foreach ($panel->panelItems as $currentPanelItem) {
-                    $normalized1 = preg_replace('/[[:punct:]\s]+/', '', strtolower($currentPanelItem->name));
+                    // Get the name from master panel item if available, fallback to identifier
+                    $currentItemName = $currentPanelItem->masterPanelItem->name ?? $currentPanelItem->identifier;
+                    
+                    if (!$currentItemName) {
+                        continue;
+                    }
+                    
+                    $normalized1 = preg_replace('/[[:punct:]\s]+/', '', strtolower($currentItemName));
                     $normalized2 = preg_replace('/[[:punct:]\s]+/', '', strtolower($panelItemName));
 
                     if (strcasecmp($normalized1, $normalized2) === 0) {
@@ -398,19 +415,26 @@ class FileImport implements ToModel, WithHeadingRow, WithValidation, WithChunkRe
                 }
             }
 
-            // If no match found, create new panel item
+            // If no match found, create new panel item using master table structure
             if (!$matchFound) {
-                $newPanelItem = PanelItem::firstOrCreate([
-                    'lab_id' => $this->labId,
-                    'name' => $panelItemName,
+                // First create or find master panel item
+                $masterPanelItem = MasterPanelItem::firstOrCreate([
+                    'name' => $panelItemName
                 ], [
                     'code' => substr($panelItemName, 0, 3),
-                    'decimal_point' => $row['decimalpoint'] ?? 0,
-                    'unit' => $row['unit'] ?? '',
+                    'unit' => $row['unit'] ?? ''
+                ]);
+
+                // Then create panel item with master panel item reference
+                $newPanelItem = PanelItem::firstOrCreate([
+                    'lab_id' => $this->labId,
+                    'master_panel_item_id' => $masterPanelItem->id
+                ], [
+                    'identifier' => $panelItemName
                 ]);
 
                 // Attach to panel
-                $existingPanel->panelItemsSync()->syncWithoutDetaching([$newPanelItem->id]);
+                $existingPanel->panelItems()->syncWithoutDetaching([$newPanelItem->id]);
 
                 // Get the newly created panel_panel_item relationship
                 $newPanelPanelItem = PanelPanelItem::where('panel_id', $existingPanel->id)

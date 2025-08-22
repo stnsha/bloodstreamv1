@@ -11,15 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('test_result_profiles', function (Blueprint $table) {
+        Schema::create('master_panel_comments', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('test_result_id');
-            $table->unsignedBigInteger('panel_profile_id');
+            $table->string('identifier')->nullable();
+            $table->longText('comment');
             $table->softDeletes();
             $table->timestamps();
-
-            $table->foreign('test_result_id')->references('id')->on('test_results')->onDelete('cascade');
-            $table->foreign('panel_profile_id')->references('id')->on('panel_profiles')->onDelete('cascade');
         });
     }
 
@@ -29,6 +26,6 @@ return new class extends Migration
     public function down(): void
     {
         Schema::disableForeignKeyConstraints();
-        Schema::dropIfExists('test_result_profiles');
+        Schema::dropIfExists('master_panel_comments');
     }
 };

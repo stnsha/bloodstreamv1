@@ -8,6 +8,9 @@ use App\Http\Requests\StorePatientResultRequest;
 use App\Models\DeliveryFile;
 use App\Models\DeliveryFileHistory;
 use App\Models\Doctor;
+use App\Models\MasterPanel;
+use App\Models\MasterPanelComment;
+use App\Models\MasterPanelItem;
 use App\Models\Panel;
 use App\Models\PanelComment;
 use App\Models\PanelItem;
@@ -16,6 +19,7 @@ use App\Models\PanelProfile;
 use App\Models\PanelTag;
 use App\Models\Patient;
 use App\Models\ReferenceRange;
+use App\Models\ResultLibrary;
 use App\Models\TestResult;
 use App\Models\TestResultItem;
 use App\Models\TestResultProfile;
@@ -156,7 +160,6 @@ class ResultController extends Controller
     public function panelResults(InnoquestResultRequest $request)
     {
         $validated = $request->validated();
-        // dd($validated);
         $lab_id = null;
         $test_result = null;
         $deliveryFile = null;
@@ -256,18 +259,8 @@ class ResultController extends Controller
                         //loop through observations
                         foreach ($od['Observations'] as $key => $obv) {
 
-                            // //get doctor name and code
-                            // $doctor_name = $obv['OrderingProvider']['Name'];
-                            // $doctor_id = $obv['OrderingProvider']['Code'];
-
                             //get labno
                             $lab_no = $obv['FillerOrderNumber'];
-
-                            //check if previous reference id is null and PlacerOrderNumber exist
-                            // if (is_null($reference_id) && filled($obv['PlacerOrderNumber'])) $reference_id = $obv['PlacerOrderNumber'];
-
-                            //bill code is not sent in json payload
-                            $bill_code = null;
 
                             //get collected and referred (reported)date
                             $collected_date = $this->convertDatetime($obv['SpecimenDateTime']);
@@ -295,84 +288,37 @@ class ResultController extends Controller
                             $panel_code = $obv['ProcedureCode'];
                             $panel_name = $obv['ProcedureDescription'];
 
-                            // Always check if panel is TAG ON first
-                            $isTagOn = $this->isTagOnItem($panel_name);
+                            // Check if panel is TAG ON first
+                            $isTagOn = $this->isTagOnItem($panel_name, $panel_code);
 
-                            $panel = Panel::where('lab_id', $lab_id)->where('code', $panel_code)->where('name', $panel_name)->first();
-                            if (!$panel) {
-                                if ($isTagOn) {
-                                    //search if tag on code
-                                    $panelTag = PanelTag::where('lab_id', $lab_id)->where('code', $panel_code)->first();
+                            // 1. First, create or find master panel
+                            $masterPanel = MasterPanel::firstOrCreate([
+                                'name' => $panel_name
+                            ]);
 
-                                    //If not found
-                                    if (!$panelTag) {
-                                        //remove word tag on on panel name to search in panel 
-                                        $tempPanelName = $this->extractBasePanelName($panel_name);
+                            // 2. Create or get Panel with master panel reference
+                            $panel = Panel::firstOrCreate([
+                                'lab_id' => $lab_id,
+                                'master_panel_id' => $masterPanel->id
+                            ], [
+                                'code' => $panel_code,
+                                // 'int_code' => null,
+                                // 'sequence' => null
+                            ]);
 
-                                        //Search panel by name
-                                        $isPanelExist = Panel::where(function ($query) use ($tempPanelName) {
-                                            $query->whereRaw('LOWER(name) = ?', [strtolower($tempPanelName)]);
-                                        })
-                                            ->where('lab_id', $lab_id)
-                                            ->first();
+                            $panel_id = $panel->id;
 
-                                        //If found
-                                        if ($isPanelExist) {
-                                            $panel_id = $isPanelExist->id;
-                                        }
-
-                                        //create new panel tag
-                                        PanelTag::firstOrCreate(
-                                            [
-                                                'lab_id' => $lab_id,
-                                                'panel_id' => $panel_id,
-                                                'code' => $panel_code,
-                                            ],
-                                            [
-                                                'name' => $panel_name,
-                                            ]
-                                        );
-                                    } else {
-                                        $panel_id = $panelTag->panel_id;
-                                    }
-                                } else {
-                                    $createPanel = Panel::firstOrCreate(
-                                        [
-                                            'lab_id' => $lab_id,
-                                            'code' => $panel_code,
-                                        ],
-                                        [
-                                            'name' => $panel_name,
-                                        ]
-                                    );
-
-                                    $panel_id = $createPanel->id;
-                                }
-                            } else {
-                                $panel_id = $panel->id;
-                            }
-
-                            //create test result - handle is_tagon properly
-                            $existingTestResult = TestResult::where('ref_id', $reference_id)->where('lab_no', $lab_no)->first();
-
-                            // If test result exists and it's already tagged or current panel is tagged, set to true
-                            $finalIsTagOn = $isTagOn;
-                            if ($existingTestResult && ($existingTestResult->is_tagon || $isTagOn)) {
-                                $finalIsTagOn = true;
-                            }
-
+                            //create test result
                             $test_result = TestResult::updateOrCreate(
                                 [
-                                    'ref_id' => $reference_id,
                                     'lab_no' => $lab_no,
                                 ],
                                 [
+                                    'ref_id' => $reference_id,
                                     'doctor_id' => $doctor_id,
                                     'patient_id' => $patient_id,
-                                    'bill_code' => $bill_code,
-                                    'is_tagon' => $finalIsTagOn,
                                     'collected_date' => $collected_date,
-                                    'received_date' => null,
+                                    // 'received_date' => null,
                                     'reported_date' => $reported_date,
                                     'is_completed' => false
                                 ]
@@ -391,9 +337,6 @@ class ResultController extends Controller
                                 );
                             }
 
-                            //check if result is completed
-                            $is_completed_result = (filled($obv['ResultStatus']) && $obv['ResultStatus'] == 'F')  ? true : false;
-
                             //results
                             $results = $obv['Results'];
                             //check if results exist
@@ -404,38 +347,28 @@ class ResultController extends Controller
                                     $result_value = filled($res['Value']) ? $res['Value'] : null;
                                     $unit = filled($res['Units']) ? $res['Units'] : null;
                                     $result_flag = filled($res['Flags']) ? $res['Flags'] : null;
-                                    $result_status = filled($res['Status']) ? $res['Status'] : null;
-
 
                                     //store field value to variable
-                                    $type = $res['Type'];
                                     $identifier = $res['Identifier'];
-
-                                    $suffix = strpos($identifier, '#') !== false ? explode('#', $identifier)[1] : null;
 
                                     //result items 
                                     if (filled($res['Text']) && ($res['Text'] != 'COMMENT' && $res['Text'] != 'NOTE')) {
-                                        //create panel items
-                                        $panel_item = PanelItem::updateOrCreate(
-                                            [
-                                                'lab_id' => $lab_id,
-                                                'identifier' => $identifier,
-                                            ],
-                                            [
-                                                'name' => $res['Text'],
-                                                'decimal_point' => null,
-                                                'unit' => $unit,
-                                                'sequence' => null,
-                                                'result_type' => $type,
-                                                'code' => $suffix,
-                                            ]
-                                        );
+                                        // 1. Create or find master panel item
+                                        $masterPanelItem = MasterPanelItem::updateOrCreate([
+                                            'name' => $res['Text'],
+                                            'unit' => $unit,
+                                        ]);
 
-                                        // Attach the panel to this panel item (many-to-many)
-                                        $panel = Panel::find($panel_id);
-                                        if ($panel) {
-                                            $panel->panelItemsSync()->syncWithoutDetaching([$panel_item->id]);
-                                        }
+                                        // 2. Create panel item with master panel item reference
+                                        $panel_item = PanelItem::firstOrCreate([
+                                            'lab_id' => $lab_id,
+                                            'master_panel_item_id' => $masterPanelItem->id
+                                        ], [
+                                            'identifier' => $identifier
+                                        ]);
+
+                                        // 3. Link panel item to panel through pivot table
+                                        $panel->panelItems()->syncWithoutDetaching([$panel_item->id]);
 
                                         //get panel item id
                                         $panel_item_id = $panel_item->id;
@@ -482,41 +415,42 @@ class ResultController extends Controller
                                             [
                                                 'reference_range_id' => $ref_range_id,
                                                 'value' => $result_value,
-                                                'is_tagon' => $isTagOn,
                                                 'flag' => $result_flag,
-                                                'test_notes' => null,
-                                                'status' => $result_status,
-                                                'is_completed' => $is_completed_result,
-                                                'hasAmended' => $hasAmended
+                                                'sequence' => $key,
+                                                'has_amended' => $hasAmended
                                             ]
                                         );
                                     }
-                                    //panel comments
+                                    //panel comments - create both master and panel-specific comments
                                     if (($res['Text'] == 'NOTE' || $res['Text'] == 'COMMENT') && isset($panel_id)) {
-                                        PanelComment::firstOrCreate(
+                                        // Create master panel comment if doesn't exist
+                                        $masterPanelComment = MasterPanelComment::firstOrCreate(
                                             [
-                                                'panel_id' => $panel_id,
                                                 'identifier' => $identifier
                                             ],
                                             [
-                                                'comment' => $result_value,
-                                                'sequence' => null
+                                                'comment' => $result_value
                                             ]
                                         );
-                                    }
 
-                                    //panel compiled report (formatted)
-                                    if ($res['Identifier'] == 'REPORT') {
-                                        TestResultReport::updateOrCreate(
-                                            [
-                                                'test_result_id' => $test_result_id,
-                                                'panel_id' => $panel_id
-                                            ],
-                                            [
-                                                'text' => $result_value,
-                                                'is_completed' => $is_completed_result,
-                                            ]
-                                        );
+                                        // Check if panel comment already exists for this combination
+                                        $existingPanelComment = PanelComment::where([
+                                            'panel_id' => $panel_id,
+                                            'master_panel_comment_id' => $masterPanelComment->id,
+                                        ])->first();
+
+                                        if (!$existingPanelComment) {
+                                            // Get the current max sequence for this panel_id
+                                            $maxSequence = PanelComment::where('panel_id', $panel_id)
+                                                ->max('sequence') ?? 0;
+
+                                            // Create new panel comment with incremented sequence
+                                            PanelComment::create([
+                                                'panel_id' => $panel_id,
+                                                'master_panel_comment_id' => $masterPanelComment->id,
+                                                'sequence' => $maxSequence + 1
+                                            ]);
+                                        }
                                     }
                                 }
                             }
@@ -529,22 +463,6 @@ class ResultController extends Controller
                     try {
                         $test_result->is_completed = true;
                         $test_result->save();
-                        //Decode the base64 PDF data
-                        // $pdfData = base64_decode($validated['EncodedBase64pdf']);
-
-                        //Generate a unique filename
-                        // $filename = 'test_result_' . $test_result->id . '_' . time() . '.pdf';
-
-                        //Store the PDF file in storage/app/public/test_results directory
-                        // $filePath = 'pdf/' . $filename;
-                        // Storage::disk('public')->put($filePath, $pdfData);
-
-                        // Update test result with PDF file path and mark as completed
-
-                        // Log::info('PDF file saved successfully', [
-                        //     'test_result_id' => $test_result->id,
-                        //     'file_path' => $filePath
-                        // ]);
                     } catch (Exception $e) {
                         Log::error('Failed to decode and save PDF', [
                             'test_result_id' => $test_result->id,
@@ -1012,7 +930,6 @@ class ResultController extends Controller
                     ],
                     [
                         'ref_id' => $reference_id,
-                        'bill_code' => $bill_code,
                         'collected_date' => $collected_date,
                         'received_date' => $received_date,
                         'reported_date' => $reported_date,
@@ -1044,18 +961,21 @@ class ResultController extends Controller
                     $overall_notes = $item['panel_remarks'];
                     $result_status = $item['result_status'];
 
-                    //create panel
-                    $panel = Panel::firstOrCreate(
-                        [
-                            'lab_id' => $lab_id,
-                            'name' => $panel_name,
-                            'code' => $panel_code,
-                        ],
-                        [
-                            'sequence' => $panel_sequence,
-                            'overall_notes' => $overall_notes
-                        ]
-                    );
+                    // 1. First, create or find master panel
+                    $masterPanel = MasterPanel::firstOrCreate([
+                        'code' => $panel_code
+                    ], [
+                        'name' => $panel_name
+                    ]);
+
+                    // 2. Create or get Panel with master panel reference
+                    $panel = Panel::firstOrCreate([
+                        'lab_id' => $lab_id,
+                        'master_panel_id' => $masterPanel->id
+                    ], [
+                        'int_code' => $panel_code,
+                        'sequence' => $panel_sequence
+                    ]);
 
                     //check if array tests available
                     if (filled($item['tests'])) {
@@ -1065,24 +985,25 @@ class ResultController extends Controller
                             $test_code = $this->generateTestCode($test['test_name']);
                             $identifier = $panel_code . '#' . $test_code;
 
-                            //create panel item
-                            $panel_item = PanelItem::updateOrCreate(
-                                [
-                                    'lab_id' => $lab_id,
-                                    'identifier' => $identifier,
-                                ],
-                                [
-                                    'name' => $test['test_name'],
-                                    'code' => $test_code,
-                                    'decimal_point' => null, // Not provided in the request
-                                    'unit' => $test['unit'],
-                                    'sequence' => $test['report_sequence'],
-                                    'result_type' => 'NM', // Default to numeric
-                                ]
-                            );
+                            // 1. Create or find master panel item
+                            $masterPanelItem = MasterPanelItem::firstOrCreate([
+                                'name' => $test['test_name'],
+                                'code' => $test_code,
+                                'unit' => $test['unit'],
+                            ], [
+                                'is_tagon' => false
+                            ]);
 
-                            // Attach the panel to this panel item (many-to-many)
-                            $panel->panelItemsSync()->syncWithoutDetaching([$panel_item->id]);
+                            // 2. Create panel item with master panel item reference
+                            $panel_item = PanelItem::firstOrCreate([
+                                'lab_id' => $lab_id,
+                                'master_panel_item_id' => $masterPanelItem->id
+                            ], [
+                                'identifier' => $identifier
+                            ]);
+
+                            // 3. Link panel item to panel through pivot table
+                            $panel->panelItems()->syncWithoutDetaching([$panel_item->id]);
 
                             //get panel item id
                             $panel_item_id = $panel_item->id;
@@ -1110,15 +1031,12 @@ class ResultController extends Controller
                                 [
                                     'test_result_id' => $test_result_id,
                                     'panel_panel_item_id' => $panel_panel_item_id,
-                                    'reference_range_id' => $ref_range_id,
-                                    'value' => $test['result_value']
                                 ],
                                 [
+                                    'reference_range_id' => $ref_range_id,
+                                    'value' => $test['result_value'],
                                     'flag' => $test['result_flag'],
-                                    'test_notes' => $test['test_note'],
-                                    'status' => 'C',
-                                    'is_completed' => $result_status != 1 ? false : true,
-                                    'hasAmended' => false
+                                    'has_amended' => false
                                 ]
                             );
                         }
@@ -1257,10 +1175,10 @@ class ResultController extends Controller
         return $code;
     }
 
-    // /**
-    //  * Convert datetime string to Carbon instance
-    //  * Handles formats: YYYYMMDD and YYYYMMDDHHMM
-    //  */
+    /**
+     * Convert datetime string to Carbon instance
+     * Handles formats: YYYYMMDD and YYYYMMDDHHMM
+     */
     private function convertDatetime($dateString)
     {
         if (empty($dateString)) {
@@ -1482,9 +1400,12 @@ class ResultController extends Controller
                 'testResultItems' => function ($query) use ($lab_id) {
                     $query->with([
                         'panelItem' => function ($query) use ($lab_id) {
-                            $query->where('lab_id', $lab_id)->with(['panels' => function ($query) use ($lab_id) {
-                                $query->where('lab_id', $lab_id);
-                            }]);
+                            $query->where('lab_id', $lab_id)->with([
+                                'masterPanelItem',
+                                'panels' => function ($query) use ($lab_id) {
+                                    $query->where('lab_id', $lab_id)->with('masterPanel');
+                                }
+                            ]);
                         },
                         'referenceRange'
                     ]);
@@ -1535,17 +1456,20 @@ class ResultController extends Controller
                     ];
                 }
 
+                // Get master panel item data for the test
+                $masterPanelItem = $panelItem ? $panelItem->masterPanelItem : null;
+
                 $groupedResults[$panelName]['tests'][] = [
-                    'test_name' => $panelItem ? $panelItem->name : null,
-                    'test_code' => $panelItem ? $panelItem->code : null,
+                    'test_name' => $masterPanelItem ? $masterPanelItem->name : ($panelItem ? $panelItem->identifier : null),
+                    'test_code' => $masterPanelItem ? $masterPanelItem->code : null,
                     'result_value' => $item->value,
-                    'unit' => $panelItem ? $panelItem->unit : null,
+                    'unit' => $masterPanelItem ? $masterPanelItem->unit : null,
                     'reference_range' => $item->referenceRange ? $item->referenceRange->value : null,
                     'result_flag' => $item->flag,
-                    'test_notes' => $item->test_notes,
-                    'status' => $item->status,
+                    'test_notes' => null, // Removed from new structure
+                    'status' => null, // Removed from new structure  
                     'is_completed' => (bool) $item->is_completed,
-                    'sequence' => $panelItem ? $panelItem->sequence : null
+                    'sequence' => $item->sequence ?? null
                 ];
             }
 
@@ -1565,13 +1489,11 @@ class ResultController extends Controller
             $responseData = [
                 'reference_id' => $testResult->ref_id,
                 'lab_no' => $testResult->lab_no,
-                'bill_code' => $testResult->bill_code,
                 'collected_date' => $testResult->collected_date,
                 'received_date' => $testResult->received_date,
                 'reported_date' => $testResult->reported_date,
                 'validated_by' => $testResult->validated_by,
                 'is_completed' => (bool) $testResult->is_completed,
-                'is_tagon' => (bool) $testResult->is_tagon,
                 'doctor' => $testResult->doctor ? [
                     'name' => $testResult->doctor->name,
                     'code' => $testResult->doctor->code,
@@ -1623,17 +1545,26 @@ class ResultController extends Controller
         }
     }
 
-    private function isTagOnItem($panelName)
+    private function isTagOnItem($panelName, $panelCode)
     {
         // Handle case where panelName might be an array or null
-        $trimmed = trimOrNull($panelName);
-        if (!$trimmed) {
+        $trimmedName = trimOrNull($panelName);
+        $trimmedCode = trimOrNull($panelCode);
+        if (!$trimmedName) {
             return false;
+        }
+
+        $isPanelTag = PanelTag::where('code', $trimmedCode)
+            ->where('name', $trimmedName)
+            ->exists();
+
+        if ($isPanelTag) {
+            return true;
         }
 
         $tagOnKeywords = ['TAG ON', 'TAGON', 'TAG-ON'];
         foreach ($tagOnKeywords as $keyword) {
-            if (Str::contains(strtoupper($trimmed), $keyword)) {
+            if (Str::contains(strtoupper($trimmedName), $keyword)) {
                 return true;
             }
         }

@@ -16,6 +16,14 @@ class TestResultProfile extends Model
         'panel_profile_id',
     ];
 
+    protected $casts = [
+        'test_result_id' => 'integer',
+        'panel_profile_id' => 'integer',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
+    ];
+
     public function testResult(): BelongsTo
     {
         return $this->belongsTo(TestResult::class, 'test_result_id', 'id');

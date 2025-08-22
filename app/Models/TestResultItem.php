@@ -14,25 +14,22 @@ class TestResultItem extends Model
     protected $fillable = [
         'test_result_id',
         'panel_panel_item_id',
-        'is_tagon',
         'reference_range_id',
         'value',
         'flag',
-        'test_notes',
-        'status',
-        'is_completed',
-        'hasAmended'
+        'sequence',
+        'has_amended',
     ];
 
-    protected $attributes = [
-        'is_tagon' => false,
-        'reference_range_id' => null,
-        'value' => null,
-        'flag' => null,
-        'test_notes' => null,
-        'status' => null,
-        'is_completed' => false,
-        'hasAmended' => false,
+    protected $casts = [
+        'test_result_id' => 'integer',
+        'panel_panel_item_id' => 'integer',
+        'reference_range_id' => 'integer',
+        'sequence' => 'integer',
+        'has_amended' => 'boolean',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
     ];
 
     public function testResult(): BelongsTo

@@ -5,6 +5,7 @@ namespace App\Imports;
 use App\Models\PanelProfile;
 use App\Models\PanelCategory;
 use App\Models\Panel;
+use App\Models\MasterPanel;
 
 class ProfileCodeImport extends BaseCodeMappingImport
 {
@@ -38,7 +39,7 @@ class ProfileCodeImport extends BaseCodeMappingImport
         // Profile Code import requires panel code and panel name
         $panelCode = $this->trimOrNull($row['panel'] ?? null);
         $panelName = $this->trimOrNull($row['panel_name'] ?? null);
-        
+
         return !empty($panelCode) && !empty($panelName);
     }
 
@@ -65,15 +66,20 @@ class ProfileCodeImport extends BaseCodeMappingImport
             ]);
             $this->trackDatabaseOperation('create', $panelCategory->wasRecentlyCreated);
 
-            // 3. Create or update Panel
+            // 3. First, create or find master panel
+            $masterPanel = MasterPanel::firstOrCreate([
+                'name' => $data['panel_name']
+            ]);
+            $this->trackDatabaseOperation('create', $masterPanel->wasRecentlyCreated);
+
+            // 4. Create or update Panel with master panel reference
             $panel = Panel::updateOrCreate([
                 'lab_id' => $this->labId,
-                'code' => $data['panel_code']
+                'master_panel_id' => $masterPanel->id
             ], [
-                'panel_category_id' => $panelCategory->id,
-                'name' => $data['panel_name'],
-                'sequence' => null,
-                'overall_notes' => $data['remarks']
+                'code' => $data['panel_code'],
+                'int_code' => null,
+                'sequence' => $data['remarks']
             ]);
             $this->trackDatabaseOperation('create', $panel->wasRecentlyCreated);
         }

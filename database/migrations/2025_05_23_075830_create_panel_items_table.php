@@ -14,19 +14,14 @@ return new class extends Migration
         Schema::create('panel_items', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('lab_id');
-            $table->string('name');
+            $table->unsignedBigInteger('master_panel_item_id')->nullable();
             $table->string('code')->nullable();
-            $table->string('decimal_point')->nullable();
-            $table->string('unit')->nullable();
-            $table->string('sequence')->nullable();
-            $table->string('result_type')->nullable(); //get from json
-            $table->string('identifier')->nullable();
+            $table->string('identifier')->nullable(); //store temp panel item name if not exist in master, delete once updated
             $table->softDeletes();
             $table->timestamps();
-            
+
             $table->foreign('lab_id')->references('id')->on('labs')->onDelete('cascade');
-            
-            // Removed panel_id as we now use many-to-many relationship via pivot table
+            $table->foreign('master_panel_item_id')->references('id')->on('master_panel_items')->onDelete('cascade');
         });
     }
 

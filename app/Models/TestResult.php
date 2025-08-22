@@ -16,25 +16,24 @@ class TestResult extends Model
         'doctor_id',
         'patient_id',
         'ref_id',
-        'bill_code',
         'lab_no',
-        'is_tagon',
         'collected_date',
         'received_date',
         'reported_date',
-        'is_completed',
         'validated_by',
+        'is_completed',
     ];
 
-    protected $attributes = [
-        'ref_id' => null,
-        'bill_code' => null,
-        'is_tagon' => false,
-        'collected_date' => null,
-        'received_date' => null,
-        'reported_date' => null,
-        'validated_by' => null,
-        'is_completed' => false,
+    protected $casts = [
+        'doctor_id' => 'integer',
+        'patient_id' => 'integer',
+        'is_completed' => 'boolean',
+        'collected_date' => 'datetime',
+        'received_date' => 'datetime',
+        'reported_date' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
     ];
 
     public function doctor(): BelongsTo

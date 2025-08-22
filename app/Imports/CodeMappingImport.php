@@ -13,20 +13,20 @@ class CodeMappingImport
         // Pattern matching for sheet names (case-insensitive)
         'profile.*code' => ProfileCodeImport::class,
         'doctor.*code' => DoctorCodeImport::class,
-        'tag.*on.*ton' => TagOnImport::class,  // Tag On (TON)
-        'tag.*on.*qon' => TagOnImport::class,  // Tag On (QON)
-        'tag.*on' => TagOnImport::class,       // Generic Tag On
-        'reported.*test' => ReportedTestImport::class,
+        // 'tag.*on.*ton' => TagOnImport::class,  // Tag On (TON)
+        // 'tag.*on.*qon' => TagOnImport::class,  // Tag On (QON)
+        // 'tag.*on' => TagOnImport::class,       // Generic Tag On
+        // 'reported.*test' => ReportedTestImport::class,
         'bill.*code' => BillCodeImport::class,
         'department.*code' => null, // Ignore department code as requested
     ];
 
     private array $importOrder = [
-        'profile.*code',    // Creates Panel records (primary key)
-        'tag.*on.*ton',     // Tag On (TON) - Creates PanelTag records
-        'tag.*on.*qon',     // Tag On (QON) - Creates PanelTag records  
-        'tag.*on',          // Generic Tag On - Creates PanelTag records
-        'reported.*test',   // Depends on both Panel and PanelTag
+        'profile.*code',    // Creates MasterPanel and Panel records (primary key)
+        'tag.*on.*ton',     // Creates TagOn master panel items and panel items (no identifiers)
+        'tag.*on.*qon',     // Creates TagOn master panel items and panel items (no identifiers)
+        'tag.*on',          // Creates TagOn master panel items and panel items (no identifiers)
+        'reported.*test',   // Updates identifiers for existing items and creates new regular items
         'doctor.*code',     // Independent
         'bill.*code',       // Independent
     ];
@@ -114,7 +114,6 @@ class CodeMappingImport
             };
 
             Excel::import($sheetSpecificImport, $filePath);
-
         } catch (Exception $e) {
             Log::error("Failed to import sheet: {$sheetName}", [
                 'import_class' => $importClass,

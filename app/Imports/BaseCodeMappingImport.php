@@ -15,11 +15,15 @@ abstract class BaseCodeMappingImport implements ToArray, WithHeadingRow, WithVal
         'total_rows' => 0,
         'empty_rows' => 0,
         'skipped_rows' => 0,
+        'comment_skipped_rows' => 0,
         'processed_rows' => 0,
         'created_records' => 0,
         'updated_records' => 0,
         'new_data_count' => 0,
     ];
+
+    protected array $skippedRows = [];
+    protected int $maxSkippedRowsToLog = 100; // Limit logged skipped rows for performance
     protected static bool $isFirstFile = true;
 
     public function array(array $array)
@@ -31,15 +35,20 @@ abstract class BaseCodeMappingImport implements ToArray, WithHeadingRow, WithVal
             $this->importStats['total_rows'] = count($array);
             $this->importStats['empty_rows'] = 0;
             $this->importStats['skipped_rows'] = 0;
+            $this->importStats['comment_skipped_rows'] = 0;
             $this->importStats['processed_rows'] = 0;
             $this->importStats['created_records'] = 0;
             $this->importStats['updated_records'] = 0;
             $this->importStats['new_data_count'] = 0;
 
+            // Initialize skipped rows collection
+            $this->skippedRows = [];
+
             foreach ($array as $rowIndex => $row) {
                 // Skip completely empty rows
                 if ($this->isEmptyRow($row)) {
                     $this->importStats['empty_rows']++;
+                    $this->addSkippedRow($rowIndex + 2, $row, 'Empty row'); // +2 because Excel is 1-indexed and we have headers
                     continue;
                 }
 
@@ -48,6 +57,8 @@ abstract class BaseCodeMappingImport implements ToArray, WithHeadingRow, WithVal
                     $processedData[] = $processedRow;
                 } else {
                     $this->importStats['skipped_rows']++;
+                    $skipReason = $this->getSkipReason($row);
+                    $this->addSkippedRow($rowIndex + 2, $row, $skipReason); // +2 because Excel is 1-indexed and we have headers
                 }
             }
 
@@ -128,8 +139,28 @@ abstract class BaseCodeMappingImport implements ToArray, WithHeadingRow, WithVal
             'created_records' => $this->importStats['created_records'],
             'updated_records' => $this->importStats['updated_records'],
             'new_data_count' => $this->importStats['new_data_count'],
-            'skipped_rows' => $this->importStats['skipped_rows'] + $this->importStats['empty_rows']
+            'skipped_rows' => $this->importStats['skipped_rows'] + $this->importStats['empty_rows'],
+            'comment_skipped_rows' => $this->importStats['comment_skipped_rows']
         ]);
+
+        // Log skipped rows details if any
+        if (!empty($this->skippedRows)) {
+            $totalSkippedCount = $this->importStats['skipped_rows'] + $this->importStats['empty_rows'];
+            $loggedCount = count($this->skippedRows);
+
+            $logData = [
+                'total_skipped_count' => $totalSkippedCount,
+                'logged_count' => $loggedCount,
+                'skipped_rows' => $this->skippedRows
+            ];
+
+            // Add note if we've reached the logging limit
+            if ($totalSkippedCount > $this->maxSkippedRowsToLog) {
+                $logData['note'] = "Showing first {$this->maxSkippedRowsToLog} skipped rows only. Total skipped: {$totalSkippedCount}";
+            }
+
+            // Log::info($sheetName . ' Skipped Rows Details', $logData);
+        }
     }
 
     /**
@@ -169,5 +200,69 @@ abstract class BaseCodeMappingImport implements ToArray, WithHeadingRow, WithVal
     public static function resetFileStatus(): void
     {
         static::$isFirstFile = true;
+    }
+
+    /**
+     * Add a skipped row to the collection for logging
+     */
+    protected function addSkippedRow(int $excelRowNumber, array $rawRow, string $reason): void
+    {
+        // Limit the number of skipped rows we collect to prevent memory issues
+        if (count($this->skippedRows) < $this->maxSkippedRowsToLog) {
+            $this->skippedRows[] = [
+                'excel_row_number' => $excelRowNumber,
+                'reason' => $reason,
+                'raw_data' => $this->sanitizeRowForLogging($rawRow),
+                'timestamp' => now()->toISOString()
+            ];
+        }
+    }
+
+    /**
+     * Track comment skipped rows during store processing
+     */
+    protected function trackCommentSkip(array $data, string $reason = 'Contains comment in panel_name'): void
+    {
+        $this->importStats['comment_skipped_rows']++;
+        
+        // Log detailed info for comment skips (limit to prevent memory issues)
+        if (count($this->skippedRows) < $this->maxSkippedRowsToLog) {
+            $this->skippedRows[] = [
+                'excel_row_number' => 'N/A (store phase)',
+                'reason' => $reason,
+                'raw_data' => [
+                    'panel_code' => $data['panel_code'] ?? null,
+                    'panel_name' => $data['panel_name'] ?? null,
+                    'panel_item_code' => $data['panel_item_code'] ?? null,
+                    'panel_item_name' => $data['panel_item_name'] ?? null
+                ],
+                'timestamp' => now()->toISOString()
+            ];
+        }
+    }
+
+    /**
+     * Get the reason why a row was skipped (to be overridden by child classes)
+     */
+    protected function getSkipReason(array $row): string
+    {
+        return 'Failed validation or processing requirements';
+    }
+
+    /**
+     * Sanitize row data for logging (remove sensitive data, limit size)
+     */
+    protected function sanitizeRowForLogging(array $row): array
+    {
+        $sanitized = [];
+        foreach ($row as $key => $value) {
+            // Limit string length to prevent huge logs
+            if (is_string($value) && strlen($value) > 200) {
+                $sanitized[$key] = substr($value, 0, 200) . '...[truncated]';
+            } else {
+                $sanitized[$key] = $value;
+            }
+        }
+        return $sanitized;
     }
 }

@@ -3,7 +3,6 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -12,18 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('panels', function (Blueprint $table) {
+        Schema::create('panel_comments', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('lab_id');
-            $table->unsignedBigInteger('master_panel_id')->nullable();
-            $table->string('code')->nullable();
-            $table->string('int_code')->nullable();
+            $table->unsignedBigInteger('panel_id');
+            $table->unsignedBigInteger('master_panel_comment');
             $table->string('sequence')->nullable();
             $table->softDeletes();
             $table->timestamps();
 
-            $table->foreign('lab_id')->references('id')->on('labs')->onDelete('cascade');
-            $table->foreign('master_panel_id')->references('id')->on('master_panels')->onDelete('cascade');
+            $table->index(['panel_id', 'master_panel_comment']);
+            $table->foreign('panel_id')->references('id')->on('panels')->onDelete('cascade');
+            $table->foreign('master_panel_comment')->references('id')->on('master_panel_comments')->onDelete('cascade');
         });
     }
 
@@ -33,6 +31,6 @@ return new class extends Migration
     public function down(): void
     {
         Schema::disableForeignKeyConstraints();
-        Schema::dropIfExists('panels');
+        Schema::dropIfExists('panel_comments');
     }
 };

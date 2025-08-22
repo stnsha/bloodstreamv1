@@ -4,28 +4,25 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class PanelComment extends Model
+class MasterPanel extends Model
 {
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'panel_id',
-        'master_panel_comment_id',
-        'sequence',
+        'name',
     ];
 
     protected $casts = [
-        'panel_id' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
     ];
 
-    public function panel(): BelongsTo
+    public function panels(): HasMany
     {
-        return $this->belongsTo(Panel::class);
+        return $this->hasMany(Panel::class);
     }
 }

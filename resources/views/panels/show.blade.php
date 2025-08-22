@@ -133,10 +133,10 @@
                 <div class="bg-blue-50 rounded-lg p-3 border border-blue-200">
                     <div class="text-xs text-gray-600 mb-1">Panel Items</div>
                     <div class="text-lg font-bold text-[#003049] flex items-center gap-2">
-                        {{-- {{ count($panel->panelItemsSync ?? []) }} --}}
+                        {{-- {{ count($panel->panelItems ?? []) }} --}}
                         <span
                             class="inline-flex items-center justify-center w-6 h-6 text-xs font-medium text-white bg-blue-500 rounded-full">
-                            {{ count($panel->panelItemsSync ?? []) }}
+                            {{ count($panel->panelItems ?? []) }}
                         </span>
                     </div>
                 </div>
@@ -144,7 +144,7 @@
                 @php
                     $totalRefRanges = 0;
                     $totalResults = 0;
-                    foreach ($panel->panelItemsSync ?? [] as $item) {
+                    foreach ($panel->panelItems ?? [] as $item) {
                         $panelPanelItem = \App\Models\PanelPanelItem::where('panel_id', $panel->id)
                             ->where('panel_item_id', $item->id)
                             ->first();
@@ -190,8 +190,8 @@
 
     <!-- Panel Items -->
     <div class="space-y-6">
-        @if ($panel->panelItemsSync && count($panel->panelItemsSync) > 0)
-            @foreach ($panel->panelItemsSync as $item)
+        @if ($panel->panelItems && count($panel->panelItems) > 0)
+            @foreach ($panel->panelItems as $item)
                 @php
                     $panelPanelItem = \App\Models\PanelPanelItem::where('panel_id', $panel->id)
                         ->where('panel_item_id', $item->id)

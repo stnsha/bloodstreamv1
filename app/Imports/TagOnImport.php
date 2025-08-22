@@ -3,6 +3,9 @@
 namespace App\Imports;
 
 use App\Models\Panel;
+use App\Models\PanelItem;
+use App\Models\MasterPanel;
+use App\Models\MasterPanelItem;
 use App\Models\PanelTag;
 
 class TagOnImport extends BaseCodeMappingImport
@@ -13,12 +16,11 @@ class TagOnImport extends BaseCodeMappingImport
         if (!$this->hasEssentialData($row)) {
             return null;
         }
-
         return [
             'panel_code' => $this->trimOrNull($row['panel_code']),
             'panel_name' => $this->trimOrNull($row['panel_name']),
-            'code' => $this->trimOrNull($row['tag_on_code']),
-            'name' => $this->trimOrNull($row['tag_on_name']),
+            'tagon_code' => $this->trimOrNull($row['tag_on_code']),
+            'tagon_name' => $this->trimOrNull($row['tag_on_name']),
         ];
     }
 
@@ -32,37 +34,44 @@ class TagOnImport extends BaseCodeMappingImport
             return false;
         }
 
-        // Tag On import requires panel code and tag on code
+        // Tag On import requires panel code and tag on name
         $panelCode = $this->trimOrNull($row['panel_code'] ?? null);
-        $tagOnCode = $this->trimOrNull($row['tag_on_code'] ?? null);
-        
-        return !empty($panelCode) && !empty($tagOnCode);
+        $tagOnName = $this->trimOrNull($row['tag_on_name'] ?? null);
+
+        return !empty($panelCode) && !empty($tagOnName);
     }
 
     protected function store(array $processedData): void
     {
         foreach ($processedData as $data) {
-            $panel = Panel::where('lab_id', $this->labId)
-                ->where('code', $data['panel_code'])
-                ->first();
-                
-            if (!$panel) {
-                $panel = Panel::create([
-                    'lab_id' => $this->labId,
-                    'code' => $data['panel_code'],
-                    'name' => $data['panel_name'],
-                ]);
-                $this->trackDatabaseOperation('create', true);
-            }
-
-            $panelTag = PanelTag::firstOrCreate([
-                'lab_id' => $this->labId,
-                'panel_id' => $panel->id,
-                'code' => $data['code'],
-            ], [
-                'name' => $data['name'],
+            // 1. First, create or find master panel
+            $masterPanel = MasterPanel::firstOrCreate([
+                'name' => $data['panel_name']
             ]);
-            $this->trackDatabaseOperation('create', $panelTag->wasRecentlyCreated);
+            $this->trackDatabaseOperation('create', $masterPanel->wasRecentlyCreated);
+
+            // 2. Create or get Panel with master panel referencea
+            $panel = Panel::firstOrCreate([
+                'lab_id' => $this->labId,
+                'master_panel_id' => $masterPanel->id,
+                'code' => $data['panel_code']
+            ]);
+
+            $this->trackDatabaseOperation('create', $panel->wasRecentlyCreated);
+
+            // 3. Create or find tag on
+            $tagOn = PanelTag::firstOrCreate(
+                [
+                    'panel_id' => $panel->id,
+                    'code' => $data['tagon_code'],
+                ],
+                [
+                    'lab_id' => $this->labId,
+                    'name' => $data['tagon_name'],
+                ]
+            );
+
+            $this->trackDatabaseOperation('create', $tagOn->wasRecentlyCreated);
         }
     }
 
@@ -70,7 +79,7 @@ class TagOnImport extends BaseCodeMappingImport
     {
         return [
             '*.panel_code' => 'nullable|string',
-            '*.tag_on_code' => 'nullable|string',
+            '*.tag_on_name' => 'nullable|string',
         ];
     }
 }

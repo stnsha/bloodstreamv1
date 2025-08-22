@@ -13,38 +13,40 @@ class Panel extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $fillable = ['lab_id', 'panel_category_id', 'name', 'code', 'int_code', 'sequence', 'overall_notes'];
-
-    protected $attributes = [
-        'panel_category_id' => null,
-        'int_code' => null,
-        'sequence' => null,
-        'overall_notes' => null,
+    protected $fillable = [
+        'lab_id',
+        'master_panel_id',
+        'code',
+        'int_code',
+        'sequence',
     ];
 
-    public function panelItems(): HasMany
-    {
-        return $this->hasMany(PanelItem::class, 'panel_id', 'id');
-    }
-
-    // Keep the old relationship for backward compatibility during migration
-    public function legacyPanelItems(): HasMany
-    {
-        return $this->hasMany(PanelItem::class, 'panel_id', 'id');
-    }
-
-    public function panelTags(): HasMany
-    {
-        return $this->hasMany(PanelTag::class, 'panel_id', 'id');
-    }
-
-    public function panelItemsSync(): BelongsToMany
-    {
-        return $this->belongsToMany(PanelItem::class, 'panel_panel_items', 'panel_id', 'panel_item_id');
-    }
+    protected $casts = [
+        'lab_id' => 'integer',
+        'master_panel_id' => 'integer',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
+    ];
 
     public function lab(): BelongsTo
     {
-        return $this->belongsTo(Lab::class, 'lab_id', 'id');
+        return $this->belongsTo(Lab::class);
+    }
+
+    public function masterPanel(): BelongsTo
+    {
+        return $this->belongsTo(MasterPanel::class);
+    }
+
+    public function panelItems(): BelongsToMany
+    {
+        return $this->belongsToMany(PanelItem::class, 'panel_panel_items')
+            ->withTimestamps();
+    }
+
+    public function panelComments(): HasMany
+    {
+        return $this->hasMany(PanelComment::class);
     }
 }

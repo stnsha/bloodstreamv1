@@ -17,9 +17,9 @@ class PanelController extends Controller
         
         $panels = Panel::with([
             'lab',
-            'panelItemsSync'
+            'panelItems'
         ])
-        ->withCount(['panelItemsSync as panel_items_count'])
+        ->withCount(['panelItems as panel_items_count'])
         ->get();
         
         return view('panels.index', compact('user_name', 'lab_id', 'panels'));
@@ -32,7 +32,7 @@ class PanelController extends Controller
     {
         $panel = Panel::with([
             'lab',
-            'panelItemsSync',
+            'panelItems',
             'panelTags'
         ])->findOrFail($id);
 

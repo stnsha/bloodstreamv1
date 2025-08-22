@@ -14,31 +14,31 @@ class PanelItem extends Model
 
     protected $fillable = [
         'lab_id',
-        'code',
-        'name',
-        'decimal_point',
-        'unit',
-        'sequence',
-        'result_type',
+        'master_panel_item_id',
         'identifier',
     ];
 
-    protected $attributes = [
-        'code' => null,
-        'decimal_point' => null,
-        'unit' => null,
-        'sequence' => null,
-        'result_type' => null,
-        'identifier' => null,
+    protected $casts = [
+        'lab_id' => 'integer',
+        'master_panel_item_id' => 'integer',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
     ];
-
-    public function panels(): BelongsToMany
-    {
-        return $this->belongsToMany(Panel::class, 'panel_panel_items');
-    }
 
     public function lab(): BelongsTo
     {
         return $this->belongsTo(Lab::class);
+    }
+
+    public function masterPanelItem(): BelongsTo
+    {
+        return $this->belongsTo(MasterPanelItem::class);
+    }
+
+    public function panels(): BelongsToMany
+    {
+        return $this->belongsToMany(Panel::class, 'panel_panel_items')
+            ->withTimestamps();
     }
 }
