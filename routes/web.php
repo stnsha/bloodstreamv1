@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\API\PDFController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LabController;
 use App\Http\Controllers\LoginController;
@@ -28,6 +29,10 @@ Route::controller(LoginController::class)->group(function () {
     Route::get('/login', 'index')->name('login');
     Route::post('login', 'login');
     Route::get('logout', 'logout')->name('logout');
+});
+
+Route::prefix('pdf')->controller(PDFController::class)->group(function () {
+    Route::get('/export', 'export')->name('export');
 });
 
 Route::middleware(['auth'])->group(function () {

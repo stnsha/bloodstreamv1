@@ -4,6 +4,7 @@ use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\API\General\LabResultsController;
 use App\Http\Controllers\API\Innoquest\PanelResultsController;
+use App\Http\Controllers\API\PDFController;
 use App\Http\Controllers\TestingController;
 use Illuminate\Support\Facades\Route;
 
@@ -48,4 +49,8 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
         Route::get('/json', 'json')->name('json');
         Route::get('/innoquestPanelSequence', 'innoquestPanelSequence')->name('innoquestPanelSequence');
     });
+
+    // Route::prefix('pdf')->controller(PDFController::class)->group(function () {
+    //     Route::get('/export/{testResult}', 'export')->name('export');
+    // });
 });

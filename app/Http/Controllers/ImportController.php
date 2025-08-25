@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\API\Innoquest\PanelResultsController;
 use Exception;
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\API\ResultController;
 use App\Http\Requests\InnoquestResultRequest;
 use App\Imports\BaseCodeMappingImport;
 use App\Imports\CodeMappingImport;
