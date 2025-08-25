@@ -16,9 +16,9 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('lab_id');
             $table->unsignedBigInteger('master_panel_id')->nullable();
-            $table->string('code')->nullable();
-            $table->string('int_code')->nullable();
-            $table->string('sequence')->nullable();
+            $table->string('name');
+            $table->string('code');
+            $table->integer('sequence')->nullable();
             $table->softDeletes();
             $table->timestamps();
 

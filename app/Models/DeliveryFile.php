@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class DeliveryFile extends Model
@@ -22,4 +24,25 @@ class DeliveryFile extends Model
         'json_content',
         'status',
     ];
+
+    protected $casts = [
+        'lab_id' => 'integer',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
+    ];
+
+    protected $attributes = [
+        'lab_id' => null,
+    ];
+
+    public function lab(): BelongsTo
+    {
+        return $this->belongsTo(Lab::class);
+    }
+
+    public function deliveryFileHistories(): HasMany
+    {
+        return $this->hasMany(DeliveryFileHistory::class);
+    }
 }

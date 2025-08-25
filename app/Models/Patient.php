@@ -19,8 +19,14 @@ class Patient extends Model
 
     protected $fillable = ['icno', 'ic_type', 'name', 'dob', 'age', 'gender', 'tel'];
 
+    protected $casts = [
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
+    ];
+
     protected $attributes = [
-        'ic_type' => 'OTHERS',
+        'ic_type' => 'NRIC',
         'name' => null,
         'dob' => null,
         'age' => null,

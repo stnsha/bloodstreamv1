@@ -18,6 +18,13 @@ class PanelPanelItem extends Model
         'panel_item_id',
     ];
 
+    protected $casts = [
+        'panel_id' => 'integer',
+        'panel_item_id' => 'integer',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+    ];
+
     public function panel(): BelongsTo
     {
         return $this->belongsTo(Panel::class);

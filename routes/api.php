@@ -2,7 +2,8 @@
 
 use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\ImportController;
-use App\Http\Controllers\API\ResultController;
+use App\Http\Controllers\API\General\LabResultsController;
+use App\Http\Controllers\API\Innoquest\PanelResultsController;
 use App\Http\Controllers\TestingController;
 use Illuminate\Support\Facades\Route;
 
@@ -29,11 +30,14 @@ Route::controller(AuthController::class)->group(function () {
 
 
 Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
-    Route::prefix('result')->controller(ResultController::class)->group(function () {
-        Route::post('/patient', 'labResults')->name('labResults');
-        Route::post('/panel', 'panelResults')->name('panelResults');
-        Route::post('/testPanel', 'testPanel')->name('testPanel');
-        Route::get('/{id}', 'show')->name('show');
+    Route::prefix('result')->group(function () {
+        // Lab Results Controller routes (General)
+        Route::post('/patient', [LabResultsController::class, 'labResults'])->name('labResults');
+        Route::get('/{id}', [LabResultsController::class, 'show'])->name('show');
+
+        // Panel Results Controller routes (Innoquest)
+        Route::post('/panel', [PanelResultsController::class, 'panelResults'])->name('panelResults');
+        // Route::post('/testPanel', [PanelResultsController::class, 'testPanel'])->name('testPanel');
     });
 
     Route::prefix('import')->controller(ImportController::class)->group(function () {
@@ -42,5 +46,6 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
         Route::get('/results', 'results')->name('results');
         Route::get('/files', 'files')->name('files');
         Route::get('/json', 'json')->name('json');
+        Route::get('/innoquestPanelSequence', 'innoquestPanelSequence')->name('innoquestPanelSequence');
     });
 });

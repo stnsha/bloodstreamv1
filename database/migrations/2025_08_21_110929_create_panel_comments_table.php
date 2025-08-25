@@ -14,14 +14,13 @@ return new class extends Migration
         Schema::create('panel_comments', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('panel_id');
-            $table->unsignedBigInteger('master_panel_comment');
-            $table->string('sequence')->nullable();
+            $table->unsignedBigInteger('master_panel_comment_id');
             $table->softDeletes();
             $table->timestamps();
 
-            $table->index(['panel_id', 'master_panel_comment']);
+            $table->index(['panel_id', 'master_panel_comment_id']);
             $table->foreign('panel_id')->references('id')->on('panels')->onDelete('cascade');
-            $table->foreign('master_panel_comment')->references('id')->on('master_panel_comments')->onDelete('cascade');
+            $table->foreign('master_panel_comment_id')->references('id')->on('master_panel_comments')->onDelete('cascade');
         });
     }
 

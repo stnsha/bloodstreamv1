@@ -13,9 +13,9 @@ class CodeMappingImport
         // Pattern matching for sheet names (case-insensitive)
         'profile.*code' => ProfileCodeImport::class,
         'doctor.*code' => DoctorCodeImport::class,
-        // 'tag.*on.*ton' => TagOnImport::class,  // Tag On (TON)
-        // 'tag.*on.*qon' => TagOnImport::class,  // Tag On (QON)
-        // 'tag.*on' => TagOnImport::class,       // Generic Tag On
+        'tag.*on.*ton' => TagOnImport::class,  // Tag On (TON)
+        'tag.*on.*qon' => TagOnImport::class,  // Tag On (QON)
+        'tag.*on' => TagOnImport::class,       // Generic Tag On
         // 'reported.*test' => ReportedTestImport::class,
         'bill.*code' => BillCodeImport::class,
         'department.*code' => null, // Ignore department code as requested

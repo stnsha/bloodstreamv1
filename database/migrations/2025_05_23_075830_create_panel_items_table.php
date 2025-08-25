@@ -15,7 +15,8 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('lab_id');
             $table->unsignedBigInteger('master_panel_item_id')->nullable();
-            $table->string('code')->nullable();
+            $table->string('name')->nullable();
+            $table->string('unit')->nullable();
             $table->string('identifier')->nullable(); //store temp panel item name if not exist in master, delete once updated
             $table->softDeletes();
             $table->timestamps();

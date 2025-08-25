@@ -13,8 +13,11 @@ class ReferenceRange extends Model
 
     protected $fillable = ['panel_panel_item_id', 'value'];
 
-    protected $attributes = [
-        'value' => null,
+    protected $casts = [
+        'panel_panel_item_id' => 'integer',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
     ];
 
     public function panelPanelItem(): BelongsTo

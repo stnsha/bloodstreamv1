@@ -17,9 +17,13 @@ class ResultLibrary extends Model
         'description',
     ];
 
+    protected $casts = [
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
+    ];
+
     protected $attributes = [
-        'type' => null,
-        'value' => null,
         'code' => null,
         'description' => null,
     ];

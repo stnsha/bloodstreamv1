@@ -15,7 +15,9 @@ class PanelItem extends Model
     protected $fillable = [
         'lab_id',
         'master_panel_item_id',
+        'name',
         'identifier',
+        'unit',
     ];
 
     protected $casts = [
@@ -24,6 +26,13 @@ class PanelItem extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
+    ];
+
+    protected $attributes = [
+        'master_panel_item_id' => null,
+        'identifier' => null,
+        'name' => null,
+        'unit' => null,
     ];
 
     public function lab(): BelongsTo

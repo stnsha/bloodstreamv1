@@ -2,6 +2,7 @@
 
 namespace App\Imports;
 
+use App\Models\Innoquest\TempIntCode;
 use App\Models\MasterPanel;
 use App\Models\MasterPanelItem;
 use App\Models\Panel;
@@ -55,7 +56,6 @@ class ReportedTestImport extends BaseCodeMappingImport
     {
         // Check for missing essential fields
         $panelCode = $this->trimOrNull($row['panel'] ?? null);
-        $itemCode = $this->trimOrNull($row['item'] ?? null);
         $panelName = $this->trimOrNull($row['name'] ?? null);
         $itemName = $this->trimOrNull($row['name_1'] ?? null);
 
@@ -63,10 +63,6 @@ class ReportedTestImport extends BaseCodeMappingImport
 
         if (empty($panelCode)) {
             $missingFields[] = 'panel_code';
-        }
-
-        if (empty($itemCode)) {
-            $missingFields[] = 'item_code';
         }
 
         if (empty($panelName)) {
@@ -127,14 +123,23 @@ class ReportedTestImport extends BaseCodeMappingImport
             [
                 'master_panel_id' => $masterPanel->id,
                 'lab_id' => $this->labId,
-                'code' => $data['panel_code'],
             ],
             [
-                'int_code' => $data['int_code'],
-                // 'overall_notes' => 'ReportedTestImport'
+                'name' => $data['panel_name'],
+                'code' => $data['panel_code'],
             ]
         );
+
         $this->trackDatabaseOperation('create', $panel->wasRecentlyCreated);
+
+        if (filled($data['int_code'])) {
+            $TempIntCode = TempIntCode::firstOrCreate([
+                'panel_id' => $panel->id,
+                'int_code' => $data['int_code'],
+            ]);
+
+            $this->trackDatabaseOperation('create', $TempIntCode->wasRecentlyCreated);
+        }
 
         //Find or create MasterPanelItem
         $masterPanelItem = MasterPanelItem::firstOrCreate(
@@ -151,10 +156,12 @@ class ReportedTestImport extends BaseCodeMappingImport
                 'master_panel_item_id' => $masterPanelItem->id,
             ],
             [
-                'code' => null,
+                'name' => $data['panel_item_name'],
                 'identifier' => $data['panel_item_identifier'],
+                'unit' => $masterPanelItem->unit,
             ]
         );
+
         $this->trackDatabaseOperation('create', $panelItem->wasRecentlyCreated);
 
         // Attach the panel to this panel item (many-to-many)
@@ -222,6 +229,7 @@ class ReportedTestImport extends BaseCodeMappingImport
                 return true;
             }
         }
+
         return false;
     }
 

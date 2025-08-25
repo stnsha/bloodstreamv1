@@ -17,10 +17,13 @@ class MasterPanelItem extends Model
     ];
 
     protected $casts = [
-        'is_tagon' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
+    ];
+
+    protected $attributes = [
+        'unit' => null,
     ];
 
     public function panelItems(): HasMany

@@ -18,9 +18,18 @@ class PanelTag extends Model
         'code',
     ];
 
-    protected $attributes = [
-        'panel_id' => null,
+    protected $casts = [
+        'lab_id' => 'integer',
+        'panel_id' => 'integer',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
     ];
+
+    public function lab(): BelongsTo
+    {
+        return $this->belongsTo(Lab::class);
+    }
 
     public function panel(): BelongsTo
     {

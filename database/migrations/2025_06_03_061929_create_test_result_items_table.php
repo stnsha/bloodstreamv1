@@ -19,6 +19,7 @@ return new class extends Migration
             $table->longText('value')->nullable();
             $table->string('flag')->nullable();
             $table->integer('sequence');
+            $table->boolean('is_tagon')->default(false);
             $table->boolean('has_amended')->default(false);
             $table->softDeletes();
             $table->timestamps();

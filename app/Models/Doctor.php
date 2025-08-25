@@ -22,6 +22,13 @@ class Doctor extends Model
         'outlet_phone'
     ];
 
+    protected $casts = [
+        'lab_id' => 'integer',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
+    ];
+
     protected $attributes = [
         'code' => null,
         'type' => null,

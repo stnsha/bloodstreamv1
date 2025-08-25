@@ -18,6 +18,7 @@ class TestResultItem extends Model
         'value',
         'flag',
         'sequence',
+        'is_tagon',
         'has_amended',
     ];
 
@@ -26,10 +27,19 @@ class TestResultItem extends Model
         'panel_panel_item_id' => 'integer',
         'reference_range_id' => 'integer',
         'sequence' => 'integer',
+        'is_tagon' => 'boolean',
         'has_amended' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
+    ];
+
+    protected $attributes = [
+        'reference_range_id' => null,
+        'value' => null,
+        'flag' => null,
+        'is_tagon' => false,
+        'has_amended' => false,
     ];
 
     public function testResult(): BelongsTo

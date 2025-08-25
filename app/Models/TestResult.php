@@ -36,6 +36,15 @@ class TestResult extends Model
         'deleted_at' => 'datetime',
     ];
 
+    protected $attributes = [
+        'ref_id' => null,
+        'collected_date' => null,
+        'received_date' => null,
+        'reported_date' => null,
+        'validated_by' => null,
+        'is_completed' => false,
+    ];
+
     public function doctor(): BelongsTo
     {
         return $this->belongsTo(Doctor::class, 'doctor_id', 'id');

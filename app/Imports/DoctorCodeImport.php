@@ -35,7 +35,7 @@ class DoctorCodeImport extends BaseCodeMappingImport
         // Doctor Code import requires doctor code and doctor name
         $doctorCode = $this->trimOrNull($row['dr_code'] ?? null);
         $doctorName = $this->trimOrNull($row['doctor_name'] ?? null);
-        
+
         return !empty($doctorCode) && !empty($doctorName);
     }
 

@@ -11,5 +11,6 @@ class InnoquestCodeMappingSeeder extends Seeder
     {
         $importController = new ImportController();
         $importController->innoquestCodeMapping();
+        $importController->innoquestPanelSequence();
     }
 }

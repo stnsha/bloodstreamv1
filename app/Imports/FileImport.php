@@ -430,7 +430,9 @@ class FileImport implements ToModel, WithHeadingRow, WithValidation, WithChunkRe
                     'lab_id' => $this->labId,
                     'master_panel_item_id' => $masterPanelItem->id
                 ], [
-                    'identifier' => $panelItemName
+                    'name' => $panelItemName,
+                    'identifier' => $panelItemName,
+                    'unit' => $masterPanelItem->unit,
                 ]);
 
                 // Attach to panel

@@ -15,6 +15,16 @@ class LabCredential extends Authenticatable implements JWTSubject
 
     protected $hidden = ['password'];
 
+    protected $casts = [
+        'user_id' => 'integer',
+        'lab_id' => 'integer',
+        'expires_at' => 'integer',
+        'is_active' => 'boolean',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
+    ];
+
     protected $attributes = [
         'expires_at' => null,
         'role' => null,
@@ -39,6 +49,11 @@ class LabCredential extends Authenticatable implements JWTSubject
     public function getJWTCustomClaims()
     {
         return [];
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 
     public function lab()

@@ -1,36 +1,30 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\Innoquest;
 
+use App\Models\Lab;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class PanelComment extends Model
+class TempIntCode extends Model
 {
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'panel_id',
-        'master_panel_comment_id',
+        'int_code',
     ];
 
     protected $casts = [
         'panel_id' => 'integer',
-        'master_panel_comment_id' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
     ];
 
-    public function panel(): BelongsTo
+    public function lab()
     {
-        return $this->belongsTo(Panel::class);
-    }
-
-    public function masterPanelComment(): BelongsTo
-    {
-        return $this->belongsTo(MasterPanelComment::class, 'master_panel_comment');
+        return $this->belongsTo(Lab::class);
     }
 }

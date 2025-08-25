@@ -52,36 +52,37 @@ class ProfileCodeImport extends BaseCodeMappingImport
                 'code' => $data['profile_code']
             ], [
                 'name' => $data['profile_name'],
-                'code' => $data['profile_code']
             ]);
+
             $this->trackDatabaseOperation('create', $panelProfile->wasRecentlyCreated);
 
             // 2. Create or get PanelCategory
             $panelCategory = PanelCategory::firstOrCreate([
                 'lab_id' => $this->labId,
                 'name' => $data['panel_category']
-            ], [
-                'name' => $data['panel_category'],
-                'code' => null
             ]);
+
             $this->trackDatabaseOperation('create', $panelCategory->wasRecentlyCreated);
 
-            // 3. First, create or find master panel
-            $masterPanel = MasterPanel::firstOrCreate([
-                'name' => $data['panel_name']
-            ]);
-            $this->trackDatabaseOperation('create', $masterPanel->wasRecentlyCreated);
+            if (!str_contains($data['panel_code'], 'QON') && !str_contains($data['panel_code'], 'TON')) {
+                // 3. First, create or find master panel
+                $masterPanel = MasterPanel::firstOrCreate([
+                    'name' => $data['panel_name']
+                ]);
 
-            // 4. Create or update Panel with master panel reference
-            $panel = Panel::updateOrCreate([
-                'lab_id' => $this->labId,
-                'master_panel_id' => $masterPanel->id
-            ], [
-                'code' => $data['panel_code'],
-                'int_code' => null,
-                'sequence' => $data['remarks']
-            ]);
-            $this->trackDatabaseOperation('create', $panel->wasRecentlyCreated);
+                $this->trackDatabaseOperation('create', $masterPanel->wasRecentlyCreated);
+
+                // 4. Create or update Panel with master panel reference
+                $panel = Panel::updateOrCreate([
+                    'lab_id' => $this->labId,
+                    'master_panel_id' => $masterPanel->id
+                ], [
+                    'name' => $data['panel_name'],
+                    'code' => $data['panel_code']
+                ]);
+
+                $this->trackDatabaseOperation('create', $panel->wasRecentlyCreated);
+            }
         }
     }
 

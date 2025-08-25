@@ -51,11 +51,16 @@ class TagOnImport extends BaseCodeMappingImport
             $this->trackDatabaseOperation('create', $masterPanel->wasRecentlyCreated);
 
             // 2. Create or get Panel with master panel referencea
-            $panel = Panel::firstOrCreate([
-                'lab_id' => $this->labId,
-                'master_panel_id' => $masterPanel->id,
-                'code' => $data['panel_code']
-            ]);
+            $panel = Panel::firstOrCreate(
+                [
+                    'lab_id' => $this->labId,
+                    'master_panel_id' => $masterPanel->id,
+                ],
+                [
+                    'name' => $data['panel_name'],
+                    'code' => $data['panel_code']
+                ]
+            );
 
             $this->trackDatabaseOperation('create', $panel->wasRecentlyCreated);
 
