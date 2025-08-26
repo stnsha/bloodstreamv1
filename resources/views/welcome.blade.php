@@ -9,7 +9,7 @@
 </head>
 
 <body class="antialiased">
-    @if (app()->environment('production'))
+    @if (app()->environment('staging'))
         <h1 class="font-bold">403 Forbidden</h1>
         <p>You don't have permission to access this resource.</p>
     @else
