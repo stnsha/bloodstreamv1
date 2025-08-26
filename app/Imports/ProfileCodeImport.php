@@ -5,10 +5,12 @@ namespace App\Imports;
 use App\Models\PanelProfile;
 use App\Models\PanelCategory;
 use App\Models\Panel;
+use App\Models\PanelPanelProfile;
 use App\Models\MasterPanel;
 
 class ProfileCodeImport extends BaseCodeMappingImport
 {
+    protected array $profileSequences = [];
     protected function processRow(array $row): ?array
     {
         // Skip rows with missing essential data
@@ -82,6 +84,28 @@ class ProfileCodeImport extends BaseCodeMappingImport
                 ]);
 
                 $this->trackDatabaseOperation('create', $panel->wasRecentlyCreated);
+
+                // 5. Create PanelPanelProfile with sequence logic
+                $profileCode = $data['profile_code'];
+
+                // Initialize sequence for this profile if not exists
+                if (!isset($this->profileSequences[$profileCode])) {
+                    $this->profileSequences[$profileCode] = 0;
+                }
+
+                // Increment sequence for this profile
+                $this->profileSequences[$profileCode]++;
+
+                // Create or update PanelPanelProfile with sequence and category
+                PanelPanelProfile::updateOrCreate([
+                    'panel_id' => $panel->id,
+                    'panel_profile_id' => $panelProfile->id
+                ], [
+                    'panel_category_id' => $panelCategory->id,
+                    'sequence' => $this->profileSequences[$profileCode]
+                ]);
+
+                $this->trackDatabaseOperation('create', true); // Track the relationship creation
             }
         }
     }

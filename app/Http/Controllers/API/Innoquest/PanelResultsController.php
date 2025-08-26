@@ -293,9 +293,8 @@ class PanelResultsController extends BaseResultsController
                                             'master_panel_item_id' => $masterPanelItem->id,
                                             'identifier' => $identifier
                                         ], [
-                                            //If master panel item exist, no need to store name and unit
-                                            // 'name' => $res['Text'],
-                                            // 'unit' => $masterPanelItem->unit,
+                                            'name' => $res['Text'],
+                                            'unit' => $masterPanelItem->unit,
                                         ]);
 
                                         $panel_item_id = $panel_item->id;

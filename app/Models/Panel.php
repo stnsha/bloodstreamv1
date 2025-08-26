@@ -52,6 +52,12 @@ class Panel extends Model
             ->withTimestamps();
     }
 
+    public function panelProfiles(): BelongsToMany
+    {
+        return $this->belongsToMany(PanelProfile::class, 'panel_panel_profiles')
+            ->withTimestamps();
+    }
+
     public function panelComments(): HasMany
     {
         return $this->hasMany(PanelComment::class);
