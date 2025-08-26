@@ -9,15 +9,63 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class PDFController extends Controller
 {
-    public function export(TestResult $testResult)
+    public function export()
     {
         try {
-            $pdf = Pdf::loadView('pdf.dummy');
+            $testResult = TestResult::with(
+                [
+                    'doctor',
+                    'patient',
+                    'testResultProfiles',
+                    'testResultItems'
+                ]
+            )->find(2);
 
-            // Return PDF as binary stream for Postman preview
-            return response($pdf->output(), 200)
-                ->header('Content-Type', 'application/pdf')
-                ->header('Content-Disposition', 'inline; filename="dummy.pdf"');
+            $patient_name = $testResult->patient->name;
+            $patient_dob = $testResult->patient->dob;
+            $patient_icno = $testResult->patient->icno;
+            $patient_gender = $testResult->patient->gender == 'M' ? 'Male' : 'Female';
+            $patient_age = $testResult->patient->age . ' Years';
+
+            $collected_date = $testResult->collected_date;
+            $reported_date = $testResult->reported_date;
+
+            $doctor_name = $testResult->doctor->name;
+            $outlet_name = $testResult->doctor->outlet_name;
+            $outlet_address = $testResult->doctor->outlet_address;
+
+            $labno = $testResult->lab_no;
+            $refid = filled($testResult->ref_id) ? $testResult->ref_id : null;
+
+            $result = [];
+            $resultItems = [];
+
+            // if (count($testResult->profiles) != 0) {
+            //     dd($testResult->profiles);
+            // }
+
+            foreach ($testResult->testResultItems as $ri) {
+                $resultItems[$ri->panel->id]['sequence'] = $ri->panel->sequence;
+                $resultItems[$ri->panel->id]['name'] = $ri->panel->name;
+                $resultItems[$ri->panel->id]['items'][] = [
+                    'panel_item_name' => $ri->panelItem->masterPanelItem->name,
+                    'result_value'    => $ri->value,
+                    'ref_range'       => !is_null($ri->reference_range_id) ? $ri->referenceRange->value : null,
+                    'flag'            => $ri->flag,
+                    'sequence'        => $ri->sequence
+                ];
+            }
+
+            // Now sort panels by sequence
+            usort($resultItems, fn($a, $b) => $a['sequence'] <=> $b['sequence']);
+
+
+            // $pdf = Pdf::loadView('pdf.dummy');
+
+            // // Return PDF as binary stream for Postman preview
+            // return response($pdf->output(), 200)
+            //     ->header('Content-Type', 'application/pdf')
+            //     ->header('Content-Disposition', 'inline; filename="dummy.pdf"');
 
             // Base64 return (commented out for now)
             // $pdfContent = $pdf->output();
