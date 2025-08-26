@@ -15,14 +15,12 @@ class PanelPanelProfile extends Model
     protected $fillable = [
         'panel_id',
         'panel_profile_id',
-        'panel_category_id',
         'sequence',
     ];
 
     protected $casts = [
         'panel_id' => 'integer',
         'panel_profile_id' => 'integer',
-        'panel_category_id' => 'integer',
         'sequence' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
@@ -36,10 +34,5 @@ class PanelPanelProfile extends Model
     public function panelProfile(): BelongsTo
     {
         return $this->belongsTo(PanelProfile::class);
-    }
-
-    public function panelCategory(): BelongsTo
-    {
-        return $this->belongsTo(PanelCategory::class);
     }
 }

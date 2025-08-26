@@ -18,6 +18,7 @@ class Panel extends Model
     protected $fillable = [
         'lab_id',
         'master_panel_id',
+        'panel_category_id',
         'name',
         'code',
         'sequence',
@@ -26,6 +27,7 @@ class Panel extends Model
     protected $casts = [
         'lab_id' => 'integer',
         'master_panel_id' => 'integer',
+        'panel_category_id' => 'integer',
         'sequence' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
@@ -44,6 +46,11 @@ class Panel extends Model
     public function masterPanel(): BelongsTo
     {
         return $this->belongsTo(MasterPanel::class);
+    }
+
+    public function panelCategory(): BelongsTo
+    {
+        return $this->belongsTo(PanelCategory::class);
     }
 
     public function panelItems(): BelongsToMany

@@ -16,6 +16,7 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('lab_id');
             $table->unsignedBigInteger('master_panel_id')->nullable();
+            $table->unsignedBigInteger('panel_category_id')->nullable();
             $table->string('name');
             $table->string('code');
             $table->integer('sequence')->nullable();
@@ -24,6 +25,7 @@ return new class extends Migration
 
             $table->foreign('lab_id')->references('id')->on('labs')->onDelete('cascade');
             $table->foreign('master_panel_id')->references('id')->on('master_panels')->onDelete('cascade');
+            $table->foreign('panel_category_id')->references('id')->on('panel_categories')->onDelete('cascade');
         });
     }
 

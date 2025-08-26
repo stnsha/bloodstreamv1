@@ -80,7 +80,8 @@ class ProfileCodeImport extends BaseCodeMappingImport
                     'master_panel_id' => $masterPanel->id
                 ], [
                     'name' => $data['panel_name'],
-                    'code' => $data['panel_code']
+                    'code' => $data['panel_code'],
+                    'panel_category_id' => $panelCategory->id
                 ]);
 
                 $this->trackDatabaseOperation('create', $panel->wasRecentlyCreated);
@@ -96,12 +97,11 @@ class ProfileCodeImport extends BaseCodeMappingImport
                 // Increment sequence for this profile
                 $this->profileSequences[$profileCode]++;
 
-                // Create or update PanelPanelProfile with sequence and category
+                // Create or update PanelPanelProfile with sequence
                 PanelPanelProfile::updateOrCreate([
                     'panel_id' => $panel->id,
                     'panel_profile_id' => $panelProfile->id
                 ], [
-                    'panel_category_id' => $panelCategory->id,
                     'sequence' => $this->profileSequences[$profileCode]
                 ]);
 
