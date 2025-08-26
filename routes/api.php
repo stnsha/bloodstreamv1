@@ -7,6 +7,7 @@ use App\Http\Controllers\API\Innoquest\PanelResultsController;
 use App\Http\Controllers\API\PDFController;
 use App\Http\Controllers\TestingController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\URL;
 
 /*
 |--------------------------------------------------------------------------
@@ -32,6 +33,9 @@ Route::controller(AuthController::class)->group(function () {
 
 Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
     Route::prefix('result')->group(function () {
+        if (app()->environment('production')) {
+            URL::forceScheme('https');
+        }
         // Lab Results Controller routes (General)
         Route::post('/patient', [LabResultsController::class, 'labResults'])->name('labResults');
         Route::get('/{id}', [LabResultsController::class, 'show'])->name('show');
