@@ -134,7 +134,7 @@
                 </tr>
             </table>
             @php
-                $headerItems = ['Haemoglobin', 'White Cell Count'];
+                $headerItems = ['Haemoglobin', 'White Cell Count', 'Platelets'];
                 $isInSubSection = false;
                 $currentHeader = null;
             @endphp
@@ -149,10 +149,6 @@
                     if ($isHeader) {
                         $isInSubSection = true;
                         $currentHeader = $itemName;
-                    } elseif ($isInSubSection && $currentHeader === 'White Cell Count' && $itemName === 'N:L ratio') {
-                        // End of White Cell Count sub-section after N:L ratio
-                        $isInSubSection = false;
-                        $currentHeader = null;
                     } elseif ($isInSubSection && $currentHeader === 'Haemoglobin') {
                         // Count items after Haemoglobin header
                         $itemsAfterHeader = 0;
@@ -168,10 +164,15 @@
                             $isInSubSection = false;
                             $currentHeader = null;
                         }
+                    } elseif ($isInSubSection && $currentHeader === 'White Cell Count' && $itemName === 'N:L ratio') {
+                        // End of White Cell Count sub-section after N:L ratio
+                        $isInSubSection = false;
+                        $currentHeader = null;
                     }
                     
                     // Determine indentation with &nbsp;
-                    $indentation = ($isInSubSection && !$isHeader) ? '&nbsp;&nbsp;&nbsp;&nbsp;' : '';
+                    // Special case: N:L ratio gets Haemoglobin-style indentation
+                    $indentation = (($isInSubSection && !$isHeader) || $itemName === 'N:L ratio') ? '&nbsp;&nbsp;&nbsp;&nbsp;' : '';
                 @endphp
                 
                 @if (isset($panel_item['base_name']))
@@ -181,49 +182,38 @@
                         $percentageAbnormal = $panel_item['percentage'] && $panel_item['percentage']['flag'] != 'N';
                         $valueAbnormal = $panel_item['value'] && $panel_item['value']['flag'] != 'N';
                         $nameWeight = $isHeader ? 'bold' : ($hasAbnormalFlag ? 'bold' : 'normal');
+                        $isNLRatio = $panel_item['base_name'] === 'N:L ratio';
+                        $NLRatioAb = $isNLRatio && $panel_item['value']['flag'] != 'N';
                     @endphp
-                    <table style="width:100%;">
+                    <table style="width:100%;table-layout:fixed;">
                         <tr>
-                            <td style="width:5%;display: inline-block;font-size:13px;font-weight:bold;">
+                            <td style="width:5%;font-size:13px;font-weight:bold;">
                                 @if($hasAbnormalFlag) * @endif
                             </td>
-                            <td style="width:43%;display: inline-block;font-size:13px;font-weight:{{ $nameWeight }};">{!! $indentation !!}{{ $panel_item['base_name'] }}</td>
-                            <td style="width:7%;display: inline-block;font-size:13px;font-weight:{{ $percentageAbnormal ? 'bold' : 'normal' }};text-decoration:{{ $percentageAbnormal ? 'underline' : 'none' }};">
+                            <td style="width:43%;font-size:13px;font-weight:{{ $nameWeight }};">{!! $indentation !!}{{ $panel_item['base_name'] }}</td>
+                            <td style="width:7%;font-size:13px;font-weight:{{ $percentageAbnormal || $NLRatioAb ? 'bold' : 'normal' }};text-decoration:{{ $percentageAbnormal || $NLRatioAb ? 'underline' : 'none' }};">
                                 @if($panel_item['percentage'])
                                     {{ $panel_item['percentage']['result_value'] }}{{ $panel_item['percentage']['unit'] }}
                                 @endif
-                            </td>
-                            <td style="width:7%;display: inline-block;font-size:13px;font-weight:{{ $valueAbnormal ? 'bold' : 'normal' }};text-decoration:{{ $valueAbnormal ? 'underline' : 'none' }};">
-                                @if($panel_item['value'])
+                                @if($isNLRatio)
                                     {{ $panel_item['value']['result_value'] }}
                                 @endif
                             </td>
-                            <td style="width:15%;display: inline-block;font-size:13px;font-weight:normal;">
+                            <td style="width:7%;font-size:13px;font-weight:{{ $valueAbnormal ? 'bold' : 'normal' }};text-decoration:{{ $valueAbnormal ? 'underline' : 'none' }};">
+                                @if($panel_item['value'] && !$isNLRatio)
+                                    {{ $panel_item['value']['result_value'] }}
+                                @endif
+                            </td>
+                            <td style="width:15%;font-size:13px;font-weight:normal;">
                                 @if($panel_item['value'])
                                     {!! $panel_item['value']['unit'] !!}
                                 @endif
                             </td>
-                            <td style="width:15%;display: inline-block;font-size:13px;font-weight:normal;">
+                            <td style="width:15%;font-size:13px;font-weight:normal;">
                                 @if($panel_item['value'])
                                     {{ $panel_item['value']['ref_range'] }}
                                 @endif
                             </td>
-                        </tr>
-                    </table>
-                @else
-                    {{-- Normal item (single item) --}}
-                    @php
-                        $nameWeight = $isHeader ? 'bold' : ($panel_item['flag'] != 'N' ? 'bold' : 'normal');
-                    @endphp
-                    <table style="width:100%;">
-                        <tr>
-                            <td style="width:5%;display: inline-block;font-size:13px;font-weight:bold;">
-                                @if($panel_item['flag'] != 'N') * @endif
-                            </td>
-                            <td style="width:43%;display: inline-block;font-size:13px;font-weight:{{ $nameWeight }};">{!! $indentation !!}{{ $panel_item['panel_item_name'] }}</td>
-                            <td style="width:7%;display: inline-block;font-size:13px;font-weight:{{ $panel_item['flag'] != 'N' ? 'bold' : 'normal' }};text-decoration:{{ $panel_item['flag'] != 'N' ? 'underline' : 'none' }};">{{ $panel_item['result_value'] }}</td>
-                            <td style="width:15%;display: inline-block;font-size:13px;font-weight:normal;">{!! $panel_item['unit'] !!}</td>
-                            <td style="width:15%;display: inline-block;font-size:13px;font-weight:normal;">{{ $panel_item['ref_range'] }}</td>
                         </tr>
                     </table>
                 @endif

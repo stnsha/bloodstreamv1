@@ -16,6 +16,7 @@ class PanelItem extends Model
         'lab_id',
         'master_panel_item_id',
         'name',
+        'code',
         'identifier',
         'unit',
     ];
@@ -32,6 +33,7 @@ class PanelItem extends Model
         'master_panel_item_id' => null,
         'identifier' => null,
         'name' => null,
+        'code' => null,
         'unit' => null,
     ];
 
