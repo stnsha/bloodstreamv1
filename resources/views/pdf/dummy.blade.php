@@ -44,18 +44,11 @@
             vertical-align: super;
         }
 
-        .pagenum:before {
-            content: counter(page);
-        }
-
-        .pagecount:before {
-            content: counter(pages);
-        }
-
-        @page {
-            @bottom-right {
-                content: "Page " counter(page) " of " counter(pages);
-            }
+        tr:nth-child(30n) {
+            page-break-before: always; /* start a new page before this element */
+            /* start a new page after this element */
+            /* page-break-after: always;   */
+            page-break-inside: avoid;  
         }
     </style>
 </head>
@@ -284,11 +277,22 @@
                                 <img src="img/qrright.png" style="width:55px; display:block;">
                             </td>
                             <td style="vertical-align:middle; text-align:center; padding-left:10px;">
-                                <div style="font-size:14px; font-weight:normal;">Page 1 of 1</div>
+                                <div style="font-size:14px; font-weight:normal;">
+                                    <script type="text/php">
+                                        if ( isset($pdf) ) {
+                                            $font = $fontMetrics->get_font("arial", "normal");
+                                            $size = 8;
+                                            $x = 490; // adjust X position in points
+                                            $y = 805; // adjust Y position in points (from top)
+                                            $pdf->page_text($x, $y, "Page {PAGE_NUM} of {PAGE_COUNT}", $font, $size);
+                                        }
+                                    </script>
+                                </div>
                             </td>
                         </tr>
                         <tr>
-                            <td colspan="2" style="font-size:9.5px; padding-top:9px; text-align:left;font-weight: 400;">
+                            <td colspan="2"
+                                style="font-size:9.5px; padding-top:9px; text-align:left;font-weight: 400;">
                                 Please scan here to view test methodology or contact our customer care line for
                                 assistance.
                             </td>
