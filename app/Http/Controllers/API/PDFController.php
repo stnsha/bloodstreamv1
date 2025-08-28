@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\PanelPanelProfile;
 use App\Models\TestResult;
 use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Log;
 
 class PDFController extends Controller
 {
@@ -17,9 +19,10 @@ class PDFController extends Controller
                     'doctor',
                     'patient',
                     'testResultProfiles',
-                    'testResultItems'
+                    'testResultItems',
+                    'profiles'
                 ]
-            )->find(1);
+            )->find(5);
 
             // Patient information
             $patient_info = [
@@ -54,30 +57,51 @@ class PDFController extends Controller
             $result = [];
             $resultItems = [];
 
-            // if (count($testResult->profiles) != 0) {
-            //     dd($testResult->profiles);
-            // }
+            // Determine sequence source based on whether test result has profiles
+            $hasProfiles = count($testResult->profiles) > 0;
+            $panelSequences = [];
+
+            if ($hasProfiles) {
+                // Get panel sequences from PanelPanelProfile for each profile
+                foreach ($testResult->profiles as $profile) {
+                    $profilePanels = PanelPanelProfile::where('panel_profile_id', $profile->id)
+                        ->with('panel')
+                        ->orderBy('sequence')
+                        ->get();
+
+                    foreach ($profilePanels as $profilePanel) {
+                        $panelSequences[$profilePanel->panel_id] = $profilePanel->sequence;
+                    }
+                }
+            }
 
             foreach ($testResult->testResultItems as $ri) {
-                if (!is_null($ri->panel->panel_category_id)) {
-                    $category_descr = '';
-                    if ($ri->panel->panelCategory->id == 4) {
-                        $category_descr = 'SPECIMEN: WHOLE BLOOD';
-                    }
+                // Always set category_name - use panel category name if available, otherwise null
+                $resultItems[$ri->panel->id]['category_name'] = !is_null($ri->panel->panel_category_id)
+                    ? $ri->panel->panelCategory->name
+                    : null;
 
-                    if ($ri->panel->panelCategory->id == 1 || $ri->panel->panelCategory->id == 2 || $ri->panel->panelCategory->id == 6 || $ri->panel->panelCategory->id == 7) {
-                        $category_descr = 'SPECIMEN: SERUM';
-                    }
+                // Commented out category description logic
+                // if (!is_null($ri->panel->panel_category_id)) {
+                //     $category_descr = '';
+                //     if ($ri->panel->panelCategory->id == 4) {
+                //         $category_descr = 'SPECIMEN: WHOLE BLOOD';
+                //     }
+                //     if ($ri->panel->panelCategory->id == 1 || $ri->panel->panelCategory->id == 2 || $ri->panel->panelCategory->id == 6 || $ri->panel->panelCategory->id == 7) {
+                //         $category_descr = 'SPECIMEN: SERUM';
+                //     }
+                //     if ($ri->panel->panelCategory->id == 3) {
+                //         $category_descr = 'SPECIMEN: BLOOD';
+                //     }
+                //     $resultItems[$ri->panel->id]['category_descr'] = $category_descr;
+                // }
 
-                    if ($ri->panel->panelCategory->id == 3) {
-                        $category_descr = 'SPECIMEN: BLOOD';
-                    }
+                // Use PanelPanelProfile sequence if has profiles, otherwise use Panel sequence
+                $sequence = $hasProfiles && isset($panelSequences[$ri->panel->id])
+                    ? $panelSequences[$ri->panel->id]
+                    : $ri->panel->sequence;
 
-                    $resultItems[$ri->panel->id]['category_name'] = $ri->panel->panelCategory->name;
-                    $resultItems[$ri->panel->id]['category_descr'] = $category_descr;
-                }
-
-                $resultItems[$ri->panel->id]['sequence'] = $ri->panel->sequence;
+                $resultItems[$ri->panel->id]['sequence'] = $sequence;
                 $resultItems[$ri->panel->id]['name'] = $ri->panel->name;
 
                 $unit = $ri->panelItem->masterPanelItem->unit;
@@ -123,23 +147,79 @@ class PDFController extends Controller
                 }
             }
 
-            // Sort grouped items within each panel by sequence, with special handling for Platelets
-            foreach ($resultItems as &$panel) {
-                uasort($panel['items'], function($a, $b) {
-                    $aName = $a['base_name'] ?? $a['panel_item_name'] ?? '';
-                    $bName = $b['base_name'] ?? $b['panel_item_name'] ?? '';
-                    
-                    // If item is Platelets, put it last
-                    if ($aName === 'Platelets' && $bName !== 'Platelets') {
-                        return 1; // a goes after b
+            // FORCE HAE SEQUENCE FOR ALL HAEMATOLOGY PANELS - SIMPLIFIED APPROACH
+            foreach ($resultItems as $panelId => &$panel) {
+                // Get panel details
+                $firstItem = $testResult->testResultItems->where('panel_id', $panelId)->first();
+                $panelName = $panel['name'] ?? ($firstItem ? $firstItem->panel->name : '');
+
+                // FORCE custom sequence for panel ID 84 (HAE panel)
+                if ($panelId == 84) {
+
+                    // EXACT HAE SEQUENCE - FORCE THIS ORDER
+                    $orderedItems = [];
+                    $haeOrder = [
+                        'Haemoglobin',
+                        'Red Cell Count',
+                        'Packed Cell Volume',
+                        'Mean Cell Volume',
+                        'Mean Cell Haemoglobin',
+                        'MCHC',
+                        'Red Cell Distribution Width',
+                        'White Cell Count',
+                        'Neutrophils',
+                        'Lymphocytes',
+                        'Monocytes',
+                        'Eosinophils',
+                        'Basophils',
+                        'N:L Ratio',
+                        'Platelets',
+                        'E.S.R',
+                        'Blood Film'
+                    ];
+
+                    // Create a lookup array of existing items
+                    $itemsByName = [];
+                    foreach ($panel['items'] as $item) {
+                        $itemsByName[$item['base_name'] ?? ''] = $item;
                     }
-                    if ($bName === 'Platelets' && $aName !== 'Platelets') {
-                        return -1; // a goes before b
+
+                    // Build ordered array following HAE sequence
+                    foreach ($haeOrder as $expectedName) {
+                        if (isset($itemsByName[$expectedName])) {
+                            $orderedItems[] = $itemsByName[$expectedName];
+                        }
                     }
-                    
-                    // Normal sequence sorting
-                    return $a['sequence'] <=> $b['sequence'];
-                });
+
+                    // Add any remaining items that weren't in our sequence
+                    foreach ($panel['items'] as $item) {
+                        $itemName = $item['base_name'] ?? '';
+                        if (!in_array($itemName, $haeOrder) && !empty($itemName)) {
+                            $orderedItems[] = $item;
+                        }
+                    }
+
+                    // Replace the panel items with our ordered items
+                    $panel['items'] = $orderedItems;
+                } else {
+                    // Default sorting logic for other panels
+                    uasort($panel['items'], function ($a, $b) {
+                        $aName = $a['base_name'] ?? $a['panel_item_name'] ?? '';
+                        $bName = $b['base_name'] ?? $b['panel_item_name'] ?? '';
+
+                        // If item is Platelets, put it last
+                        if ($aName === 'Platelets' && $bName !== 'Platelets') {
+                            return 1; // a goes after b
+                        }
+                        if ($bName === 'Platelets' && $aName !== 'Platelets') {
+                            return -1; // a goes before b
+                        }
+
+                        // Normal sequence sorting
+                        return $a['sequence'] <=> $b['sequence'];
+                    });
+                }
+
                 // Convert associative array to indexed array
                 $panel['items'] = array_values($panel['items']);
             }
@@ -147,12 +227,16 @@ class PDFController extends Controller
             // Now sort panels by sequence
             usort($resultItems, fn($a, $b) => $a['sequence'] <=> $b['sequence']);
 
+            // Get profile name (use first profile if multiple exist)
+            $profile_name = $testResult->profiles->isNotEmpty() ? $testResult->profiles->first()->name : '';
+
             // Wrap everything in result array
             $result = [
                 'patient_info' => $patient_info,
                 'test_dates' => $test_dates,
                 'doctor_info' => $doctor_info,
                 'lab_info' => $lab_info,
+                'profile_name' => $profile_name,
                 'resultItems' => $resultItems
             ];
 
@@ -180,11 +264,15 @@ class PDFController extends Controller
             // ]);
 
         } catch (\Exception $e) {
-            return response()->json([
+            Log::info([
                 'success' => false,
                 'message' => 'Failed to generate PDF',
-                'error' => $e->getMessage()
-            ], 500);
+                'error'   => $e->getMessage(),
+                'file'    => $e->getFile(),
+                'line'    => $e->getLine(),
+                'trace'   => $e->getTraceAsString(), // full stack trace
+            ]);
+            return response()->json(['success' => false, 'message' => 'Failed to generate PDF', 'error' => $e->getMessage()], 500);
         }
     }
 }

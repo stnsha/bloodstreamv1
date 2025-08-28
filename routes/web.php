@@ -32,7 +32,7 @@ Route::controller(LoginController::class)->group(function () {
 });
 
 Route::prefix('pdf')->controller(PDFController::class)->group(function () {
-    Route::get('/export', 'export')->name('export');
+    Route::get('/export', 'export')->name('export'); ///{id}
 });
 
 Route::middleware(['auth'])->group(function () {

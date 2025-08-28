@@ -278,6 +278,14 @@ class PanelResultsController extends BaseResultsController
                                     //store field value to variable
                                     $identifier = $res['Identifier'];
 
+                                    if ($identifier == 'REPORT') {
+                                        // Handle report identifier
+                                        $result = $this->parseLabReport($res['Value']);
+
+                                        return json_encode($result, JSON_PRETTY_PRINT);
+                                    }
+                                    exit;
+
                                     //result items 
                                     if (filled($res['Text']) && ($res['Text'] != 'COMMENT' && $res['Text'] != 'NOTE')) {
 
@@ -466,6 +474,296 @@ class PanelResultsController extends BaseResultsController
                 'error' => 'Internal server error'
             ], 500);
         }
+    }
+
+    private function parseLabReport($raw)
+    {
+        // Initialize the result structure
+        $result = [
+            'department' => null,
+            'section' => null,
+            'specimen' => null,
+            'tests' => [],
+            'notes' => []
+        ];
+
+        // Rule 1: Replace line breaks with actual newlines - handle all patterns
+        $text = preg_replace('/\\\\.br\\\\\\\\/', "\n", $raw);
+        $text = preg_replace('/\\\\.br\\\\/', "\n", $text);
+        $text = trim($text);
+
+        // Split into lines for processing
+        $lines = explode("\n", $text);
+        $lines = array_filter(array_map('trim', $lines));
+
+        $lastMainTest = null;
+        $lastMainTestIndex = -1;
+
+        foreach ($lines as $line) {
+            if (empty($line)) continue;
+
+            // Rule 2: Extract department and specimen - be more flexible
+            if (preg_match('/^(.+?)\s+SPECIMEN:\s*(.+)$/i', $line, $matches)) {
+                $result['department'] = trim($matches[1]);
+                $result['specimen'] = trim($matches[2]);
+                continue;
+            }
+
+            // If no specimen header found, try to extract department from first meaningful line
+            if (!$result['department'] && preg_match('/^([A-Z\s]{3,}(?:STUDIES|CHEMISTRY|HAEMATOLOGY|BIOCHEMISTRY|LIPID|URINE|SPECIAL))(?:\s|$)/i', $line, $matches)) {
+                $result['department'] = trim($matches[1]);
+                continue;
+            }
+
+            // Skip lines that are clearly notes/metadata
+            if (preg_match('/^(Reference|Source|Note|IFG:|IGT:|OGTT:|T2DM|Recommend|Clinical Practice|Ministry of Health|Academy of Medicine|Diagnostic Values|Target|Tight target)/i', $line)) {
+                $result['notes'][] = $line;
+                continue;
+            }
+
+            // Skip lines with only symbols or formatting
+            if (preg_match('/^[\s\*\-\=<>]*$/', $line) || strlen($line) < 3) {
+                continue;
+            }
+
+            // Try to parse as a test result - Pattern 1: Test with multiple values (like HbA1c with % and mmol/mol)
+            if (preg_match('/^\s*([A-Za-z][A-Za-z0-9\s\.-]+?)\s+(\d+(?:\.\d+)?)\s*([%\w\/\s<>]+?)\s+(\d+(?:\.\d+)?)\s*([\w\/\s]+)(?:\s*\(([^)]+)\))?/i', $line, $matches)) {
+                $testName = trim($matches[1]);
+                $value1 = floatval($matches[2]);
+                $unit1 = trim($matches[3]);
+                $value2 = floatval($matches[4]);
+                $unit2 = trim($matches[5]);
+                $refRange = isset($matches[6]) ? trim($matches[6]) : null;
+                $flag = $this->detectFlag($line, $testName);
+
+                $test = [
+                    'name' => $testName,
+                    'value' => $value1,
+                    'unit' => $unit1,
+                    'reference_range' => $refRange,
+                    'flag' => $flag,
+                    'differentials' => [],
+                    'indices' => [
+                        [
+                            'name' => $testName . ' (IFCC)',
+                            'value' => $value2,
+                            'unit' => $unit2,
+                            'reference_range' => null
+                        ]
+                    ]
+                ];
+
+                $result['tests'][] = $test;
+                $lastMainTest = $test;
+                $lastMainTestIndex = count($result['tests']) - 1;
+                continue;
+            }
+
+            // Pattern 2: Standard test result - Test Name Value Unit (Reference)
+            if (preg_match('/^\s*(\*?\s*)?([A-Za-z][A-Za-z0-9\s\.-\/\:]+?)\s+(\\\\H\\\\)?(\d+(?:\.\d+)?)(\\\\N\\\\)?\s*([\w\/\s\^<>x-]+)?\s*(?:\(([^)]+)\))?/i', $line, $matches)) {
+                $testName = trim($matches[2]);
+                $hasAbnormalMarker = !empty($matches[3]) || !empty($matches[5]) || !empty($matches[1]);
+                $value = floatval($matches[4]);
+                $unit = isset($matches[6]) ? $this->fixUnits(trim($matches[6])) : null;
+                $refRange = isset($matches[7]) ? trim($matches[7]) : null;
+                $flag = $hasAbnormalMarker ? 'Abnormal' : $this->detectFlag($line, $testName);
+
+                // Skip if this looks like a reference table or metadata
+                if (preg_match('/^[<>=\d\s\.-]+$/', $testName) || strlen($testName) < 2) {
+                    $result['notes'][] = $line;
+                    continue;
+                }
+
+                $test = [
+                    'name' => $testName,
+                    'value' => $value,
+                    'unit' => $unit,
+                    'reference_range' => $refRange,
+                    'flag' => $flag,
+                    'differentials' => [],
+                    'indices' => []
+                ];
+
+                $result['tests'][] = $test;
+                $lastMainTest = $test;
+                $lastMainTestIndex = count($result['tests']) - 1;
+                continue;
+            }
+
+            // Pattern 3: Differential counts (percentage + absolute)
+            if (preg_match('/^\s*(\*?\s*)?([A-Za-z][A-Za-z\s\.-]+?)\s+(\d+(?:\.\d+)?)\s*%\s+(\d+(?:\.\d+)?)\s+([\w\/\s\^<>x-]+)\s*(?:\(([^)]+)\))?/i', $line, $matches)) {
+                $testName = trim($matches[2]);
+                $percentage = floatval($matches[3]);
+                $absolute = floatval($matches[4]);
+                $unit = $this->fixUnits(trim($matches[5]));
+                $refRange = isset($matches[6]) ? trim($matches[6]) : null;
+                $flag = $this->detectFlag($line, $testName);
+
+                // Find or create White Cell Count parent
+                $parentTestIndex = $this->findParentTestIndex($result['tests'], 'White Cell Count');
+                if ($parentTestIndex === -1) {
+                    // Create parent test
+                    $result['tests'][] = [
+                        'name' => 'White Cell Count',
+                        'value' => null,
+                        'unit' => null,
+                        'reference_range' => null,
+                        'flag' => null,
+                        'differentials' => [],
+                        'indices' => []
+                    ];
+                    $parentTestIndex = count($result['tests']) - 1;
+                }
+
+                $differential = [
+                    'name' => $testName,
+                    'percentage' => $percentage,
+                    'absolute' => $absolute,
+                    'unit' => $unit,
+                    'reference_range' => $refRange,
+                    'flag' => $flag
+                ];
+
+                $result['tests'][$parentTestIndex]['differentials'][] = $differential;
+                continue;
+            }
+
+            // If no pattern matches, treat as notes
+            $result['notes'][] = $line;
+        }
+
+        return $result;
+    }
+
+    private function fixUnits($unit)
+    {
+        // Fix units like "x 10 -S-12" → "x 10^12"
+        $unit = preg_replace('/x\s*10\s*-S-(\d+)/', 'x 10^$1', $unit);
+
+        // Fix other common unit patterns
+        $unit = preg_replace('/\s+/', ' ', $unit);
+        $unit = str_replace(' ^ ', '^', $unit);
+
+        return trim($unit);
+    }
+
+    private function detectFlag($line, $testName)
+    {
+        // Check for abnormal markers
+        if (preg_match('/\\\\H\\\\[^\\\\]*\\\\N\\\\/', $line)) {
+            return 'Abnormal';
+        }
+
+        // Check for asterisk indicating abnormal
+        if (preg_match('/^\s*\*/', $line)) {
+            return 'Abnormal';
+        }
+
+        return null;
+    }
+
+    private function isIndex($testName, $parentTest)
+    {
+        $indexNames = ['MPV', 'PDW', 'PCT', 'PLCR'];
+        $parentName = $parentTest['name'];
+
+        // Check if it's a known index under Platelets
+        if (stripos($parentName, 'Platelet') !== false && in_array(strtoupper($testName), $indexNames)) {
+            return true;
+        }
+
+        // Check if it's a ratio
+        if (stripos($testName, 'ratio') !== false || stripos($testName, '/') !== false) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function tokenizeLabText($text)
+    {
+        // Split by common test name patterns while preserving the full test info
+        $tokens = [];
+
+        // List of common test names to split on
+        $testNames = [
+            'Haemoglobin',
+            'RBC',
+            'PCV',
+            'MCV',
+            'MCH',
+            'MCHC',
+            'RDW',
+            'White Cell Count',
+            'Neutrophils',
+            'Lymphocytes',
+            'Monocytes',
+            'Eosinophils',
+            'Basophils',
+            'N:L Ratio',
+            'Platelets',
+            'MPV',
+            'PDW',
+            'PCT',
+            'PLCR',
+            'ESR',
+            'Total Protein',
+            'Albumin',
+            'Globulin',
+            'Alkaline Phosphatase',
+            'Total Bilirubin',
+            'GGT',
+            'AST',
+            'ALT',
+            'Cholesterol',
+            'Triglycerides',
+            'HDL',
+            'LDL'
+        ];
+
+        $pattern = '/\b(' . implode('|', array_map('preg_quote', $testNames)) . ')\b/i';
+        $parts = preg_split($pattern, $text, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
+
+        // Recombine test names with their values
+        $currentToken = '';
+        for ($i = 0; $i < count($parts); $i++) {
+            $part = trim($parts[$i]);
+            if (empty($part)) continue;
+
+            // Check if this part is a test name
+            if (preg_match('/^(' . implode('|', array_map('preg_quote', $testNames)) . ')$/i', $part)) {
+                // If we have a previous token, add it
+                if (!empty($currentToken)) {
+                    $tokens[] = trim($currentToken);
+                }
+                // Start new token with test name
+                $currentToken = $part;
+                // Add the next part (values, units, etc.)
+                if ($i + 1 < count($parts)) {
+                    $i++;
+                    $currentToken .= ' ' . trim($parts[$i]);
+                }
+            } else {
+                $currentToken .= ' ' . $part;
+            }
+        }
+
+        // Add the last token
+        if (!empty($currentToken)) {
+            $tokens[] = trim($currentToken);
+        }
+
+        return $tokens;
+    }
+
+    private function findParentTestIndex($tests, $parentName)
+    {
+        foreach ($tests as $index => $test) {
+            if (stripos($test['name'], $parentName) !== false) {
+                return $index;
+            }
+        }
+        return -1;
     }
 
     private function findOrCreatePatient(array $patient, $batch_id = null)

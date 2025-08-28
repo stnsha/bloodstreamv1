@@ -179,7 +179,7 @@ return [
          *
          * @var string
          */
-        'default_font' => 'courier',
+        'default_font' => 'arial',
 
         /**
          * Image DPI setting
