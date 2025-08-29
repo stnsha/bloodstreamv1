@@ -347,21 +347,6 @@ class PDFController extends Controller
                     ? $ri->panel->panelCategory->name
                     : null;
 
-                // Commented out category description logic
-                // if (!is_null($ri->panel->panel_category_id)) {
-                //     $category_descr = '';
-                //     if ($ri->panel->panelCategory->id == 4) {
-                //         $category_descr = 'SPECIMEN: WHOLE BLOOD';
-                //     }
-                //     if ($ri->panel->panelCategory->id == 1 || $ri->panel->panelCategory->id == 2 || $ri->panel->panelCategory->id == 6 || $ri->panel->panelCategory->id == 7) {
-                //         $category_descr = 'SPECIMEN: SERUM';
-                //     }
-                //     if ($ri->panel->panelCategory->id == 3) {
-                //         $category_descr = 'SPECIMEN: BLOOD';
-                //     }
-                //     $resultItems[$ri->panel->id]['category_descr'] = $category_descr;
-                // }
-
                 // Use PanelPanelProfile sequence if has profiles, otherwise use Panel sequence
                 $sequence = $hasProfiles && isset($panelSequences[$ri->panel->id])
                     ? $panelSequences[$ri->panel->id]
@@ -515,9 +500,9 @@ class PDFController extends Controller
                 // 'margin_left' => 40,
                 // 'margin_right' => 38,
                 'margin_top' => 70,
-                // 'margin_bottom' => 30,
+                // 'margin_bottom' => 0,
                 // 'margin_header' => 10,
-                // 'margin_footer' => 10
+                'margin_footer' => 5,
                 'default_font' => 'Arial',
             ]);
 
@@ -544,13 +529,13 @@ class PDFController extends Controller
                                     <tr>
                                         <td style="padding:0;">UR</td>
                                         <td style="padding:0;">:</td>
-                                        <td style="padding:0;">UR001234</td>
+                                        <td style="padding:0;"></td>
                                         <td style="padding:0;"></td>
                                     </tr>
                                     <tr>
                                         <td style="padding:0;">Ref</td>
                                         <td style="padding:0;">:</td>
-                                        <td style="padding:0;">REF789456</td>
+                                        <td style="padding:0;">' . $result['lab_info']['refid'] . '</td>
                                         <td style="padding:0;"></td>
                                     </tr>
                                     <tr>
@@ -575,7 +560,7 @@ class PDFController extends Controller
                                         <td style="padding:0;">' . $result['test_dates']['collected_date'] . ' ' . $result['test_dates']['collected_time'] . '</td>
                                         <td style="padding:0;">Ward</td>
                                         <td style="padding:0;">:</td>
-                                        <td style="padding:0;">General</td>
+                                        <td style="padding:0;"></td>
                                     </tr>
                                     <tr>
                                         <td style="padding:0;">Referred</td>
@@ -583,7 +568,7 @@ class PDFController extends Controller
                                         <td style="padding:0;">' . $result['test_dates']['reported_date'] . '</td>
                                         <td style="padding:0;">Yr Ref.</td>
                                         <td style="padding:0;">:</td>
-                                        <td style="padding:0;">DR001</td>
+                                        <td style="padding:0;"></td>
                                     </tr>
                                 </table>
                             </td>
@@ -616,7 +601,7 @@ class PDFController extends Controller
                                     <tr>
                                         <td style="padding:0px 0px 3px 0px;">Courier Run</td>
                                         <td style="padding:0px 0px 3px 0px;">:</td>
-                                        <td style="padding:0px 0px 3px 0px;">CR-001</td>
+                                        <td style="padding:0px 0px 3px 0px;"></td>
                                     </tr>
                                     <tr>
                                         <td style="padding:0px 0px 3px 0px;">Report Printed</td>
@@ -672,7 +657,7 @@ class PDFController extends Controller
                                 <img src="img/qrright.png" style="width:55px; display:block;">
                             </td>
                             <td style="vertical-align:middle; text-align:center; padding-left:10px;">
-                                <div style="font-size:8px; font-weight:normal;">
+                                <div style="font-size:11px; font-weight:normal;">
                                     Page {PAGENO} of {nb}
                                 </div>
                             </td>
@@ -773,10 +758,10 @@ class PDFController extends Controller
                     <table style="width: 100%; border-collapse: collapse; font-size:11.5px; margin-top:92px; text-align:left;">
                         <thead>
                             <tr>
-                                <th style="padding:0px 0px 0px 15px; text-align:left; text-transform:uppercase;width:386px; border-top:1px solid #000; border-bottom:1px solid #000;">Analytes</th>
-                                <th style="padding:0px 0px 3px 0px; text-align:left; text-transform:uppercase;width:60px; border-top:1px solid #000; border-bottom:1px solid #000;">Results</th>
-                                <th style="padding:0px 0px 3px 0px; text-align:left; text-transform:uppercase; border-top:1px solid #000; border-bottom:1px solid #000;">Units</th>
-                                <th style="padding:0px 0px 3px 0px; text-align:left; text-transform:uppercase; border-top:1px solid #000; border-bottom:1px solid #000;">Ref. Ranges</th>
+                                <th style="padding:0px 0px 0px 0px; text-align:left; text-transform:uppercase;width:386px; border-top:1px solid #000; border-bottom:1px solid #000;">Analytes</th>
+                                <th style="padding:0px 0px 0px 0px; text-align:left; text-transform:uppercase;width:60px; border-top:1px solid #000; border-bottom:1px solid #000;">Results</th>
+                                <th style="padding:0px 0px 0px 0px; text-align:left; text-transform:uppercase; border-top:1px solid #000; border-bottom:1px solid #000;">Units</th>
+                                <th style="padding:0px 0px 0px 0px; text-align:left; text-transform:uppercase; border-top:1px solid #000; border-bottom:1px solid #000;">Ref. Ranges</th>
                             </tr>
                         </thead>
                         <tbody>';
@@ -788,7 +773,7 @@ class PDFController extends Controller
                 // Add category header
                 $content .= '
                             <tr>
-                                <td colspan="4" style="padding: 15px 0px 5px 0px;text-transform:uppercase;font-style:light;font-weight:bold;">
+                                <td colspan="4" style="padding: 15px 0px 5px 0px;text-transform:uppercase;font-style:light;font-weight:bold;text-decoration:underline;">
                                     ' . strtoupper($panel['category_name'] ?? $panel['name']) . '
                                 </td>
                             </tr>';
@@ -804,7 +789,7 @@ class PDFController extends Controller
                                 <td colspan="2" style="padding:0px 0px 3px 0px;">
                                     <table style="border-collapse:collapse; width:100%;font-family:\'Courier New\', Courier, monospace;line-spacing:1.5;font-size:11.5px;">
                                         <tr>
-                                            <td style="width:90%; padding:5px 5px 5px 10px;">FILM: 
+                                            <td style="width:90%; padding:5px 5px 10px 10px;">FILM: 
                                                 ' . ($item['value']['result_value'] ?? '') . '
                                             </td>
                                         </tr>
@@ -820,10 +805,12 @@ class PDFController extends Controller
                         $refRange = $item['value']['ref_range'] ?? '';
                         $percentage = isset($item['percentage']) ? $item['percentage']['result_value'] . '%' : '';
 
+                        $isColspan = empty($unit) || empty($refRange) ? 'rowspan="1"' : '';
+
                         // Special styling for certain items
                         $isSpecialItem = in_array($item['base_name'], ['Haemoglobin', 'White Cell Count', 'Platelets']);
                         $specialPadding = in_array($item['base_name'], ['White Cell Count', 'Platelets']) ? 'padding:10px 0px;' : 'padding:0px 0px 3px 0px;';
-                        $boldStyle = $isSpecialItem ? 'font-style:light;font-weight:bold;' : '';
+                        $boldStyle = $isSpecialItem || $flag ? 'font-style:light;font-weight:bold;' : '';
                         $flagStyle = ($flag) ? 'font-style:light;font-weight:bold; text-decoration:underline;' : '';
 
                         $content .= '
@@ -831,11 +818,11 @@ class PDFController extends Controller
                                 <td style="' . $specialPadding . '">
                                     <table style="border-collapse:collapse; width:100%;">
                                         <tr>
-                                            <td style="width:3%; padding:0;font-style:light;font-weight:bold;">' . $flag . '</td>
-                                            <td style="width:50%; padding:0; ' . $boldStyle . '">' . ($item['base_name'] ?? '') . '</td>
-                                            <td style="width:40%; padding:0;"></td>
-                                            <td style="width:15%; padding:0;">' . $percentage . '</td>
-                                        </tr>
+                                        <td style="width:10px; padding:0; font-weight:bold;">' . $flag . '</td>
+                                        <td style="width:210px; padding:0; ' . $boldStyle . '">' . ($item['base_name'] ?? '') . '</td>
+                                        <td style="width:200px; padding:0;"></td>
+                                        <td style="width:70px; padding:0px 10px 0px 0px; text-align:right;">' . $percentage . '</td>
+                                    </tr>
                                     </table>
                                 </td>
                                 <td style="' . $specialPadding . ' ' . $flagStyle . '">' . $resultValue . '</td>
