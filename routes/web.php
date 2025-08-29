@@ -32,7 +32,8 @@ Route::controller(LoginController::class)->group(function () {
 });
 
 Route::prefix('pdf')->controller(PDFController::class)->group(function () {
-    Route::get('/export', 'export')->name('export'); ///{id}
+    Route::get('/export', 'export')->name('export'); ///{id}generateDummyPDF
+    Route::get('/generateDummyPDF', 'generateDummyPDF')->name('generateDummyPDF'); ///{id}
 });
 
 Route::middleware(['auth'])->group(function () {
