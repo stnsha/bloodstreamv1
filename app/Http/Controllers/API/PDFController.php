@@ -362,6 +362,10 @@ class PDFController extends Controller
                 if (!empty($unit)) {
                     // Convert all *digits into <sup>digits</sup>
                     $unit = preg_replace('/\*(\d+)/', '<sup>$1</sup>', $unit);
+
+                    if (strpos($unit, 'm2') !== false) {
+                        $unit = str_replace('m2', 'm<sup>2</sup>', $unit);
+                    }
                 }
 
                 // Determine if this is a percentage or value item
@@ -521,9 +525,10 @@ class PDFController extends Controller
                                     <tr>
                                         <td style="width:63px;padding:0;">Name</td>
                                         <td style="width:5px;padding:0;">:</td>
-                                        <td colspan="4" style="width:120px;padding:0;">' . strtoupper($result['patient_info']['name']) . '</td>
-                                        <td style="width:50px;padding:0;"></td>
-                                        <td style="width:5px;padding:0;"></td>
+                                        <td colspan="4" style="width:200px;padding:0;">' . strtoupper($result['patient_info']['name']) . '</td>
+                                        <td style="padding:0;"></td>
+                                        <td style="padding:0;"></td>
+                                        <td style="padding:0;"></td>
                                         <td style="padding:0;"></td>
                                     </tr>
                                     <tr>
@@ -542,32 +547,32 @@ class PDFController extends Controller
                                         <td style="padding:10px 0 0 0;">DOB</td>
                                         <td style="padding:10px 0 0 0;">:</td>
                                         <td style="padding:10px 0 0 0;">' . $result['patient_info']['dob'] . '</td>
-                                        <td style="padding:10px 0 0 0;">Sex</td>
-                                        <td style="padding:10px 0 0 0;">:</td>
-                                        <td style="padding:10px 0 0 0;">' . $result['patient_info']['gender'] . '</td>
+                                        <td style="padding:10px 0 0 -15px;">Sex</td>
+                                        <td style="padding:10px 0 0 -15px;">:</td>
+                                        <td style="padding:10px 0 0 -25px;">' . $result['patient_info']['gender'] . '</td>
                                     </tr>
                                     <tr>
                                         <td style="padding:0;">IC NO.</td>
                                         <td style="padding:0;">:</td>
                                         <td style="padding:0;">' . $result['patient_info']['icno'] . '</td>
-                                        <td style="padding:0;">Age</td>
-                                        <td style="padding:0;">:</td>
-                                        <td style="padding:0;">' . $result['patient_info']['age'] . '</td>
+                                        <td style="padding:0 0 0 -15px;">Age</td>
+                                        <td style="padding:0 0 0 -15px;">:</td>
+                                        <td style="padding:0 0 0 -25px;">' . $result['patient_info']['age'] . '</td>
                                     </tr>
                                     <tr>
                                         <td style="padding:0;">Collected</td>
                                         <td style="padding:0;">:</td>
                                         <td style="padding:0;">' . $result['test_dates']['collected_date'] . ' ' . $result['test_dates']['collected_time'] . '</td>
-                                        <td style="padding:0;">Ward</td>
-                                        <td style="padding:0;">:</td>
+                                        <td style="padding:0 0 0 -15px;">Ward</td>
+                                        <td style="padding:0 0 0 -15px;">:</td>
                                         <td style="padding:0;"></td>
                                     </tr>
                                     <tr>
                                         <td style="padding:0;">Referred</td>
                                         <td style="padding:0;">:</td>
                                         <td style="padding:0;">' . $result['test_dates']['reported_date'] . '</td>
-                                        <td style="padding:0;">Yr Ref.</td>
-                                        <td style="padding:0;">:</td>
+                                        <td style="padding:0 0 0 -15px;">Yr Ref.</td>
+                                        <td style="padding:0 0 0 -15px;">:</td>
                                         <td style="padding:0;"></td>
                                     </tr>
                                 </table>
