@@ -1058,7 +1058,19 @@ class PDFController extends Controller
                                         }
 
 
-                                        if ($pi['panel_item_name'] != 'Blood Film') {
+                                        if ($pi['panel_item_name'] == 'Blood Film') {
+
+                                            $content .= '<tr>
+                                            <td style="font-family: Courier New;padding:10px 30px;"><span style="font-weight:bold;margin-right:10px;">FILM:</span>' . $pi['result_value'] . '</td>
+                                            </tr>';
+                                        } else if ($pi['panel_item_id'] == 25) {
+                                            $content .= '<tr>
+                                            <td style="font-family: Courier New;padding:10px 30px;">
+                                             ' . nl2br(str_replace('\.br\\', '<br>', $pi['result_value'])) . '
+                                            </td>
+                                            </tr>';
+                                        } else {
+
                                             $name = $pi['panel_item_name'];
                                             $displayName = ctype_upper(str_replace(' ', '', $name)) ? $name : ucwords(strtolower($name));
                                             $content .= '<tr>
@@ -1078,14 +1090,10 @@ class PDFController extends Controller
                                                                     </tr>
                                                                 </table>
                                                             </td>
-                                                            <td colspan=' . $colspan . ' style="' . $formattedStyle . '">' . str_replace(["\\H\\", "\\N\\", ".\br\\"], ['', '', '<br>'], $pi['result_value']) . '</td>
+                                                            <td colspan=' . $colspan . ' style="' . $formattedStyle . '">' . str_replace(["\\H\\", "\\N\\", ".\\br\\"], ['', '', '<br>'], $pi['result_value']) . '</td>
                                                             <td>' . $pi['panel_item_unit'] . '</td>
                                                             <td>' . $pi['reference_range'] . '</td>
                                                         </tr> ';
-                                        } else {
-                                            $content .= '<tr>
-                                            <td style="font-family: Courier New;padding:10px 30px;"><span style="font-weight:bold;margin-right:10px;">FILM:</span>' . $pi['result_value'] . '</td>
-                                            </tr>';
                                         }
                                     }
                                 }
