@@ -662,9 +662,9 @@ class PDFController extends Controller
                                         <td colspan="3" style="padding:0px 0px 3px 0px;"></td>
                                     </tr>
                                     <tr>
-                                        <td style="width:80px; padding:0px 0px 3px 0px;">Lab No.</td>
-                                        <td style="width:5px; padding:0px 0px 3px 0px;">:</td>
-                                        <td style="padding:0px 0px 3px 0px;">' . $result['lab_info']['labno'] . '</td>
+                                        <td style="width:80px; padding:5px 0px 3px 0px;">Lab No.</td>
+                                        <td style="width:5px; padding:5px 0px 3px 0px;">:</td>
+                                        <td style="padding:5px 0px 3px 0px;">' . $result['lab_info']['labno'] . '</td>
                                     </tr>
                                     <tr>
                                         <td style="padding:0px 0px 3px 0px;">Courier Run</td>
@@ -908,35 +908,51 @@ class PDFController extends Controller
 
                                             foreach ($panelItems as $pi) {
                                                 $colspan = 'none';
-                                                if (empty($pi['panel_item_unit'])) {
-                                                    $colspan = 4;
-                                                }
+                                                // if (empty($pi['panel_item_unit'])) {
+                                                //     $colspan = 4;
+                                                // }
 
                                                 $formattedStyle = '';
                                                 if (!empty($pi['result_flag'])) {
                                                     $formattedStyle = 'font-weight:bold;text-decoration:underline';
                                                 }
-                                                $content .= '<tr>
+                                                if ($pi['panel_item_name'] == 'Blood Film') {
+
+                                                    $content .= '<tr>
+                                            <td style="font-family: Courier New;padding:10px 30px;"><span style="font-weight:bold;margin-right:10px;">FILM:</span>' . $pi['result_value'] . '</td>
+                                            </tr>';
+                                                } else if ($pi['panel_item_id'] == 25) {
+                                                    $content .= '<tr>
+                                            <td style="font-family: Courier New;padding:10px 30px;">
+                                             ' . nl2br(str_replace('\.br\\', '<br>', $pi['result_value'])) . '
+                                            </td>
+                                            </tr>';
+                                                } else {
+
+                                                    $name = $pi['panel_item_name'];
+                                                    $displayName = ctype_upper(str_replace(' ', '', $name)) ? $name : ucwords(strtolower($name));
+                                                    $content .= '<tr>
                                                             <td style="padding:0px 10px;">
                                                                 <table style="border-collapse:collapse; width:100%; table-layout:fixed;">
                                                                     <tr>
                                                                         <td style="padding:0; font-weight:bold; width:20px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;text-align:center;">
                                                                             ' . $pi['result_flag'] . '
                                                                         </td>
-                                                                        <td style="padding:0; width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                                                                            ' . $pi['panel_item_name'] . '
-                                                                        </td>
-                                                                        <td style="padding:0; width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">血液学</td>
+                                                                        <td style="padding:0; width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">'
+                                                        . $displayName .
+                                                        '</td>
+                                                                        <td style="padding:0; width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></td>
                                                                         <td style="padding:0px 10px 0px 0px; text-align:right; width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
                                                                             ' . ($pi['percentage_value'] != '0' && $pi['is_percentage'] ? $pi['percentage_value'] . '%' : '') . '
                                                                         </td>
                                                                     </tr>
                                                                 </table>
                                                             </td>
-                                                            <td colspan=' . $colspan . ' style="' . $formattedStyle . '">' . str_replace(["\\H\\", "\\N\\", ".\br\\"], ['', '', '<br>'], $pi['result_value']) . '</td>
+                                                            <td colspan=' . $colspan . ' style="' . $formattedStyle . '">' . str_replace(["\\H\\", "\\N\\", ".\\br\\"], ['', '', '<br>'], $pi['result_value']) . '</td>
                                                             <td>' . $pi['panel_item_unit'] . '</td>
                                                             <td>' . $pi['reference_range'] . '</td>
-                                                        </tr>';
+                                                        </tr> ';
+                                                }
                                             }
                                         }
                                     }
