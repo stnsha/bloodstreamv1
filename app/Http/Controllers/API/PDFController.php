@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\PanelPanelItem;
 use App\Models\PanelPanelProfile;
+use App\Models\PanelProfile;
 use App\Models\TestResult;
 use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -288,7 +290,10 @@ class PDFController extends Controller
                     'testResultItems',
                     'profiles'
                 ]
-            )->find(4);
+            )->find(69);
+
+            //69 - ada profile
+            // 49 - takda profile dan takda category
 
             // Patient information
             $patient_info = [
@@ -325,178 +330,64 @@ class PDFController extends Controller
 
             // Determine sequence source based on whether test result has profiles
             $hasProfiles = count($testResult->profiles) > 0;
-            $panelSequences = [];
 
             if ($hasProfiles) {
-                // Get panel sequences from PanelPanelProfile for each profile
-                foreach ($testResult->profiles as $profile) {
-                    $profilePanels = PanelPanelProfile::where('panel_profile_id', $profile->id)
-                        ->with('panel')
-                        ->orderBy('sequence')
-                        ->get();
-
-                    foreach ($profilePanels as $profilePanel) {
-                        $panelSequences[$profilePanel->panel_id] = $profilePanel->sequence;
+                foreach ($testResult->testResultProfiles as $trp) {
+                    $ppps = PanelPanelProfile::with(['panel', 'panelProfile'])->where('panel_profile_id', $trp->panel_profile_id)->get();
+                    foreach ($ppps as $ppp) {
+                        $result[$testResult->id]['profiles'][$ppp->panel_profile_id]['profile_id'] = $ppp->panelProfile->id;
+                        $result[$testResult->id]['profiles'][$ppp->panel_profile_id]['profile_name'] = $ppp->panelProfile->name;
+                        $result[$testResult->id]['profiles'][$ppp->panel_profile_id]['panels'][$ppp->panel_id]['panel_name'] = $ppp->panel->name;
+                        $result[$testResult->id]['profiles'][$ppp->panel_profile_id]['panels'][$ppp->panel_id]['panel_profile_sequence'] = $ppp->sequence;
                     }
                 }
             }
 
             foreach ($testResult->testResultItems as $ri) {
-                // Always set category_name - use panel category name if available, otherwise null
-                $resultItems[$ri->panel->id]['category_name'] = !is_null($ri->panel->panel_category_id)
-                    ? $ri->panel->panelCategory->name
-                    : null;
+                // Keluarkan all data in result item
+                // $has_amended = $ri->has_amended; (not use yet)
 
-                // Use PanelPanelProfile sequence if has profiles, otherwise use Panel sequence
-                $sequence = $hasProfiles && isset($panelSequences[$ri->panel->id])
-                    ? $panelSequences[$ri->panel->id]
-                    : $ri->panel->sequence;
+                $res_value = $ri->value;
+                $res_flag = $ri->flag;
+                $res_sequence = $ri->sequence;
+                $is_tagon = $ri->is_tagon;
+                $ref_range_id = $ri->reference_range_id;
 
-                $resultItems[$ri->panel->id]['sequence'] = $sequence;
-                $resultItems[$ri->panel->id]['name'] = $ri->panel->name;
-
-                $unit = $ri->panelItem->masterPanelItem->unit;
-
-                // If unit contains ^ followed by digits, replace with <sup>digits</sup>
-
-                if (!empty($unit)) {
-                    // Convert all *digits into <sup>digits</sup>
-                    $unit = preg_replace('/\*(\d+)/', '<sup>$1</sup>', $unit);
-
-                    if (strpos($unit, 'm2') !== false) {
-                        $unit = str_replace('m2', 'm<sup>2</sup>', $unit);
+                // Find panel panel item
+                $ppi = PanelPanelItem::with([
+                    'panel',
+                    'panel.panelCategory',
+                    'panel.panelComments',
+                    'panelItem',
+                    'referenceRanges' => function ($query) use ($ref_range_id) {
+                        $query->where('id', $ref_range_id);
                     }
+                ])->find($ri->panel_panel_item_id);
+
+                $reference_range = $ppi->referenceRanges->first()->value ?? null;
+                // Remove existing brackets
+                if ($reference_range) {
+                    $reference_range = str_replace(['(', ')'], '', $reference_range);
                 }
 
-                // Determine if this is a percentage or value item
-                $isPercentage = str_ends_with($ri->panelItem->masterPanelItem->name, ' %');
-                $baseName = $isPercentage ? substr($ri->panelItem->masterPanelItem->name, 0, -2) : $ri->panelItem->masterPanelItem->name;
-
-                // Initialize the group if it doesn't exist
-                if (!isset($resultItems[$ri->panel->id]['items'][$baseName])) {
-                    $resultItems[$ri->panel->id]['items'][$baseName] = [
-                        'base_name' => $baseName,
-                        'percentage' => null,
-                        'value' => null,
-                        'sequence' => $ri->sequence
-                    ];
-                }
-
-                // Add the item data
-                $itemData = [
-                    'panel_item_id' => $ri->panelItem->masterPanelItem->id,
-                    'panel_item_name' => $ri->panelItem->masterPanelItem->name,
-                    'result_value' => $ri->value,
-                    'unit' => $unit,
-                    'ref_range' => !is_null($ri->reference_range_id) ? '(' . $ri->referenceRange->value . ')' : null,
-                    'flag' => $ri->flag,
-                    'sequence' => $ri->sequence
+                $resultItems[] = [
+                    'panel_id' => $ppi->panel_id,
+                    'panel_name' => $ppi->panel->name,
+                    'panel_sequence' => $ppi->panel->sequence,
+                    'panel_category_id' => $ppi->panel->panel_category_id ?? null,
+                    'panel_category_name' => $ppi->panel->panelCategory->name ?? null,
+                    'panel_item_id' => $ppi->panel_item_id,
+                    'result_value' => $res_value,
+                    'result_flag' => $res_flag,
+                    'is_tagon' => $is_tagon,
+                    'result_sequence' => $res_sequence,
+                    'reference_range' => $reference_range
                 ];
-
-                if ($isPercentage) {
-                    $resultItems[$ri->panel->id]['items'][$baseName]['percentage'] = $itemData;
-                } else {
-                    $resultItems[$ri->panel->id]['items'][$baseName]['value'] = $itemData;
-                    // Use the sequence from value item for sorting
-                    $resultItems[$ri->panel->id]['items'][$baseName]['sequence'] = $ri->sequence;
-                }
+                $result[$testResult->id]['resultItems'][] = $resultItems;
             }
 
-            // FORCE HAE SEQUENCE FOR ALL HAEMATOLOGY PANELS - SIMPLIFIED APPROACH
-            foreach ($resultItems as $panelId => &$panel) {
-                // Get panel details
-                $firstItem = $testResult->testResultItems->where('panel_id', $panelId)->first();
-                $panelName = $panel['name'] ?? ($firstItem ? $firstItem->panel->name : '');
-
-                // FORCE custom sequence for panel ID 84 (HAE panel)
-                if ($panelId == 84) {
-
-                    // EXACT HAE SEQUENCE - FORCE THIS ORDER
-                    $orderedItems = [];
-                    $haeOrder = [
-                        'Haemoglobin',
-                        'Red Cell Count',
-                        'Packed Cell Volume',
-                        'Mean Cell Volume',
-                        'Mean Cell Haemoglobin',
-                        'MCHC',
-                        'Red Cell Distribution Width',
-                        'White Cell Count',
-                        'Neutrophils',
-                        'Lymphocytes',
-                        'Monocytes',
-                        'Eosinophils',
-                        'Basophils',
-                        'N:L Ratio',
-                        'Platelets',
-                        'E.S.R',
-                        'Blood Film'
-                    ];
-
-                    // Create a lookup array of existing items
-                    $itemsByName = [];
-                    foreach ($panel['items'] as $item) {
-                        $itemsByName[$item['base_name'] ?? ''] = $item;
-                    }
-
-                    // Build ordered array following HAE sequence
-                    foreach ($haeOrder as $expectedName) {
-                        if (isset($itemsByName[$expectedName])) {
-                            $orderedItems[] = $itemsByName[$expectedName];
-                        }
-                    }
-
-                    // Add any remaining items that weren't in our sequence
-                    foreach ($panel['items'] as $item) {
-                        $itemName = $item['base_name'] ?? '';
-                        if (!in_array($itemName, $haeOrder) && !empty($itemName)) {
-                            $orderedItems[] = $item;
-                        }
-                    }
-
-                    // Replace the panel items with our ordered items
-                    $panel['items'] = $orderedItems;
-                } else {
-                    // Default sorting logic for other panels
-                    uasort($panel['items'], function ($a, $b) {
-                        $aName = $a['base_name'] ?? $a['panel_item_name'] ?? '';
-                        $bName = $b['base_name'] ?? $b['panel_item_name'] ?? '';
-
-                        // If item is Platelets, put it last
-                        if ($aName === 'Platelets' && $bName !== 'Platelets') {
-                            return 1; // a goes after b
-                        }
-                        if ($bName === 'Platelets' && $aName !== 'Platelets') {
-                            return -1; // a goes before b
-                        }
-
-                        // Normal sequence sorting
-                        return $a['sequence'] <=> $b['sequence'];
-                    });
-                }
-
-                // Convert associative array to indexed array
-                $panel['items'] = array_values($panel['items']);
-            }
-
-            // Now sort panels by sequence
-            usort($resultItems, fn($a, $b) => $a['sequence'] <=> $b['sequence']);
-
-            // Get profile name (use first profile if multiple exist)
-            $profile_name = $testResult->profiles->isNotEmpty() ? $testResult->profiles->first()->name : '';
-
-            // Wrap everything in result array
-            $result = [
-                'patient_info' => $patient_info,
-                'test_dates' => $test_dates,
-                'doctor_info' => $doctor_info,
-                'lab_info' => $lab_info,
-                'profile_name' => $profile_name,
-                'resultItems' => $resultItems
-            ];
-
-            // return response()->json($result);
-            // exit;
+            return response()->json($result);
+            exit;
 
             $mpdf = new Mpdf([
                 'mode' => 'utf-8',
