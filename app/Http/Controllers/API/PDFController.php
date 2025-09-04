@@ -15,6 +15,124 @@ use Mpdf\Mpdf;
 
 class PDFController extends Controller
 {
+    /**
+     * Create panel chunks based on comment presence - max 2 per page if any panel has comments, otherwise 4
+     * 
+     * @param array $panels Array of panels to chunk
+     * @return array Array of panel chunks
+     */
+    private function createPanelChunks($panels)
+    {
+        if (empty($panels)) {
+            return [];
+        }
+
+        $chunks = [];
+        $currentChunk = [];
+        $currentChunkHasComments = false;
+        $maxPanelsPerPage = 4; // Default
+
+        foreach ($panels as $panel) {
+            // Check if this panel has comments
+            $panelHasComments = !empty($panel['panel_comments']);
+
+            // If adding this panel would exceed the limit, start a new chunk
+            if (!empty($currentChunk)) {
+                $currentMaxForChunk = ($currentChunkHasComments || $panelHasComments) ? 2 : 4;
+
+                if (count($currentChunk) >= $currentMaxForChunk) {
+                    // Close current chunk and start new one
+                    $chunks[] = $currentChunk;
+                    $currentChunk = [];
+                    $currentChunkHasComments = false;
+                }
+            }
+
+            // Add panel to current chunk
+            $currentChunk[] = $panel;
+
+            // Update chunk comment status
+            if ($panelHasComments) {
+                $currentChunkHasComments = true;
+            }
+        }
+
+        // Add the last chunk if not empty
+        if (!empty($currentChunk)) {
+            $chunks[] = $currentChunk;
+        }
+
+        return $chunks;
+    }
+
+    /**
+     * Format panel item name with proper capitalization
+     * Keeps abbreviations like E.S.R, H.D.L, MCHC as-is, capitalizes normal names
+     * 
+     * @param string $name The panel item name
+     * @return string Formatted name
+     */
+    private function formatPanelItemName($name)
+    {
+        if (empty($name)) {
+            return $name;
+        }
+
+        // Check if it's an abbreviation (contains dots or is all uppercase without spaces)
+        $isAbbreviation = false;
+
+        // Has dots like "E.S.R", "H.D.L" - likely abbreviation
+        if (strpos($name, '.') !== false) {
+            $isAbbreviation = true;
+        }
+
+        // Is all uppercase without spaces like "MCHC" - likely abbreviation  
+        if (!$isAbbreviation && !preg_match('/[a-z]/', $name) && !preg_match('/\s/', $name)) {
+            $isAbbreviation = true;
+        }
+
+        // If it's an abbreviation, keep as-is
+        if ($isAbbreviation) {
+            return $name;
+        }
+
+        // Otherwise, capitalize first letter of each word
+        return ucwords(strtolower($name));
+    }
+
+    /**
+     * Format panel comment content by converting special markers to HTML
+     * 
+     * @param string $commentText Raw comment text with \.br\ markers
+     * @return string Formatted HTML with proper line breaks
+     */
+    private function formatPanelComment($commentText)
+    {
+        if (empty($commentText)) {
+            return '';
+        }
+
+        // First convert double line breaks \.br\\.br\ to <br><br> for paragraph separation
+        $formatted = str_replace('\.br\\.br\\', '<br><br>', $commentText);
+
+        // Then convert single line breaks \.br\ to <br>
+        $formatted = str_replace('\.br\\', '<br>', $formatted);
+
+        // Apply htmlspecialchars to protect against XSS but preserve spacing and line breaks
+        $formatted = htmlspecialchars($formatted, ENT_QUOTES, 'UTF-8');
+
+        // Restore the <br> tags that were escaped by htmlspecialchars
+        $formatted = str_replace(['&lt;br&gt;'], ['<br>'], $formatted);
+
+        // Preserve spacing by converting multiple spaces to non-breaking spaces
+        // This ensures the original spacing and alignment is maintained
+        $formatted = preg_replace_callback('/  +/', function ($matches) {
+            return str_repeat('&nbsp;', strlen($matches[0]));
+        }, $formatted);
+
+        return $formatted;
+    }
+
     public function generateDummyPDF($id)
     {
         try {
@@ -37,7 +155,8 @@ class PDFController extends Controller
             $patient_info = [
                 'name' => $testResult->patient->name,
                 'dob' => $dob,
-                'icno' => $testResult->patient->icno,
+                // 'icno' => $testResult->patient->icno,
+                'icno' => substr_replace($testResult->patient->icno, 'XXXX', -4),
                 'gender' => $testResult->patient->gender == 'M' ? 'Male' : 'Female',
                 'age' => $testResult->patient->age . ' Years',
             ];
@@ -96,7 +215,7 @@ class PDFController extends Controller
                 $ppi = PanelPanelItem::with([
                     'panel',
                     'panel.panelCategory',
-                    'panel.panelComments',
+                    'panel.panelComments.masterPanelComment',
                     'panelItem',
                     'referenceRanges' => function ($query) use ($ref_range_id) {
                         $query->where('id', $ref_range_id);
@@ -125,7 +244,7 @@ class PDFController extends Controller
                     'result_flag' => $res_flag,
                     'is_tagon' => $is_tagon,
                     'result_sequence' => $res_sequence,
-                    'reference_range' => $reference_range,
+                    'reference_range' => $reference_range != null ? '(' . $reference_range . ')' : '',
                     'is_percentage' => false,
                     'percentage_value' => null
                 ];
@@ -176,13 +295,14 @@ class PDFController extends Controller
                     // Store the final combined item with hierarchy info
                     $ppi = PanelPanelItem::with([
                         'panel',
-                        'panel.panelCategory'
+                        'panel.panelCategory',
+                        'panel.panelComments.masterPanelComment',
                     ])->where('panel_item_id', $finalItem['panel_item_id'])
                         ->first();
 
                     $finalItem['_hierarchy_info'] = [
                         'panel_id' => $ppi->panel_id,
-                        'panel' => $ppi->panel
+                        'panel' => $ppi->panel,
                     ];
                     $hierarchicalData['_temp_items'][] = $finalItem;
                 }
@@ -237,12 +357,22 @@ class PDFController extends Controller
                     }
 
                     if (!isset($hierarchicalData['profiles'][$profileId]['categories'][$categoryId]['panels'][$ppi->panel_id])) {
+                        $panel_comments = [];
+                        foreach ($ppi->panel->panelComments as $panelComment) {
+                            if ($panelComment->masterPanelComment) {
+                                $panel_comments[] = [
+                                    'comment' => $panelComment->masterPanelComment->comment
+                                ];
+                            }
+                        }
+
                         $hierarchicalData['profiles'][$profileId]['categories'][$categoryId]['panels'][$ppi->panel_id] = [
                             'panel_id' => $ppi->panel_id,
                             'panel_name' => $ppi->panel->name,
                             'panel_sequence' => $ppi->panel->sequence,
                             'panel_profile_sequence' => $profileSequence,
                             'panel_category_id' => $ppi->panel->panel_category_id,
+                            'panel_comments' => $panel_comments,
                             'panel_items' => []
                         ];
                     }
@@ -262,10 +392,20 @@ class PDFController extends Controller
                     }
 
                     if (!isset($hierarchicalData['categories'][$categoryId]['panels'][$ppi->panel_id])) {
+                        $panel_comments = [];
+                        foreach ($ppi->panel->panelComments as $panelComment) {
+                            if ($panelComment->masterPanelComment) {
+                                $panel_comments[] = [
+                                    'comment' => $panelComment->masterPanelComment->comment
+                                ];
+                            }
+                        }
+
                         $hierarchicalData['categories'][$categoryId]['panels'][$ppi->panel_id] = [
                             'panel_id' => $ppi->panel_id,
                             'panel_name' => $ppi->panel->name,
                             'panel_sequence' => $ppi->panel->sequence,
+                            'panel_comments' => $panel_comments,
                             'panel_items' => []
                         ];
                     }
@@ -274,11 +414,21 @@ class PDFController extends Controller
                 } else {
                     // Level 3: No Profile and No Category - group under Panel > Panel Item
                     if (!isset($hierarchicalData['panels'][$ppi->panel_id])) {
+                        $panel_comments = [];
+                        foreach ($ppi->panel->panelComments as $panelComment) {
+                            if ($panelComment->masterPanelComment) {
+                                $panel_comments[] = [
+                                    'comment' => $panelComment->masterPanelComment->comment
+                                ];
+                            }
+                        }
+
                         $hierarchicalData['panels'][$ppi->panel_id] = [
                             'panel_id' => $ppi->panel_id,
                             'panel_name' => $ppi->panel->name,
                             'panel_sequence' => $ppi->panel->sequence,
                             'panel_category_id' => $ppi->panel->panel_category_id,
+                            'panel_comments' => $panel_comments,
                             'panel_items' => []
                         ];
                     }
@@ -765,12 +915,6 @@ class PDFController extends Controller
                     .page-break {
                         page-break-before: always;
                     }
-                    .force-page-break {
-                        page-break-before: always;
-                        height: 0;
-                        margin: 0;
-                        padding: 0;
-                    }
                 </style>
             </head>
             <body>
@@ -802,22 +946,24 @@ class PDFController extends Controller
                             $category_name = $cat['category_name'];
 
                             if (isset($cat['panels'])) {
-                                // Group panels into chunks of 4
-                                $panelChunks = array_chunk($cat['panels'], 4);
+                                // Group panels into chunks - max 2 per page if any panel has comments, otherwise 4
+                                $panelChunks = $this->createPanelChunks($cat['panels']);
 
                                 foreach ($panelChunks as $chunkIndex => $panelGroup) {
                                     // Force page break before each page (except first)
                                     if ($pageIndex > 0) {
-                                        // Close current table and force page break
+                                        // Close current table
                                         $content .= '
                         </tbody>
                     </table>
-                </div>
-                
-                <!-- Force Page Break -->
-                <div class="force-page-break"></div>
-                
-                <!-- Start New Page -->
+                </div>';
+
+                                        // Write current content and add page break using mPDF
+                                        $mpdf->WriteHTML($content);
+                                        $mpdf->AddPage();
+
+                                        // Reset content and start new page with table
+                                        $content = '
                 <div class="content">
                     <table style="width: 100%; border-collapse: collapse; font-size:11.5px; margin-top:92px; text-align:left;">
                         <thead>
@@ -912,6 +1058,12 @@ class PDFController extends Controller
                                                 //     $colspan = 4;
                                                 // }
 
+                                                $isSpecialItem = in_array($pi['panel_item_name'], ['Haemoglobin', 'White Cell Count', 'Platelets']);
+                                                $boldStyle = $isSpecialItem ? 'font-style:light;font-weight:bold;' : '';
+
+                                                $isSpecialPadding = in_array($pi['panel_item_name'], ['White Cell Count', 'Platelets']);
+                                                $paddingStyle = $isSpecialPadding ? 'padding: 20px 0px;' : '';
+
                                                 $formattedStyle = '';
                                                 if (!empty($pi['result_flag'])) {
                                                     $formattedStyle = 'font-weight:bold;text-decoration:underline';
@@ -919,18 +1071,17 @@ class PDFController extends Controller
                                                 if ($pi['panel_item_name'] == 'Blood Film') {
 
                                                     $content .= '<tr>
-                                            <td style="font-family: Courier New;padding:10px 30px;"><span style="font-weight:bold;margin-right:10px;">FILM:</span>' . $pi['result_value'] . '</td>
-                                            </tr>';
+                                                        <td style="font-family: Courier New;padding:10px 30px;"><span style="font-weight:bold;margin-right:10px;">FILM:</span>' . $pi['result_value'] . '</td>
+                                                        </tr>';
                                                 } else if ($pi['panel_item_id'] == 25) {
                                                     $content .= '<tr>
-                                            <td style="font-family: Courier New;padding:10px 30px;">
-                                             ' . nl2br(str_replace('\.br\\', '<br>', $pi['result_value'])) . '
-                                            </td>
-                                            </tr>';
+                                                        <td style="font-family: Courier New;padding:10px 30px;">
+                                                        ' . nl2br(str_replace('\.br\\', '<br>', $pi['result_value'])) . '
+                                                        </td>
+                                                        </tr>';
                                                 } else {
-
                                                     $name = $pi['panel_item_name'];
-                                                    $displayName = ctype_upper(str_replace(' ', '', $name)) ? $name : ucwords(strtolower($name));
+                                                    // $displayName = $this->formatPanelItemName($name);
                                                     $content .= '<tr>
                                                             <td style="padding:0px 10px;">
                                                                 <table style="border-collapse:collapse; width:100%; table-layout:fixed;">
@@ -938,8 +1089,8 @@ class PDFController extends Controller
                                                                         <td style="padding:0; font-weight:bold; width:20px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;text-align:center;">
                                                                             ' . $pi['result_flag'] . '
                                                                         </td>
-                                                                        <td style="padding:0; width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">'
-                                                        . $displayName .
+                                                                        <td style="padding:0; width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; ' . $boldStyle .  ' ' . $paddingStyle . ' ">'
+                                                        . $name .
                                                         '</td>
                                                                         <td style="padding:0; width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></td>
                                                                         <td style="padding:0px 10px 0px 0px; text-align:right; width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
@@ -953,6 +1104,18 @@ class PDFController extends Controller
                                                             <td>' . $pi['reference_range'] . '</td>
                                                         </tr> ';
                                                 }
+                                            }
+                                        }
+
+                                        // Add panel comments if they exist
+                                        if (!empty($pl['panel_comments'])) {
+                                            foreach ($pl['panel_comments'] as $comment) {
+                                                $formattedComment = $this->formatPanelComment($comment['comment']);
+                                                $content .= '<tr>
+                                                    <td colspan="4" style="font-family: Courier New;padding:15px 15px 5px 15px;">
+                                                        ' . $formattedComment . '
+                                                    </td>
+                                                </tr>';
                                             }
                                         }
                                     }
@@ -969,22 +1132,24 @@ class PDFController extends Controller
                     $category_name = $cat['category_name'];
 
                     if (isset($cat['panels'])) {
-                        // Group panels into chunks of 4
-                        $panelChunks = array_chunk($cat['panels'], 4);
+                        // Group panels into chunks - max 2 per page if any panel has comments, otherwise 4
+                        $panelChunks = $this->createPanelChunks($cat['panels']);
 
                         foreach ($panelChunks as $chunkIndex => $panelGroup) {
                             // Force page break before each page (except first)
                             if ($pageIndex > 0) {
-                                // Close current table and force page break
+                                // Close current table
                                 $content .= '
                         </tbody>
                     </table>
-                </div>
-                
-                <!-- Force Page Break -->
-                <div class="force-page-break"></div>
-                
-                <!-- Start New Page -->
+                </div>';
+
+                                // Write current content and add page break using mPDF
+                                $mpdf->WriteHTML($content);
+                                $mpdf->AddPage();
+
+                                // Reset content and start new page with table
+                                $content = '
                 <div class="content">
                     <table style="width: 100%; border-collapse: collapse; font-size:11.5px; margin-top:92px; text-align:left;">
                         <thead>
@@ -1088,7 +1253,7 @@ class PDFController extends Controller
                                         } else {
 
                                             $name = $pi['panel_item_name'];
-                                            $displayName = ctype_upper(str_replace(' ', '', $name)) ? $name : ucwords(strtolower($name));
+                                            // $displayName = $this->formatPanelItemName($name);
                                             $content .= '<tr>
                                                             <td style="padding:0px 10px;">
                                                                 <table style="border-collapse:collapse; width:100%; table-layout:fixed;">
@@ -1097,7 +1262,7 @@ class PDFController extends Controller
                                                                             ' . $pi['result_flag'] . '
                                                                         </td>
                                                                         <td style="padding:0; width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">'
-                                                . $displayName .
+                                                . $name .
                                                 '</td>
                                                                         <td style="padding:0; width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></td>
                                                                         <td style="padding:0px 10px 0px 0px; text-align:right; width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
@@ -1110,6 +1275,18 @@ class PDFController extends Controller
                                                             <td>' . $pi['panel_item_unit'] . '</td>
                                                             <td>' . $pi['reference_range'] . '</td>
                                                         </tr> ';
+                                        }
+                                    }
+
+                                    // Add panel comments if they exist
+                                    if (!empty($pl['panel_comments'])) {
+                                        foreach ($pl['panel_comments'] as $comment) {
+                                            $formattedComment = $this->formatPanelComment($comment['comment']);
+                                            $content .= '<tr>
+                                                <td colspan="4" style="font-family: Courier New;padding:15px 15px 5px 15px;">
+                                                    ' . $formattedComment . '
+                                                </td>
+                                            </tr>';
                                         }
                                     }
                                 }
@@ -1126,6 +1303,7 @@ class PDFController extends Controller
             </body>
             </html>';
 
+            // Write the final content
             $mpdf->WriteHTML($content);
 
             return response($mpdf->Output('', 'S'), 200)

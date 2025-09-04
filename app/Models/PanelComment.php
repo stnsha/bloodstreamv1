@@ -31,6 +31,6 @@ class PanelComment extends Model
 
     public function masterPanelComment(): BelongsTo
     {
-        return $this->belongsTo(MasterPanelComment::class, 'master_panel_comment');
+        return $this->belongsTo(MasterPanelComment::class, 'master_panel_comment_id');
     }
 }
