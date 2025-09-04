@@ -138,11 +138,16 @@ class PDFController extends Controller
         // Then convert single line breaks \.br\ to <br>
         $formatted = str_replace('\.br\\', '<br>', $formatted);
 
+        // Convert \H\ to bold start and \N\ to new line, \T\ to tab
+        $formatted = str_replace('\\H\\', '<strong>', $formatted);
+        $formatted = str_replace('\\N\\', '</strong><br>', $formatted);
+        $formatted = str_replace('\\T\\', '&nbsp;&nbsp;&nbsp;&nbsp;', $formatted);
+
         // Apply htmlspecialchars to protect against XSS but preserve spacing and line breaks
         $formatted = htmlspecialchars($formatted, ENT_QUOTES, 'UTF-8');
 
-        // Restore the <br> tags that were escaped by htmlspecialchars
-        $formatted = str_replace(['&lt;br&gt;'], ['<br>'], $formatted);
+        // Restore the HTML tags that were escaped by htmlspecialchars
+        $formatted = str_replace(['&lt;br&gt;', '&lt;strong&gt;', '&lt;/strong&gt;', '&amp;nbsp;'], ['<br>', '<strong>', '</strong>', '&nbsp;'], $formatted);
 
         // Preserve spacing by converting multiple spaces to non-breaking spaces
         // This ensures the original spacing and alignment is maintained
@@ -223,7 +228,7 @@ class PDFController extends Controller
         $panel['panel_comments'] = $uniqueComments;
     }
 
-    public function generateDummyPDF($id)
+    public function export($id)
     {
         try {
             $testResult = TestResult::with(
@@ -235,9 +240,6 @@ class PDFController extends Controller
                     'profiles'
                 ]
             )->find($id);
-
-            //69 - ada profile
-            // 49 - takda profile dan takda category
 
             $dob = $testResult->patient->dob != null ? Carbon::createFromFormat('Ymd', $testResult->patient->dob)->format('d/m/y') : null;
 
@@ -981,7 +983,7 @@ class PDFController extends Controller
             <html>
             <head>
                 <meta charset="utf-8">
-                <title>Dummy PDF Report</title>
+                <title>Blood Test Report</title>
                 <style>
                     body, p {
                         margin: 0;
@@ -1159,11 +1161,17 @@ class PDFController extends Controller
                                                         ' . nl2br(str_replace('\.br\\', '<br>', $pi['result_value'])) . '
                                                         </td>
                                                         </tr>';
+                                                } else if ($pi['panel_item_id'] == 26) {
+                                                    $content .= '<tr>
+                                                        <td style="font-family: Courier New;padding:10px 30px;">Group:
+                                                        ' . nl2br(str_replace('\.br\\', '<br>', $pi['result_value'])) . '
+                                                        </td>
+                                                        </tr>';
                                                 } else {
                                                     $name = $pi['panel_item_name'];
                                                     $displayName = $this->formatPanelItemName($name);
                                                     $content .= '<tr>
-                                                            <td style="padding:0px 10px;">
+                                                            <td style="padding:3px 10px;">
                                                                 <table style="border-collapse:collapse; width:100%; table-layout:fixed;">
                                                                     <tr>
                                                                         <td style="padding:0; font-weight:bold; width:20px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;text-align:center;">
@@ -1330,6 +1338,12 @@ class PDFController extends Controller
                                              ' . nl2br(str_replace('\.br\\', '<br>', $pi['result_value'])) . '
                                             </td>
                                             </tr>';
+                                        } else if ($pi['panel_item_id'] == 26) {
+                                            $content .= '<tr>
+                                                        <td style="padding:10px 30px;">Group:
+                                                        ' . nl2br(str_replace('\.br\\', '<br>', $pi['result_value'])) . '
+                                                        </td>
+                                                        </tr>';
                                         } else {
 
                                             $name = $pi['panel_item_name'];
