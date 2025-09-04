@@ -11,7 +11,6 @@ class MasterPanelComment extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'identifier',
         'comment',
     ];
 
@@ -19,9 +18,5 @@ class MasterPanelComment extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
-    ];
-
-    protected $attributes = [
-        'identifier' => null,
     ];
 }

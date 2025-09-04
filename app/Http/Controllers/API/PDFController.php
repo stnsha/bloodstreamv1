@@ -7,6 +7,7 @@ use App\Models\PanelPanelItem;
 use App\Models\PanelPanelProfile;
 use App\Models\PanelProfile;
 use App\Models\TestResult;
+use App\Models\TestResultComment;
 use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
@@ -96,6 +97,25 @@ class PDFController extends Controller
             return $name;
         }
 
+        // Handle names with parentheses - capitalize content inside parentheses too
+        if (preg_match('/^(.+?)(\(.+\))(.*)$/', $name, $matches)) {
+            $beforeParens = trim($matches[1]);
+            $insideParens = $matches[2]; // includes the parentheses
+            $afterParens = trim($matches[3]);
+            
+            // Capitalize the main part
+            $formattedBefore = ucwords(strtolower($beforeParens));
+            
+            // Capitalize content inside parentheses
+            $insideContent = trim($insideParens, '()');
+            $formattedInside = ucwords(strtolower($insideContent));
+            
+            // Capitalize the after part if any
+            $formattedAfter = !empty($afterParens) ? ucwords(strtolower($afterParens)) : '';
+            
+            return $formattedBefore . ' (' . $formattedInside . ')' . (!empty($formattedAfter) ? ' ' . $formattedAfter : '');
+        }
+
         // Otherwise, capitalize first letter of each word
         return ucwords(strtolower($name));
     }
@@ -133,6 +153,76 @@ class PDFController extends Controller
         return $formatted;
     }
 
+    /**
+     * Build panel comments from item comments
+     * 
+     * @param array $hierarchicalData The hierarchical data structure
+     * @return void
+     */
+    private function buildPanelCommentsFromItems(&$hierarchicalData)
+    {
+        // Process profiles
+        if (isset($hierarchicalData['profiles'])) {
+            foreach ($hierarchicalData['profiles'] as &$profile) {
+                if (isset($profile['categories'])) {
+                    foreach ($profile['categories'] as &$category) {
+                        if (isset($category['panels'])) {
+                            foreach ($category['panels'] as &$panel) {
+                                $this->collectPanelComments($panel);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Process categories (no profiles)
+        if (isset($hierarchicalData['categories'])) {
+            foreach ($hierarchicalData['categories'] as &$category) {
+                if (isset($category['panels'])) {
+                    foreach ($category['panels'] as &$panel) {
+                        $this->collectPanelComments($panel);
+                    }
+                }
+            }
+        }
+
+        // Process panels (no categories)
+        if (isset($hierarchicalData['panels'])) {
+            foreach ($hierarchicalData['panels'] as &$panel) {
+                $this->collectPanelComments($panel);
+            }
+        }
+    }
+
+    /**
+     * Collect unique comments from panel items
+     * 
+     * @param array $panel Panel data
+     * @return void
+     */
+    private function collectPanelComments(&$panel)
+    {
+        $uniqueComments = [];
+        $seenComments = [];
+
+        if (isset($panel['panel_items'])) {
+            foreach ($panel['panel_items'] as $item) {
+                if (!empty($item['item_comments'])) {
+                    foreach ($item['item_comments'] as $comment) {
+                        $commentText = $comment['comment'];
+                        if (!in_array($commentText, $seenComments)) {
+                            $uniqueComments[] = $comment;
+                            $seenComments[] = $commentText;
+                        }
+                    }
+                }
+            }
+        }
+
+        $panel['panel_comments'] = $uniqueComments;
+    }
+
     public function generateDummyPDF($id)
     {
         try {
@@ -141,7 +231,7 @@ class PDFController extends Controller
                     'doctor',
                     'patient',
                     'testResultProfiles',
-                    'testResultItems',
+                    'testResultItems.panelComments.masterPanelComment',
                     'profiles'
                 ]
             )->find($id);
@@ -215,12 +305,21 @@ class PDFController extends Controller
                 $ppi = PanelPanelItem::with([
                     'panel',
                     'panel.panelCategory',
-                    'panel.panelComments.masterPanelComment',
                     'panelItem',
                     'referenceRanges' => function ($query) use ($ref_range_id) {
                         $query->where('id', $ref_range_id);
                     }
                 ])->find($ri->panel_panel_item_id);
+
+                // Get item-specific comments from TestResultItem panelComments relationship
+                $itemComments = [];
+                foreach ($ri->panelComments as $panelComment) {
+                    if ($panelComment->masterPanelComment) {
+                        $itemComments[] = [
+                            'comment' => $panelComment->masterPanelComment->comment
+                        ];
+                    }
+                }
 
                 $reference_range = $ppi->referenceRanges->first()->value ?? null;
                 if ($reference_range) {
@@ -246,7 +345,8 @@ class PDFController extends Controller
                     'result_sequence' => $res_sequence,
                     'reference_range' => $reference_range != null ? '(' . $reference_range . ')' : '',
                     'is_percentage' => false,
-                    'percentage_value' => null
+                    'percentage_value' => null,
+                    'item_comments' => $itemComments
                 ];
 
                 // Check if this is a combinable item (percentage or absolute)
@@ -290,13 +390,17 @@ class PDFController extends Controller
                     if (isset($items['percentage'])) {
                         $finalItem['is_percentage'] = true;
                         $finalItem['percentage_value'] = $items['percentage']['result_value'];
+                        // Merge comments from both percentage and absolute items
+                        $finalItem['item_comments'] = array_merge(
+                            $finalItem['item_comments'] ?? [],
+                            $items['percentage']['item_comments'] ?? []
+                        );
                     }
 
                     // Store the final combined item with hierarchy info
                     $ppi = PanelPanelItem::with([
                         'panel',
                         'panel.panelCategory',
-                        'panel.panelComments.masterPanelComment',
                     ])->where('panel_item_id', $finalItem['panel_item_id'])
                         ->first();
 
@@ -357,22 +461,13 @@ class PDFController extends Controller
                     }
 
                     if (!isset($hierarchicalData['profiles'][$profileId]['categories'][$categoryId]['panels'][$ppi->panel_id])) {
-                        $panel_comments = [];
-                        foreach ($ppi->panel->panelComments as $panelComment) {
-                            if ($panelComment->masterPanelComment) {
-                                $panel_comments[] = [
-                                    'comment' => $panelComment->masterPanelComment->comment
-                                ];
-                            }
-                        }
-
                         $hierarchicalData['profiles'][$profileId]['categories'][$categoryId]['panels'][$ppi->panel_id] = [
                             'panel_id' => $ppi->panel_id,
                             'panel_name' => $ppi->panel->name,
                             'panel_sequence' => $ppi->panel->sequence,
                             'panel_profile_sequence' => $profileSequence,
                             'panel_category_id' => $ppi->panel->panel_category_id,
-                            'panel_comments' => $panel_comments,
+                            'panel_comments' => [], // Will be built from item comments
                             'panel_items' => []
                         ];
                     }
@@ -392,20 +487,11 @@ class PDFController extends Controller
                     }
 
                     if (!isset($hierarchicalData['categories'][$categoryId]['panels'][$ppi->panel_id])) {
-                        $panel_comments = [];
-                        foreach ($ppi->panel->panelComments as $panelComment) {
-                            if ($panelComment->masterPanelComment) {
-                                $panel_comments[] = [
-                                    'comment' => $panelComment->masterPanelComment->comment
-                                ];
-                            }
-                        }
-
                         $hierarchicalData['categories'][$categoryId]['panels'][$ppi->panel_id] = [
                             'panel_id' => $ppi->panel_id,
                             'panel_name' => $ppi->panel->name,
                             'panel_sequence' => $ppi->panel->sequence,
-                            'panel_comments' => $panel_comments,
+                            'panel_comments' => [], // Will be built from item comments
                             'panel_items' => []
                         ];
                     }
@@ -414,21 +500,12 @@ class PDFController extends Controller
                 } else {
                     // Level 3: No Profile and No Category - group under Panel > Panel Item
                     if (!isset($hierarchicalData['panels'][$ppi->panel_id])) {
-                        $panel_comments = [];
-                        foreach ($ppi->panel->panelComments as $panelComment) {
-                            if ($panelComment->masterPanelComment) {
-                                $panel_comments[] = [
-                                    'comment' => $panelComment->masterPanelComment->comment
-                                ];
-                            }
-                        }
-
                         $hierarchicalData['panels'][$ppi->panel_id] = [
                             'panel_id' => $ppi->panel_id,
                             'panel_name' => $ppi->panel->name,
                             'panel_sequence' => $ppi->panel->sequence,
                             'panel_category_id' => $ppi->panel->panel_category_id,
-                            'panel_comments' => $panel_comments,
+                            'panel_comments' => [], // Will be built from item comments
                             'panel_items' => []
                         ];
                     }
@@ -436,6 +513,9 @@ class PDFController extends Controller
                     $hierarchicalData['panels'][$ppi->panel_id]['panel_items'][] = $panelItemData;
                 }
             }
+
+            // Build panel comments from item comments
+            $this->buildPanelCommentsFromItems($hierarchicalData);
 
             // Sort categories within profiles by panel_profile_sequence average
             if (isset($hierarchicalData['profiles'])) {
@@ -1081,7 +1161,7 @@ class PDFController extends Controller
                                                         </tr>';
                                                 } else {
                                                     $name = $pi['panel_item_name'];
-                                                    // $displayName = $this->formatPanelItemName($name);
+                                                    $displayName = $this->formatPanelItemName($name);
                                                     $content .= '<tr>
                                                             <td style="padding:0px 10px;">
                                                                 <table style="border-collapse:collapse; width:100%; table-layout:fixed;">
@@ -1090,7 +1170,7 @@ class PDFController extends Controller
                                                                             ' . $pi['result_flag'] . '
                                                                         </td>
                                                                         <td style="padding:0; width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; ' . $boldStyle .  ' ' . $paddingStyle . ' ">'
-                                                        . $name .
+                                                        . $displayName .
                                                         '</td>
                                                                         <td style="padding:0; width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></td>
                                                                         <td style="padding:0px 10px 0px 0px; text-align:right; width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
@@ -1253,7 +1333,7 @@ class PDFController extends Controller
                                         } else {
 
                                             $name = $pi['panel_item_name'];
-                                            // $displayName = $this->formatPanelItemName($name);
+                                            $displayName = $this->formatPanelItemName($name);
                                             $content .= '<tr>
                                                             <td style="padding:0px 10px;">
                                                                 <table style="border-collapse:collapse; width:100%; table-layout:fixed;">
@@ -1262,7 +1342,7 @@ class PDFController extends Controller
                                                                             ' . $pi['result_flag'] . '
                                                                         </td>
                                                                         <td style="padding:0; width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">'
-                                                . $name .
+                                                . $displayName .
                                                 '</td>
                                                                         <td style="padding:0; width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></td>
                                                                         <td style="padding:0px 10px 0px 0px; text-align:right; width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">

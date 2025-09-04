@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class TestResultItem extends Model
@@ -50,6 +51,12 @@ class TestResultItem extends Model
     public function panelPanelItem(): BelongsTo
     {
         return $this->belongsTo(PanelPanelItem::class, 'panel_panel_item_id', 'id');
+    }
+
+    public function panelComments(): BelongsToMany
+    {
+        return $this->belongsToMany(PanelComment::class, 'test_result_item_panel_comments')
+                    ->withTimestamps();
     }
 
     public function panelItem()

@@ -51,6 +51,7 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
         Route::get('/results', 'results')->name('results');
         Route::get('/files', 'files')->name('files');
         Route::get('/json', 'json')->name('json');
+        Route::get('/deliveryFiles', 'deliveryFiles')->name('deliveryFiles');
         Route::get('/innoquestPanelSequence', 'innoquestPanelSequence')->name('innoquestPanelSequence');
     });
 

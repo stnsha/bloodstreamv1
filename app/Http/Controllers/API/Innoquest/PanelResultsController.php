@@ -18,6 +18,7 @@ use App\Models\PanelProfile;
 use App\Models\Patient;
 use App\Models\ReferenceRange;
 use App\Models\TestResult;
+use App\Models\TestResultComment;
 use App\Models\TestResultItem;
 use App\Models\TestResultProfile;
 use Exception;
@@ -278,13 +279,13 @@ class PanelResultsController extends BaseResultsController
                                     //store field value to variable
                                     $identifier = $res['Identifier'];
 
-                                    if ($identifier == 'REPORT') {
-                                        // Handle report identifier
-                                        $result = $this->parseLabReport($res['Value']);
+                                    // if ($identifier == 'REPORT') {
+                                    //     // Handle report identifier
+                                    //     $result = $this->parseLabReport($res['Value']);
 
-                                        return json_encode($result, JSON_PRETTY_PRINT);
-                                    }
-                                    exit;
+                                    //     return json_encode($result, JSON_PRETTY_PRINT);
+                                    // }
+                                    // exit;
 
                                     //result items 
                                     if (filled($res['Text']) && ($res['Text'] != 'COMMENT' && $res['Text'] != 'NOTE')) {
@@ -344,7 +345,7 @@ class PanelResultsController extends BaseResultsController
                                         }
 
                                         //final insert/update result item
-                                        TestResultItem::updateOrCreate(
+                                        $testResultItem = TestResultItem::updateOrCreate(
                                             [
                                                 'test_result_id' => $test_result_id,
                                                 'panel_panel_item_id' => $panel_panel_item_id,
@@ -364,9 +365,6 @@ class PanelResultsController extends BaseResultsController
                                         // Create master panel comment if doesn't exist
                                         $masterPanelComment = MasterPanelComment::firstOrCreate(
                                             [
-                                                'identifier' => $identifier
-                                            ],
-                                            [
                                                 'comment' => $result_value
                                             ]
                                         );
@@ -379,11 +377,19 @@ class PanelResultsController extends BaseResultsController
 
                                         if (!$existingPanelComment) {
                                             // Create new panel comment
-                                            PanelComment::create([
+                                            $panelComment = PanelComment::create([
                                                 'panel_id' => $panel_id,
                                                 'master_panel_comment_id' => $masterPanelComment->id,
                                             ]);
                                         }
+
+                                        $panel_comment_id = $existingPanelComment->id ?? $panelComment->id;
+                                        
+                                        // Create relationship using TestResultComment model
+                                        TestResultComment::firstOrCreate([
+                                            'test_result_item_id' => $testResultItem->id,
+                                            'panel_comment_id' => $panel_comment_id,
+                                        ]);
                                     }
                                 }
                             }
