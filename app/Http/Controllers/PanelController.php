@@ -17,9 +17,13 @@ class PanelController extends Controller
         
         $panels = Panel::with([
             'lab',
-            'panelItems'
+            'panelItems',
+            'panelComments.masterPanelComment'
         ])
-        ->withCount(['panelItems as panel_items_count'])
+        ->withCount([
+            'panelItems as panel_items_count',
+            'panelComments as panel_comments_count'
+        ])
         ->get();
         
         return view('panels.index', compact('user_name', 'lab_id', 'panels'));
@@ -33,8 +37,10 @@ class PanelController extends Controller
         $panel = Panel::with([
             'lab',
             'panelItems',
-            'panelTags'
-        ])->findOrFail($id);
+            'panelComments.masterPanelComment'
+        ])
+        ->withCount(['panelComments as panel_comments_count'])
+        ->findOrFail($id);
 
         return view('panels.show', compact('panel'));
     }

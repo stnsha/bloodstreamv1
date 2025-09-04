@@ -63,22 +63,6 @@
                                 class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#003049]/10 text-[#003049] border border-[#003049]/20">
                                 {{ $panel->code }}
                             </span>
-                            @if ($panel->panelTags && count($panel->panelTags) > 0)
-                                <div class="mt-2">
-                                    <div class="text-xs text-gray-600 uppercase tracking-wider mb-1">Panel Tag Codes
-                                    </div>
-                                    <div class="flex flex-wrap gap-1">
-                                        @foreach ($panel->panelTags as $tag)
-                                            @if ($tag->code)
-                                                <span
-                                                    class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-200">
-                                                    {{ $tag->code }}
-                                                </span>
-                                            @endif
-                                        @endforeach
-                                    </div>
-                                </div>
-                            @endif
                         </div>
                         @if ($panel->int_code)
                             <div>
@@ -129,7 +113,7 @@
             </div>
 
             <!-- Statistics Row -->
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div class="bg-blue-50 rounded-lg p-3 border border-blue-200">
                     <div class="text-xs text-gray-600 mb-1">Panel Items</div>
                     <div class="text-lg font-bold text-[#003049] flex items-center gap-2">
@@ -137,6 +121,16 @@
                         <span
                             class="inline-flex items-center justify-center w-6 h-6 text-xs font-medium text-white bg-blue-500 rounded-full">
                             {{ count($panel->panelItems ?? []) }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="bg-yellow-50 rounded-lg p-3 border border-yellow-200">
+                    <div class="text-xs text-gray-600 mb-1">Panel Comments</div>
+                    <div class="text-lg font-bold text-[#003049] flex items-center gap-2">
+                        <span
+                            class="inline-flex items-center justify-center w-6 h-6 text-xs font-medium text-white bg-yellow-500 rounded-full">
+                            {{ $panel->panel_comments_count ?? 0 }}
                         </span>
                     </div>
                 </div>
@@ -187,131 +181,235 @@
         </div>
     </div>
 
-
-    <!-- Panel Items -->
-    <div class="space-y-6">
-        @if ($panel->panelItems && count($panel->panelItems) > 0)
-            @foreach ($panel->panelItems as $item)
-                @php
-                    $panelPanelItem = \App\Models\PanelPanelItem::where('panel_id', $panel->id)
-                        ->where('panel_item_id', $item->id)
-                        ->first();
-                    $refRanges = $panelPanelItem ? $panelPanelItem->referenceRanges : collect([]);
-                    $resultItems = $panelPanelItem ? $panelPanelItem->testResultItems : collect([]);
-                @endphp
-                <div class="bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden">
-                    <div class="p-4 sm:p-6 border-b border-[#003049]/10">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center gap-3">
-                                <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
-                                    <svg class="w-6 h-6 text-[#003049]" fill="none" stroke="currentColor"
-                                        viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                                    </svg>
-                                </div>
-                                <div>
-                                    <h3 class="text-lg sm:text-xl font-semibold text-[#003049]">{{ $item->name }}
-                                    </h3>
-                                    @if ($item->code)
-                                        <p class="text-sm text-gray-600">Code: {{ $item->code }}</p>
-                                    @endif
-                                </div>
-                            </div>
-                            {{-- <div class="flex items-center gap-2">
-                                <span
-                                    class="inline-flex items-center justify-center w-8 h-8 text-sm font-medium text-white bg-blue-500 rounded-full"
-                                    title="Reference Ranges">
-                                    {{ $refRanges->count() }}
-                                </span>
-                                <span
-                                    class="inline-flex items-center justify-center w-8 h-8 text-sm font-medium text-white bg-green-500 rounded-full"
-                                    title="Test Results">
-                                    {{ $resultItems->count() }}
-                                </span>
-                            </div> --}}
-                        </div>
+    <!-- Panel Comments Section -->
+    @if($panel->panelComments && count($panel->panelComments) > 0)
+        <div class="bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden mb-6 sm:mb-8">
+            <div class="p-4 sm:p-6 border-b border-[#003049]/10">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-yellow-100 rounded-xl flex items-center justify-center">
+                        <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                        </svg>
                     </div>
+                    <div>
+                        <h2 class="text-lg sm:text-xl font-semibold text-[#003049]">Panel Comments</h2>
+                        <p class="text-sm text-gray-600">Comments associated with this panel</p>
+                    </div>
+                </div>
+            </div>
 
-                    <div class="p-4 sm:p-6">
-                        <!-- Panel Item Details -->
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                            @if ($item->unit)
-                                <div class="bg-gray-50 rounded-lg p-3">
-                                    <div class="text-xs text-gray-600 uppercase tracking-wider mb-1">Unit</div>
-                                    <div class="text-sm font-medium text-[#003049]">{{ $item->unit }}</div>
+            <div class="p-4 sm:p-6">
+                <div class="space-y-4">
+                    @foreach($panel->panelComments as $panelComment)
+                        @if($panelComment->masterPanelComment)
+                            <div class="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+                                <div class="text-sm text-gray-800">
+                                    {!! nl2br(e($panelComment->masterPanelComment->comment)) !!}
                                 </div>
-                            @endif
-                            @if ($item->decimal_point !== null)
-                                <div class="bg-gray-50 rounded-lg p-3">
-                                    <div class="text-xs text-gray-600 uppercase tracking-wider mb-1">Decimal Points
-                                    </div>
-                                    <div class="text-sm font-medium text-[#003049]">{{ $item->decimal_point }}</div>
-                                </div>
-                            @endif
-                            @if ($item->sequence)
-                                <div class="bg-gray-50 rounded-lg p-3">
-                                    <div class="text-xs text-gray-600 uppercase tracking-wider mb-1">Sequence</div>
-                                    <div class="text-sm font-medium text-[#003049]">{{ $item->sequence }}</div>
-                                </div>
-                            @endif
-                            @if ($item->result_type)
-                                <div class="bg-gray-50 rounded-lg p-3">
-                                    <div class="text-xs text-gray-600 uppercase tracking-wider mb-1">Result Type</div>
-                                    <div class="text-sm font-medium text-[#003049]">{{ $item->result_type }}</div>
-                                </div>
-                            @endif
-                        </div>
-
-                        <!-- Reference Ranges -->
-                        @if ($refRanges->count() > 0)
-                            <div class="mb-6">
-                                <h4 class="text-base font-semibold text-[#003049] mb-3 flex items-center gap-2">
-                                    <svg class="w-5 h-5 text-[#003049]" fill="none" stroke="currentColor"
-                                        viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                    </svg>
-                                    Reference Ranges
-                                    <span
-                                        class="inline-flex items-center justify-center w-6 h-6 text-xs font-medium text-white bg-blue-500 rounded-full">
-                                        {{ $refRanges->count() }}
-                                    </span>
-                                </h4>
-                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                    @foreach ($refRanges as $range)
-                                        <div class="bg-blue-50 rounded-lg p-3 border border-blue-200">
-                                            <div class="text-sm font-medium text-blue-900">{{ $range->value }}</div>
-                                            <div class="text-xs text-blue-600 mt-1">Range #{{ $loop->iteration }}
-                                            </div>
-                                        </div>
-                                    @endforeach
+                                <div class="mt-2 text-xs text-yellow-600">
+                                    Panel Comment ID: {{ $panelComment->id }}
                                 </div>
                             </div>
                         @endif
-
-                        <!-- Results Summary -->
-                        <div class="bg-green-50 rounded-lg p-4 border border-green-200">
-                            <h4 class="text-base font-semibold text-green-900 mb-2 flex items-center gap-2">
-                                <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor"
-                                    viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                Test Results Summary
-                                <span
-                                    class="inline-flex items-center justify-center w-6 h-6 text-xs font-medium text-white bg-green-500 rounded-full">
-                                    {{ $resultItems->count() }}
-                                </span>
-                            </h4>
-                            <div class="text-sm text-green-800">
-                                This panel item has been used in <strong>{{ $resultItems->count() }}</strong> test
-                                results.
-                            </div>
-                        </div>
-                    </div>
+                    @endforeach
                 </div>
-            @endforeach
+            </div>
+        </div>
+    @endif
+
+    <!-- Panel Items -->
+    <div class="bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden mb-6 sm:mb-8">
+        <div class="p-4 sm:p-6 border-b border-[#003049]/10">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
+                    <svg class="w-6 h-6 text-[#003049]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                </div>
+                <div>
+                    <h2 class="text-lg sm:text-xl font-semibold text-[#003049]">Panel Items</h2>
+                    <p class="text-sm text-gray-600">Items configured for this panel</p>
+                </div>
+            </div>
+        </div>
+
+        @if ($panel->panelItems && count($panel->panelItems) > 0)
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-[#003049]">
+                        <tr>
+                            <th scope="col" class="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-medium text-white uppercase tracking-wider">
+                                Item Name
+                            </th>
+                            <th scope="col" class="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-medium text-white uppercase tracking-wider">
+                                Code
+                            </th>
+                            <th scope="col" class="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-medium text-white uppercase tracking-wider">
+                                Identifier
+                            </th>
+                            <th scope="col" class="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-medium text-white uppercase tracking-wider">
+                                Unit
+                            </th>
+                            <th scope="col" class="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-medium text-white uppercase tracking-wider">
+                                Reference Ranges
+                            </th>
+                            <th scope="col" class="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-medium text-white uppercase tracking-wider">
+                                Test Results
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        @foreach ($panel->panelItems as $item)
+                            @php
+                                $panelPanelItem = \App\Models\PanelPanelItem::where('panel_id', $panel->id)
+                                    ->where('panel_item_id', $item->id)
+                                    ->first();
+                                $refRanges = $panelPanelItem ? $panelPanelItem->referenceRanges : collect([]);
+                                $resultItems = $panelPanelItem ? $panelPanelItem->testResultItems : collect([]);
+                            @endphp
+                            <tr class="hover:bg-gray-50 transition-colors duration-150">
+                                <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                                    <div class="text-sm font-medium text-[#003049]">{{ $item->name }}</div>
+                                </td>
+                                <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                                    @if ($item->code)
+                                        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#003049]/10 text-[#003049] border border-[#003049]/20">
+                                            {{ $item->code }}
+                                        </span>
+                                    @else
+                                        <span class="text-xs text-gray-400">N/A</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                                    @if ($item->identifier)
+                                        <div class="text-sm text-[#003049]">{{ $item->identifier }}</div>
+                                    @else
+                                        <span class="text-xs text-gray-400">N/A</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                                    @if ($item->unit)
+                                        <div class="text-sm text-[#003049]">{{ $item->unit }}</div>
+                                    @else
+                                        <span class="text-xs text-gray-400">N/A</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                                    @if ($refRanges->count() > 0)
+                                        <button onclick="toggleAccordion('item-{{ $item->id }}')" 
+                                            class="inline-flex items-center gap-2 px-3 py-1 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors duration-200">
+                                            <span class="inline-flex items-center justify-center w-6 h-6 text-xs font-medium text-white bg-blue-600 rounded-full">
+                                                {{ $refRanges->count() }}
+                                            </span>
+                                            ranges
+                                            <svg id="chevron-{{ $item->id }}" class="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </button>
+                                    @else
+                                        <span class="text-xs text-gray-400">No ranges</span>
+                                    @endif
+                                </td>
+                                <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                                    @if ($resultItems->count() > 0)
+                                        <div class="inline-flex items-center gap-2">
+                                            <span class="inline-flex items-center justify-center w-8 h-8 text-sm font-medium text-white bg-green-500 rounded-full">
+                                                {{ $resultItems->count() }}
+                                            </span>
+                                            <div class="text-xs text-gray-500">results</div>
+                                        </div>
+                                    @else
+                                        <span class="text-xs text-gray-400">No results</span>
+                                    @endif
+                                </td>
+                            </tr>
+
+                            <!-- Accordion Content -->
+                            <tr id="item-{{ $item->id }}" class="hidden accordion-row">
+                                <td colspan="6" class="px-3 sm:px-6 py-4 bg-gray-50">
+                                    <div class="space-y-4">
+                                        @if ($refRanges->count() > 0)
+                                            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                                                <h4 class="font-semibold text-[#003049] mb-3 flex items-center gap-2">
+                                                    <svg class="w-4 h-4 text-[#003049]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                                    </svg>
+                                                    Reference Ranges ({{ $refRanges->count() }})
+                                                </h4>
+                                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                    @foreach ($refRanges as $range)
+                                                        @php
+                                                            $rangeResultItems = $panelPanelItem ? $panelPanelItem->testResultItems()->where('reference_range_id', $range->id)->count() : 0;
+                                                        @endphp
+                                                        <div class="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                                                            <div class="text-sm font-medium text-blue-900 mb-1">{{ $range->value }}</div>
+                                                            <div class="flex items-center justify-between">
+                                                                <div class="text-xs text-blue-600">Range #{{ $loop->iteration }}</div>
+                                                                <div class="inline-flex items-center gap-1">
+                                                                    <span class="inline-flex items-center justify-center w-5 h-5 text-xs font-medium text-white bg-green-500 rounded-full">
+                                                                        {{ $rangeResultItems }}
+                                                                    </span>
+                                                                    <span class="text-xs text-green-600">results</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                        @endif
+
+                                        @if ($resultItems->count() > 0)
+                                            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                                                <h4 class="font-semibold text-[#003049] mb-3 flex items-center gap-2">
+                                                    <svg class="w-4 h-4 text-[#003049]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    </svg>
+                                                    Recent Test Results ({{ $resultItems->count() }})
+                                                </h4>
+                                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                    @foreach ($resultItems->take(9) as $resultItem)
+                                                        <div class="bg-green-50 rounded-lg p-3 border border-green-200">
+                                                            <div class="text-sm font-medium text-green-900 mb-1">
+                                                                {{ $resultItem->result_value ?? 'N/A' }}
+                                                                @if($resultItem->unit)
+                                                                    <span class="text-xs text-gray-600">{{ $resultItem->unit }}</span>
+                                                                @endif
+                                                            </div>
+                                                            <div class="flex items-center justify-between">
+                                                                <div class="text-xs text-green-600">
+                                                                    @if($resultItem->result_flag)
+                                                                        <span class="inline-flex items-center px-1 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                                                                            {{ $resultItem->result_flag }}
+                                                                        </span>
+                                                                    @endif
+                                                                </div>
+                                                                <div class="text-xs text-gray-500">
+                                                                    ID: {{ $resultItem->id }}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    @endforeach
+                                                    @if($resultItems->count() > 9)
+                                                        <div class="bg-gray-50 rounded-lg p-3 border border-gray-200 flex items-center justify-center">
+                                                            <div class="text-sm text-gray-600">
+                                                                +{{ $resultItems->count() - 9 }} more results
+                                                            </div>
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        @endif
+                                    </div>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
         @else
             <div class="bg-white rounded-2xl shadow-lg border border-[#003049]/10 p-6 sm:p-12 text-center">
                 <div
@@ -327,4 +425,37 @@
             </div>
         @endif
     </div>
+
+    <script>
+        function toggleAccordion(rowId) {
+            const row = document.getElementById(rowId);
+            const chevron = document.getElementById('chevron-' + rowId.split('-')[1]);
+            const isCurrentlyHidden = row.classList.contains('hidden');
+
+            // Close all other accordions first
+            const allAccordions = document.querySelectorAll('.accordion-row');
+            const allChevrons = document.querySelectorAll('[id^="chevron-"]');
+
+            allAccordions.forEach(accordion => {
+                if (accordion.id !== rowId) {
+                    accordion.classList.add('hidden');
+                }
+            });
+
+            allChevrons.forEach(chevronEl => {
+                if (chevronEl.id !== 'chevron-' + rowId.split('-')[1]) {
+                    chevronEl.style.transform = 'rotate(0deg)';
+                }
+            });
+
+            // Toggle the clicked accordion
+            if (isCurrentlyHidden) {
+                row.classList.remove('hidden');
+                chevron.style.transform = 'rotate(180deg)';
+            } else {
+                row.classList.add('hidden');
+                chevron.style.transform = 'rotate(0deg)';
+            }
+        }
+    </script>
 </x-app-layout>

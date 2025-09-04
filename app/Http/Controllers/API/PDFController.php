@@ -1022,8 +1022,25 @@ class PDFController extends Controller
             if (isset($result['data']['profiles'])) {
                 foreach ($result['data']['profiles'] as $pr) {
                     $profile_name = $pr['profile_name'];
-
                     if (isset($pr['categories'])) {
+                        if (isset($result['data']['panels'])) {
+                            foreach ($result['data']['panels'] as $pl) {
+                                $panel_name = $pl['panel_name'];
+
+                                $content .= '<tr>
+                                    <td colspan="4" style="padding:10px 0px 10px 10px;font-style:light;font-weight:bold;text-transform:uppercase;">' . $panel_name . '</td>
+                                    </tr>';
+                                foreach ($pl['panel_items'] as $pi) {
+                                    if ($pi['panel_item_id'] == 26) {
+                                        $content .= '<tr>
+                                                        <td style="font-family: Courier New;padding:10px 30px;">Group:
+                                                        ' . nl2br(str_replace('\.br\\', '<br>', $pi['result_value'])) . '
+                                                        </td>
+                                                        </tr>';
+                                    }
+                                }
+                            }
+                        }
                         foreach ($pr['categories'] as $cat) {
                             $category_name = $cat['category_name'];
 
@@ -1216,6 +1233,24 @@ class PDFController extends Controller
             }
             // Display categories when no profiles exist
             elseif (isset($result['data']['categories'])) {
+                if (isset($result['data']['panels'])) {
+                    foreach ($result['data']['panels'] as $pl) {
+                        $panel_name = $pl['panel_name'];
+
+                        $content .= '<tr>
+                                    <td colspan="4" style="padding:10px 0px 10px 10px;font-style:light;font-weight:bold;text-transform:uppercase;">' . $panel_name . '</td>
+                                    </tr>';
+                        foreach ($pl['panel_items'] as $pi) {
+                            if ($pi['panel_item_id'] == 26) {
+                                $content .= '<tr>
+                                                        <td style="font-family: Courier New;padding:10px 30px;">Group:
+                                                        ' . nl2br(str_replace('\.br\\', '<br>', $pi['result_value'])) . '
+                                                        </td>
+                                                        </tr>';
+                            }
+                        }
+                    }
+                }
                 foreach ($result['data']['categories'] as $cat) {
                     $category_name = $cat['category_name'];
 
