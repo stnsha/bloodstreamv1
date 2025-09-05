@@ -31,7 +31,7 @@ class PDFController extends Controller
         $chunks = [];
         $currentChunk = [];
         $currentChunkHasComments = false;
-        $maxPanelsPerPage = 4; // Default
+        $maxPanelsPerPage = 2; // Conservative approach for taller footer
 
         foreach ($panels as $panel) {
             // Check if this panel has comments
@@ -39,7 +39,7 @@ class PDFController extends Controller
 
             // If adding this panel would exceed the limit, start a new chunk
             if (!empty($currentChunk)) {
-                $currentMaxForChunk = ($currentChunkHasComments || $panelHasComments) ? 2 : 4;
+                $currentMaxForChunk = ($currentChunkHasComments || $panelHasComments) ? 1 : 2;
 
                 if (count($currentChunk) >= $currentMaxForChunk) {
                     // Close current chunk and start new one
@@ -226,6 +226,534 @@ class PDFController extends Controller
         }
 
         $panel['panel_comments'] = $uniqueComments;
+    }
+
+    /**
+     * Display profile name at the top
+     */
+    private function displayProfileName($result, &$showProfileName)
+    {
+        $content = '';
+        if (isset($result['data']['profiles']) && $showProfileName) {
+            foreach ($result['data']['profiles'] as $pr) {
+                $profile_name = $pr['profile_name'];
+                $content .= '
+                        <tr>
+                                <td colspan="4" style="padding: 5px 0px;font-style:light;font-weight:bold;text-decoration:underline;text-transform:uppercase;">
+                                    ' . $profile_name . '
+                                </td>
+                            </tr>';
+                $showProfileName = false; // Don't show again
+                break; // Only show first profile name
+            }
+        }
+        return $content;
+    }
+
+    /**
+     * Display profile categories and panels
+     */
+    private function displayProfiles($result, &$pageIndex, $mpdf, &$allTestsRequested)
+    {
+        $content = '';
+        if (isset($result['data']['profiles'])) {
+            foreach ($result['data']['profiles'] as $pr) {
+                $profile_name = $pr['profile_name'];
+                if (isset($pr['categories'])) {
+                    foreach ($pr['categories'] as $cat) {
+                        $category_name = $cat['category_name'];
+                        $allTestsRequested[] = $category_name; // Collect category name
+
+                        if (isset($cat['panels'])) {
+                            // Group panels into chunks - max 2 per page if any panel has comments, otherwise 1
+                            $panelChunks = $this->createPanelChunks($cat['panels']);
+
+                            foreach ($panelChunks as $chunkIndex => $panelGroup) {
+                                // Force page break before each page (except first)
+                                if ($pageIndex > 0) {
+                                    // Close current table
+                                    $content .= '
+                        </tbody>
+                    </table>
+                </div>';
+
+                                    // Write current content and add page break using mPDF
+                                    $mpdf->WriteHTML($content);
+                                    $mpdf->AddPage();
+
+                                    // Reset content and start new page with table
+                                    $content = '
+                <div class="content">
+                    <table style="width: 100%; border-collapse: collapse; font-size:11.5px; margin-top:92px; text-align:left;">
+                        <thead>
+                            <tr>
+                                <th style="padding:2px 0px 2px 15px;text-align:left;text-transform:uppercase;width:500px;border-top:1px solid #000; border-bottom:1px solid #000;">Analytes</th>
+                                <th style="padding:2px 0px 2px 0px;text-align:left;text-transform:uppercase;width:60px;border-top:1px solid #000; border-bottom:1px solid #000;">Results</th>
+                                <th style="padding:2px 0px 2px 0px;text-align:left;text-transform:uppercase;width:80px;border-top:1px solid #000; border-bottom:1px solid #000;">Units</th>
+                                <th style="padding:2px 0px 2px 0px;text-align:left;text-transform:uppercase;width:90px;border-top:1px solid #000; border-bottom:1px solid #000;">Ref. Ranges</th>
+                            </tr>
+                        </thead>
+                        <tbody>';
+                                }
+
+                                // Add category header (show on first chunk of each category)
+                                if ($chunkIndex == 0) {
+                                    $content .= '<tr>
+                                <td colspan="4" style="padding:15px 0px 5px 0px;font-style:light;font-weight:bold;text-transform:uppercase;">' . $category_name . '</td>
+                            </tr>';
+                                }
+
+                                // Add panels for this chunk (max 4)
+                                foreach ($panelGroup as $pl) {
+                                    $panel_name = $pl['panel_name'];
+
+                                    $content .= '<tr>
+                                    <td colspan="4" style="padding:10px 0px 10px 10px;font-style:light;font-weight:bold;text-transform:uppercase;">' . $panel_name . '</td>
+                                    </tr>';
+
+                                    if (isset($pl['panel_items'])) {
+                                        $panelItems = $pl['panel_items'];
+
+                                        // Custom sorting for panel_category_id = 4 (HAE sequence)  
+                                        if (isset($pl['panel_category_id']) && $pl['panel_category_id'] == 4) {
+                                            $haeOrder = [
+                                                'Haemoglobin',
+                                                'Red Cell Count',
+                                                'Packed Cell Volume',
+                                                'Mean Cell Volume',
+                                                'Mean Cell Haemoglobin',
+                                                'MCHC',
+                                                'Red Cell Distribution Width',
+                                                'White Cell Count',
+                                                'Neutrophils',
+                                                'Lymphocytes',
+                                                'Monocytes',
+                                                'Eosinophils',
+                                                'Basophils',
+                                                'N:L Ratio',
+                                                'Platelets',
+                                                'E.S.R',
+                                                'Blood Film'
+                                            ];
+
+                                            usort($panelItems, function ($a, $b) use ($haeOrder) {
+                                                $posA = array_search($a['panel_item_name'], $haeOrder);
+                                                $posB = array_search($b['panel_item_name'], $haeOrder);
+
+                                                // If both items are in the custom order
+                                                if ($posA !== false && $posB !== false) {
+                                                    return $posA - $posB;
+                                                }
+
+                                                // If only A is in custom order, A comes first
+                                                if ($posA !== false && $posB === false) {
+                                                    return -1;
+                                                }
+
+                                                // If only B is in custom order, B comes first
+                                                if ($posA === false && $posB !== false) {
+                                                    return 1;
+                                                }
+
+                                                // If neither is in custom order, use result_sequence
+                                                return $a['result_sequence'] - $b['result_sequence'];
+                                            });
+                                        }
+
+                                        foreach ($panelItems as $pi) {
+                                            $colspan = 'none';
+                                            // if (empty($pi['panel_item_unit'])) {
+                                            //     $colspan = 4;
+                                            // }
+
+                                            $isSpecialItem = in_array($pi['panel_item_name'], ['Haemoglobin', 'White Cell Count', 'Platelets']);
+                                            $boldStyle = $isSpecialItem ? 'font-style:light;font-weight:bold;' : '';
+
+                                            $isSpecialPadding = in_array($pi['panel_item_name'], ['White Cell Count', 'Platelets']);
+                                            $paddingStyle = $isSpecialPadding ? 'padding: 20px 0px;' : '';
+
+                                            $formattedStyle = '';
+                                            if (!empty($pi['result_flag'])) {
+                                                $formattedStyle = 'font-weight:bold;text-decoration:underline';
+                                            }
+                                            if ($pi['panel_item_name'] == 'Blood Film') {
+
+                                                $content .= '<tr>
+                                                        <td style="font-family: Courier New;font-stretch: expanded;padding:10px 30px;"><span style="font-weight:bold;margin-right:10px;">FILM:</span>' . $pi['result_value'] . '</td>
+                                                        </tr>';
+                                            } else if ($pi['panel_item_id'] == 25) {
+                                                $content .= '<tr>
+                                                        <td style="font-family: Courier New;font-stretch: expanded;padding:10px 30px;">
+                                                        ' . nl2br(str_replace('\.br\\', '<br>', $pi['result_value'])) . '
+                                                        </td>
+                                                        </tr>';
+                                            } else if ($pi['panel_item_id'] == 26) {
+                                                $content .= '<tr>
+                                                        <td style="font-family: Courier New;font-stretch: expanded;padding:10px 30px;">Group:
+                                                        ' . nl2br(str_replace('\.br\\', '<br>', $pi['result_value'])) . '
+                                                        </td>
+                                                        </tr>';
+                                            } else {
+                                                $name = $pi['panel_item_name'];
+                                                $displayName = $this->formatPanelItemName($name);
+                                                $content .= '<tr>
+                                                        <td style="padding:3px 10px;">
+                                                            <table style="border-collapse:collapse; width:100%; table-layout:fixed;">
+                                                                <tr>
+                                                                    <td style="padding:0; font-weight:bold; width:20px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;text-align:center;">
+                                                                        ' . $pi['result_flag'] . '
+                                                                    </td>
+                                                                    <td style="padding:0; width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; ' . $boldStyle .  ' ' . $paddingStyle . ' ">'
+                                                    . $displayName .
+                                                    '</td>
+                                                                    <td style="padding:0; width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></td>
+                                                                    <td style="padding:0px 10px 0px 0px; text-align:right; width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                                                                        ' . ($pi['percentage_value'] != '0' && $pi['is_percentage'] ? $pi['percentage_value'] . '%' : '') . '
+                                                                    </td>
+                                                                </tr>
+                                                            </table>
+                                                        </td>
+                                                        <td colspan=' . $colspan . ' style="' . $formattedStyle . '">' . str_replace(["\\H\\", "\\N\\", ".\\br\\"], ['', '', '<br>'], $pi['result_value']) . '</td>
+                                                        <td>' . $pi['panel_item_unit'] . '</td>
+                                                        <td>' . $pi['reference_range'] . '</td>
+                                                    </tr> ';
+                                            }
+                                        }
+                                    }
+
+                                    // Add panel comments if they exist
+                                    if (!empty($pl['panel_comments'])) {
+                                        foreach ($pl['panel_comments'] as $comment) {
+                                            $formattedComment = $this->formatPanelComment($comment['comment']);
+                                            $content .= '<tr>
+                                                <td colspan="4" style="font-family: Courier New;font-stretch: expanded;padding:15px 15px 5px 15px;">
+                                                    ' . $formattedComment . '
+                                                </td>
+                                            </tr>';
+                                        }
+                                    }
+                                }
+                                $pageIndex++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return $content;
+    }
+
+    /**
+     * Display standalone panels (not belonging to profiles or categories)
+     */
+    private function displayStandalonePanels($result, &$allTestsRequested)
+    {
+        $content = '';
+        if (isset($result['data']['panels'])) {
+            foreach ($result['data']['panels'] as $pl) {
+                $panel_name = $pl['panel_name'];
+                $allTestsRequested[] = $panel_name; // Collect standalone panel name
+
+                $content .= '<tr>
+                    <td colspan="4" style="padding:10px 0px 10px 10px;font-style:light;font-weight:bold;text-transform:uppercase;">' . $panel_name . '</td>
+                    </tr>';
+
+                // Sort panel items by result_sequence
+                if (isset($pl['panel_items'])) {
+                    usort($pl['panel_items'], function ($a, $b) {
+                        return $a['result_sequence'] - $b['result_sequence'];
+                    });
+
+                    foreach ($pl['panel_items'] as $pi) {
+                        $formattedStyle = '';
+                        if (!empty($pi['result_flag'])) {
+                            $formattedStyle = 'font-weight:bold;text-decoration:underline';
+                        }
+
+                        if ($pi['panel_item_name'] == 'Blood Film') {
+                            $content .= '<tr>
+                                <td style="font-family: Courier New;font-stretch: expanded;padding:10px 30px;"><span style="font-weight:bold;margin-right:10px;">FILM:</span>' . $pi['result_value'] . '</td>
+                                </tr>';
+                        } else if ($pi['panel_item_id'] == 25) {
+                            $content .= '<tr>
+                                <td style="font-family: Courier New;font-stretch: expanded;padding:10px 30px;">
+                                ' . nl2br(str_replace('\.br\\', '<br>', $pi['result_value'])) . '
+                                </td>
+                                </tr>';
+                        } else if ($pi['panel_item_id'] == 26) {
+                            $content .= '<tr>
+                                <td style="font-family: Courier New;font-stretch: expanded;padding:10px 30px;">Group:
+                                ' . $pi['result_value'] . '
+                                </td>
+                                </tr>';
+                        } else {
+                            $name = $pi['panel_item_name'];
+                            $displayName = $this->formatPanelItemName($name);
+                            $content .= '<tr>
+                                    <td style="padding:0px 10px;">
+                                        <table style="border-collapse:collapse; width:100%; table-layout:fixed;">
+                                            <tr>
+                                                <td style="padding:0; font-weight:bold; width:20px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;text-align:center;">
+                                                    ' . $pi['result_flag'] . '
+                                                </td>
+                                                <td style="padding:0; width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">'
+                                . $displayName .
+                                '</td>
+                                                <td style="padding:0; width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:center; ' . $formattedStyle . '">'
+                                    . $pi['result_value'] .
+                                    '</td>
+                                                <td style="padding:0; width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;text-align:center;">'
+                                    . $pi['panel_item_unit'] .
+                                    '</td>
+                                                <td style="padding:0; width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;text-align:center; font-size:10px;">'
+                                    . $pi['reference_range'] .
+                                    '</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>';
+
+                            // Add item comments if they exist
+                            if (!empty($pi['item_comments'])) {
+                                foreach ($pi['item_comments'] as $comment) {
+                                    $formattedComment = $this->formatPanelItemComment($comment['comment']);
+                                    $content .= '<tr>
+                                        <td colspan="4" style="font-family: Courier New;font-stretch: expanded;padding:15px 15px 5px 15px;">
+                                            ' . $formattedComment . '
+                                        </td>
+                                    </tr>';
+                                }
+                            }
+                        }
+                    }
+
+                    // Add panel comments if they exist
+                    if (!empty($pl['panel_comments'])) {
+                        foreach ($pl['panel_comments'] as $comment) {
+                            $formattedComment = $this->formatPanelComment($comment['comment']);
+                            $content .= '<tr>
+                                <td colspan="4" style="font-family: Courier New;font-stretch: expanded;padding:15px 15px 5px 15px;">
+                                    ' . $formattedComment . '
+                                </td>
+                            </tr>';
+                        }
+                    }
+                }
+            }
+        }
+        return $content;
+    }
+
+    /**
+     * Display standalone categories (not belonging to profiles)
+     */
+    private function displayStandaloneCategories($result, &$pageIndex, $mpdf, &$allTestsRequested)
+    {
+        $content = '';
+        if (isset($result['data']['categories'])) {
+            foreach ($result['data']['categories'] as $cat) {
+                $category_name = $cat['category_name'];
+                $allTestsRequested[] = $category_name; // Collect standalone category name
+
+                if (isset($cat['panels'])) {
+                    // Group panels into chunks - max 2 per page if any panel has comments, otherwise 1
+                    $panelChunks = $this->createPanelChunks($cat['panels']);
+
+                    foreach ($panelChunks as $chunkIndex => $panelGroup) {
+                        // Force page break before each page (except first)
+                        if ($pageIndex > 0) {
+                            // Close current table
+                            $content .= '
+                    </tbody>
+                </table>
+            </div>';
+
+                            // Write current content and add page break using mPDF
+                            $mpdf->WriteHTML($content);
+                            $mpdf->AddPage();
+
+                            // Reset content and start new page with table
+                            $content = '
+            <div class="content">
+                <table style="width: 100%; border-collapse: collapse; font-size:11.5px; margin-top:92px; text-align:left;">
+                    <thead>
+                        <tr>
+                            <th style="padding:2px 0px 2px 15px;text-align:left;text-transform:uppercase;width:500px;border-top:1px solid #000; border-bottom:1px solid #000;">Analytes</th>
+                            <th style="padding:2px 0px 2px 0px;text-align:left;text-transform:uppercase;width:60px;border-top:1px solid #000; border-bottom:1px solid #000;">Results</th>
+                            <th style="padding:2px 0px 2px 0px;text-align:left;text-transform:uppercase;width:80px;border-top:1px solid #000; border-bottom:1px solid #000;">Units</th>
+                            <th style="padding:2px 0px 2px 0px;text-align:left;text-transform:uppercase;width:90px;border-top:1px solid #000; border-bottom:1px solid #000;">Ref. Ranges</th>
+                        </tr>
+                    </thead>
+                    <tbody>';
+                        }
+
+                        // Add category header (show on first chunk of each category)
+                        if ($chunkIndex == 0) {
+                            $content .= '<tr>
+                            <td colspan="4" style="padding:15px 0px 5px 0px;font-style:light;font-weight:bold;text-transform:uppercase;">' . $category_name . '</td>
+                        </tr>';
+                        }
+
+                        // Add panels for this chunk (max 4)
+                        foreach ($panelGroup as $pl) {
+                            $panel_name = $pl['panel_name'];
+
+                            $content .= '<tr>
+                                <td colspan="4" style="padding:10px 0px 10px 10px;font-style:light;font-weight:bold;text-transform:uppercase;">' . $panel_name . '</td>
+                                </tr>';
+
+                            if (isset($pl['panel_items'])) {
+                                $panelItems = $pl['panel_items'];
+
+                                // Custom sorting for panel_category_id = 4 (HAE sequence)  
+                                if (isset($pl['panel_category_id']) && $pl['panel_category_id'] == 4) {
+                                    $haeOrder = [
+                                        'Haemoglobin',
+                                        'Red Cell Count',
+                                        'Packed Cell Volume',
+                                        'Mean Cell Volume',
+                                        'Mean Cell Haemoglobin',
+                                        'MCHC',
+                                        'Red Cell Distribution Width',
+                                        'White Cell Count',
+                                        'Neutrophils',
+                                        'Lymphocytes',
+                                        'Monocytes',
+                                        'Eosinophils',
+                                        'Basophils',
+                                        'N:L Ratio',
+                                        'Platelets',
+                                        'E.S.R',
+                                        'Blood Film'
+                                    ];
+
+                                    usort($panelItems, function ($a, $b) use ($haeOrder) {
+                                        $posA = array_search($a['panel_item_name'], $haeOrder);
+                                        $posB = array_search($b['panel_item_name'], $haeOrder);
+
+                                        // If both items are in the custom order
+                                        if ($posA !== false && $posB !== false) {
+                                            return $posA - $posB;
+                                        }
+
+                                        // If only A is in custom order, A comes first
+                                        if ($posA !== false && $posB === false) {
+                                            return -1;
+                                        }
+
+                                        // If only B is in custom order, B comes first
+                                        if ($posA === false && $posB !== false) {
+                                            return 1;
+                                        }
+
+                                        // If neither is in custom order, use result_sequence
+                                        return $a['result_sequence'] - $b['result_sequence'];
+                                    });
+                                }
+
+                                foreach ($panelItems as $pi) {
+                                    $colspan = 'none';
+                                    if (empty($pi['panel_item_unit'])) {
+                                        $colspan = 1;
+                                    }
+
+                                    $formattedStyle = '';
+                                    if (!empty($pi['result_flag']) || str_contains($pi['result_value'], '\H')) {
+                                        $formattedStyle = 'font-weight:bold;text-decoration:underline';
+                                    }
+
+                                    if ($pi['panel_item_name'] == 'Blood Film') {
+                                        $content .= '<tr>
+                                        <td style="font-family: Courier New;font-stretch: expanded;padding:10px 30px;"><span style="font-weight:bold;margin-right:10px;">FILM:</span>' . $pi['result_value'] . '</td>
+                                        </tr>';
+                                    } else if ($pi['panel_item_id'] == 25) {
+                                        $content .= '<tr>
+                                        <td style="font-family: Courier New;font-stretch: expanded;padding:10px 30px;">
+                                         ' . nl2br(str_replace('\.br\\', '<br>', $pi['result_value'])) . '
+                                        </td>
+                                        </tr>';
+                                    } else if ($pi['panel_item_id'] == 26) {
+                                        $content .= '<tr>
+                                                    <td style="font-family: Courier New;font-stretch: expanded;padding:10px 30px;">Group:
+                                                    ' . nl2br(str_replace('\.br\\', '<br>', $pi['result_value'])) . '
+                                                    </td>
+                                                    </tr>';
+                                    } else {
+                                        $name = $pi['panel_item_name'];
+                                        $displayName = $this->formatPanelItemName($name);
+                                        $content .= '<tr>
+                                                        <td style="padding:0px 10px;">
+                                                            <table style="border-collapse:collapse; width:100%; table-layout:fixed;">
+                                                                <tr>
+                                                                    <td style="padding:0; font-weight:bold; width:20px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;text-align:center;">
+                                                                        ' . $pi['result_flag'] . '
+                                                                    </td>
+                                                                    <td style="padding:0; width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">'
+                                            . $displayName .
+                                            '</td>
+                                                                    <td style="padding:0; width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></td>
+                                                                    <td style="padding:0px 10px 0px 0px; text-align:right; width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                                                                        ' . ($pi['percentage_value'] != '0' && $pi['is_percentage'] ? $pi['percentage_value'] . '%' : '') . '
+                                                                    </td>
+                                                                </tr>
+                                                            </table>
+                                                        </td>
+                                                        <td colspan=' . $colspan . ' style="' . $formattedStyle . '">' . str_replace(["\\H\\", "\\N\\", ".\\br\\"], ['', '', '<br>'], $pi['result_value']) . '</td>
+                                                        <td>' . $pi['panel_item_unit'] . '</td>
+                                                        <td>' . $pi['reference_range'] . '</td>
+                                                    </tr> ';
+                                    }
+                                }
+
+                                // Add panel comments if they exist
+                                if (!empty($pl['panel_comments'])) {
+                                    foreach ($pl['panel_comments'] as $comment) {
+                                        $formattedComment = $this->formatPanelComment($comment['comment']);
+                                        $content .= '<tr>
+                                            <td colspan="4" style="font-family: Courier New;font-stretch: expanded;padding:15px 15px 5px 15px;">
+                                                ' . $formattedComment . '
+                                            </td>
+                                        </tr>';
+                                    }
+                                }
+                            }
+                        }
+                        $pageIndex++;
+                    }
+                }
+            }
+        }
+        return $content;
+    }
+
+    /**
+     * Display report completed section
+     */
+    private function displayReportCompleted($allTestsRequested)
+    {
+        $content = '';
+        if (!empty($allTestsRequested)) {
+            // Remove duplicates and sort alphabetically
+            $uniqueTests = array_unique($allTestsRequested);
+            sort($uniqueTests);
+            $testsString = implode(', ', $uniqueTests);
+
+            $content .= '
+                <tr>
+                    <td colspan="4" style=" padding-top: 25px;text-align:center;">
+                        <div style="text-align:center;font-weight:bold; font-size:12px; text-decoration:underline; margin-bottom:10px;">
+                            REPORT COMPLETED
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="4" style="font-size:11.5px;">
+                        Tests Requested:<br>
+                        ' . strtoupper($testsString) . '
+                    </td>
+                </tr>';
+        }
+        return $content;
     }
 
     public function export($id)
@@ -791,14 +1319,16 @@ class PDFController extends Controller
             // return response()->json($result);
             // exit;
 
+            $defaultConfig = (new \Mpdf\Config\ConfigVariables())->getDefaults();
+            $fontDirs = $defaultConfig['fontDir'];
+
+            $defaultFontConfig = (new \Mpdf\Config\FontVariables())->getDefaults();
+            $fontData = $defaultFontConfig['fontdata'];
+
             $mpdf = new Mpdf([
                 'mode' => 'utf-8',
                 'format' => 'A4',
-                // 'margin_left' => 40,
-                // 'margin_right' => 38,
                 'margin_top' => 70,
-                // 'margin_bottom' => 0,
-                // 'margin_header' => 10,
                 'margin_footer' => 5,
                 'default_font' => 'Arial',
             ]);
@@ -915,6 +1445,9 @@ class PDFController extends Controller
 
             $footer = '
              <table style="width:100%">
+             <tr>
+                <td colspan="2" style="font-family: Courier New;font-stretch: expanded;text-transform:uppercase;text-align:center;font-size:10px;padding-bottom:10px;">Computer generated report - no signature required</td>
+             </tr>
             <tr>
                 <td style="width:450px;">
                     <table style="border-collapse:collapse; width:100%;">
@@ -1017,32 +1550,19 @@ class PDFController extends Controller
             // Pagination: Profile name only on first page, max 4 panels per page
             $pageIndex = 0;
             $showProfileName = true; // Only show on first page
+            $allTestsRequested = []; // Collect all tests/categories for the final summary
 
-            // Display profiles if they exist
+            // FIRST: Display profile name at the very top if profiles exist
+            $content .= $this->displayProfileName($result, $showProfileName);
+
+            // SECOND: Display profiles if they exist
             if (isset($result['data']['profiles'])) {
                 foreach ($result['data']['profiles'] as $pr) {
                     $profile_name = $pr['profile_name'];
                     if (isset($pr['categories'])) {
-                        if (isset($result['data']['panels'])) {
-                            foreach ($result['data']['panels'] as $pl) {
-                                $panel_name = $pl['panel_name'];
-
-                                $content .= '<tr>
-                                    <td colspan="4" style="padding:10px 0px 10px 10px;font-style:light;font-weight:bold;text-transform:uppercase;">' . $panel_name . '</td>
-                                    </tr>';
-                                foreach ($pl['panel_items'] as $pi) {
-                                    if ($pi['panel_item_id'] == 26) {
-                                        $content .= '<tr>
-                                                        <td style="font-family: Courier New;padding:10px 30px;">Group:
-                                                        ' . nl2br(str_replace('\.br\\', '<br>', $pi['result_value'])) . '
-                                                        </td>
-                                                        </tr>';
-                                    }
-                                }
-                            }
-                        }
                         foreach ($pr['categories'] as $cat) {
                             $category_name = $cat['category_name'];
+                            $allTestsRequested[] = $category_name; // Collect category name
 
                             if (isset($cat['panels'])) {
                                 // Group panels into chunks - max 2 per page if any panel has comments, otherwise 4
@@ -1074,17 +1594,6 @@ class PDFController extends Controller
                             </tr>
                         </thead>
                         <tbody>';
-                                    }
-
-                                    // Add profile header only on first page
-                                    if ($showProfileName) {
-                                        $content .= '
-                        <tr>
-                                <td colspan="4" style="padding: 5px 0px;font-style:light;font-weight:bold;text-decoration:underline;text-transform:uppercase;">
-                                    ' . $profile_name . '
-                                </td>
-                            </tr>';
-                                        $showProfileName = false; // Don't show again
                                     }
 
                                     // Add category header (show on first chunk of each category)
@@ -1170,17 +1679,17 @@ class PDFController extends Controller
                                                 if ($pi['panel_item_name'] == 'Blood Film') {
 
                                                     $content .= '<tr>
-                                                        <td style="font-family: Courier New;padding:10px 30px;"><span style="font-weight:bold;margin-right:10px;">FILM:</span>' . $pi['result_value'] . '</td>
+                                                        <td style="font-family: Courier New;font-stretch: expanded;padding:10px 30px;"><span style="font-weight:bold;margin-right:10px;">FILM:</span>' . $pi['result_value'] . '</td>
                                                         </tr>';
                                                 } else if ($pi['panel_item_id'] == 25) {
                                                     $content .= '<tr>
-                                                        <td style="font-family: Courier New;padding:10px 30px;">
+                                                        <td style="font-family: Courier New;font-stretch: expanded;padding:10px 30px;">
                                                         ' . nl2br(str_replace('\.br\\', '<br>', $pi['result_value'])) . '
                                                         </td>
                                                         </tr>';
                                                 } else if ($pi['panel_item_id'] == 26) {
                                                     $content .= '<tr>
-                                                        <td style="font-family: Courier New;padding:10px 30px;">Group:
+                                                        <td style="font-family: Courier New;font-stretch: expanded;padding:10px 30px;">Group:
                                                         ' . nl2br(str_replace('\.br\\', '<br>', $pi['result_value'])) . '
                                                         </td>
                                                         </tr>';
@@ -1217,7 +1726,7 @@ class PDFController extends Controller
                                             foreach ($pl['panel_comments'] as $comment) {
                                                 $formattedComment = $this->formatPanelComment($comment['comment']);
                                                 $content .= '<tr>
-                                                    <td colspan="4" style="font-family: Courier New;padding:15px 15px 5px 15px;">
+                                                    <td colspan="4" style="font-family: Courier New;font-stretch: expanded;padding:15px 15px 5px 15px;">
                                                         ' . $formattedComment . '
                                                     </td>
                                                 </tr>';
@@ -1231,28 +1740,106 @@ class PDFController extends Controller
                     }
                 }
             }
-            // Display categories when no profiles exist
-            elseif (isset($result['data']['categories'])) {
-                if (isset($result['data']['panels'])) {
-                    foreach ($result['data']['panels'] as $pl) {
-                        $panel_name = $pl['panel_name'];
 
-                        $content .= '<tr>
-                                    <td colspan="4" style="padding:10px 0px 10px 10px;font-style:light;font-weight:bold;text-transform:uppercase;">' . $panel_name . '</td>
-                                    </tr>';
+            // THIRD: Display standalone panels (not belonging to profiles or categories)  
+            if (isset($result['data']['panels'])) {
+                foreach ($result['data']['panels'] as $pl) {
+                    $panel_name = $pl['panel_name'];
+                    $allTestsRequested[] = $panel_name; // Collect standalone panel name
+
+                    $content .= '<tr>
+                        <td colspan="4" style="padding:10px 0px 10px 10px;font-style:light;font-weight:bold;text-transform:uppercase;">' . $panel_name . '</td>
+                        </tr>';
+
+                    // Sort panel items by result_sequence
+                    if (isset($pl['panel_items'])) {
+                        usort($pl['panel_items'], function ($a, $b) {
+                            return $a['result_sequence'] - $b['result_sequence'];
+                        });
+
                         foreach ($pl['panel_items'] as $pi) {
-                            if ($pi['panel_item_id'] == 26) {
+                            $formattedStyle = '';
+                            if (!empty($pi['result_flag'])) {
+                                $formattedStyle = 'font-weight:bold;text-decoration:underline';
+                            }
+
+                            if ($pi['panel_item_name'] == 'Blood Film') {
                                 $content .= '<tr>
-                                                        <td style="font-family: Courier New;padding:10px 30px;">Group:
-                                                        ' . nl2br(str_replace('\.br\\', '<br>', $pi['result_value'])) . '
-                                                        </td>
-                                                        </tr>';
+                                    <td style="font-family: Courier New;font-stretch: expanded;padding:10px 30px;"><span style="font-weight:bold;margin-right:10px;">FILM:</span>' . $pi['result_value'] . '</td>
+                                    </tr>';
+                            } else if ($pi['panel_item_id'] == 25) {
+                                $content .= '<tr>
+                                    <td style="font-family: Courier New;font-stretch: expanded;padding:10px 30px;">
+                                    ' . nl2br(str_replace('\.br\\', '<br>', $pi['result_value'])) . '
+                                    </td>
+                                    </tr>';
+                            } else if ($pi['panel_item_id'] == 26) {
+                                $content .= '<tr>
+                                    <td style="font-family: Courier New;font-stretch: expanded;padding:10px 30px;">Group:
+                                    ' . $pi['result_value'] . '
+                                    </td>
+                                    </tr>';
+                            } else {
+                                $name = $pi['panel_item_name'];
+                                $displayName = $this->formatPanelItemName($name);
+                                $content .= '<tr>
+                                        <td style="padding:0px 10px;">
+                                            <table style="border-collapse:collapse; width:100%; table-layout:fixed;">
+                                                <tr>
+                                                    <td style="padding:0; font-weight:bold; width:20px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;text-align:center;">
+                                                        ' . $pi['result_flag'] . '
+                                                    </td>
+                                                    <td style="padding:0; width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">'
+                                    . $displayName .
+                                    '</td>
+                                                    <td style="padding:0; width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:center; ' . $formattedStyle . '">'
+                                    . $pi['result_value'] .
+                                    '</td>
+                                                    <td style="padding:0; width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;text-align:center;">'
+                                    . $pi['panel_item_unit'] .
+                                    '</td>
+                                                    <td style="padding:0; width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;text-align:center; font-size:10px;">'
+                                    . $pi['reference_range'] .
+                                    '</td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                    </tr>';
+
+                                // Add item comments if they exist
+                                if (!empty($pi['item_comments'])) {
+                                    foreach ($pi['item_comments'] as $comment) {
+                                        $formattedComment = $this->formatPanelItemComment($comment['comment']);
+                                        $content .= '<tr>
+                                            <td colspan="4" style="font-family: Courier New;font-stretch: expanded;padding:15px 15px 5px 15px;">
+                                                ' . $formattedComment . '
+                                            </td>
+                                        </tr>';
+                                    }
+                                }
+                            }
+                        }
+
+                        // Add panel comments if they exist
+                        if (!empty($pl['panel_comments'])) {
+                            foreach ($pl['panel_comments'] as $comment) {
+                                $formattedComment = $this->formatPanelComment($comment['comment']);
+                                $content .= '<tr>
+                                    <td colspan="4" style="font-family: Courier New;font-stretch: expanded;padding:15px 15px 5px 15px;">
+                                        ' . $formattedComment . '
+                                    </td>
+                                </tr>';
                             }
                         }
                     }
                 }
+            }
+
+            // FOURTH: Display standalone categories (not belonging to profiles)
+            if (isset($result['data']['categories'])) {
                 foreach ($result['data']['categories'] as $cat) {
                     $category_name = $cat['category_name'];
+                    $allTestsRequested[] = $category_name; // Collect standalone category name
 
                     if (isset($cat['panels'])) {
                         // Group panels into chunks - max 2 per page if any panel has comments, otherwise 4
@@ -1361,26 +1948,23 @@ class PDFController extends Controller
                                             $formattedStyle = 'font-weight:bold;text-decoration:underline';
                                         }
 
-
                                         if ($pi['panel_item_name'] == 'Blood Film') {
-
                                             $content .= '<tr>
-                                            <td style="font-family: Courier New;padding:10px 30px;"><span style="font-weight:bold;margin-right:10px;">FILM:</span>' . $pi['result_value'] . '</td>
+                                            <td style="font-family: Courier New;font-stretch: expanded;padding:10px 30px;"><span style="font-weight:bold;margin-right:10px;">FILM:</span>' . $pi['result_value'] . '</td>
                                             </tr>';
                                         } else if ($pi['panel_item_id'] == 25) {
                                             $content .= '<tr>
-                                            <td style="font-family: Courier New;padding:10px 30px;">
+                                            <td style="font-family: Courier New;font-stretch: expanded;padding:10px 30px;">
                                              ' . nl2br(str_replace('\.br\\', '<br>', $pi['result_value'])) . '
                                             </td>
                                             </tr>';
                                         } else if ($pi['panel_item_id'] == 26) {
                                             $content .= '<tr>
-                                                        <td style="padding:10px 30px;">Group:
+                                                        <td style="font-family: Courier New;font-stretch: expanded;padding:10px 30px;">Group:
                                                         ' . nl2br(str_replace('\.br\\', '<br>', $pi['result_value'])) . '
                                                         </td>
                                                         </tr>';
                                         } else {
-
                                             $name = $pi['panel_item_name'];
                                             $displayName = $this->formatPanelItemName($name);
                                             $content .= '<tr>
@@ -1412,7 +1996,7 @@ class PDFController extends Controller
                                         foreach ($pl['panel_comments'] as $comment) {
                                             $formattedComment = $this->formatPanelComment($comment['comment']);
                                             $content .= '<tr>
-                                                <td colspan="4" style="font-family: Courier New;padding:15px 15px 5px 15px;">
+                                                <td colspan="4" style="font-family: Courier New;font-stretch: expanded;padding:15px 15px 5px 15px;">
                                                     ' . $formattedComment . '
                                                 </td>
                                             </tr>';
@@ -1425,6 +2009,30 @@ class PDFController extends Controller
                     }
                 }
             }
+
+            // Add REPORT COMPLETED section at the end
+            if (!empty($allTestsRequested)) {
+                // Remove duplicates and sort alphabetically
+                $uniqueTests = array_unique($allTestsRequested);
+                sort($uniqueTests);
+                $testsString = implode(', ', $uniqueTests);
+
+                $content .= '
+                    <tr>
+                        <td colspan="4" style=" padding-top: 25px;text-align:center;">
+                            <div style="text-align:center;font-weight:bold; font-size:12px; text-decoration:underline; margin-bottom:10px;">
+                                REPORT COMPLETED
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="4" style="font-size:11.5px;">
+                            Tests Requested:<br>
+                            ' . strtoupper($testsString) . '
+                        </td>
+                    </tr>';
+            }
+
             $content .= '
                         </tbody>
                     </table>

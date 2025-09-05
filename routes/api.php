@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\API\AuthController;
+use App\Http\Controllers\API\DoctorReviewController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\API\General\LabResultsController;
 use App\Http\Controllers\API\Innoquest\PanelResultsController;
@@ -58,4 +59,8 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
     // Route::prefix('pdf')->controller(PDFController::class)->group(function () {
     //     Route::get('/export/{testResult}', 'export')->name('export');
     // });
+
+    Route::prefix('review')->controller(DoctorReviewController::class)->group(function () {
+        Route::get('/', 'index')->name('index');
+    });
 });

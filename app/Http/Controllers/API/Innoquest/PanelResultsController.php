@@ -236,7 +236,7 @@ class PanelResultsController extends BaseResultsController
                             //get profile code (optional)
                             $panel_profile_id = $this->findOrCreateProfile($lab_id, $obv['PackageCode']);
 
-                            //create test result
+                            //create test result - firstOrCreate for local tests
                             $test_result = TestResult::updateOrCreate(
                                 [
                                     'lab_no' => $lab_no,
