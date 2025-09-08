@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class TestResult extends Model
@@ -22,6 +23,7 @@ class TestResult extends Model
         'reported_date',
         'validated_by',
         'is_completed',
+        'is_reviewed'
     ];
 
     protected $casts = [
@@ -34,6 +36,7 @@ class TestResult extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
+        'is_reviewed' => 'boolean'
     ];
 
     protected $attributes = [
@@ -43,6 +46,7 @@ class TestResult extends Model
         'reported_date' => null,
         'validated_by' => null,
         'is_completed' => false,
+        'is_reviewed' => false,
     ];
 
     public function doctor(): BelongsTo
@@ -75,5 +79,10 @@ class TestResult extends Model
             'id',
             'panel_profile_id'
         );
+    }
+
+    public function review(): HasOne
+    {
+        return $this->hasOne(DoctorReview::class, 'test_result_id', 'id');
     }
 }

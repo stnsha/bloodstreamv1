@@ -767,7 +767,18 @@ class PDFController extends Controller
                     'testResultItems.panelComments.masterPanelComment',
                     'profiles'
                 ]
-            )->find($id);
+            )
+                ->where('id', $id)
+                ->where('is_completed', true)
+                ->first();
+
+            if (!$testResult) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Test result not found or not completed yet',
+                    'error' => 'PDF can only be generated for completed test results'
+                ], 404);
+            }
 
             $dob = $testResult->patient->dob != null ? Carbon::createFromFormat('Ymd', $testResult->patient->dob)->format('d/m/y') : null;
 
@@ -2046,6 +2057,15 @@ class PDFController extends Controller
             return response($mpdf->Output('', 'S'), 200)
                 ->header('Content-Type', 'application/pdf')
                 ->header('Content-Disposition', 'inline; filename="dummy-report.pdf"');
+
+            // Get PDF content as string and convert to base64
+            $pdfContent = $mpdf->Output('', 'S');
+            //     $base64Pdf = base64_encode($pdfContent);
+
+            //     return response()->json([
+            //         'pdf' => $base64Pdf,
+            //         'filename' => 'dummy-report.pdf'
+            //     ], 200);
         } catch (\Exception $e) {
             Log::error('PDF Generation Error: ' . $e->getMessage());
             return response()->json([

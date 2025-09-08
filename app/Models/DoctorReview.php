@@ -33,6 +33,6 @@ class DoctorReview extends Model
 
     public function testResult(): BelongsTo
     {
-        return $this->belongsTo(TestResult::class);
+        return $this->belongsTo(TestResult::class, 'test_result_id', 'id');
     }
 }

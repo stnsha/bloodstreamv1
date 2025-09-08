@@ -20,9 +20,8 @@ class TestResultController extends Controller
             'doctor',
             'doctor.lab',
             'profiles',
-            'testResultItems.panelItem',
-            'testResultItems.panel',
-            'testResultItems.panel.panelTags',
+            'testResultItems.panelPanelItem.panelItem',
+            'testResultItems.panelPanelItem.panel.panelCategory',
             'testResultItems.referenceRange'
         ])->get();
         
@@ -60,37 +59,27 @@ class TestResultController extends Controller
                 ];
             });
             
-            // Process test result items grouped by panel
+            // Process test result items grouped by panel category
             $panelGroups = [];
-            $groupedItems = $result->testResultItems->groupBy('panel.name');
+            $groupedItems = $result->testResultItems->groupBy('panelPanelItem.panel.panelCategory.name');
             
-            foreach ($groupedItems as $panelName => $items) {
-                // Check if any item in this panel has is_tagon = true
+            foreach ($groupedItems as $categoryName => $items) {
+                // Check if any item in this category has is_tagon = true
                 $hasTagOn = $items->contains('is_tagon', true);
-                $displayName = $panelName;
-
-                if ($hasTagOn) {
-                    // Get the first item with is_tagon = true to access its panel tag
-                    $tagOnItem = $items->first(function ($item) {
-                        return $item->is_tagon;
-                    });
-                    if ($tagOnItem && $tagOnItem->panel && $tagOnItem->panel->panelTags->isNotEmpty()) {
-                        $displayName = $tagOnItem->panel->panelTags->first()->name;
-                    }
-                }
+                $displayName = $categoryName ?: 'Unknown Category';
                 
-                // Process items in this panel
+                // Process items in this category
                 $processedItems = $items->map(function ($item) {
                     return [
-                        'name' => $item->panelItem->name,
+                        'name' => $item->panelPanelItem && $item->panelPanelItem->panelItem ? $item->panelPanelItem->panelItem->name : 'Unknown Item',
                         'value' => $item->value,
-                        'unit' => $item->panelItem->unit,
+                        'unit' => $item->panelPanelItem && $item->panelPanelItem->panelItem ? $item->panelPanelItem->panelItem->unit : null,
                         'referenceRange' => $item->referenceRange ? $item->referenceRange->value : null
                     ];
                 });
                 
                 $panelGroups[] = [
-                    'panelName' => $panelName,
+                    'categoryName' => $categoryName ?: 'Unknown Category',
                     'displayName' => $displayName,
                     'hasTagOn' => $hasTagOn,
                     'items' => $processedItems
@@ -102,7 +91,7 @@ class TestResultController extends Controller
                 'labNo' => $result->lab_no,
                 'refId' => $result->ref_id,
                 'isCompleted' => $result->is_completed,
-                'isTagOn' => $result->is_tagon,
+                'isCompleted' => $result->is_completed,
                 'doctorInfo' => $doctorInfo,
                 'patientInfo' => $patientInfo,
                 'profiles' => $profiles,
@@ -144,10 +133,10 @@ class TestResultController extends Controller
             'doctor',
             'profiles',
             'testResultProfiles',
-            'testResultItems.panelItem',
-            'testResultItems.panel',
-            'testResultItems.panel.panelTags',
-            'testResultItems.referenceRange'
+            'testResultItems.panelPanelItem.panelItem',
+            'testResultItems.panelPanelItem.panel.panelCategory',
+            'testResultItems.referenceRange',
+            'review'
         ])->findOrFail($id);
 
         // Group test result items by profile, then by panel
@@ -158,8 +147,7 @@ class TestResultController extends Controller
             foreach ($testResult->profiles as $profile) {
                 // Get test result items that belong to panels associated with this profile
                 $profileItems = $testResult->testResultItems->filter(function ($item) use ($testResult, $profile) {
-                    $panel = $item->panel;
-                    if (!$panel) {
+                    if (!$item->panelPanelItem || !$item->panelPanelItem->panel) {
                         return false;
                     }
                     
@@ -170,27 +158,17 @@ class TestResultController extends Controller
                 });
                 
                 if ($profileItems->isNotEmpty()) {
-                    // Group items by panel within this profile
+                    // Group items by panel category within this profile
                     $panelGroups = [];
-                    $groupedItems = $profileItems->groupBy('panel.name');
+                    $groupedItems = $profileItems->groupBy('panelPanelItem.panel.panelCategory.name');
                     
-                    foreach ($groupedItems as $panelName => $items) {
-                        // Check if any item in this panel has is_tagon = true
+                    foreach ($groupedItems as $categoryName => $items) {
+                        // Check if any item in this category has is_tagon = true
                         $hasTagOn = $items->contains('is_tagon', true);
-                        $displayName = $panelName;
-
-                        if ($hasTagOn) {
-                            // Get the first item with is_tagon = true to access its panel tag
-                            $tagOnItem = $items->first(function ($item) {
-                                return $item->is_tagon;
-                            });
-                            if ($tagOnItem && $tagOnItem->panel && $tagOnItem->panel->panelTags->isNotEmpty()) {
-                                $displayName = $tagOnItem->panel->panelTags->first()->name;
-                            }
-                        }
+                        $displayName = $categoryName ?: 'Unknown Category';
                         
                         $panelGroups[] = [
-                            'panelName' => $panelName,
+                            'categoryName' => $categoryName ?: 'Unknown Category',
                             'items' => $items,
                             'hasTagOn' => $hasTagOn,
                             'displayName' => $displayName,
@@ -206,28 +184,18 @@ class TestResultController extends Controller
                 }
             }
         } else {
-            // Handle case where there are no profiles - just group all items by panel
+            // Handle case where there are no profiles - just group all items by panel category
             if ($testResult->testResultItems->isNotEmpty()) {
                 $panelGroups = [];
-                $groupedItems = $testResult->testResultItems->groupBy('panel.name');
+                $groupedItems = $testResult->testResultItems->groupBy('panelPanelItem.panel.panelCategory.name');
                 
-                foreach ($groupedItems as $panelName => $items) {
-                    // Check if any item in this panel has is_tagon = true
+                foreach ($groupedItems as $categoryName => $items) {
+                    // Check if any item in this category has is_tagon = true
                     $hasTagOn = $items->contains('is_tagon', true);
-                    $displayName = $panelName;
-
-                    if ($hasTagOn) {
-                        // Get the first item with is_tagon = true to access its panel tag
-                        $tagOnItem = $items->first(function ($item) {
-                            return $item->is_tagon;
-                        });
-                        if ($tagOnItem && $tagOnItem->panel && $tagOnItem->panel->panelTags->isNotEmpty()) {
-                            $displayName = $tagOnItem->panel->panelTags->first()->name;
-                        }
-                    }
+                    $displayName = $categoryName ?: 'Unknown Category';
                     
                     $panelGroups[] = [
-                        'panelName' => $panelName,
+                        'categoryName' => $categoryName ?: 'Unknown Category',
                         'items' => $items,
                         'hasTagOn' => $hasTagOn,
                         'displayName' => $displayName,
