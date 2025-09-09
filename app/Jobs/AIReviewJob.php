@@ -595,28 +595,48 @@ class AIReviewJob implements ShouldQueue
             return false;
         }
 
-        if (!isset($openaiResult['output']) || empty($openaiResult['output'])) {
-            Log::error('OpenAI response missing output', [
+        // Handle different OpenAI API response structures
+        $messageContent = null;
+        
+        // Try reasoning API structure first
+        if (isset($openaiResult['output']) && !empty($openaiResult['output'])) {
+            $output = $openaiResult['output'];
+            
+            // Handle structure: ['output'][1]['content'][0]['text']
+            if (is_array($output) && isset($output[1]['content'][0]['text'])) {
+                $messageContent = $output[1]['content'][0]['text'];
+            }
+            // Handle alternative structures
+            elseif (is_array($output) && isset($output['content'])) {
+                $messageContent = $output['content'];
+            } elseif (is_string($output)) {
+                $messageContent = $output;
+            } elseif (is_array($output) && !empty($output)) {
+                // Sometimes reasoning API returns array of responses
+                $messageContent = $output[0] ?? null;
+                if (is_array($messageContent) && isset($messageContent['content'])) {
+                    $messageContent = $messageContent['content'];
+                }
+            }
+        }
+        
+        // Fallback to standard chat completions structure
+        if (!$messageContent && isset($openaiResult['choices']) && !empty($openaiResult['choices'])) {
+            $firstChoice = $openaiResult['choices'][0] ?? null;
+            if ($firstChoice && isset($firstChoice['message']['content'])) {
+                $messageContent = $firstChoice['message']['content'];
+            }
+        }
+
+        if (empty($messageContent)) {
+            Log::error('OpenAI response missing content in all formats', [
                 'response_structure' => array_keys($openaiResult),
+                'output_structure' => isset($openaiResult['output']) ? 
+                    (is_array($openaiResult['output']) ? array_keys($openaiResult['output']) : gettype($openaiResult['output'])) : 'not_present',
+                'has_choices' => isset($openaiResult['choices']),
                 'has_error' => isset($openaiResult['error']),
-                'error_details' => $openaiResult['error'] ?? null
-            ]);
-            return false;
-        }
-
-        $output = $openaiResult['output'];
-        if (!isset($output['content'])) {
-            Log::error('OpenAI response missing content in output', [
-                'output_structure' => is_array($output) ? array_keys($output) : gettype($output)
-            ]);
-            return false;
-        }
-
-        $messageContent = $output['content'];
-        if (empty($messageContent) || !is_string($messageContent)) {
-            Log::error('OpenAI response content is empty or invalid', [
-                'content_type' => gettype($messageContent),
-                'content_length' => is_string($messageContent) ? strlen($messageContent) : 0
+                'error_details' => $openaiResult['error'] ?? null,
+                'full_response_preview' => substr(json_encode($openaiResult), 0, 500)
             ]);
             return false;
         }
