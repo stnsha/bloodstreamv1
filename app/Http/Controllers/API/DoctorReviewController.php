@@ -27,19 +27,33 @@ class DoctorReviewController extends Controller
                 ->get();
 
             if ($testResults->isEmpty()) {
+                Log::info('No unreviewed test results found');
                 return response()->json([
                     'success' => true,
                     'data' => [],
-                    'message' => 'No unreviewed test results found'
+                    'message' => 'No unreviewed test results found',
+                    'meta' => [
+                        'total_found' => 0,
+                        'processed_count' => 0,
+                        'failed_count' => 0
+                    ]
                 ], 200);
             }
 
             $processedResults = [];
+            $failedResults = [];
 
             foreach ($testResults as $tr) {
                 try {
+                    if (!$tr || !$tr->id) {
+                        Log::error('Invalid test result object');
+                        $failedResults[] = ['id' => 'unknown', 'reason' => 'Invalid test result object'];
+                        continue;
+                    }
+
                     if (!$tr->patient) {
                         Log::warning('Test result has no associated patient', ['test_result_id' => $tr->id]);
+                        $failedResults[] = ['id' => $tr->id, 'reason' => 'Missing patient information'];
                         continue;
                     }
 
@@ -48,126 +62,265 @@ class DoctorReviewController extends Controller
                         'patient_gender' => $tr->patient->gender ?? null,
                     ];
 
+                    if (!$patientInfo['patient_age'] || !$patientInfo['patient_gender']) {
+                        Log::warning('Incomplete patient information', [
+                            'test_result_id' => $tr->id,
+                            'patient_id' => $tr->patient->id ?? 'unknown',
+                            'missing_age' => !$patientInfo['patient_age'],
+                            'missing_gender' => !$patientInfo['patient_gender']
+                        ]);
+                    }
+
                     $categorizedItems = [];
+                    $validItemsCount = 0;
+
+                    if ($tr->testResultItems->isEmpty()) {
+                        Log::warning('Test result has no test result items', ['test_result_id' => $tr->id]);
+                        $failedResults[] = ['id' => $tr->id, 'reason' => 'No test result items found'];
+                        continue;
+                    }
 
                     foreach ($tr->testResultItems as $ri) {
                         try {
-                            if (!$ri->panelPanelItem || !$ri->panelPanelItem->panelItem) {
-                                Log::warning('Test result item missing required relationships', ['result_item_id' => $ri->id]);
+                            if (!$ri || !$ri->id) {
+                                Log::warning('Invalid result item', ['test_result_id' => $tr->id]);
                                 continue;
                             }
 
-                            $categoryName = $ri->panelPanelItem->panel->panelCategory->name ??
-                                $ri->panelPanelItem->panel->name ??
-                                'Unknown Category';
+                            if (!$ri->panelPanelItem) {
+                                Log::warning('Test result item missing panel relationship', [
+                                    'result_item_id' => $ri->id,
+                                    'test_result_id' => $tr->id
+                                ]);
+                                continue;
+                            }
+
+                            if (!$ri->panelPanelItem->panelItem) {
+                                Log::warning('Test result item missing panel item relationship', [
+                                    'result_item_id' => $ri->id,
+                                    'test_result_id' => $tr->id
+                                ]);
+                                continue;
+                            }
+
+                            $categoryName = 'Unknown Category';
+                            try {
+                                $categoryName = $ri->panelPanelItem->panel->panelCategory->name ??
+                                    $ri->panelPanelItem->panel->name ??
+                                    'Unknown Category';
+                            } catch (Exception $e) {
+                                Log::warning('Error determining category name', [
+                                    'error' => $e->getMessage(),
+                                    'result_item_id' => $ri->id
+                                ]);
+                            }
 
                             if (!isset($categorizedItems[$categoryName])) {
                                 $categorizedItems[$categoryName] = [];
                             }
 
                             $flagDescription = $ri->flag;
-                            if ($ri->flag) {
+                            if (!empty($ri->flag)) {
                                 try {
                                     $resultLibrary = ResultLibrary::where('code', '0078')
                                         ->where('value', $ri->flag)
                                         ->first();
-                                    $flagDescription = $resultLibrary ? $resultLibrary->description : $ri->flag;
+                                    if ($resultLibrary && !empty($resultLibrary->description)) {
+                                        $flagDescription = $resultLibrary->description;
+                                    }
                                 } catch (Exception $e) {
-                                    Log::error('Error fetching flag description', [
+                                    Log::error('Error fetching flag description from ResultLibrary', [
                                         'error' => $e->getMessage(),
-                                        'flag' => $ri->flag
+                                        'flag' => $ri->flag,
+                                        'result_item_id' => $ri->id
                                     ]);
+                                    $flagDescription = $ri->flag;
                                 }
                             }
 
                             $itemData = [
                                 'panel_item_name' => $ri->panelPanelItem->panelItem->name ?? 'Unknown Item',
-                                'result_value' => $ri->value,
-                                'panel_item_unit' => $ri->panelPanelItem->panelItem->unit,
-                                'result_status' => $flagDescription,
-                                'reference_range' => $ri->reference_range_id != null && $ri->referenceRange ? $ri->referenceRange->value : null,
+                                'result_value' => $ri->value ?? null,
+                                'panel_item_unit' => $ri->panelPanelItem->panelItem->unit ?? null,
+                                'result_status' => $flagDescription ?? null,
+                                'reference_range' => null,
                                 'comments' => []
                             ];
 
-                            foreach ($ri->panelComments as $pc) {
-                                if ($pc->masterPanelComment) {
-                                    $itemData['comments'][] = $pc->masterPanelComment->comment;
+                            if ($ri->reference_range_id && $ri->referenceRange) {
+                                try {
+                                    $itemData['reference_range'] = $ri->referenceRange->value;
+                                } catch (Exception $e) {
+                                    Log::warning('Error accessing reference range', [
+                                        'error' => $e->getMessage(),
+                                        'result_item_id' => $ri->id
+                                    ]);
+                                }
+                            }
+
+                            if ($ri->panelComments && !$ri->panelComments->isEmpty()) {
+                                try {
+                                    foreach ($ri->panelComments as $pc) {
+                                        if ($pc && $pc->masterPanelComment && !empty($pc->masterPanelComment->comment)) {
+                                            $itemData['comments'][] = $pc->masterPanelComment->comment;
+                                        }
+                                    }
+                                } catch (Exception $e) {
+                                    Log::warning('Error processing panel comments', [
+                                        'error' => $e->getMessage(),
+                                        'result_item_id' => $ri->id
+                                    ]);
                                 }
                             }
 
                             $categorizedItems[$categoryName][] = $itemData;
+                            $validItemsCount++;
                         } catch (Exception $e) {
                             Log::error('Error processing test result item', [
                                 'error' => $e->getMessage(),
-                                'result_item_id' => $ri->id ?? null,
-                                'test_result_id' => $tr->id
+                                'result_item_id' => $ri->id ?? 'unknown',
+                                'test_result_id' => $tr->id,
+                                'trace' => $e->getTraceAsString()
                             ]);
                         }
                     }
 
+                    if ($validItemsCount === 0) {
+                        Log::warning('No valid test result items processed', ['test_result_id' => $tr->id]);
+                        $failedResults[] = ['id' => $tr->id, 'reason' => 'No valid test result items'];
+                        continue;
+                    }
+
                     $testResultData = [
                         'patient_info' => $patientInfo,
-                        'blood_test_results' => $categorizedItems
+                        'blood_test_results' => $categorizedItems,
+                        'metadata' => [
+                            'test_result_id' => $tr->id,
+                            'total_items' => $tr->testResultItems->count(),
+                            'valid_items' => $validItemsCount,
+                            'categories_count' => count($categorizedItems)
+                        ]
                     ];
 
-                    // Send to GenAI
-                    $finalAnalysis = $this->sendToGemini($testResultData);
+                    $finalAnalysis = null;
+                    try {
+                        $finalAnalysis = $this->sendToOpenAI($testResultData);
+                    } catch (Exception $e) {
+                        Log::error('Exception during OpenAI API call', [
+                            'error' => $e->getMessage(),
+                            'test_result_id' => $tr->id,
+                            'trace' => $e->getTraceAsString()
+                        ]);
+                    }
 
                     if (!$finalAnalysis) {
                         $tr->is_reviewed = false;
-                        Log::error('AI analysis failed for test result', ['test_result_id' => $tr->id]);
+                        $tr->save();
+                        Log::error('AI analysis failed - no response received', ['test_result_id' => $tr->id]);
+                        $failedResults[] = ['id' => $tr->id, 'reason' => 'AI analysis failed'];
                         continue;
-                    } else {
-                        $tr->is_reviewed = true;
                     }
 
-                    $tr->save();
+                    try {
+                        $tr->is_reviewed = true;
+                        $tr->save();
+                    } catch (Exception $e) {
+                        Log::error('Failed to update test result status', [
+                            'error' => $e->getMessage(),
+                            'test_result_id' => $tr->id
+                        ]);
+                        $failedResults[] = ['id' => $tr->id, 'reason' => 'Database update failed'];
+                        continue;
+                    }
 
-                    $doctorReview = DoctorReview::firstOrCreate(
-                        ['test_result_id' => $tr->id],
-                        [
-                            'compiled_results' => $testResultData,
-                            'review' => $finalAnalysis,
-                            'is_sync' => false,
-                        ]
-                    );
+                    try {
+                        $doctorReview = DoctorReview::updateOrCreate(
+                            ['test_result_id' => $tr->id],
+                            [
+                                'compiled_results' => $testResultData,
+                                'review' => $finalAnalysis,
+                                'is_sync' => false
+                            ]
+                        );
+                    } catch (Exception $e) {
+                        Log::error('Failed to create/update doctor review', [
+                            'error' => $e->getMessage(),
+                            'test_result_id' => $tr->id,
+                            'trace' => $e->getTraceAsString()
+                        ]);
+                        $failedResults[] = ['id' => $tr->id, 'reason' => 'Doctor review creation failed'];
+                        continue;
+                    }
 
                     $processedResults[] = [
                         'test_result_id' => $tr->id,
                         'doctor_review_id' => $doctorReview->id,
                         'patient_age' => $patientInfo['patient_age'],
                         'patient_gender' => $patientInfo['patient_gender'],
+                        'categories_processed' => array_keys($categorizedItems),
+                        'items_count' => $validItemsCount,
                         'processed_at' => now()->toISOString()
                     ];
                 } catch (Exception $e) {
-                    Log::error('Error processing individual test result', [
+                    Log::error('Critical error processing individual test result', [
                         'error' => $e->getMessage(),
-                        'test_result_id' => $tr->id ?? null,
+                        'test_result_id' => $tr->id ?? 'unknown',
                         'trace' => $e->getTraceAsString()
                     ]);
+                    $failedResults[] = ['id' => $tr->id ?? 'unknown', 'reason' => 'Critical processing error'];
                 }
             }
 
-            return response()->json([
+            $responseData = [
                 'success' => true,
                 'data' => [
                     'processed_count' => count($processedResults),
                     'total_found' => $testResults->count(),
-                    'processed_results' => $processedResults
+                    'failed_count' => count($failedResults),
+                    'processed_results' => $processedResults,
+                    'failed_results' => $failedResults
                 ],
-                'message' => count($processedResults) > 0 ? 'Test results processed successfully' : 'No test results could be processed'
-            ], 200);
+                'message' => $this->generateProcessingMessage(count($processedResults), count($failedResults), $testResults->count()),
+                'meta' => [
+                    'processing_timestamp' => now()->toISOString(),
+                    'success_rate' => $testResults->count() > 0 ? round((count($processedResults) / $testResults->count()) * 100, 2) : 0
+                ]
+            ];
+
+            return response()->json($responseData, 200);
         } catch (Exception $e) {
-            Log::error('Error in DoctorReviewController index method', [
+            Log::critical('Critical error in DoctorReviewController index method', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'An error occurred while processing test results',
-                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+                'message' => 'A critical error occurred while processing test results',
+                'error' => config('app.debug') ? [
+                    'message' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine()
+                ] : 'Internal server error',
+                'data' => []
             ], 500);
+        }
+    }
+
+    private function generateProcessingMessage($processed, $failed, $total)
+    {
+        if ($processed === 0 && $failed === 0) {
+            return 'No test results to process';
+        } elseif ($processed === $total) {
+            return 'All test results processed successfully';
+        } elseif ($processed > 0 && $failed === 0) {
+            return "Successfully processed {$processed} test results";
+        } elseif ($processed === 0 && $failed > 0) {
+            return "Failed to process all {$failed} test results";
+        } else {
+            return "Processed {$processed} test results successfully, {$failed} failed";
         }
     }
 
@@ -176,6 +329,7 @@ class DoctorReviewController extends Controller
         // Increase execution time limit
         ini_set('max_execution_time', 300); // 5 minutes
         ini_set('memory_limit', '512M');
+
         $promptEg = json_encode($results);
 
         $apiKey = env('GEMINI_API_KEY');
@@ -243,7 +397,6 @@ class DoctorReviewController extends Controller
 
             ## STRUCTURE REQUIREMENTS
             **Blood Test Summary Report**
-            **Patient**: [age]-year-old [gender]
 
             **Summaries**
             1. [Most significant finding OR grouped normal results]
@@ -315,7 +468,8 @@ class DoctorReviewController extends Controller
             Each numbered point (1., 2., 3.) must be a complete, standalone sentence with NO sub-points, bullets, or additional formatting. Write everything in simple numbered list format only.
             ";
 
-        $response = Http::withHeaders([
+        $response = Http::timeout(120)
+            ->withHeaders([
             'Content-Type' => 'application/json',
             'X-goog-api-key' => $apiKey,
         ])->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent', [
@@ -373,19 +527,50 @@ class DoctorReviewController extends Controller
 
             return $formattedHtml;
         } else {
-            Log::error('OpenAI API request failed', [
+            Log::error('Gemimi API request failed', [
                 'status' => $response->status(),
                 'body' => $response->body()
             ]);
 
-            return null;
+            return false;
         }
     }
 
     private function sendToOpenAI($results)
     {
+        if (empty($results) || !is_array($results)) {
+            Log::error('Invalid results data provided to sendToOpenAI', [
+                'results_type' => gettype($results),
+                'results_empty' => empty($results)
+            ]);
+            return false;
+        }
+
+        try {
+            ini_set('max_execution_time', 300);
+            ini_set('memory_limit', '512M');
+        } catch (Exception $e) {
+            Log::warning('Failed to set execution limits', ['error' => $e->getMessage()]);
+        }
+
         $apiKey = env('OPENAI_API_KEY');
-        $promptEg = json_encode($results);
+        if (empty($apiKey)) {
+            Log::error('OpenAI API key is not configured');
+            return false;
+        }
+
+        try {
+            $promptData = json_encode($results, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new Exception('JSON encoding failed: ' . json_last_error_msg());
+            }
+        } catch (Exception $e) {
+            Log::error('Failed to encode results as JSON', [
+                'error' => $e->getMessage(),
+                'results_structure' => array_keys($results)
+            ]);
+            return false;
+        }
 
         $systemPrompt = "## ROLE
             You are an experienced Malaysian doctor specializing in laboratory medicine.
@@ -428,7 +613,6 @@ class DoctorReviewController extends Controller
 
             ## STRUCTURE REQUIREMENTS
             **Blood Test Summary Report**
-            **Patient**: [age]-year-old [gender]
 
             **Summaries**
             1. [Most significant finding OR grouped normal results]
@@ -451,12 +635,6 @@ class DoctorReviewController extends Controller
             - **ABSOLUTELY NO sub-bullets, em dash, asterisks (*), or indented lists**
             - **NO nested formatting of any kind**
 
-            ## SPECIAL HANDLING FOR YOUR JSON
-            - **result_status contains \"(applies to non-numeric results)\"** - ignore this phrase, use Normal/High/Low only
-            - **panel_item_unit may be null** - still analyze the result
-            - **All comments are empty []** - proceed without comment context
-            - **All results appear Normal** - focus on reassurance and prevention
-
             ## SPECIFIC RECOMMENDATIONS
 
             **Medication Triggers:**
@@ -471,76 +649,142 @@ class DoctorReviewController extends Controller
             - Abnormal blood counts → hematology consideration
             - All patients with abnormalities → nutritionist referral
 
-            ## CORRECT FORMAT EXAMPLE
-            **Plans & Recommendations**
-            1. Follow heart-healthy diet with reduced saturated fats and regular exercise for cholesterol management.
-            2. Include iron-rich foods like lean meat and spinach if mild anemia is suspected.
-            3. Repeat lipid profile in 3 months after dietary changes and annual health screening.
-
-            ## WRONG FORMAT (DO NOT USE)
-            **Plans & Recommendations**
-            1. **Manage cholesterol and heart health**
-            * Reduce fried foods
-            * Include more vegetables
-            2. **Address possible mild microcytosis**
-            * Include iron-rich foods
-
-            ## EXAMPLE OUTPUT
-            **Summaries**
-            1. Blood Group: O+
-            2. Blood sugar levels are significantly elevated, indicating possible diabetes
-            3. Hepatitis B surface antibody is not detected, indicating a lack of protective immunity.
-
-            **Plans & Recommendations**
-            1. For low cholesterol diet, avoid high calories and high trans-fat food intake as well as to increase physical activity.
-            2. To repeat lipid profile 3 months after lifestyle modification.
-            3. Low eGFR might indicates reduced kidney function likely due to age factor and underlying chronic illness.
-
             ## CRITICAL REMINDER
-            Each numbered point (1., 2., 3.) must be a complete, standalone sentence with NO sub-points, bullets, or additional formatting. Write everything in simple numbered list format only.
+            Each numbered point (1., 2., 3.) must be a complete, standalone sentence with NO sub-points, bullets, or additional formatting. Write everything in simple numbered list format only.";
 
-            ";
-
-        $response = Http::withHeaders([
-            'Content-Type' => 'application/json',
-            'Authorization' => 'Bearer ' . $apiKey,
-        ])->post('https://api.openai.com/v1/chat/completions', [
-            'model' => 'gpt-5',
+        $requestPayload = [
+            'model' => 'gpt-4o-2024-08-06',
             'messages' => [
                 ['role' => 'system', 'content' => $systemPrompt],
-                ['role' => 'user', 'content' => $promptEg]
+                ['role' => 'user', 'content' => $promptData]
             ],
-            'temperature' => 0.2,  // Lower temperature ensures factual and structured responses
-            'max_tokens' => 1000,  // Adjust as needed to control response length
-            'top_p' => 0.5,  // Limits randomness, keeping responses relevant
-            'frequency_penalty' => 0.4,  // Reduces repetitive words
-            'presence_penalty' => 0.1   // Encourages varied wording without going off-topic
-        ]);
+            'max_tokens' => 1000,
+            'temperature' => 0.2,
+            'top_p' => 0.5,
+            'frequency_penalty' => 0,
+            'presence_penalty' => 0
+        ];
 
-        if ($response->successful()) {
-            $openaiResult = $response->json();
-            $messageContent = $openaiResult['choices'][0]['message']['content'] ?? 'No response from AI';
+        try {
+            $response = Http::withHeaders([
+                'Content-Type' => 'application/json',
+                'Authorization' => 'Bearer ' . $apiKey,
+            ])
+                ->timeout(120)
+                ->connectTimeout(30)
+                ->retry(2, 1000)
+                ->post('https://api.openai.com/v1/chat/completions', $requestPayload);
+        } catch (Exception $e) {
+            Log::error('HTTP request to OpenAI failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return false;
+        }
 
-            // Convert **bold** text to <strong>
-            $messageContent = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $messageContent);
+        if (!$response->successful()) {
+            $statusCode = $response->status();
+            $responseBody = $response->body();
 
-            // Ensure section titles and numbered lists are formatted correctly
-            $formattedHtml = preg_replace([
-                '/(<strong>.*?<\/strong>)/',   // Bold section titles
-                '/(\d+)\.\s(?=[A-Za-z])/'      // Numbered lists (only when followed by a letter)
-            ], [
-                '<br><br>$1',  // Ensure section titles have extra space
-                '<br>$1. '     // Ensure numbered lists start on a new line without breaking content
-            ], $messageContent);
-
-            return $formattedHtml;
-        } else {
             Log::error('OpenAI API request failed', [
-                'status' => $response->status(),
-                'body' => $response->body()
+                'status_code' => $statusCode,
+                'response_body' => $responseBody,
+                'request_payload_size' => strlen(json_encode($requestPayload))
             ]);
 
-            return null;
+            if ($statusCode === 401) {
+                Log::critical('OpenAI API authentication failed - check API key');
+            } elseif ($statusCode === 403) {
+                Log::critical('OpenAI API access forbidden - check API key permissions');
+            } elseif ($statusCode === 429) {
+                Log::warning('OpenAI API rate limit exceeded');
+            } elseif ($statusCode === 500) {
+                Log::error('OpenAI API server error');
+            } elseif ($statusCode >= 400 && $statusCode < 500) {
+                Log::error('OpenAI API client error', ['status' => $statusCode]);
+            } elseif ($statusCode >= 500) {
+                Log::error('OpenAI API server error', ['status' => $statusCode]);
+            }
+
+            return false;
+        }
+
+        try {
+            $openaiResult = $response->json();
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new Exception('Failed to decode OpenAI response JSON: ' . json_last_error_msg());
+            }
+        } catch (Exception $e) {
+            Log::error('Failed to decode OpenAI response', [
+                'error' => $e->getMessage(),
+                'response_body_length' => strlen($response->body()),
+                'response_preview' => substr($response->body(), 0, 200)
+            ]);
+            return false;
+        }
+
+        if (!isset($openaiResult['choices']) || empty($openaiResult['choices'])) {
+            Log::error('OpenAI response missing choices', [
+                'response_structure' => array_keys($openaiResult),
+                'has_error' => isset($openaiResult['error']),
+                'error_details' => $openaiResult['error'] ?? null
+            ]);
+            return false;
+        }
+
+        $firstChoice = $openaiResult['choices'][0] ?? null;
+        if (!$firstChoice || !isset($firstChoice['message']['content'])) {
+            Log::error('OpenAI response missing message content', [
+                'choice_structure' => $firstChoice ? array_keys($firstChoice) : 'null',
+                'message_structure' => isset($firstChoice['message']) ? array_keys($firstChoice['message']) : 'null'
+            ]);
+            return false;
+        }
+
+        $messageContent = $firstChoice['message']['content'];
+        if (empty($messageContent) || !is_string($messageContent)) {
+            Log::error('OpenAI response content is empty or invalid', [
+                'content_type' => gettype($messageContent),
+                'content_length' => is_string($messageContent) ? strlen($messageContent) : 0
+            ]);
+            return false;
+        }
+
+        try {
+            $messageContent = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $messageContent);
+
+            $formattedHtml = preg_replace([
+                '/(<strong>.*?<\/strong>)/',
+                '/(\d+)\.\s(?=[A-Za-z])/'
+            ], [
+                '<br><br>$1',
+                '<br>$1. '
+            ], $messageContent);
+
+            if ($formattedHtml === null) {
+                throw new Exception('Regex replacement failed');
+            }
+
+            $formattedHtml = trim($formattedHtml);
+            if (empty($formattedHtml)) {
+                throw new Exception('Formatted content is empty after processing');
+            }
+
+            Log::info('OpenAI analysis completed successfully', [
+                'original_length' => strlen($messageContent),
+                'formatted_length' => strlen($formattedHtml),
+                'usage' => $openaiResult['usage'] ?? null
+            ]);
+
+            return $formattedHtml;
+        } catch (Exception $e) {
+            Log::error('Failed to format OpenAI response', [
+                'error' => $e->getMessage(),
+                'original_content_length' => strlen($messageContent),
+                'original_content_preview' => substr($messageContent, 0, 100)
+            ]);
+
+            return $messageContent;
         }
     }
 }
