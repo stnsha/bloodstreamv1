@@ -653,16 +653,12 @@ class DoctorReviewController extends Controller
             Each numbered point (1., 2., 3.) must be a complete, standalone sentence with NO sub-points, bullets, or additional formatting. Write everything in simple numbered list format only.";
 
         $requestPayload = [
-            'model' => 'gpt-4o-2024-08-06',
-            'messages' => [
-                ['role' => 'system', 'content' => $systemPrompt],
+            'model' => 'gpt-5',
+            'reasoning' => ['effort' => 'low'],
+            'input' => [
+                ['role' => 'developer', 'content' => $systemPrompt],
                 ['role' => 'user', 'content' => $promptData]
-            ],
-            'max_tokens' => 1000,
-            'temperature' => 0.2,
-            'top_p' => 0.5,
-            'frequency_penalty' => 0,
-            'presence_penalty' => 0
+            ]
         ];
 
         try {
@@ -673,7 +669,7 @@ class DoctorReviewController extends Controller
                 ->timeout(120)
                 ->connectTimeout(30)
                 ->retry(2, 1000)
-                ->post('https://api.openai.com/v1/chat/completions', $requestPayload);
+                ->post('https://api.openai.com/v1/responses', $requestPayload);
         } catch (Exception $e) {
             Log::error('HTTP request to OpenAI failed', [
                 'error' => $e->getMessage(),
@@ -723,8 +719,8 @@ class DoctorReviewController extends Controller
             return false;
         }
 
-        if (!isset($openaiResult['choices']) || empty($openaiResult['choices'])) {
-            Log::error('OpenAI response missing choices', [
+        if (!isset($openaiResult['output']) || empty($openaiResult['output'])) {
+            Log::error('OpenAI response missing output', [
                 'response_structure' => array_keys($openaiResult),
                 'has_error' => isset($openaiResult['error']),
                 'error_details' => $openaiResult['error'] ?? null
@@ -732,16 +728,15 @@ class DoctorReviewController extends Controller
             return false;
         }
 
-        $firstChoice = $openaiResult['choices'][0] ?? null;
-        if (!$firstChoice || !isset($firstChoice['message']['content'])) {
-            Log::error('OpenAI response missing message content', [
-                'choice_structure' => $firstChoice ? array_keys($firstChoice) : 'null',
-                'message_structure' => isset($firstChoice['message']) ? array_keys($firstChoice['message']) : 'null'
+        $output = $openaiResult['output'];
+        if (!isset($output['content'])) {
+            Log::error('OpenAI response missing content in output', [
+                'output_structure' => is_array($output) ? array_keys($output) : gettype($output)
             ]);
             return false;
         }
 
-        $messageContent = $firstChoice['message']['content'];
+        $messageContent = $output['content'];
         if (empty($messageContent) || !is_string($messageContent)) {
             Log::error('OpenAI response content is empty or invalid', [
                 'content_type' => gettype($messageContent),
