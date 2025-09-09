@@ -539,7 +539,7 @@ class AIReviewJob implements ShouldQueue
 
         $requestPayload = [
             'model' => 'gpt-5-2025-08-07',
-            'reasoning' => ['effort' => 'low'],
+            'reasoning' => ['effort' => 'medium'],
             'input' => [
                 ['role' => 'developer', 'content' => $systemPrompt],
                 ['role' => 'user', 'content' => $promptData]
