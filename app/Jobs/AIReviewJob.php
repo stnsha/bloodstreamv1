@@ -18,8 +18,6 @@ class AIReviewJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public $queue = 'ai-review';
-
     /**
      * The number of times the job may be attempted.
      */
@@ -40,7 +38,7 @@ class AIReviewJob implements ShouldQueue
      */
     public function __construct()
     {
-        //
+        $this->onQueue('ai-review');
     }
 
     /**
