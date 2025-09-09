@@ -139,13 +139,22 @@ class AIReviewJob implements ShouldQueue
                             'patient_gender' => $tr->patient->gender ?? null,
                         ];
 
-                        if (!$patientInfo['patient_age'] || !$patientInfo['patient_gender']) {
-                            Log::warning('Incomplete patient information', [
+                        if (!$patientInfo['patient_gender']) {
+                            Log::warning('Missing patient gender', [
                                 'test_result_id' => $tr->id,
-                                'patient_id' => $tr->patient->id ?? 'unknown',
-                                'missing_age' => !$patientInfo['patient_age'],
-                                'missing_gender' => !$patientInfo['patient_gender']
+                                'patient_id' => $tr->patient->id ?? 'unknown'
                             ]);
+                            $failedResults[] = ['id' => $tr->id, 'reason' => 'Missing patient gender'];
+                            continue;
+                        }
+
+                        if (!$patientInfo['patient_age']) {
+                            Log::info('Patient age is null, continuing with analysis', [
+                                'test_result_id' => $tr->id,
+                                'patient_id' => $tr->patient->id ?? 'unknown'
+                            ]);
+                            // Set default age for analysis
+                            $patientInfo['patient_age'] = 'unknown';
                         }
 
                         $categorizedItems = [];
@@ -650,15 +659,8 @@ class AIReviewJob implements ShouldQueue
                     $formattedBatch = [];
                     foreach ($batchResults as $singleResult) {
                         if (is_string($singleResult)) {
-                            $formatted = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $singleResult);
-                            $formatted = preg_replace([
-                                '/(<strong>.*?<\/strong>)/',
-                                '/(\d+)\.\s(?=[A-Za-z])/'
-                            ], [
-                                '<br><br>$1',
-                                '<br>$1. '
-                            ], $formatted);
-                            $formattedBatch[] = trim($formatted);
+                            $formatted = $this->formatOpenAIResponse($singleResult);
+                            $formattedBatch[] = $formatted;
                         } else {
                             $formattedBatch[] = $singleResult;
                         }
@@ -681,24 +683,7 @@ class AIReviewJob implements ShouldQueue
             }
 
             // Single result processing (or batch fallback)
-            $messageContent = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $messageContent);
-
-            $formattedHtml = preg_replace([
-                '/(<strong>.*?<\/strong>)/',
-                '/(\d+)\.\s(?=[A-Za-z])/'
-            ], [
-                '<br><br>$1',
-                '<br>$1. '
-            ], $messageContent);
-
-            if ($formattedHtml === null) {
-                throw new Exception('Regex replacement failed');
-            }
-
-            $formattedHtml = trim($formattedHtml);
-            if (empty($formattedHtml)) {
-                throw new Exception('Formatted content is empty after processing');
-            }
+            $formattedHtml = $this->formatOpenAIResponse($messageContent);
 
             Log::info('OpenAI analysis completed successfully', [
                 'original_length' => strlen($messageContent),
@@ -717,6 +702,45 @@ class AIReviewJob implements ShouldQueue
             ]);
 
             return $isBatch ? [$messageContent] : $messageContent;
+        }
+    }
+
+    /**
+     * Format OpenAI response with consistent HTML structure
+     */
+    private function formatOpenAIResponse($content)
+    {
+        if (empty($content) || !is_string($content)) {
+            return $content;
+        }
+
+        try {
+            // Add <strong> for specific section titles first
+            $content = preg_replace(
+                '/\b(Blood Test Summary Report|Summaries|Plans & Recommendations)\b/',
+                '<strong>$1</strong>',
+                $content
+            );
+
+            // Convert **bold** text to <strong>
+            $messageContent = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $content);
+
+            // Ensure section titles and numbered lists are formatted correctly
+            $formattedHtml = preg_replace([
+                '/(<strong>.*?<\/strong>)/',   // Bold section titles
+                '/(\d+)\.\s(?=[A-Za-z])/'      // Numbered lists (only when followed by a letter)
+            ], [
+                '<br><br>$1',  // Ensure section titles have extra space
+                '<br>$1. '     // Ensure numbered lists start on a new line without breaking content
+            ], $messageContent);
+
+            return $formattedHtml;
+        } catch (Exception $e) {
+            Log::error('Error formatting OpenAI response', [
+                'error' => $e->getMessage(),
+                'content_preview' => substr($content, 0, 200)
+            ]);
+            return $content;
         }
     }
 }
