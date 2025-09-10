@@ -8,10 +8,10 @@ use App\Models\Patient;
 use App\Models\TestResult;
 use App\Models\ResultLibrary;
 use App\Services\MyHealthService;
+use Illuminate\Support\Facades\Log;
+
 use Carbon\Carbon;
 use Exception;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 
 class DoctorReviewController extends Controller
 {
@@ -233,18 +233,8 @@ class DoctorReviewController extends Controller
         }
     }
 
-    private function generateProcessingMessage($processed, $failed, $total)
+    public function formatResponse($response)
     {
-        if ($processed === 0 && $failed === 0) {
-            return 'No test results to process';
-        } elseif ($processed === $total) {
-            return 'All test results processed successfully';
-        } elseif ($processed > 0 && $failed === 0) {
-            return "Successfully processed {$processed} test results";
-        } elseif ($processed === 0 && $failed > 0) {
-            return "Failed to process all {$failed} test results";
-        } else {
-            return "Processed {$processed} test results successfully, {$failed} failed";
-        }
+        $response = "";
     }
 }

@@ -6,6 +6,7 @@ use App\Http\Controllers\ImportController;
 use App\Http\Controllers\API\General\LabResultsController;
 use App\Http\Controllers\API\Innoquest\PanelResultsController;
 use App\Http\Controllers\API\PDFController;
+use App\Http\Controllers\MasterPanelItemController;
 use App\Http\Controllers\TestingController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;

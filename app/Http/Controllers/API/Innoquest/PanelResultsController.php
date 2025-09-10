@@ -26,6 +26,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Stichoza\GoogleTranslate\GoogleTranslate;
 
 class PanelResultsController extends BaseResultsController
 {
@@ -161,6 +162,10 @@ class PanelResultsController extends BaseResultsController
         $sending_facility = null;
         $batch_id = null;
 
+        $tr = new GoogleTranslate();
+        $tr->setSource('en');
+        $tr->setTarget('zh-CN');
+
         try {
             Log::info('Panel results submission started', [
                 'lab_id' => Auth::guard('lab')->user()->lab_id ?? null,
@@ -289,10 +294,10 @@ class PanelResultsController extends BaseResultsController
 
                                     //result items 
                                     if (filled($res['Text']) && ($res['Text'] != 'COMMENT' && $res['Text'] != 'NOTE')) {
-
                                         // 1. Create or find master panel item
                                         $masterPanelItem = MasterPanelItem::updateOrCreate([
                                             'name' => $res['Text'],
+                                            'chi_character' => $tr->translate($res['Text']),
                                             'unit' => $unit,
                                         ]);
 

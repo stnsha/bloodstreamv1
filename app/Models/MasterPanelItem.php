@@ -13,6 +13,7 @@ class MasterPanelItem extends Model
 
     protected $fillable = [
         'name',
+        'chi_character',
         'unit',
     ];
 
@@ -23,6 +24,7 @@ class MasterPanelItem extends Model
     ];
 
     protected $attributes = [
+        'chi_character' => null,
         'unit' => null,
     ];
 

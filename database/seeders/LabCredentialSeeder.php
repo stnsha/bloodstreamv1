@@ -74,14 +74,18 @@ class LabCredentialSeeder extends Seeder
         ];
 
         foreach ($labCredentials as $credential) {
-            LabCredential::create([
-                'user_id' => $user->id,
-                'lab_id' => $credential['lab_id'],
-                'username' => $credential['username'],
-                'password' => bcrypt($credential['password']),
-                'role' => $credential['role'],
-                'is_active' => true,
-            ]);
+            LabCredential::firstOrCreate(
+                [
+                    'lab_id' => $credential['lab_id'],
+                    'username' => $credential['username'],
+                ],
+                [
+                    'user_id' => $user->id,
+                    'password' => bcrypt($credential['password']),
+                    'role' => $credential['role'],
+                    'is_active' => true,
+                ]
+            );
         }
     }
 }

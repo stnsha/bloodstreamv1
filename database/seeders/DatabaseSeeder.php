@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
             HL7LibrarySeeder::class,
             LabCredentialSeeder::class,
             InnoquestCodeMappingSeeder::class,
+            TranslationSeeder::class
         ]);
     }
 }
