@@ -61,6 +61,6 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
     });
 
     Route::prefix('review')->controller(DoctorReviewController::class)->group(function () {
-        Route::get('/', 'index')->name('index');
+        Route::get('/', 'processResult')->name('index');
     });
 });
