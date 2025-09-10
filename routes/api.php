@@ -32,6 +32,10 @@ Route::controller(AuthController::class)->group(function () {
     Route::post('/logout', 'logout')->name('logout');
 });
 
+Route::prefix('review')->controller(DoctorReviewController::class)->group(function () {
+    Route::get('/', 'processResult')->name('index');
+    Route::get('/formatResponse', 'formatResponse')->name('formatResponse');
+});
 
 Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
     Route::prefix('result')->group(function () {
@@ -59,9 +63,5 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
 
     Route::prefix('pdf')->controller(PDFController::class)->group(function () {
         Route::get('/export/{testResult}', 'export')->name('export');
-    });
-
-    Route::prefix('review')->controller(DoctorReviewController::class)->group(function () {
-        Route::get('/', 'processResult')->name('index');
     });
 });

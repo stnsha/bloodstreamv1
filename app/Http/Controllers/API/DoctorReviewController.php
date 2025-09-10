@@ -233,8 +233,230 @@ class DoctorReviewController extends Controller
         }
     }
 
-    public function formatResponse($response)
+    public function formatResponse()
     {
-        $response = "";
+        $response = "**SECTION A1:Your Health at a Glance** \n\n| HealthArea | Status (🟢🟡🔴) | Notes |\n|-------------|--------------|-------|\n| **Cardiovascular Health** | 🔴 | LDL5.0 mmolL⁻¹ (high), Total Cholesterol5.3 mmolL⁻¹ (high), Chol/HDL5.5 (high). Elevated risk of atherosclerosis. |\n| **Blood Sugar & Metabolism** | 🟢 | Glucose 4.3 mmolL⁻¹ - within normal fasting range. |\n| **Liver Function** | 🔴 | ALT50 U L⁻¹, GGT50 U L⁻¹, ALP 150 U L⁻¹, Total Bilirubin50 µmolL⁻¹ - all above reference. Suggests mild hepatocellular injury/cholestasis. |\n| **Kidney Function** | 🟢 | Creatinine 54 µmolL⁻¹ - within normal range; eGFR likely > 60 mLmin⁻¹ 1.73 m⁻². |\n| **Nutritional Status** | 🟢 | Total Protein72 gL⁻¹, Albumin44 gL⁻¹, Globulin28 gL⁻¹ - all normal; adequate protein intake. |\n| **Inflammation / Infection** | 🟢 | No acute inflammatory markers provided; liver enzymes are the only abnormality. |\n| **Urinary Tract Health** | 🟢 | Urea 3.8 mmolL⁻¹, electrolytes normal - no evidence of infection or obstruction. |\n| **Add-On Packages** | | |\n| - Thyroid Health | — | Not requested. |\n| - Stress & Mood Biomarkers | — | Not requested. |\n\n--- \n\n**SECTION A2:Your Body System Highlights**\n\n1. **High LDL and total cholesterol** - these fats can build plaque in arteries, increasing heart-disease risk. \n2. **Elevated liver enzymes and bilirubin** - mild liver stress or early cholestasis; keep liver-friendly habits and avoid alcohol. \n3. **Kidney function is good** - creatinine is normal and eGFR is likely healthy. \n4. **Blood sugar is fine** - fasting glucose is in the safe range. \n5. **Overall nutrition looks solid** - protein levels are normal, so you're meeting your protein needs.\n\n---\n\n**SECTION B: Alpro Care for You - 3-6 Month HealthAction**\n\n| Timeline | Action | Goals | Alpro Care for You | Appointment Date & Place |\n|----------|--------|-------|--------------------|--------------------------|\n| **Month0-1** | • Start a plant-based protein-rich diet (oat, soy, pea). • Cut saturated fats (no butter, limit red meat). • Increase fiber (fruits, veggies, whole grains). • 150 min/week moderate exercise (brisk walk, cycling). | • Lower LDL by ≥ 10 %. • Bring total cholesterol < 5.2 mmolL⁻¹. • Reduce liver enzyme elevation to ≤ 1.5x upper limit. | • DailyAlpro oat milk (fortified with calcium & vitaminD). • Alpro plant-protein shakes for post-workout recovery. • Alpro chia-seed-rich smoothies for omega-3. | **Week 4** - Dietitian review (clinic or telehealth). |\n| **Month2- 3** | • Re-measure lipids & liver enzymes. • If LDL remains > 3.4 mmolL⁻¹, discuss statin initiation with GP. • Continue liver-friendly diet (low alcohol, avoid over-cooked foods). • Maintain weight-loss if BMI > 25. | • LDL < 3.4 mmolL⁻¹. • Total cholesterol < 5.2 mmolL⁻¹. • Bilirubin, ALT, GGT within normal limits. | • Add Alpro fortified protein bar (low sugar) for on-the-go nutrition. • Alpro \"Omega-3\"-enriched nut-milk to support liver. | **Week 12** - GP follow-up & medication review. |\n| **Month4-6** | • Repeat full lipid panel and liver panel. • Adjust diet or medications based on results. • Continue regular exercise and weight-maintenance plan. | • Sustain all target ranges. • Achieve stable eGFR and normal renal profile. | • Keep dailyAlpro plant-milk & protein shakes. • Explore Alpro \"Low-Sodium\" options if blood pressure rises. | **Week 24** - Specialist (cardio or hepatology) check-in if needed. |\n\n---\n\n**SECTION C: With Care, fromAlpro (Final Note)** \n\nHello [Name],\n\nYou've taken an important step by reviewing your blood work, and it's encouraging to see that your kidney function, blood sugar, and overall nutrition are all in good shape. The main areas we'll focus on are your cholesterol profile and the slight elevations in your liver enzymes. With a few sensible lifestyle tweaks—think plant-based meals, more fiber, regular movement, and reduced alcohol—you can move those numbers toward healthier targets, which in turn gives you more energy, steadier mood, and long-term protection against heart disease.\n\nYour health priorities in the next six months are: \n1. **Lower LDL & total cholesterol** so the heart can stay clear of plaque. \n2. **Normalize liver enzymes** to reduce stress on the liver. \n3. **Maintain kidney health** - you're already on the right track! \n\nBy keeping to the action plan above and usingAlpro products as tasty, convenient tools, you'll feel more vibrant and confident in your daily life. Remember, this plan is a guide—always feel free to reach out to your healthcare team if you have questions or concerns.\n\n**You're on the right path.** Let's keep moving forward together.\n\nWith warmth, \nThe Alpro Care Team\n\n---\n\n**Disclaimer** \nThis report is for educational purposes only. It is not a medical diagnosis and should not replace consultation with a qualified healthcare professional. Always discuss your results and health concerns with your doctor.";
+
+        return $this->formatMarkdownToHTML($response);
+    }
+
+    private function convertTableBlock(array $tableLines): string
+    {
+        $html = "<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;'>\n";
+        $rows = [];
+
+        // Normalize and collect rows
+        foreach ($tableLines as $line) {
+            $line = trim($line);
+            if ($line === '') continue;
+            // remove starting/trailing pipe
+            $line = preg_replace('/^\||\|$/', '', $line);
+            $cells = array_map('trim', explode('|', $line));
+            $rows[] = $cells;
+        }
+
+        if (count($rows) === 0) return '';
+
+        // If the second row is a separator row (---|---), skip it
+        $startDataIndex = 1;
+        if (isset($rows[1])) {
+            $joined = implode('', $rows[1]);
+            // if row contains only dashes, spaces, colons (alignment) -> treat as separator
+            if (preg_match('/^[\s\-:|]+$/', $joined)) {
+                $startDataIndex = 2;
+            } else {
+                $startDataIndex = 1;
+            }
+        } else {
+            $startDataIndex = 1;
+        }
+
+        // Header row is the first row
+        $header = $rows[0];
+
+        // Build thead
+        $html .= "<thead><tr>";
+        foreach ($header as $hcell) {
+            $html .= '<th>' . htmlspecialchars($hcell) . '</th>';
+        }
+        $html .= "</tr></thead>\n";
+
+        // Build tbody
+        $html .= "<tbody>\n";
+        for ($i = $startDataIndex; $i < count($rows); $i++) {
+            $html .= "<tr>";
+            // ensure same number of columns as header (pad empty if necessary)
+            $cols = $rows[$i];
+            for ($c = 0; $c < count($header); $c++) {
+                $cell = $cols[$c] ?? '';
+                
+                // Check if cell contains bullet points and convert to unordered list
+                if (strpos($cell, '•') !== false) {
+                    // Split by bullet points and create list items
+                    $parts = preg_split('/\s*•\s*/', $cell);
+                    $firstPart = trim($parts[0]); // Text before first bullet
+                    $listItems = array_slice($parts, 1); // Everything after bullets
+                    
+                    if (!empty($listItems)) {
+                        $cellHtml = '';
+                        if (!empty($firstPart)) {
+                            $escapedFirstPart = htmlspecialchars($firstPart);
+                            // Apply bold formatting to first part
+                            $escapedFirstPart = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escapedFirstPart);
+                            $cellHtml .= $escapedFirstPart . ' ';
+                        }
+                        $cellHtml .= '<ul>';
+                        foreach ($listItems as $item) {
+                            $item = trim($item);
+                            if (!empty($item)) {
+                                $escapedItem = htmlspecialchars($item);
+                                // Apply bold formatting to list items
+                                $escapedItem = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escapedItem);
+                                $cellHtml .= '<li>' . $escapedItem . '</li>';
+                            }
+                        }
+                        $cellHtml .= '</ul>';
+                        $html .= '<td>' . $cellHtml . '</td>';
+                    } else {
+                        $escapedCell = htmlspecialchars($cell);
+                        $escapedCell = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escapedCell);
+                        $html .= '<td>' . $escapedCell . '</td>';
+                    }
+                } else {
+                    $escapedCell = htmlspecialchars($cell);
+                    // Apply bold formatting to regular cells
+                    $escapedCell = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escapedCell);
+                    $html .= '<td>' . $escapedCell . '</td>';
+                }
+            }
+            $html .= "</tr>\n";
+        }
+        $html .= "</tbody></table>\n";
+
+        return $html;
+    }
+
+    private function formatMarkdownToHTML($text)
+    {
+        // Normalize line endings and trim
+        $text = str_replace(["\r\n", "\r"], "\n", trim($text));
+        
+        // Remove --- before every \n\n**SECTION
+        $text = preg_replace('/---\s*\n\n\*\*SECTION/', "\n\n**SECTION", $text);
+        $lines = explode("\n", $text);
+
+        $html = '';
+        $inList = false;
+        $listType = 'ul'; // default list type
+        $i = 0;
+        $n = count($lines);
+
+        while ($i < $n) {
+            $line = rtrim($lines[$i]);
+
+            // --- TABLE DETECTION: consecutive lines starting with '|' form a table block
+            if (preg_match('/^\s*\|/', $line)) {
+                $tableLines = [];
+                while ($i < $n && preg_match('/^\s*\|/', rtrim($lines[$i]))) {
+                    $tableLines[] = $lines[$i];
+                    $i++;
+                }
+                // close any open list
+                if ($inList) {
+                    $html .= "</{$listType}>\n";
+                    $inList = false;
+                }
+
+                // **Important fix**: remove trailing blank lines/newlines so table attaches directly
+                $html = rtrim($html, "\n");
+
+                $html .= $this->convertTableBlock($tableLines);
+                continue; // continue while loop (i already advanced)
+            }
+
+            $trimmed = trim($line);
+
+            // --- LISTS: lines starting with '* ' or '- ' or numbered lists '1. '
+            if (preg_match('/^(\* |- )\s*(.+)$/', $trimmed, $m)) {
+                if (!$inList) {
+                    $inList = true;
+                    $listType = 'ul';
+                    $html .= "<{$listType}>\n";
+                }
+                $itemText = $m[2];
+                // Escape then apply inline formatting (header/bold)
+                $escaped = htmlspecialchars($itemText);
+                // Section header pattern inside list item (rare) converted to <h3>
+                $escaped = preg_replace('/\*\*(\d+\..*?)\*\*/', '<h3>$1</h3>', $escaped);
+                // Bold
+                $escaped = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escaped);
+                $html .= "<li>{$escaped}</li>\n";
+                $i++;
+                continue;
+            }
+
+            // --- Numbered lists (e.g. "1. Do this")
+            if (preg_match('/^\d+\.\s+(.+)$/', $trimmed, $m)) {
+                if (!$inList) {
+                    $inList = true;
+                    $listType = 'ol';
+                    $html .= "<{$listType}>\n";
+                } elseif ($inList && $listType !== 'ol') {
+                    // close previous list and start ordered
+                    $html .= "</{$listType}>\n";
+                    $listType = 'ol';
+                    $html .= "<{$listType}>\n";
+                }
+                $itemText = $m[1];
+                $escaped = htmlspecialchars($itemText);
+                $escaped = preg_replace('/\*\*(\d+\..*?)\*\*/', '<h3>$1</h3>', $escaped);
+                $escaped = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escaped);
+                $html .= "<li>{$escaped}</li>\n";
+                $i++;
+                continue;
+            }
+
+            // If we reach here and a list was open, close it
+            if ($inList) {
+                $html .= "</{$listType}>\n";
+                $inList = false;
+                $listType = 'ul';
+            }
+
+            // --- Skip empty lines (do NOT add extra newlines that become visible space)
+            if ($trimmed === '') {
+                // Look ahead: if next non-empty line is a table, just skip; otherwise skip too.
+                // This avoids producing an empty newline between heading and table.
+                $i++;
+                continue;
+            }
+
+            // --- HEADERS & BOLD for normal lines
+            // Escape line content first
+            $escapedLine = htmlspecialchars($trimmed);
+
+            // Section headers like **3. Diet Plan**
+            $escapedLine = preg_replace('/\*\*(\d+\..*?)\*\*/', '<h3>$1</h3>', $escapedLine);
+
+            // Bold **text**
+            $escapedLine = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escapedLine);
+
+            // Wrap in <p> unless it's a header already (starts with <h3>)
+            if (preg_match('/^\s*<h3>.*<\/h3>\s*$/i', $escapedLine)) {
+                $html .= $escapedLine . "\n";
+            } else {
+                $html .= "<p>{$escapedLine}</p>\n";
+            }
+
+            $i++;
+        }
+
+        // Close any remaining open list
+        if ($inList) {
+            $html .= "</{$listType}>\n";
+            $inList = false;
+        }
+
+        return $html;
     }
 }

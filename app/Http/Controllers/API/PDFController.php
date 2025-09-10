@@ -400,14 +400,14 @@ class PDFController extends Controller
                                                         <td style="padding:3px 10px;">
                                                             <table style="border-collapse:collapse; width:100%; table-layout:fixed;">
                                                                 <tr>
-                                                                    <td style="padding:0; font-weight:bold; width:20px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;text-align:center;">
+                                                                    <td style="padding:0; font-weight:bold; width:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;text-align:center;">
                                                                         ' . $pi['result_flag'] . '
                                                                     </td>
-                                                                    <td style="padding:0; width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; ' . $boldStyle .  ' ' . $paddingStyle . ' ">'
+                                                                    <td style="padding:0; width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; ' . $boldStyle .  ' ' . $paddingStyle . ' ">'
                                                     . $displayName .
                                                     '</td>
-                                                                    <td style="padding:0; width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></td>
-                                                                    <td style="padding:0px 10px 0px 0px; text-align:right; width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                                                                    <td style="padding:0; width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' . $pi['chinese_character'] . '</td>
+                                                                    <td style="padding:0px 10px 0px 0px; text-align:right; width:125px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
                                                                         ' . ($pi['percentage_value'] != '0' && $pi['is_percentage'] ? $pi['percentage_value'] . '%' : '') . '
                                                                     </td>
                                                                 </tr>
@@ -493,10 +493,10 @@ class PDFController extends Controller
                                     <td style="padding:0px 10px;">
                                         <table style="border-collapse:collapse; width:100%; table-layout:fixed;">
                                             <tr>
-                                                <td style="padding:0; font-weight:bold; width:20px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;text-align:center;">
+                                                <td style="padding:0; font-weight:bold; width:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;text-align:center;">
                                                     ' . $pi['result_flag'] . '
                                                 </td>
-                                                <td style="padding:0; width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">'
+                                                <td style="padding:0; width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">'
                                 . $displayName .
                                 '</td>
                                                 <td style="padding:0; width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:center; ' . $formattedStyle . '">'
@@ -685,14 +685,14 @@ class PDFController extends Controller
                                                         <td style="padding:0px 10px;">
                                                             <table style="border-collapse:collapse; width:100%; table-layout:fixed;">
                                                                 <tr>
-                                                                    <td style="padding:0; font-weight:bold; width:20px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;text-align:center;">
+                                                                    <td style="padding:0; font-weight:bold; width:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;text-align:center;">
                                                                         ' . $pi['result_flag'] . '
                                                                     </td>
-                                                                    <td style="padding:0; width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">'
+                                                                    <td style="padding:0; width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">'
                                             . $displayName .
                                             '</td>
-                                                                    <td style="padding:0; width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></td>
-                                                                    <td style="padding:0px 10px 0px 0px; text-align:right; width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                                                                    <td style="padding:0; width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' . $pi['chinese_character'] . '</td>
+                                                                    <td style="padding:0px 10px 0px 0px; text-align:right; width:125px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
                                                                         ' . ($pi['percentage_value'] != '0' && $pi['is_percentage'] ? $pi['percentage_value'] . '%' : '') . '
                                                                     </td>
                                                                 </tr>
@@ -879,6 +879,7 @@ class PDFController extends Controller
                 $panelItemData = [
                     'panel_item_id' => $ppi->panel_item_id,
                     'panel_item_name' => $ppi->panelItem->name,
+                    'chinese_character' => $ppi->panelItem->masterPanelItem->chi_character,
                     'panel_item_unit' => $unit,
                     'result_value' => $res_value,
                     'result_flag' => $res_flag,
@@ -1344,6 +1345,9 @@ class PDFController extends Controller
                 'default_font' => 'Arial',
             ]);
 
+            $mpdf->useAdobeCJK = true;
+            $mpdf->autoScriptToLang = true;
+            $mpdf->autoLangToFont = true;
             $mpdf->allow_charset_conversion = true;
 
             $header = '
@@ -1711,14 +1715,14 @@ class PDFController extends Controller
                                                             <td style="padding:3px 10px;">
                                                                 <table style="border-collapse:collapse; width:100%; table-layout:fixed;">
                                                                     <tr>
-                                                                        <td style="padding:0; font-weight:bold; width:20px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;text-align:center;">
+                                                                        <td style="padding:0; font-weight:bold; width:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;text-align:center;">
                                                                             ' . $pi['result_flag'] . '
                                                                         </td>
-                                                                        <td style="padding:0; width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; ' . $boldStyle .  ' ' . $paddingStyle . ' ">'
+                                                                        <td style="padding:0; width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; ' . $boldStyle .  ' ' . $paddingStyle . ' ">'
                                                         . $displayName .
                                                         '</td>
-                                                                        <td style="padding:0; width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></td>
-                                                                        <td style="padding:0px 10px 0px 0px; text-align:right; width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                                                                        <td style="padding:0; width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' . $pi['chinese_character'] . '</td>
+                                                                        <td style="padding:0px 10px 0px 0px; text-align:right; width:125px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
                                                                             ' . ($pi['percentage_value'] != '0' && $pi['is_percentage'] ? $pi['percentage_value'] . '%' : '') . '
                                                                         </td>
                                                                     </tr>
@@ -1797,10 +1801,10 @@ class PDFController extends Controller
                                         <td style="padding:0px 10px;">
                                             <table style="border-collapse:collapse; width:100%; table-layout:fixed;">
                                                 <tr>
-                                                    <td style="padding:0; font-weight:bold; width:20px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;text-align:center;">
+                                                    <td style="padding:0; font-weight:bold; width:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;text-align:center;">
                                                         ' . $pi['result_flag'] . '
                                                     </td>
-                                                    <td style="padding:0; width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">'
+                                                    <td style="padding:0; width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">'
                                     . $displayName .
                                     '</td>
                                                     <td style="padding:0; width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:center; ' . $formattedStyle . '">'
@@ -1982,14 +1986,14 @@ class PDFController extends Controller
                                                             <td style="padding:0px 10px;">
                                                                 <table style="border-collapse:collapse; width:100%; table-layout:fixed;">
                                                                     <tr>
-                                                                        <td style="padding:0; font-weight:bold; width:20px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;text-align:center;">
+                                                                        <td style="padding:0; font-weight:bold; width:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;text-align:center;">
                                                                             ' . $pi['result_flag'] . '
                                                                         </td>
-                                                                        <td style="padding:0; width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">'
+                                                                        <td style="padding:0; width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">'
                                                 . $displayName .
                                                 '</td>
-                                                                        <td style="padding:0; width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></td>
-                                                                        <td style="padding:0px 10px 0px 0px; text-align:right; width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                                                                        <td style="padding:0; width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' . $pi['chinese_character'] . '</td>
+                                                                        <td style="padding:0px 10px 0px 0px; text-align:right; width:125px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
                                                                             ' . ($pi['percentage_value'] != '0' && $pi['is_percentage'] ? $pi['percentage_value'] . '%' : '') . '
                                                                         </td>
                                                                     </tr>

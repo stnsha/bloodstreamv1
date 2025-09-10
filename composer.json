@@ -6,7 +6,6 @@
     "license": "MIT",
     "require": {
         "php": "^8.1",
-        "barryvdh/laravel-dompdf": "^3.1",
         "darkaonline/l5-swagger": "^8.6",
         "guzzlehttp/guzzle": "^7.2",
         "hamcrest/hamcrest-php": "^2.1",
@@ -16,6 +15,7 @@
         "league/flysystem-sftp-v3": "^3.30",
         "maatwebsite/excel": "^3.1",
         "maennchen/zipstream-php": "^3.1",
+        "mpdf/mpdf": "^8.2",
         "stichoza/google-translate-php": "^5.3",
         "swagger-api/swagger-ui": "^5.27",
         "tymon/jwt-auth": "^2.2"
