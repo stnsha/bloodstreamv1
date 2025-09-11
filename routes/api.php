@@ -62,6 +62,10 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
     });
 
     Route::prefix('pdf')->controller(PDFController::class)->group(function () {
-        Route::get('/export/{testResult}', 'export')->name('export');
+        Route::get('/export', 'export')->name('export');
+    });
+
+    Route::prefix('review')->controller(DoctorReviewController::class)->group(function () {
+        Route::get('/sync', 'sync')->name('sync');
     });
 });

@@ -9,7 +9,7 @@ use App\Models\TestResult;
 use App\Models\ResultLibrary;
 use App\Services\MyHealthService;
 use Illuminate\Support\Facades\Log;
-
+use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Exception;
 
@@ -22,6 +22,10 @@ class DoctorReviewController extends Controller
         $this->myHealthService = $myHealthService;
     }
 
+    /**
+     * Compile raw data from Test Result, Test Result Item and MyHealth
+     * Send compiled data in JSON format to API AI
+     */
     public function processResult()
     {
         $testResults = TestResult::with([
@@ -233,6 +237,9 @@ class DoctorReviewController extends Controller
         }
     }
 
+    /**
+     * Return formatted result of response from API AI and store to Doctor Review
+     */
     public function formatResponse()
     {
         $response = "**SECTION A1:Your Health at a Glance** \n\n| HealthArea | Status (🟢🟡🔴) | Notes |\n|-------------|--------------|-------|\n| **Cardiovascular Health** | 🔴 | LDL5.0 mmolL⁻¹ (high), Total Cholesterol5.3 mmolL⁻¹ (high), Chol/HDL5.5 (high). Elevated risk of atherosclerosis. |\n| **Blood Sugar & Metabolism** | 🟢 | Glucose 4.3 mmolL⁻¹ - within normal fasting range. |\n| **Liver Function** | 🔴 | ALT50 U L⁻¹, GGT50 U L⁻¹, ALP 150 U L⁻¹, Total Bilirubin50 µmolL⁻¹ - all above reference. Suggests mild hepatocellular injury/cholestasis. |\n| **Kidney Function** | 🟢 | Creatinine 54 µmolL⁻¹ - within normal range; eGFR likely > 60 mLmin⁻¹ 1.73 m⁻². |\n| **Nutritional Status** | 🟢 | Total Protein72 gL⁻¹, Albumin44 gL⁻¹, Globulin28 gL⁻¹ - all normal; adequate protein intake. |\n| **Inflammation / Infection** | 🟢 | No acute inflammatory markers provided; liver enzymes are the only abnormality. |\n| **Urinary Tract Health** | 🟢 | Urea 3.8 mmolL⁻¹, electrolytes normal - no evidence of infection or obstruction. |\n| **Add-On Packages** | | |\n| - Thyroid Health | — | Not requested. |\n| - Stress & Mood Biomarkers | — | Not requested. |\n\n--- \n\n**SECTION A2:Your Body System Highlights**\n\n1. **High LDL and total cholesterol** - these fats can build plaque in arteries, increasing heart-disease risk. \n2. **Elevated liver enzymes and bilirubin** - mild liver stress or early cholestasis; keep liver-friendly habits and avoid alcohol. \n3. **Kidney function is good** - creatinine is normal and eGFR is likely healthy. \n4. **Blood sugar is fine** - fasting glucose is in the safe range. \n5. **Overall nutrition looks solid** - protein levels are normal, so you're meeting your protein needs.\n\n---\n\n**SECTION B: Alpro Care for You - 3-6 Month HealthAction**\n\n| Timeline | Action | Goals | Alpro Care for You | Appointment Date & Place |\n|----------|--------|-------|--------------------|--------------------------|\n| **Month0-1** | • Start a plant-based protein-rich diet (oat, soy, pea). • Cut saturated fats (no butter, limit red meat). • Increase fiber (fruits, veggies, whole grains). • 150 min/week moderate exercise (brisk walk, cycling). | • Lower LDL by ≥ 10 %. • Bring total cholesterol < 5.2 mmolL⁻¹. • Reduce liver enzyme elevation to ≤ 1.5x upper limit. | • DailyAlpro oat milk (fortified with calcium & vitaminD). • Alpro plant-protein shakes for post-workout recovery. • Alpro chia-seed-rich smoothies for omega-3. | **Week 4** - Dietitian review (clinic or telehealth). |\n| **Month2- 3** | • Re-measure lipids & liver enzymes. • If LDL remains > 3.4 mmolL⁻¹, discuss statin initiation with GP. • Continue liver-friendly diet (low alcohol, avoid over-cooked foods). • Maintain weight-loss if BMI > 25. | • LDL < 3.4 mmolL⁻¹. • Total cholesterol < 5.2 mmolL⁻¹. • Bilirubin, ALT, GGT within normal limits. | • Add Alpro fortified protein bar (low sugar) for on-the-go nutrition. • Alpro \"Omega-3\"-enriched nut-milk to support liver. | **Week 12** - GP follow-up & medication review. |\n| **Month4-6** | • Repeat full lipid panel and liver panel. • Adjust diet or medications based on results. • Continue regular exercise and weight-maintenance plan. | • Sustain all target ranges. • Achieve stable eGFR and normal renal profile. | • Keep dailyAlpro plant-milk & protein shakes. • Explore Alpro \"Low-Sodium\" options if blood pressure rises. | **Week 24** - Specialist (cardio or hepatology) check-in if needed. |\n\n---\n\n**SECTION C: With Care, fromAlpro (Final Note)** \n\nHello [Name],\n\nYou've taken an important step by reviewing your blood work, and it's encouraging to see that your kidney function, blood sugar, and overall nutrition are all in good shape. The main areas we'll focus on are your cholesterol profile and the slight elevations in your liver enzymes. With a few sensible lifestyle tweaks—think plant-based meals, more fiber, regular movement, and reduced alcohol—you can move those numbers toward healthier targets, which in turn gives you more energy, steadier mood, and long-term protection against heart disease.\n\nYour health priorities in the next six months are: \n1. **Lower LDL & total cholesterol** so the heart can stay clear of plaque. \n2. **Normalize liver enzymes** to reduce stress on the liver. \n3. **Maintain kidney health** - you're already on the right track! \n\nBy keeping to the action plan above and usingAlpro products as tasty, convenient tools, you'll feel more vibrant and confident in your daily life. Remember, this plan is a guide—always feel free to reach out to your healthcare team if you have questions or concerns.\n\n**You're on the right path.** Let's keep moving forward together.\n\nWith warmth, \nThe Alpro Care Team\n\n---\n\n**Disclaimer** \nThis report is for educational purposes only. It is not a medical diagnosis and should not replace consultation with a qualified healthcare professional. Always discuss your results and health concerns with your doctor.";
@@ -458,5 +465,50 @@ class DoctorReviewController extends Controller
         }
 
         return $html;
+    }
+
+    public function sync(Request $request)
+    {
+        $validated = $request->validate([
+            'icno' => 'required|string',
+            'refid' => 'nullable|string',
+        ], [
+            'icno.required' => 'IC No. is required.',
+        ]);
+
+        if ($validated) {
+            $icno = $validated['icno'];
+            $refid = $validated['refid'] ?? null;
+
+            $query = DoctorReview::with(['testResult', 'testResult.patient'])
+                ->where('is_sync', false)
+                ->whereHas('testResult.patient', function ($q) use ($icno) {
+                    $q->where('icno', $icno);
+                });
+
+            $review = $query->first();
+
+            if (!$review && $refid) {
+                $review = DoctorReview::with(['testResult', 'testResult.patient'])
+                    ->where('is_sync', false)
+                    ->whereHas('testResult', function ($t) use ($refid) {
+                        $t->where('ref_id', $refid);
+                    })
+                    ->first();
+            }
+
+            if (!$review) {
+                return response()->json([
+                    'message' => 'No review found.'
+                ], 404);
+            }
+
+            $review->is_sync = true;
+            $review->save();
+
+            return response()->json([
+                'review' => $review->review,
+            ], 200);
+        }
     }
 }
