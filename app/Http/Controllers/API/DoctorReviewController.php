@@ -504,8 +504,9 @@ class DoctorReviewController extends Controller
                 ], 404);
             }
 
-            $review->is_sync = true;
-            $review->save();
+            //comment while still testing
+            // $review->is_sync = true;
+            // $review->save();
 
             return response()->json([
                 'success' => true,
