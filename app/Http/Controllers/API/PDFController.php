@@ -99,17 +99,17 @@ class PDFController extends Controller
             $beforeParens = trim($matches[1]);
             $insideParens = $matches[2]; // includes the parentheses
             $afterParens = trim($matches[3]);
-            
+
             // Capitalize the main part
             $formattedBefore = ucwords(strtolower($beforeParens));
-            
+
             // Capitalize content inside parentheses
             $insideContent = trim($insideParens, '()');
             $formattedInside = ucwords(strtolower($insideContent));
-            
+
             // Capitalize the after part if any
             $formattedAfter = !empty($afterParens) ? ucwords(strtolower($afterParens)) : '';
-            
+
             return $formattedBefore . ' (' . $formattedInside . ')' . (!empty($formattedAfter) ? ' ' . $formattedAfter : '');
         }
 
@@ -1593,8 +1593,11 @@ class PDFController extends Controller
             $base64Pdf = base64_encode($pdfContent);
 
             return response()->json([
-                'pdf' => $base64Pdf,
-                'filename' => 'dummy-report.pdf'
+                'success' => true,
+                'data' => [
+                    'pdf' => $base64Pdf,
+                ],
+                'message' => 'User registered successfully'
             ], 200);
         } catch (\Exception $e) {
             Log::error('PDF Generation Error: ' . $e->getMessage());
