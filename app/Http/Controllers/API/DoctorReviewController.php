@@ -499,6 +499,7 @@ class DoctorReviewController extends Controller
 
             if (!$review) {
                 return response()->json([
+                    'success' => false,
                     'message' => 'No review found.'
                 ], 404);
             }
