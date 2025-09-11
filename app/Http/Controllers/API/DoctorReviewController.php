@@ -508,9 +508,7 @@ class DoctorReviewController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => [
-                    'review' => $review->review,
-                ],
+                'review' => $review->review,
                 'message' => 'Review generated successfully'
             ], 200);
         }

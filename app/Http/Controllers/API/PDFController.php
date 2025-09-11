@@ -1594,10 +1594,8 @@ class PDFController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => [
-                    'pdf' => $base64Pdf,
-                ],
-                'message' => 'User registered successfully'
+                'pdf' => $base64Pdf,
+                'message' => 'PDF generated successfully'
             ], 200);
         } catch (\Exception $e) {
             Log::error('PDF Generation Error: ' . $e->getMessage());
