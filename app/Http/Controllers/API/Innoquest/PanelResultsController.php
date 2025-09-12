@@ -295,10 +295,13 @@ class PanelResultsController extends BaseResultsController
                                     //result items 
                                     if (filled($res['Text']) && ($res['Text'] != 'COMMENT' && $res['Text'] != 'NOTE')) {
                                         // 1. Create or find master panel item
-                                        $masterPanelItem = MasterPanelItem::updateOrCreate([
-                                            'name' => $res['Text'],
-                                            'chi_character' => $tr->translate($res['Text']),
-                                            'unit' => $unit,
+                                        $masterPanelItem = MasterPanelItem::updateOrCreate(
+                                            [
+                                                'name' => $res['Text'],
+                                                'unit' => $unit,
+                                            ],
+                                            [
+                                                'chi_character' => $tr->translate($res['Text']),
                                         ]);
 
                                         // 2. Create panel item with master panel item reference
