@@ -162,9 +162,9 @@ class PanelResultsController extends BaseResultsController
         $sending_facility = null;
         $batch_id = null;
 
-        $tr = new GoogleTranslate();
-        $tr->setSource('en');
-        $tr->setTarget('zh-CN');
+        // $tr = new GoogleTranslate();
+        // $tr->setSource('en');
+        // $tr->setTarget('zh-CN');
 
         try {
             Log::info('Panel results submission started', [
@@ -301,8 +301,9 @@ class PanelResultsController extends BaseResultsController
                                                 'unit' => $unit,
                                             ],
                                             [
-                                                'chi_character' => $tr->translate($res['Text']),
-                                        ]);
+                                                'chi_character' => null, //$tr->translate($res['Text'])
+                                            ]
+                                        );
 
                                         // 2. Create panel item with master panel item reference
                                         $panel_item = PanelItem::updateOrCreate([
