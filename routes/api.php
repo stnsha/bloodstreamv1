@@ -7,6 +7,7 @@ use App\Http\Controllers\API\General\LabResultsController;
 use App\Http\Controllers\API\Innoquest\PanelResultsController;
 use App\Http\Controllers\API\PDFController;
 use App\Http\Controllers\MasterPanelItemController;
+use App\Http\Controllers\PanelCommentController;
 use App\Http\Controllers\TestingController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
@@ -68,5 +69,9 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
 
     Route::prefix('review')->controller(DoctorReviewController::class)->group(function () {
         Route::post('/sync', 'sync')->name('sync');
+    });
+
+    Route::prefix('comment')->controller(PanelCommentController::class)->group(function () {
+        Route::get('/update', 'update')->name('update');
     });
 });

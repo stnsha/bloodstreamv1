@@ -9,9 +9,11 @@ use App\Models\TestResult;
 use App\Models\ResultLibrary;
 use App\Services\MyHealthService;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Exception;
+use Illuminate\Support\Facades\Http;
 
 class DoctorReviewController extends Controller
 {
@@ -22,229 +24,359 @@ class DoctorReviewController extends Controller
         $this->myHealthService = $myHealthService;
     }
 
+    public function store($id, $testResultData, $result)
+    {
+        DoctorReview::firstOrCreate(
+            [
+                'test_result_id' => $id,
+            ],
+            [
+                'compiled_results' => $testResultData,
+                'review' => $result,
+                'is_sync' => false
+            ]
+        );
+    }
+
     /**
      * Compile raw data from Test Result, Test Result Item and MyHealth
      * Send compiled data in JSON format to API AI
      */
     public function processResult()
     {
-        $testResults = TestResult::with([
-            'patient',
-            'testResultItems.panelPanelItem.panel.panelCategory',
-            'testResultItems.referenceRange',
-            'testResultItems.panelPanelItem.panelItem',
-            'testResultItems.panelComments.masterPanelComment',
-        ])
-            ->where('is_reviewed', false)
-            ->where('is_completed', true)
-            ->whereHas('patient', function ($query) {
-                $query->where('ic_type', 'NRIC');
-            })
-            ->take(5) //First 5
-            ->get();
+        // Increase execution time for external API calls
+        ini_set('max_execution_time', 300); // 5 minutes
 
-        foreach ($testResults as $tr) {
-            $icno = $tr->patient->icno;
-            $checkRecords = $this->myHealthService->getCheckRecordIdByIC($icno);
+        // Initialize tracking variables for summary
+        $totalProcessed = 0;
+        $successfulReviewsGenerated = 0;
+        $successfulStores = 0;
+        $failedResults = [];
+        $processingStartTime = now();
 
-            $patientInfo = [
-                'Age' => $tr->patient->age
-            ];
+        try {
+            DB::beginTransaction();
 
-            if ($checkRecords) {
-                foreach ($checkRecords as $cr) {
-                    $recordId = $cr->id;
-                    $recordGender = $cr->gender;
-                    $recordDate = Carbon::parse($cr->date_time)->format('Y-m-d');
+            $testResults = TestResult::with([
+                'patient',
+                'testResultItems.panelPanelItem.panel.panelCategory',
+                'testResultItems.referenceRange',
+                'testResultItems.panelPanelItem.panelItem',
+                'testResultItems.panelComments.masterPanelComment',
+            ])
+                ->where('is_reviewed', false)
+                ->where('is_completed', true)
+                ->whereHas('patient', function ($query) {
+                    $query->where('ic_type', 'NRIC');
+                })
+                ->take(20) //First 5
+                ->get();
 
-                    if (is_null($tr->patient->gender)) {
-                        $tr->patient->gender = $recordGender == 1 ? Patient::GENDER_MALE : Patient::GENDER_FEMALE;
-                        $tr->patient->save();
-                    }
+            if ($testResults->isEmpty()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'No test results found to process',
+                    'summary' => [
+                        'total_found' => 0,
+                        'total_processed' => 0,
+                        'successful_reviews_generated' => 0,
+                        'successful_stores' => 0,
+                        'failed_results' => 0,
+                        'processing_time' => '0s'
+                    ]
+                ]);
+            }
 
-                    $patientInfo['Gender'] = $tr->patient->gender;
+            // Login once before processing all results
+            Log::info("Attempting to login to external AI service");
+            $login = Http::timeout(60)->post('http://172.18.28.29/alprogpt/chatgpt/login.php', [
+                "username" => "971202055184",
+                "password" => "L^l9i15woDMc"
+            ]);
 
-                    $recordDetails = $this->myHealthService->getRecordDetailsByRecordId($recordId);
-                    if (count($recordDetails) != 0) {
-                        $transformedRecordDetails = [];
+            if ($login->failed()) {
+                DB::rollBack();
+                Log::error('External AI service login failed');
+                return response()->json([
+                    'success' => false,
+                    'message' => 'External AI service login failed - all processing stopped',
+                    'summary' => [
+                        'total_found' => $testResults->count(),
+                        'total_processed' => 0,
+                        'successful_reviews_generated' => 0,
+                        'successful_stores' => 0,
+                        'failed_results' => $testResults->count(),
+                        'processing_time' => now()->diffInSeconds($processingStartTime) . 's',
+                        'login_failed' => true
+                    ]
+                ], 401);
+            }
 
-                        foreach ($recordDetails as $rd) {
-                            if (isset($rd->parameter)) {
-                                $parameterName = $rd->parameter;
-                                unset($rd->parameter);
-                                $transformedRecordDetails[$parameterName] = $rd;
+            $loginData = $login->json();
+            $token = $loginData['token'];
+            Log::info("Successfully logged into external AI service");
+
+            foreach ($testResults as $tr) {
+                $totalProcessed++;
+                $healthDetails = []; // Initialize for each test result
+                $finalResults = []; // Initialize for each test result
+
+                try {
+                    $icno = $tr->patient->icno;
+                    $checkRecords = $this->myHealthService->getCheckRecordIdByIC($icno);
+
+                    $patientInfo = [
+                        'Age' => $tr->patient->age
+                    ];
+
+                    if ($checkRecords) {
+                        foreach ($checkRecords as $cr) {
+                            $recordId = $cr->id;
+                            $recordGender = $cr->gender;
+                            $recordDate = Carbon::parse($cr->date_time)->format('Y-m-d');
+
+                            if (is_null($tr->patient->gender)) {
+                                $tr->patient->gender = $recordGender == 1 ? Patient::GENDER_MALE : Patient::GENDER_FEMALE;
+                                $tr->patient->save();
+                            }
+
+                            $patientInfo['Gender'] = $tr->patient->gender;
+
+                            $recordDetails = $this->myHealthService->getRecordDetailsByRecordId($recordId);
+                            if (count($recordDetails) != 0) {
+                                $transformedRecordDetails = [];
+
+                                foreach ($recordDetails as $rd) {
+                                    if (isset($rd->parameter)) {
+                                        $parameterName = $rd->parameter;
+                                        unset($rd->parameter);
+                                        $transformedRecordDetails[$parameterName] = $rd;
+                                    }
+                                }
+                                $healthDetails[$recordDate] = $transformedRecordDetails;
+                                $patientInfo = array_merge($patientInfo, $healthDetails);
                             }
                         }
-                        $healthDetails[$recordDate] = $transformedRecordDetails;
-                        $patientInfo = array_merge($patientInfo, $healthDetails);
                     }
-                }
-            }
 
-            if (!$tr || !$tr->id) {
-                Log::error('Invalid test result object');
-                $failedResults[] = ['id' => 'unknown', 'reason' => 'Invalid test result object'];
-                continue;
-            }
+                    if (!$tr || !$tr->id) {
+                        Log::error('Invalid test result object');
+                        $failedResults[] = ['id' => 'unknown', 'reason' => 'Invalid test result object'];
+                        continue;
+                    }
 
-            if (!$tr->patient) {
-                Log::warning('Test result has no associated patient', ['test_result_id' => $tr->id]);
-                $failedResults[] = ['id' => $tr->id, 'reason' => 'Missing patient information'];
-                continue;
-            }
+                    if (!$tr->patient) {
+                        Log::warning('Test result has no associated patient', ['test_result_id' => $tr->id]);
+                        $failedResults[] = ['id' => $tr->id, 'reason' => 'Missing patient information'];
+                        continue;
+                    }
 
-            $reportDate = Carbon::parse($tr->reported_date)->format('Y-m-d');
-            $categorizedItems = [];
-            $validItemsCount = 0;
+                    $reportDate = Carbon::parse($tr->reported_date)->format('Y-m-d');
+                    $categorizedItems = [];
+                    $validItemsCount = 0;
 
-            try {
-                if ($tr->testResultItems->isEmpty()) {
-                    Log::warning('Test result has no test result items', ['test_result_id' => $tr->id]);
-                    $failedResults[] = ['id' => $tr->id, 'reason' => 'No test result items found'];
-                    continue;
-                }
+                    if ($tr->testResultItems->isEmpty()) {
+                        Log::warning('Test result has no test result items', ['test_result_id' => $tr->id]);
+                        $failedResults[] = ['id' => $tr->id, 'reason' => 'No test result items found'];
+                        continue;
+                    }
 
-                foreach ($tr->testResultItems as $ri) {
-                    try {
-                        if (!$ri || !$ri->id) {
-                            Log::warning('Invalid result item', ['test_result_id' => $tr->id]);
-                            continue;
-                        }
-
-                        if (!$ri->panelPanelItem) {
-                            Log::warning('Test result item missing panel relationship', [
-                                'result_item_id' => $ri->id,
-                                'test_result_id' => $tr->id
-                            ]);
-                            continue;
-                        }
-
-                        if (!$ri->panelPanelItem->panelItem) {
-                            Log::warning('Test result item missing panel item relationship', [
-                                'result_item_id' => $ri->id,
-                                'test_result_id' => $tr->id
-                            ]);
-                            continue;
-                        }
-
-                        $categoryName = 'Unknown Category';
+                    foreach ($tr->testResultItems as $ri) {
                         try {
+                            if (!$ri || !$ri->id) {
+                                Log::warning('Invalid result item', ['test_result_id' => $tr->id]);
+                                continue;
+                            }
+
+                            if (!$ri->panelPanelItem) {
+                                Log::warning('Test result item missing panel relationship', [
+                                    'result_item_id' => $ri->id,
+                                    'test_result_id' => $tr->id
+                                ]);
+                                continue;
+                            }
+
+                            if (!$ri->panelPanelItem->panelItem) {
+                                Log::warning('Test result item missing panel item relationship', [
+                                    'result_item_id' => $ri->id,
+                                    'test_result_id' => $tr->id
+                                ]);
+                                continue;
+                            }
+
                             $categoryName = $ri->panelPanelItem->panel->panelCategory->name ??
                                 $ri->panelPanelItem->panel->name ??
                                 'Unknown Category';
+
+                            if (!isset($categorizedItems[$categoryName])) {
+                                $categorizedItems[$categoryName] = [];
+                            }
+
+                            $flagDescription = $ri->flag;
+                            if (!empty($ri->flag)) {
+                                try {
+                                    $resultLibrary = ResultLibrary::where('code', '0078')
+                                        ->where('value', $ri->flag)
+                                        ->first();
+                                    if ($resultLibrary && !empty($resultLibrary->description)) {
+                                        // Remove content within parentheses and trim whitespace
+                                        $flagDescription = trim(preg_replace('/\s*\([^)]*\)/', '', $resultLibrary->description));
+                                    } else {
+                                        $flagDescription = $ri->flag;
+                                    }
+                                } catch (Exception $e) {
+                                    Log::error('Error fetching flag description from ResultLibrary', [
+                                        'error' => $e->getMessage(),
+                                        'flag' => $ri->flag,
+                                        'result_item_id' => $ri->id
+                                    ]);
+                                }
+                            }
+
+                            $itemData = [
+                                'panel_item_name' => $ri->panelPanelItem->panelItem->name ?? 'Unknown Item',
+                                'result_value' => $ri->value ?? null,
+                                'panel_item_unit' => $ri->panelPanelItem->panelItem->unit ?? null,
+                                'result_status' => $flagDescription ?? null,
+                                'reference_range' => null,
+                                'comments' => []
+                            ];
+
+                            if ($ri->reference_range_id && $ri->referenceRange) {
+                                try {
+                                    $itemData['reference_range'] = $ri->referenceRange->value;
+                                } catch (Exception $e) {
+                                    Log::warning('Error accessing reference range', [
+                                        'error' => $e->getMessage(),
+                                        'result_item_id' => $ri->id
+                                    ]);
+                                }
+                            }
+
+                            if ($ri->panelComments && !$ri->panelComments->isEmpty()) {
+                                try {
+                                    foreach ($ri->panelComments as $pc) {
+                                        if ($pc && $pc->masterPanelComment && !empty($pc->masterPanelComment->comment)) {
+                                            $itemData['comments'][] = $pc->masterPanelComment->comment;
+                                        }
+                                    }
+                                } catch (Exception $e) {
+                                    Log::warning('Error processing panel comments', [
+                                        'error' => $e->getMessage(),
+                                        'result_item_id' => $ri->id
+                                    ]);
+                                }
+                            }
+
+                            $categorizedItems[$categoryName][] = $itemData;
+                            $validItemsCount++;
                         } catch (Exception $e) {
-                            Log::warning('Error determining category name', [
+                            Log::error('Error processing test result item', [
                                 'error' => $e->getMessage(),
-                                'result_item_id' => $ri->id
+                                'result_item_id' => $ri->id ?? 'unknown',
+                                'test_result_id' => $tr->id,
+                                'trace' => $e->getTraceAsString()
                             ]);
                         }
-
-                        if (!isset($categorizedItems[$categoryName])) {
-                            $categorizedItems[$categoryName] = [];
-                        }
-
-                        $flagDescription = $ri->flag;
-                        if (!empty($ri->flag)) {
-                            try {
-                                $resultLibrary = ResultLibrary::where('code', '0078')
-                                    ->where('value', $ri->flag)
-                                    ->first();
-                                if ($resultLibrary && !empty($resultLibrary->description)) {
-                                    // Remove content within parentheses and trim whitespace
-                                    $flagDescription = trim(preg_replace('/\s*\([^)]*\)/', '', $resultLibrary->description));
-                                } else {
-                                    $flagDescription = $ri->flag;
-                                }
-                            } catch (Exception $e) {
-                                Log::error('Error fetching flag description from ResultLibrary', [
-                                    'error' => $e->getMessage(),
-                                    'flag' => $ri->flag,
-                                    'result_item_id' => $ri->id
-                                ]);
-                            }
-                        }
-
-                        $itemData = [
-                            'panel_item_name' => $ri->panelPanelItem->panelItem->name ?? 'Unknown Item',
-                            'result_value' => $ri->value ?? null,
-                            'panel_item_unit' => $ri->panelPanelItem->panelItem->unit ?? null,
-                            'result_status' => $flagDescription ?? null,
-                            'reference_range' => null,
-                            'comments' => []
-                        ];
-
-                        if ($ri->reference_range_id && $ri->referenceRange) {
-                            try {
-                                $itemData['reference_range'] = $ri->referenceRange->value;
-                            } catch (Exception $e) {
-                                Log::warning('Error accessing reference range', [
-                                    'error' => $e->getMessage(),
-                                    'result_item_id' => $ri->id
-                                ]);
-                            }
-                        }
-
-                        if ($ri->panelComments && !$ri->panelComments->isEmpty()) {
-                            try {
-                                foreach ($ri->panelComments as $pc) {
-                                    if ($pc && $pc->masterPanelComment && !empty($pc->masterPanelComment->comment)) {
-                                        $itemData['comments'][] = $pc->masterPanelComment->comment;
-                                    }
-                                }
-                            } catch (Exception $e) {
-                                Log::warning('Error processing panel comments', [
-                                    'error' => $e->getMessage(),
-                                    'result_item_id' => $ri->id
-                                ]);
-                            }
-                        }
-
-                        $categorizedItems[$categoryName][] = $itemData;
-                        $validItemsCount++;
-                    } catch (Exception $e) {
-                        Log::error('Error processing test result item', [
-                            'error' => $e->getMessage(),
-                            'result_item_id' => $ri->id ?? 'unknown',
-                            'test_result_id' => $tr->id,
-                            'trace' => $e->getTraceAsString()
-                        ]);
                     }
+
+                    if ($validItemsCount === 0) {
+                        Log::warning('No valid test result items processed', ['test_result_id' => $tr->id]);
+                        $failedResults[] = ['id' => $tr->id, 'reason' => 'No valid test result items'];
+                        continue;
+                    }
+
+                    $finalResults[$reportDate] = $categorizedItems;
+
+                    $testResultData = [
+                        'Health History' => $patientInfo,
+                        'Blood Test Results' => $finalResults
+                    ];
+
+                    // Call AI API using the token from login
+                    $response = Http::timeout(120)->withToken($token)
+                        ->post('http://172.18.28.29/alprogpt/chatgpt/bloodtest_analysis.php', $testResultData);
+
+                    if ($response->failed()) {
+                        Log::error('AI analysis API call failed', [
+                            'test_result_id' => $tr->id,
+                            'response_status' => $response->status()
+                        ]);
+                        $failedResults[] = ['id' => $tr->id, 'reason' => 'AI analysis API call failed'];
+                        continue;
+                    }
+
+                    $responseData = $response->json();
+                    $result = $this->formatMarkdownToHTML($responseData['ai_analysis']);
+                    $successfulReviewsGenerated++;
+
+                    // Store the generated review
+                    $this->store($tr->id, $testResultData, $result);
+                    $successfulStores++;
+
+                    // Mark as reviewed (commented for testing)
+                    // $tr->is_reviewed = true;
+                    // $tr->save();
+
+                    Log::info('Successfully processed test result', [
+                        'test_result_id' => $tr->id,
+                        'patient_icno' => $tr->patient->icno
+                    ]);
+                } catch (Exception $e) {
+                    Log::error('Critical error processing individual test result', [
+                        'error' => $e->getMessage(),
+                        'test_result_id' => $tr->id ?? 'unknown',
+                        'trace' => $e->getTraceAsString()
+                    ]);
+                    $failedResults[] = ['id' => $tr->id ?? 'unknown', 'reason' => 'Critical processing error: ' . $e->getMessage()];
                 }
-
-                if ($validItemsCount === 0) {
-                    Log::warning('No valid test result items processed', ['test_result_id' => $tr->id]);
-                    $failedResults[] = ['id' => $tr->id, 'reason' => 'No valid test result items'];
-                    continue;
-                }
-
-                $finalResults[$reportDate] = $categorizedItems;
-
-                $testResultData = [
-                    'Health History' => $patientInfo,
-                    'Blood Test Results' => $finalResults
-                ];
-
-                return response()->json($testResultData); //Send to API
-
-            } catch (Exception $e) {
-                Log::error('Critical error processing individual test result', [
-                    'error' => $e->getMessage(),
-                    'test_result_id' => $tr->id ?? 'unknown',
-                    'trace' => $e->getTraceAsString()
-                ]);
-                $failedResults[] = ['id' => $tr->id ?? 'unknown', 'reason' => 'Critical processing error'];
             }
+
+            DB::commit();
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error('Critical error in processResult method', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Critical error occurred during processing',
+                'error' => $e->getMessage(),
+                'summary' => [
+                    'total_found' => $testResults->count() ?? 0,
+                    'total_processed' => $totalProcessed,
+                    'successful_reviews_generated' => $successfulReviewsGenerated,
+                    'successful_stores' => $successfulStores,
+                    'failed_results' => count($failedResults),
+                    'processing_time' => now()->diffInSeconds($processingStartTime) . 's'
+                ]
+            ], 500);
         }
-    }
 
-    /**
-     * Return formatted result of response from API AI and store to Doctor Review
-     */
-    public function formatResponse()
-    {
-        $response = "**SECTION A1:Your Health at a Glance** \n\n| HealthArea | Status (🟢🟡🔴) | Notes |\n|-------------|--------------|-------|\n| **Cardiovascular Health** | 🔴 | LDL5.0 mmolL⁻¹ (high), Total Cholesterol5.3 mmolL⁻¹ (high), Chol/HDL5.5 (high). Elevated risk of atherosclerosis. |\n| **Blood Sugar & Metabolism** | 🟢 | Glucose 4.3 mmolL⁻¹ - within normal fasting range. |\n| **Liver Function** | 🔴 | ALT50 U L⁻¹, GGT50 U L⁻¹, ALP 150 U L⁻¹, Total Bilirubin50 µmolL⁻¹ - all above reference. Suggests mild hepatocellular injury/cholestasis. |\n| **Kidney Function** | 🟢 | Creatinine 54 µmolL⁻¹ - within normal range; eGFR likely > 60 mLmin⁻¹ 1.73 m⁻². |\n| **Nutritional Status** | 🟢 | Total Protein72 gL⁻¹, Albumin44 gL⁻¹, Globulin28 gL⁻¹ - all normal; adequate protein intake. |\n| **Inflammation / Infection** | 🟢 | No acute inflammatory markers provided; liver enzymes are the only abnormality. |\n| **Urinary Tract Health** | 🟢 | Urea 3.8 mmolL⁻¹, electrolytes normal - no evidence of infection or obstruction. |\n| **Add-On Packages** | | |\n| - Thyroid Health | — | Not requested. |\n| - Stress & Mood Biomarkers | — | Not requested. |\n\n--- \n\n**SECTION A2:Your Body System Highlights**\n\n1. **High LDL and total cholesterol** - these fats can build plaque in arteries, increasing heart-disease risk. \n2. **Elevated liver enzymes and bilirubin** - mild liver stress or early cholestasis; keep liver-friendly habits and avoid alcohol. \n3. **Kidney function is good** - creatinine is normal and eGFR is likely healthy. \n4. **Blood sugar is fine** - fasting glucose is in the safe range. \n5. **Overall nutrition looks solid** - protein levels are normal, so you're meeting your protein needs.\n\n---\n\n**SECTION B: Alpro Care for You - 3-6 Month HealthAction**\n\n| Timeline | Action | Goals | Alpro Care for You | Appointment Date & Place |\n|----------|--------|-------|--------------------|--------------------------|\n| **Month0-1** | • Start a plant-based protein-rich diet (oat, soy, pea). • Cut saturated fats (no butter, limit red meat). • Increase fiber (fruits, veggies, whole grains). • 150 min/week moderate exercise (brisk walk, cycling). | • Lower LDL by ≥ 10 %. • Bring total cholesterol < 5.2 mmolL⁻¹. • Reduce liver enzyme elevation to ≤ 1.5x upper limit. | • DailyAlpro oat milk (fortified with calcium & vitaminD). • Alpro plant-protein shakes for post-workout recovery. • Alpro chia-seed-rich smoothies for omega-3. | **Week 4** - Dietitian review (clinic or telehealth). |\n| **Month2- 3** | • Re-measure lipids & liver enzymes. • If LDL remains > 3.4 mmolL⁻¹, discuss statin initiation with GP. • Continue liver-friendly diet (low alcohol, avoid over-cooked foods). • Maintain weight-loss if BMI > 25. | • LDL < 3.4 mmolL⁻¹. • Total cholesterol < 5.2 mmolL⁻¹. • Bilirubin, ALT, GGT within normal limits. | • Add Alpro fortified protein bar (low sugar) for on-the-go nutrition. • Alpro \"Omega-3\"-enriched nut-milk to support liver. | **Week 12** - GP follow-up & medication review. |\n| **Month4-6** | • Repeat full lipid panel and liver panel. • Adjust diet or medications based on results. • Continue regular exercise and weight-maintenance plan. | • Sustain all target ranges. • Achieve stable eGFR and normal renal profile. | • Keep dailyAlpro plant-milk & protein shakes. • Explore Alpro \"Low-Sodium\" options if blood pressure rises. | **Week 24** - Specialist (cardio or hepatology) check-in if needed. |\n\n---\n\n**SECTION C: With Care, fromAlpro (Final Note)** \n\nHello [Name],\n\nYou've taken an important step by reviewing your blood work, and it's encouraging to see that your kidney function, blood sugar, and overall nutrition are all in good shape. The main areas we'll focus on are your cholesterol profile and the slight elevations in your liver enzymes. With a few sensible lifestyle tweaks—think plant-based meals, more fiber, regular movement, and reduced alcohol—you can move those numbers toward healthier targets, which in turn gives you more energy, steadier mood, and long-term protection against heart disease.\n\nYour health priorities in the next six months are: \n1. **Lower LDL & total cholesterol** so the heart can stay clear of plaque. \n2. **Normalize liver enzymes** to reduce stress on the liver. \n3. **Maintain kidney health** - you're already on the right track! \n\nBy keeping to the action plan above and usingAlpro products as tasty, convenient tools, you'll feel more vibrant and confident in your daily life. Remember, this plan is a guide—always feel free to reach out to your healthcare team if you have questions or concerns.\n\n**You're on the right path.** Let's keep moving forward together.\n\nWith warmth, \nThe Alpro Care Team\n\n---\n\n**Disclaimer** \nThis report is for educational purposes only. It is not a medical diagnosis and should not replace consultation with a qualified healthcare professional. Always discuss your results and health concerns with your doctor.";
+        // Generate final summary
+        $processingTime = now()->diffInSeconds($processingStartTime);
+        $totalFound = $testResults->count();
+        $failedCount = count($failedResults);
+        $successRate = $totalFound > 0 ? round(($successfulStores / $totalFound) * 100, 2) : 0;
 
-        return $this->formatMarkdownToHTML($response);
+        return response()->json([
+            'success' => $failedCount === 0,
+            'message' => $failedCount === 0
+                ? "All {$totalFound} test results processed successfully"
+                : "Processed {$totalFound} test results with {$failedCount} failures",
+            'summary' => [
+                'total_found' => $totalFound,
+                'total_processed' => $totalProcessed,
+                'successful_reviews_generated' => $successfulReviewsGenerated,
+                'successful_stores' => $successfulStores,
+                'failed_results' => $failedCount,
+                'success_rate' => $successRate . '%',
+                'processing_time' => $processingTime . 's',
+                'failed_details' => $failedResults
+            ]
+        ], $failedCount === 0 ? 200 : 207); // 207 = Multi-Status (partial success)
     }
 
     private function convertTableBlock(array $tableLines): string

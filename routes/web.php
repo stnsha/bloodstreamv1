@@ -34,7 +34,7 @@ Route::controller(LoginController::class)->group(function () {
 
 Route::prefix('pdf')->controller(PDFController::class)->group(function () {
     Route::get('/export', 'export')->name('export'); ///{id}generateDummyPDF
-    Route::get('/generateDummyPDF/{id}', 'export')->name('generateDummyPDF'); //
+    Route::get('/generateDummyPDF/{id}', 'getResultById')->name('generateDummyPDF'); //
 });
 
 // Lab Number Results View
