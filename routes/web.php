@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\API\PDFController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ImportController;
 use App\Http\Controllers\LabController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\PanelController;
@@ -35,6 +36,9 @@ Route::prefix('pdf')->controller(PDFController::class)->group(function () {
     Route::get('/export', 'export')->name('export'); ///{id}generateDummyPDF
     Route::get('/generateDummyPDF/{id}', 'export')->name('generateDummyPDF'); //
 });
+
+// Lab Number Results View
+Route::get('results/lab-numbers', [ImportController::class, 'labNumberResults'])->name('results.lab-numbers');
 
 Route::middleware(['auth'])->group(function () {
     Route::get('api', function () {

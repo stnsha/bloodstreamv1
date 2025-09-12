@@ -59,6 +59,7 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
         Route::get('/json', 'json')->name('json');
         Route::get('/deliveryFiles', 'deliveryFiles')->name('deliveryFiles');
         Route::get('/innoquestPanelSequence', 'innoquestPanelSequence')->name('innoquestPanelSequence');
+        Route::get('/labNumber', 'labNumber')->name('labNumber');
     });
 
     Route::prefix('pdf')->controller(PDFController::class)->group(function () {

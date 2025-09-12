@@ -8,8 +8,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\InnoquestResultRequest;
 use App\Imports\BaseCodeMappingImport;
 use App\Imports\CodeMappingImport;
+use App\Imports\CompletedLabNoImport;
 use App\Imports\FileImport;
 use App\Imports\Innoquest\PanelSequenceImport;
+use App\Exports\LabNumberMatchExport;
 use App\Models\DeliveryFile;
 use App\Models\Lab;
 use Illuminate\Support\Facades\Log;
@@ -658,6 +660,164 @@ class ImportController extends Controller
                 'success' => false,
                 'message' => 'Error processing delivery files: ' . $e->getMessage(),
                 'files' => $processedFiles
+            ], 500);
+        }
+    }
+
+    public function labNumber()
+    {
+        $processedFiles = 0;
+        $totalFiles = 0;
+        $errors = [];
+
+        try {
+            // Get file from the public/files directory
+            $directory = public_path('files');
+            $filename  = 'IQMY-Alpro eResult Checking List 11Sept2025.xlsx';
+            $targetFile = $directory . '/' . $filename;
+
+            $errors = [];
+            $processedFiles = 0;
+
+            $startTime = microtime(true);
+
+            if (File::exists($targetFile) && !str_starts_with($filename, '~$')) {
+                $file = new SplFileInfo($targetFile);
+                $fileDate = date('Y-m-d H:i:s', $file->getMTime());
+
+                try {
+                    // Run your import
+                    $completedLabNo = new CompletedLabNoImport();
+                    Excel::import($completedLabNo, $file->getPathname());
+
+                    // Get match results
+                    $matchResults = $completedLabNo->getMatchResults();
+                    $combinedStats = $completedLabNo->getCombinedStats();
+
+                    $processedFiles++;
+                } catch (\Exception $e) {
+                    $error = [
+                        'file'      => $filename,
+                        'error'     => $e->getMessage(),
+                        'line'      => $e->getLine(),
+                        'file_path' => $e->getFile(),
+                        'file_date' => $fileDate,
+                    ];
+
+                    $errors[] = $error;
+                }
+            } else {
+                // Handle case: file not found or it was a temp Excel file
+                $errors[] = [
+                    'file'  => $filename,
+                    'error' => 'File not found or is a temp file.'
+                ];
+            }
+
+            $totalFiles = 1; // Set to 1 since we're processing a single file
+            $processingTime = round(microtime(true) - $startTime, 2);
+
+            // Log comprehensive summary
+            Log::info('Completed Lab Number Import Summary', [
+                'target_file' => $filename,
+                'processed_files' => $processedFiles,
+                'failed_files' => count($errors),
+                'success_rate' => $processedFiles > 0 ? '100%' : '0%',
+                'processing_time' => $processingTime . 's'
+            ]);
+
+            // Log errors if any
+            if (!empty($errors)) {
+                Log::warning('Completed Lab Number file failed to import', $errors);
+            }
+
+            // Prepare response based on results
+            $message = $processedFiles > 0
+                ? "Successfully processed completed lab number file: {$filename}"
+                : "Failed to process completed lab number file: {$filename}";
+
+            if (!empty($errors)) {
+                $message .= " with " . count($errors) . " errors";
+            }
+
+            return response()->json([
+                'success' => $processedFiles > 0,
+                'message' => $message,
+                'statistics' => [
+                    'target_file' => $filename,
+                    'processed_files' => $processedFiles,
+                    'failed_files' => count($errors),
+                ],
+                'match_results' => $matchResults ?? [],
+                'combined_stats' => $combinedStats ?? [],
+                'errors' => $errors
+            ], $processedFiles > 0 ? 200 : 500);
+        } catch (Exception $e) {
+            Log::error('Critical error in CompletedLabNo import', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Critical error processing completed lab number file: ' . $e->getMessage(),
+                'statistics' => [
+                    'target_file' => $filename ?? 'Unknown',
+                    'processed_files' => $processedFiles,
+                    'failed_files' => count($errors),
+                ]
+            ], 500);
+        }
+    }
+
+    public function labNumberResults()
+    {
+        try {
+            // Get file from the public/files directory
+            $directory = public_path('files');
+            $filename  = 'IQMY-Alpro eResult Checking List 11Sept2025.xlsx';
+            $targetFile = $directory . '/' . $filename;
+
+            $startTime = microtime(true);
+
+            if (File::exists($targetFile) && !str_starts_with($filename, '~$')) {
+                $file = new SplFileInfo($targetFile);
+
+                try {
+                    // Run your import
+                    $completedLabNo = new CompletedLabNoImport();
+                    Excel::import($completedLabNo, $file->getPathname());
+                    
+                    // Get match results
+                    $matchResults = $completedLabNo->getMatchResults();
+                    $combinedStats = $completedLabNo->getCombinedStats();
+                    $processingTime = round(microtime(true) - $startTime, 2);
+
+                    // Create export filename with timestamp
+                    $exportFilename = 'Lab_Number_Match_Results_' . date('Y-m-d_H-i-s') . '.xlsx';
+                    
+                    // Export to Excel and download
+                    return Excel::download(
+                        new LabNumberMatchExport($matchResults, $combinedStats['summary'] ?? []),
+                        $exportFilename
+                    );
+
+                } catch (\Exception $e) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Error processing file: ' . $e->getMessage()
+                    ], 500);
+                }
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'File not found: ' . $filename
+                ], 404);
+            }
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Critical error: ' . $e->getMessage()
             ], 500);
         }
     }
