@@ -31,4 +31,14 @@ return [
             'password' => env('CREDENTIALS_LAB_3_PASSWORD', 'password'),
         ],
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | ODB Credentials
+    |--------------------------------------------------------------------------
+    */
+    'odb' => [
+        'username' => env('ODB_USERNAME', 'username'),
+        'password' => env('ODB_PASSWORD', 'password'),
+    ],
 ];

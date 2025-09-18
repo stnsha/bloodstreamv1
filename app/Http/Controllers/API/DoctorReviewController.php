@@ -90,8 +90,8 @@ class DoctorReviewController extends Controller
             // Login once before processing all results
             Log::info("Attempting to login to external AI service");
             $login = Http::timeout(60)->post('http://172.18.28.29/alprogpt/chatgpt/login.php', [
-                "username" => "971202055184",
-                "password" => "L^l9i15woDMc"
+                "username" => config('credentials.odb.username'),
+                "password" => config('credentials.odb.password')
             ]);
 
             if ($login->failed()) {
@@ -334,9 +334,9 @@ class DoctorReviewController extends Controller
                     $this->store($tr->id, $testResultData, $result);
                     $successfulStores++;
 
-                    // Mark as reviewed (commented for testing)
-                    // $tr->is_reviewed = true;
-                    // $tr->save();
+                    // Mark as reviewed (comment for testing)
+                    $tr->is_reviewed = true;
+                    $tr->save();
 
                     Log::info('Successfully processed test result', [
                         'test_result_id' => $tr->id,
