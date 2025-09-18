@@ -57,7 +57,7 @@ class ProcessTestResultBatchJob implements ShouldQueue
         $this->doctorReviewController = $doctorReviewController;
 
         $startTime = now();
-        Log::info("ProcessTestResultBatchJob batch {$this->batchNumber} started", [
+        Log::channel('job')->info("ProcessTestResultBatchJob batch {$this->batchNumber} started", [
             'batch_number' => $this->batchNumber,
             'test_result_ids' => $this->testResultIds,
             'count' => count($this->testResultIds),
@@ -87,7 +87,7 @@ class ProcessTestResultBatchJob implements ShouldQueue
                         $failedResults[] = $testResultId;
                     }
                 } catch (Exception $e) {
-                    Log::error("Failed to process test result {$testResultId}", [
+                    Log::channel('job')->error("Failed to process test result {$testResultId}", [
                         'test_result_id' => $testResultId,
                         'batch_number' => $this->batchNumber,
                         'error' => $e->getMessage(),
@@ -102,7 +102,7 @@ class ProcessTestResultBatchJob implements ShouldQueue
             $endTime = now();
             $duration = $endTime->diffInSeconds($startTime);
 
-            Log::info("ProcessTestResultBatchJob batch {$this->batchNumber} completed", [
+            Log::channel('job')->info("ProcessTestResultBatchJob batch {$this->batchNumber} completed", [
                 'batch_number' => $this->batchNumber,
                 'total_in_batch' => count($this->testResultIds),
                 'successful' => $successfulProcessed,
@@ -114,7 +114,7 @@ class ProcessTestResultBatchJob implements ShouldQueue
             ]);
 
         } catch (Exception $e) {
-            Log::error("ProcessTestResultBatchJob batch {$this->batchNumber} failed", [
+            Log::channel('job')->error("ProcessTestResultBatchJob batch {$this->batchNumber} failed", [
                 'batch_number' => $this->batchNumber,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -140,14 +140,14 @@ class ProcessTestResultBatchJob implements ShouldQueue
             ])->find($testResultId);
 
             if (!$tr || !$tr->patient) {
-                Log::warning("Test result {$testResultId} not found or has no patient");
+                Log::channel('job')->warning("Test result {$testResultId} not found or has no patient");
                 return false;
             }
 
             // Get patient health details (with caching)
             $patientIcno = $tr->patient->icno ?? null;
             if (!$patientIcno) {
-                Log::warning("Patient ICNO is null for test result {$testResultId}", [
+                Log::channel('job')->warning("Patient ICNO is null for test result {$testResultId}", [
                     'test_result_id' => $testResultId,
                     'patient_id' => $tr->patient->id ?? 'unknown'
                 ]);
@@ -158,7 +158,7 @@ class ProcessTestResultBatchJob implements ShouldQueue
             // Build patient info with null value logging
             $patientAge = $tr->patient->age ?? 'Unknown';
             if ($patientAge === 'Unknown') {
-                Log::warning('Patient age is null, replaced with Unknown', [
+                Log::channel('job')->warning('Patient age is null, replaced with Unknown', [
                     'test_result_id' => $testResultId,
                     'patient_id' => $tr->patient->id,
                     'patient_icno' => $tr->patient->icno
@@ -177,7 +177,7 @@ class ProcessTestResultBatchJob implements ShouldQueue
             } else {
                 $patientGender = $tr->patient->gender ?? 'Unknown';
                 if ($patientGender === 'Unknown') {
-                    Log::warning('Patient gender is null, replaced with Unknown', [
+                    Log::channel('job')->warning('Patient gender is null, replaced with Unknown', [
                         'test_result_id' => $testResultId,
                         'patient_id' => $tr->patient->id,
                         'patient_icno' => $tr->patient->icno
@@ -188,18 +188,18 @@ class ProcessTestResultBatchJob implements ShouldQueue
 
             // Process test result items with new categorization logic
             if (!$tr->testResultItems || $tr->testResultItems->isEmpty()) {
-                Log::warning("Test result {$testResultId} has no test result items");
+                Log::channel('job')->warning("Test result {$testResultId} has no test result items");
                 return false;
             }
             $categorizedItems = $this->categorizeTestResultItems($tr->testResultItems);
 
             if (empty($categorizedItems)) {
-                Log::warning("No valid test result items for test result {$testResultId}");
+                Log::channel('job')->warning("No valid test result items for test result {$testResultId}");
                 return false;
             }
 
             if (!$tr->reported_date) {
-                Log::warning('Test result reported_date is null, using current date', [
+                Log::channel('job')->warning('Test result reported_date is null, using current date', [
                     'test_result_id' => $testResultId,
                     'test_result_lab_no' => $tr->lab_no
                 ]);
@@ -216,12 +216,12 @@ class ProcessTestResultBatchJob implements ShouldQueue
             $response = $this->makeRateLimitedApiCall($token, $testResultData);
 
             if (!$response) {
-                Log::warning("API response is null for test result {$testResultId}");
+                Log::channel('job')->warning("API response is null for test result {$testResultId}");
                 return false;
             }
 
             if (!$response->successful()) {
-                Log::error("API response failed for test result {$testResultId}", [
+                Log::channel('job')->error("API response failed for test result {$testResultId}", [
                     'status' => $response->status(),
                     'body' => $response->body(),
                     'headers' => $response->headers()
@@ -241,7 +241,7 @@ class ProcessTestResultBatchJob implements ShouldQueue
                 $tr->is_reviewed = true;
                 $tr->save();
             } else {
-                Log::error("AI analysis returned error status for test result {$testResultId}", [
+                Log::channel('job')->error("AI analysis returned error status for test result {$testResultId}", [
                     'response' => $responseData,
                     'test_result_id' => $testResultId
                 ]);
@@ -291,7 +291,7 @@ class ProcessTestResultBatchJob implements ShouldQueue
                     }
                 }
             } catch (Exception $e) {
-                Log::error("Error fetching patient health details for {$icno}", [
+                Log::channel('job')->error("Error fetching patient health details for {$icno}", [
                     'icno' => $icno,
                     'error' => $e->getMessage()
                 ]);
@@ -312,19 +312,19 @@ class ProcessTestResultBatchJob implements ShouldQueue
             try {
                 // More detailed null checking
                 if (!$ri) {
-                    Log::debug('Skipping null test result item');
+                    Log::channel('job')->debug('Skipping null test result item');
                     continue;
                 }
 
                 if (!$ri->panelPanelItem) {
-                    Log::debug('Skipping test result item - no panelPanelItem', [
+                    Log::channel('job')->debug('Skipping test result item - no panelPanelItem', [
                         'result_item_id' => $ri->id ?? 'unknown'
                     ]);
                     continue;
                 }
 
                 if (!$ri->panelPanelItem->panelItem) {
-                    Log::debug('Skipping test result item - no panelItem', [
+                    Log::channel('job')->debug('Skipping test result item - no panelItem', [
                         'result_item_id' => $ri->id ?? 'unknown',
                         'panel_panel_item_id' => $ri->panelPanelItem->id ?? 'unknown'
                     ]);
@@ -332,7 +332,7 @@ class ProcessTestResultBatchJob implements ShouldQueue
                 }
 
                 if (!$ri->panelPanelItem->panel) {
-                    Log::debug('Skipping test result item - no panel', [
+                    Log::channel('job')->debug('Skipping test result item - no panel', [
                         'result_item_id' => $ri->id ?? 'unknown',
                         'panel_panel_item_id' => $ri->panelPanelItem->id ?? 'unknown'
                     ]);
@@ -341,7 +341,7 @@ class ProcessTestResultBatchJob implements ShouldQueue
 
                 $panelItemName = $ri->panelPanelItem->panelItem->name;
                 if (!$panelItemName) {
-                    Log::warning('Panel item name is null, replaced with Unknown Item', [
+                    Log::channel('job')->warning('Panel item name is null, replaced with Unknown Item', [
                         'test_result_item_id' => $ri->id,
                         'panel_item_id' => $ri->panelPanelItem->panelItem->id ?? 'unknown'
                     ]);
@@ -371,7 +371,7 @@ class ProcessTestResultBatchJob implements ShouldQueue
                             $flagDescription = trim(preg_replace('/\s*\([^)]*\)/', '', $resultLibrary->description));
                         }
                     } catch (Exception $e) {
-                        Log::error('Error fetching flag description', [
+                        Log::channel('job')->error('Error fetching flag description', [
                             'flag' => $ri->flag,
                             'result_item_id' => $ri->id,
                             'error' => $e->getMessage()
@@ -381,7 +381,7 @@ class ProcessTestResultBatchJob implements ShouldQueue
 
                 $panelItemName = $ri->panelPanelItem->panelItem->name;
                 if (!$panelItemName) {
-                    Log::warning('Panel item name is null, replaced with Unknown Item', [
+                    Log::channel('job')->warning('Panel item name is null, replaced with Unknown Item', [
                         'test_result_item_id' => $ri->id,
                         'panel_item_id' => $ri->panelPanelItem->panelItem->id ?? 'unknown'
                     ]);
@@ -415,7 +415,7 @@ class ProcessTestResultBatchJob implements ShouldQueue
                 $categorizedItems[$panelName][] = $itemData;
 
             } catch (Exception $e) {
-                Log::error('Error processing test result item', [
+                Log::channel('job')->error('Error processing test result item', [
                     'result_item_id' => $ri->id ?? 'unknown',
                     'error' => $e->getMessage()
                 ]);
@@ -442,7 +442,7 @@ class ProcessTestResultBatchJob implements ShouldQueue
         );
 
         if (!$executed) {
-            Log::warning('Rate limit exceeded, waiting before retry');
+            Log::channel('job')->warning('Rate limit exceeded, waiting before retry');
             sleep(1); // Wait 1 second if rate limit hit
 
             // Retry once
@@ -459,7 +459,7 @@ class ProcessTestResultBatchJob implements ShouldQueue
      */
     public function failed(\Throwable $exception): void
     {
-        Log::error("ProcessTestResultBatchJob batch {$this->batchNumber} failed permanently", [
+        Log::channel('job')->error("ProcessTestResultBatchJob batch {$this->batchNumber} failed permanently", [
             'batch_number' => $this->batchNumber,
             'test_result_ids' => $this->testResultIds,
             'error' => $exception->getMessage(),

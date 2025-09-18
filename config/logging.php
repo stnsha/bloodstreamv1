@@ -63,6 +63,13 @@ return [
             'level' => env('LOG_LEVEL', 'debug'),
         ],
 
+        'job' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/job.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => 30,
+        ],
+
         'daily' => [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),

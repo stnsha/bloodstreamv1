@@ -48,7 +48,7 @@ class ProcessTestResultsJob implements ShouldQueue
     public function handle(): void
     {
         $startTime = now();
-        Log::info('ProcessTestResultsJob started', [
+        Log::channel('job')->info('ProcessTestResultsJob started', [
             'batch_size' => $this->batchSize,
             'max_results' => $this->maxResults,
             'start_time' => $startTime
@@ -72,14 +72,14 @@ class ProcessTestResultsJob implements ShouldQueue
                 ->get();
 
             if ($testResults->isEmpty()) {
-                Log::info('No test results found to process');
+                Log::channel('job')->info('No test results found to process');
                 return;
             }
 
             $totalResults = $testResults->count();
             $totalBatches = ceil($totalResults / $this->batchSize);
 
-            Log::info('Test results processing plan', [
+            Log::channel('job')->info('Test results processing plan', [
                 'total_results' => $totalResults,
                 'batch_size' => $this->batchSize,
                 'total_batches' => $totalBatches
@@ -89,7 +89,7 @@ class ProcessTestResultsJob implements ShouldQueue
             $testResults->chunk($this->batchSize)->each(function ($batch, $batchIndex) use ($totalBatches) {
                 $batchNumber = $batchIndex + 1;
                 
-                Log::info("Dispatching batch {$batchNumber}/{$totalBatches}", [
+                Log::channel('job')->info("Dispatching batch {$batchNumber}/{$totalBatches}", [
                     'batch_number' => $batchNumber,
                     'batch_size' => $batch->count(),
                     'test_result_ids' => $batch->pluck('id')->toArray()
@@ -103,7 +103,7 @@ class ProcessTestResultsJob implements ShouldQueue
             $endTime = now();
             $duration = $endTime->diffInSeconds($startTime);
 
-            Log::info('ProcessTestResultsJob completed successfully', [
+            Log::channel('job')->info('ProcessTestResultsJob completed successfully', [
                 'total_results' => $totalResults,
                 'total_batches' => $totalBatches,
                 'duration_seconds' => $duration,
@@ -111,7 +111,7 @@ class ProcessTestResultsJob implements ShouldQueue
             ]);
 
         } catch (\Exception $e) {
-            Log::error('ProcessTestResultsJob failed', [
+            Log::channel('job')->error('ProcessTestResultsJob failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
                 'duration_seconds' => now()->diffInSeconds($startTime)
@@ -126,7 +126,7 @@ class ProcessTestResultsJob implements ShouldQueue
      */
     public function failed(\Throwable $exception): void
     {
-        Log::error('ProcessTestResultsJob failed permanently', [
+        Log::channel('job')->error('ProcessTestResultsJob failed permanently', [
             'error' => $exception->getMessage(),
             'trace' => $exception->getTraceAsString(),
             'attempts' => $this->attempts()

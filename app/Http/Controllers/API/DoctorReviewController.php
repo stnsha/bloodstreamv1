@@ -24,6 +24,19 @@ class DoctorReviewController extends Controller
         $this->myHealthService = $myHealthService;
     }
 
+    /**
+     * Get appropriate log channel (job if called from job context, default otherwise)
+     */
+    private function getLogChannel()
+    {
+        // If we're in a queue job context, use job channel
+        if (app()->bound('queue.job')) {
+            return 'job';
+        }
+        // Default to standard logging
+        return config('logging.default');
+    }
+
     public function store($id, $testResultData, $result)
     {
         DoctorReview::firstOrCreate(
@@ -89,7 +102,7 @@ class DoctorReviewController extends Controller
             }
 
             // Login once before processing all results
-            Log::info("Attempting to login to external AI service");
+            Log::channel($this->getLogChannel())->info("Attempting to login to external AI service");
             $login = Http::timeout(60)->post(config('credentials.ai_review.login'), [
                 "username" => config('credentials.odb.username'),
                 "password" => config('credentials.odb.password')
@@ -97,7 +110,7 @@ class DoctorReviewController extends Controller
 
             if ($login->failed()) {
                 DB::rollBack();
-                Log::error('External AI service login failed');
+                Log::channel($this->getLogChannel())->error('External AI service login failed');
                 return response()->json([
                     'success' => false,
                     'message' => 'External AI service login failed - all processing stopped',
@@ -115,7 +128,7 @@ class DoctorReviewController extends Controller
 
             $loginData = $login->json();
             $token = $loginData['token'];
-            Log::info("Successfully logged into external AI service");
+            Log::channel($this->getLogChannel())->info("Successfully logged into external AI service");
 
             foreach ($testResults as $tr) {
                 $totalProcessed++;
@@ -161,13 +174,13 @@ class DoctorReviewController extends Controller
                     }
 
                     if (!$tr || !$tr->id) {
-                        Log::error('Invalid test result object');
+                        Log::channel($this->getLogChannel())->error('Invalid test result object');
                         $failedResults[] = ['id' => 'unknown', 'reason' => 'Invalid test result object'];
                         continue;
                     }
 
                     if (!$tr->patient) {
-                        Log::warning('Test result has no associated patient', ['test_result_id' => $tr->id]);
+                        Log::channel($this->getLogChannel())->warning('Test result has no associated patient', ['test_result_id' => $tr->id]);
                         $failedResults[] = ['id' => $tr->id, 'reason' => 'Missing patient information'];
                         continue;
                     }
@@ -177,7 +190,7 @@ class DoctorReviewController extends Controller
                     $validItemsCount = 0;
 
                     if ($tr->testResultItems->isEmpty()) {
-                        Log::warning('Test result has no test result items', ['test_result_id' => $tr->id]);
+                        Log::channel($this->getLogChannel())->warning('Test result has no test result items', ['test_result_id' => $tr->id]);
                         $failedResults[] = ['id' => $tr->id, 'reason' => 'No test result items found'];
                         continue;
                     }
@@ -185,12 +198,12 @@ class DoctorReviewController extends Controller
                     foreach ($tr->testResultItems as $ri) {
                         try {
                             if (!$ri || !$ri->id) {
-                                Log::warning('Invalid result item', ['test_result_id' => $tr->id]);
+                                Log::channel($this->getLogChannel())->warning('Invalid result item', ['test_result_id' => $tr->id]);
                                 continue;
                             }
 
                             if (!$ri->panelPanelItem) {
-                                Log::warning('Test result item missing panel relationship', [
+                                Log::channel($this->getLogChannel())->warning('Test result item missing panel relationship', [
                                     'result_item_id' => $ri->id,
                                     'test_result_id' => $tr->id
                                 ]);
@@ -198,7 +211,7 @@ class DoctorReviewController extends Controller
                             }
 
                             if (!$ri->panelPanelItem->panelItem) {
-                                Log::warning('Test result item missing panel item relationship', [
+                                Log::channel($this->getLogChannel())->warning('Test result item missing panel item relationship', [
                                     'result_item_id' => $ri->id,
                                     'test_result_id' => $tr->id
                                 ]);
@@ -232,7 +245,7 @@ class DoctorReviewController extends Controller
                                         $flagDescription = $ri->flag;
                                     }
                                 } catch (Exception $e) {
-                                    Log::error('Error fetching flag description from ResultLibrary', [
+                                    Log::channel($this->getLogChannel())->error('Error fetching flag description from ResultLibrary', [
                                         'error' => $e->getMessage(),
                                         'flag' => $ri->flag,
                                         'result_item_id' => $ri->id
@@ -253,7 +266,7 @@ class DoctorReviewController extends Controller
                                 try {
                                     $itemData['reference_range'] = $ri->referenceRange->value;
                                 } catch (Exception $e) {
-                                    Log::warning('Error accessing reference range', [
+                                    Log::channel($this->getLogChannel())->warning('Error accessing reference range', [
                                         'error' => $e->getMessage(),
                                         'result_item_id' => $ri->id
                                     ]);
@@ -268,7 +281,7 @@ class DoctorReviewController extends Controller
                                         }
                                     }
                                 } catch (Exception $e) {
-                                    Log::warning('Error processing panel comments', [
+                                    Log::channel($this->getLogChannel())->warning('Error processing panel comments', [
                                         'error' => $e->getMessage(),
                                         'result_item_id' => $ri->id
                                     ]);
@@ -279,7 +292,7 @@ class DoctorReviewController extends Controller
                             $categorizedItems[$panelName][] = $itemData;
                             $validItemsCount++;
                         } catch (Exception $e) {
-                            Log::error('Error processing test result item', [
+                            Log::channel($this->getLogChannel())->error('Error processing test result item', [
                                 'error' => $e->getMessage(),
                                 'result_item_id' => $ri->id ?? 'unknown',
                                 'test_result_id' => $tr->id,
@@ -289,7 +302,7 @@ class DoctorReviewController extends Controller
                     }
 
                     if ($validItemsCount === 0) {
-                        Log::warning('No valid test result items processed', ['test_result_id' => $tr->id]);
+                        Log::channel($this->getLogChannel())->warning('No valid test result items processed', ['test_result_id' => $tr->id]);
                         $failedResults[] = ['id' => $tr->id, 'reason' => 'No valid test result items'];
                         continue;
                     }
@@ -309,7 +322,7 @@ class DoctorReviewController extends Controller
                         ->post(config('credentials.ai_review.analysis'), $testResultData);
 
                     if ($response->failed()) {
-                        Log::error('AI analysis API call failed', [
+                        Log::channel($this->getLogChannel())->error('AI analysis API call failed', [
                             'test_result_id' => $tr->id,
                             'response_status' => $response->status()
                         ]);
@@ -336,7 +349,7 @@ class DoctorReviewController extends Controller
                             'patient_icno' => $tr->patient->icno
                         ];
                     } else {
-                        Log::error('AI analysis returned error status', [
+                        Log::channel($this->getLogChannel())->error('AI analysis returned error status', [
                             'test_result_id' => $tr->id,
                             'response' => $responseData
                         ]);
@@ -344,7 +357,7 @@ class DoctorReviewController extends Controller
                         continue;
                     }
                 } catch (Exception $e) {
-                    Log::error('Critical error processing individual test result', [
+                    Log::channel($this->getLogChannel())->error('Critical error processing individual test result', [
                         'error' => $e->getMessage(),
                         'test_result_id' => $tr->id ?? 'unknown',
                         'trace' => $e->getTraceAsString()
@@ -356,7 +369,7 @@ class DoctorReviewController extends Controller
             DB::commit();
         } catch (Exception $e) {
             DB::rollBack();
-            Log::error('Critical error in processResult method', [
+            Log::channel($this->getLogChannel())->error('Critical error in processResult method', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -383,7 +396,7 @@ class DoctorReviewController extends Controller
         $successRate = $totalFound > 0 ? round(($successfulStores / $totalFound) * 100, 2) : 0;
 
         // Log summary of processing
-        Log::info('DoctorReviewController processResult completed', [
+        Log::channel($this->getLogChannel())->info('DoctorReviewController processResult completed', [
             'total_found' => $totalFound,
             'successful_stores' => $successfulStores,
             'failed_results' => $failedCount,
