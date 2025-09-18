@@ -28,6 +28,7 @@ class CompletedLabNoImport implements WithMultipleSheets
         return [
             0 => $sheetHandler,  // First sheet (1-5 Sept)
             1 => $sheetHandler,  // Second sheet (6-9 Sept)
+            2 => $sheetHandler,  // Second sheet (9-11 Sept)
         ];
     }
 
