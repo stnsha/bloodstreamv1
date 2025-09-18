@@ -22,10 +22,18 @@ class CompletedLabNoSheetImport implements ToArray, WithHeadingRow
         try {
             self::$sheetCount++;
             $sheetName = "Sheet " . self::$sheetCount;
-            
+
             Log::info("Processing {$sheetName}", [
                 'total_rows' => count($array)
             ]);
+
+            // Debug: Log first row headers to understand sheet structure
+            if (!empty($array)) {
+                $firstRow = array_keys($array[0]);
+                Log::info("Sheet {$sheetName} headers", [
+                    'headers' => $firstRow
+                ]);
+            }
 
             $processedData = [];
             $sheetStats = [
@@ -58,8 +66,8 @@ class CompletedLabNoSheetImport implements ToArray, WithHeadingRow
             // Log sheet-specific summary
             Log::info("Sheet '{$sheetName}' Summary", $sheetStats);
 
-            // If this is the last sheet (assuming 2 sheets), finalize
-            if (self::$sheetCount >= 2) {
+            // If this is the last sheet (3 sheets total), finalize
+            if (self::$sheetCount >= 3) {
                 $this->parentImport->finalize();
             }
 

@@ -19,16 +19,15 @@ class CompletedLabNoImport implements WithMultipleSheets
         'empty_rows' => 0,
     ];
     protected array $matchResults = [];
+    protected array $dbLabNumbers = [];
 
     public function sheets(): array
     {
-        // Create individual sheet handlers for each sheet
-        $sheetHandler = new CompletedLabNoSheetImport($this);
-        
+        // Create separate sheet handlers for each sheet
         return [
-            0 => $sheetHandler,  // First sheet (1-5 Sept)
-            1 => $sheetHandler,  // Second sheet (6-9 Sept)
-            2 => $sheetHandler,  // Second sheet (9-11 Sept)
+            0 => new CompletedLabNoSheetImport($this),  // First sheet (1-5 Sept)
+            1 => new CompletedLabNoSheetImport($this),  // Second sheet (6-9 Sept)
+            2 => new CompletedLabNoSheetImport($this),  // Third sheet (9-11 Sept)
         ];
     }
 
@@ -48,6 +47,9 @@ class CompletedLabNoImport implements WithMultipleSheets
 
     public function finalize(): void
     {
+        // Get all lab_no from TestResult database once
+        $this->dbLabNumbers = TestResult::pluck('lab_no')->toArray();
+
         // Store all combined data
         if (!empty($this->allProcessedData)) {
             $this->store($this->allProcessedData);
@@ -62,20 +64,17 @@ class CompletedLabNoImport implements WithMultipleSheets
 
     protected function store(array $processedData): void
     {
-        // Get all lab_no from TestResult database
-        $dbLabNumbers = TestResult::pluck('lab_no')->toArray();
-        
         // Process each record from Excel
         foreach ($processedData as $record) {
             $prefix = $record['prefix'];
             $labNumber = $record['lab_number'];
-            
+
             // Combine prefix and lab_number to match database format
             $labNo = !empty($prefix) ? $prefix . '-' . $labNumber : '25-'.$labNumber;
-            
+
             // Check if this lab number exists in database
-            $existsInDb = in_array($labNo, $dbLabNumbers);
-            
+            $existsInDb = in_array($labNo, $this->dbLabNumbers);
+
             $this->matchResults[] = [
                 'from_excel' => $labNo,
                 'in_db' => $existsInDb ? $labNo : '',
