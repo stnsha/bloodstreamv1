@@ -41,4 +41,9 @@ return [
         'username' => env('ODB_USERNAME', 'username'),
         'password' => env('ODB_PASSWORD', 'password'),
     ],
+
+    'ai_review' => [
+        'login' => env('AI_REVIEW_LOGIN', 'http://example.com/api/review'),
+        'analysis' => env('AI_REVIEW_ANALYSIS', 'http://example.com/api/analysis'),
+    ],
 ];

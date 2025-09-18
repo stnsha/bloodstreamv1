@@ -89,7 +89,7 @@ class DoctorReviewController extends Controller
 
             // Login once before processing all results
             Log::info("Attempting to login to external AI service");
-            $login = Http::timeout(60)->post('http://172.18.28.29/alprogpt/chatgpt/login.php', [
+            $login = Http::timeout(60)->post(config('credentials.ai_review.login'), [
                 "username" => config('credentials.odb.username'),
                 "password" => config('credentials.odb.password')
             ]);
@@ -315,7 +315,7 @@ class DoctorReviewController extends Controller
 
                     // Call AI API using the token from login
                     $response = Http::timeout(120)->withToken($token)
-                        ->post('http://172.18.28.29/alprogpt/chatgpt/bloodtest_analysis.php', $testResultData);
+                        ->post(config('credentials.ai_review.analysis'), $testResultData);
 
                     if ($response->failed()) {
                         Log::error('AI analysis API call failed', [

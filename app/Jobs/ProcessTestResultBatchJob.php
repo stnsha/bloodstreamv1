@@ -346,7 +346,7 @@ class ProcessTestResultBatchJob implements ShouldQueue
             5, // 5 requests per second
             function () use ($token, $testResultData) {
                 return Http::timeout(60)->withToken($token)
-                    ->post('http://172.18.28.29/alprogpt/chatgpt/bloodtest_analysis.php', $testResultData);
+                    ->post(config('credentials.ai_review.analysis'), $testResultData);
             },
             1 // Per 1 second
         );
@@ -357,7 +357,7 @@ class ProcessTestResultBatchJob implements ShouldQueue
             
             // Retry once
             return Http::timeout(60)->withToken($token)
-                ->post('http://172.18.28.29/alprogpt/chatgpt/bloodtest_analysis.php', $testResultData);
+                ->post(config('credentials.ai_review.analysis'), $testResultData);
         }
 
         return $executed;
