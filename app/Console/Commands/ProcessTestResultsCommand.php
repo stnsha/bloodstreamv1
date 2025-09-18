@@ -139,18 +139,17 @@ class ProcessTestResultsCommand extends Command
         try {
             ProcessTestResultsJob::dispatch($batchSize, $maxResults);
             $this->info("✓ Job dispatched successfully");
-            $this->info("\nThe job will:");
-            $this->info("1. Fetch up to {$maxResults} unreviewed test results");
-            $this->info("2. Split them into batches of {$batchSize}");
-            $this->info("3. Process each batch with rate limiting (5 API calls/second)");
-            $this->info("4. Cache patient data for 1 hour");
-            $this->info("5. Use cached API token (valid for 30 days)");
-            $this->info("6. Log all progress and failures");
-            
-            $this->info("\nMonitor progress with:");
-            $this->info("- tail -f storage/logs/laravel.log");
-            $this->info("- php artisan queue:work redis");
-            
+            // $this->info("\nThe job will:");
+            // $this->info("1. Fetch up to {$maxResults} unreviewed test results");
+            // $this->info("2. Split them into batches of {$batchSize}");
+            // $this->info("3. Process each batch with rate limiting (5 API calls/second)");
+            // $this->info("4. Cache patient data for 1 hour");
+            // $this->info("5. Use cached API token (valid for 30 days)");
+            // $this->info("6. Log all progress and failures");
+
+            // $this->info("\nMonitor progress with:");
+            // $this->info("- tail -f storage/logs/laravel.log");
+
         } catch (\Exception $e) {
             $this->error("✗ Failed to dispatch job: " . $e->getMessage());
             return self::FAILURE;

@@ -51,6 +51,7 @@ class DoctorReviewController extends Controller
         $totalProcessed = 0;
         $successfulReviewsGenerated = 0;
         $successfulStores = 0;
+        $successfulResults = [];
         $failedResults = [];
         $processingStartTime = now();
 
@@ -69,7 +70,7 @@ class DoctorReviewController extends Controller
                 ->whereHas('patient', function ($query) {
                     $query->where('ic_type', 'NRIC');
                 })
-                ->take(20) //First 5
+                ->take(5) //First 5
                 ->get();
 
             if ($testResults->isEmpty()) {
@@ -204,28 +205,18 @@ class DoctorReviewController extends Controller
                                 continue;
                             }
 
-                            $panelName = $ri->panelPanelItem->panel->name;
-                            $categoryName = null;
+                            $panelItemName = $ri->panelPanelItem->panelItem->name ?? 'Unknown Item';
 
-                            // Check if panel category exists
-                            if ($ri->panelPanelItem->panel->panelCategory && !empty($ri->panelPanelItem->panel->panelCategory->name)) {
-                                $categoryName = $ri->panelPanelItem->panel->panelCategory->name;
+                            // Determine panel name: use actual panel name or fallback to panel item name
+                            if ($ri->panelPanelItem->panel && $ri->panelPanelItem->panel->name) {
+                                $panelName = $ri->panelPanelItem->panel->name;
+                            } else {
+                                $panelName = $panelItemName; // Use panel item name as panel name
                             }
 
-                            // Build the hierarchical structure
-                            if ($categoryName) {
-                                // Has category: Category > Panel > Items
-                                if (!isset($categorizedItems[$categoryName])) {
-                                    $categorizedItems[$categoryName] = [];
-                                }
-                                if (!isset($categorizedItems[$categoryName][$panelName])) {
-                                    $categorizedItems[$categoryName][$panelName] = [];
-                                }
-                            } else {
-                                // No category: Panel > Items (panel becomes top level)
-                                if (!isset($categorizedItems[$panelName])) {
-                                    $categorizedItems[$panelName] = [];
-                                }
+                            // Build simplified panel-only structure
+                            if (!isset($categorizedItems[$panelName])) {
+                                $categorizedItems[$panelName] = [];
                             }
 
                             $flagDescription = $ri->flag;
@@ -284,11 +275,8 @@ class DoctorReviewController extends Controller
                                 }
                             }
 
-                            if ($categoryName) {
-                                $categorizedItems[$categoryName][$panelName][] = $itemData;
-                            } else {
-                                $categorizedItems[$panelName][] = $itemData;
-                            }
+                            // Add item to panel (simplified structure)
+                            $categorizedItems[$panelName][] = $itemData;
                             $validItemsCount++;
                         } catch (Exception $e) {
                             Log::error('Error processing test result item', [
@@ -313,6 +301,9 @@ class DoctorReviewController extends Controller
                         'Blood Test Results' => $finalResults
                     ];
 
+                    // return response()->json($testResultData); // For debugging
+                    // exit;
+
                     // Call AI API using the token from login
                     $response = Http::timeout(120)->withToken($token)
                         ->post(config('credentials.ai_review.analysis'), $testResultData);
@@ -327,21 +318,31 @@ class DoctorReviewController extends Controller
                     }
 
                     $responseData = $response->json();
-                    $result = $this->formatMarkdownToHTML($responseData['ai_analysis']);
-                    $successfulReviewsGenerated++;
 
-                    // Store the generated review
-                    $this->store($tr->id, $testResultData, $result);
-                    $successfulStores++;
+                    if ($responseData['ai_analysis']['success'] && $responseData['ai_analysis']['status'] == 200) {
+                        $result = $this->formatMarkdownToHTML($responseData['ai_analysis']['answer']);
+                        $successfulReviewsGenerated++;
 
-                    // Mark as reviewed (comment for testing)
-                    $tr->is_reviewed = true;
-                    $tr->save();
+                        // Store the generated review
+                        $this->store($tr->id, $testResultData, $result);
+                        $successfulStores++;
 
-                    Log::info('Successfully processed test result', [
-                        'test_result_id' => $tr->id,
-                        'patient_icno' => $tr->patient->icno
-                    ]);
+                        // Mark as reviewed (comment for testing)
+                        $tr->is_reviewed = true;
+                        $tr->save();
+
+                        $successfulResults[] = [
+                            'test_result_id' => $tr->id,
+                            'patient_icno' => $tr->patient->icno
+                        ];
+                    } else {
+                        Log::error('AI analysis returned error status', [
+                            'test_result_id' => $tr->id,
+                            'response' => $responseData
+                        ]);
+                        $failedResults[] = ['id' => $tr->id, 'reason' => 'AI analysis returned error status'];
+                        continue;
+                    }
                 } catch (Exception $e) {
                     Log::error('Critical error processing individual test result', [
                         'error' => $e->getMessage(),
@@ -381,6 +382,16 @@ class DoctorReviewController extends Controller
         $failedCount = count($failedResults);
         $successRate = $totalFound > 0 ? round(($successfulStores / $totalFound) * 100, 2) : 0;
 
+        // Log summary of processing
+        Log::info('DoctorReviewController processResult completed', [
+            'total_found' => $totalFound,
+            'successful_stores' => $successfulStores,
+            'failed_results' => $failedCount,
+            'success_rate' => $successRate . '%',
+            'processing_time' => $processingTime . 's',
+            'successful_result_ids' => array_column($successfulResults, 'test_result_id')
+        ]);
+
         return response()->json([
             'success' => $failedCount === 0,
             'message' => $failedCount === 0
@@ -391,6 +402,7 @@ class DoctorReviewController extends Controller
                 'total_processed' => $totalProcessed,
                 'successful_reviews_generated' => $successfulReviewsGenerated,
                 'successful_stores' => $successfulStores,
+                'successful_results' => $successfulResults,
                 'failed_results' => $failedCount,
                 'success_rate' => $successRate . '%',
                 'processing_time' => $processingTime . 's',
@@ -495,7 +507,7 @@ class DoctorReviewController extends Controller
         return $html;
     }
 
-    private function formatMarkdownToHTML($text)
+    public function formatMarkdownToHTML($text)
     {
         // Normalize line endings and trim
         $text = str_replace(["\r\n", "\r"], "\n", trim($text));

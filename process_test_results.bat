@@ -2,8 +2,8 @@
 REM Batch file for Splinterware System Scheduler
 REM Process blood test results for AI analysis
 
-REM Set the working directory to your Laravel project
-cd /d "C:\xampp\htdocs\staging"
+REM Set the working directory to your Laravel project - DIFFERENT PATH FOR STAGING AND PRODUCTION!
+cd /d "C:\laragon\www\blood-stream-v1" 
 
 REM Log the start time
 echo [%DATE% %TIME%] Starting blood test results processing >> scheduler.log
@@ -20,6 +20,6 @@ if %ERRORLEVEL% EQU 0 (
 
 REM Run the queue worker to process the jobs (run for 5 minutes then exit)
 echo [%DATE% %TIME%] Starting queue worker >> scheduler.log
-timeout /t 300 /nobreak >nul & php artisan queue:work redis --timeout=900 --memory=512 --max-time=300 >> scheduler.log 2>&1
+php artisan queue:work database --timeout=900 --memory=512 --max-time=300 >> scheduler.log 2>&1
 
 echo [%DATE% %TIME%] Queue worker finished >> scheduler.log

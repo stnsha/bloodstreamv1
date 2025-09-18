@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\DoctorReview;
 use App\Models\PanelPanelItem;
 use App\Models\PanelPanelProfile;
 use App\Models\TestResult;
@@ -1977,7 +1978,7 @@ class PDFController extends Controller
 
             return response($mpdf->Output('', 'S'), 200)
                 ->header('Content-Type', 'application/pdf')
-                ->header('Content-Disposition', 'inline; filename="dummy-report.pdf"');
+                ->header('Content-Disposition', 'inline; filename="' . $id . 'report.pdf"');
 
             // Get PDF content as string and convert to base64
             // $pdfContent = $mpdf->Output('', 'S');
@@ -2756,5 +2757,41 @@ class PDFController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    public function getReviewById($id)
+    {
+        $dr = DoctorReview::where('test_result_id', $id)->first();
+
+        // Replace emojis with text alternatives and fix HTML entities before PDF generation
+        $reviewContent = $dr->review;
+
+        // Fix HTML entities and tags
+        $reviewContent = html_entity_decode($reviewContent, ENT_QUOTES, 'UTF-8');
+        $reviewContent = str_replace('&lt;br&gt;', '<br>', $reviewContent);
+        $reviewContent = str_replace('<br>', '<br/>', $reviewContent);
+
+        // Replace emojis with text alternatives
+        $reviewContent = str_replace('🟢', '<span style="color: green; font-weight: bold;">●</span>', $reviewContent);
+        $reviewContent = str_replace('🟡', '<span style="color: orange; font-weight: bold;">●</span>', $reviewContent);
+        $reviewContent = str_replace('🔴', '<span style="color: red; font-weight: bold;">●</span>', $reviewContent);
+
+        $mpdf = new Mpdf([
+            'mode' => 'utf-8',
+            'format' => 'A4',
+            'default_font' => 'Arial',
+        ]);
+
+        $mpdf->useAdobeCJK = true;
+        $mpdf->autoScriptToLang = true;
+        $mpdf->autoLangToFont = true;
+        $mpdf->allow_charset_conversion = true;
+
+        // Write the final content with emoji replacements
+        $mpdf->WriteHTML($reviewContent);
+
+        return response($mpdf->Output('', 'S'), 200)
+            ->header('Content-Type', 'application/pdf')
+            ->header('Content-Disposition', 'inline; filename="' . $dr->test_result_id . 'review.pdf"');
     }
 }

@@ -27,3 +27,4 @@ server.php
 review_local.bat
 ai_review_log.txt
 local_process_test_results.bat
+scheduler.log

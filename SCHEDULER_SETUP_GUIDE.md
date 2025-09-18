@@ -5,24 +5,23 @@ This guide explains how to set up automated processing of blood test results usi
 
 ## Prerequisites
 
-### 1. Redis Server
-- Must be running on localhost:6379
-- See `REDIS_SETUP_NOTES.md` for Redis installation
+### 1. Database Setup
+- MySQL database must be running
+- Jobs table must exist for queue processing
 
 ### 2. Laravel Configuration
 Update your `.env` file:
 ```env
-CACHE_DRIVER=redis
-QUEUE_CONNECTION=redis
-REDIS_HOST=127.0.0.1
-REDIS_PORT=6379
-REDIS_DB=0
+CACHE_DRIVER=file
+QUEUE_CONNECTION=database
+SESSION_DRIVER=file
 ```
 
-### 3. Composer Dependencies
-Ensure predis is installed:
+### 3. Database Migration
+Ensure queue jobs table exists:
 ```bash
-composer require predis/predis
+php artisan queue:table
+php artisan migrate
 ```
 
 ## Batch File Setup
@@ -94,10 +93,10 @@ php artisan bloodstream:process-results --batch-size=15 --max-results=200 --forc
 
 ```bash
 # Start queue worker manually
-php artisan queue:work redis
+php artisan queue:work database
 
 # Monitor queue status
-php artisan queue:monitor redis
+php artisan queue:monitor database
 
 # Clear failed jobs
 php artisan queue:flush
@@ -128,11 +127,12 @@ tail -f storage/logs/laravel.log
 # Watch scheduler logs
 tail -f scheduler.log
 
-# Check Redis keys
-redis-cli keys "*"
+# Check jobs table
+php artisan tinker
+>>> DB::table('jobs')->count()
 
-# Monitor Redis memory
-redis-cli info memory
+# Check failed jobs
+php artisan queue:failed
 ```
 
 ## Troubleshooting
@@ -140,9 +140,9 @@ redis-cli info memory
 ### Common Issues
 
 **1. "Queue connection failed"**
-- Check Redis server is running
+- Check MySQL database is running
 - Verify `.env` configuration
-- Test: `redis-cli ping`
+- Ensure jobs table exists: `php artisan queue:table && php artisan migrate`
 
 **2. "No valid API token"**
 - Run with `--force-token-refresh`
@@ -150,7 +150,7 @@ redis-cli info memory
 - Verify credentials in `ApiTokenService`
 
 **3. "Jobs not processing"**
-- Start queue worker: `php artisan queue:work redis`
+- Start queue worker: `php artisan queue:work database`
 - Check failed jobs table
 - Review Laravel logs
 
@@ -162,7 +162,7 @@ redis-cli info memory
 **5. "Memory exceeded"**
 - Reduce batch size
 - Clear caches regularly
-- Monitor Redis memory usage
+- Monitor database job queue size
 
 ### Performance Optimization
 
@@ -172,9 +172,9 @@ redis-cli info memory
 - Larger batches = fewer jobs, more memory
 
 **2. Cache Management**
-- Patient data cached for 1 hour
-- API token cached for 30 days
-- Clear caches if memory issues occur
+- Patient data cached for 1 hour (file-based)
+- API token cached for 30 days (file-based)
+- Clear caches: `php artisan cache:clear`
 
 **3. Rate Limiting**
 - Currently 5 API calls per second
@@ -197,7 +197,7 @@ redis-cli info memory
 
 ### Weekly Tasks
 - Clear old log files
-- Monitor Redis memory usage
+- Monitor database size and performance
 - Review failed job statistics
 
 ### Monthly Tasks

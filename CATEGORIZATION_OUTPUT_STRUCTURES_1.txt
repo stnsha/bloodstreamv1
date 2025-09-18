@@ -1,0 +1,91 @@
+BLOOD TEST RESULT CATEGORIZATION OUTPUT STRUCTURES
+=================================================
+
+SINGLE STRUCTURE: PANEL > ITEMS
+All test results follow this simplified structure regardless of category presence.
+
+Panel Determination Logic:
+- If panelPanelItem->panel exists and has name: Use panel name
+- If no panel or panel name is null: Use panel item name as panel name
+
+Example Output:
+{
+  "Health History": {
+    "Age": 35,
+    "Gender": "Male"
+  },
+  "Blood Test Results": {
+    "2025-09-18": {
+      "Full Blood Count": [
+        {
+          "panel_item_name": "White Blood Cell Count",
+          "result_value": "7.5",
+          "panel_item_unit": "x10^9/L",
+          "result_status": "Normal",
+          "reference_range": "4.0-11.0",
+          "comments": []
+        },
+        {
+          "panel_item_name": "Red Blood Cell Count",
+          "result_value": "4.2",
+          "panel_item_unit": "x10^12/L",
+          "result_status": "Low",
+          "reference_range": "4.5-5.9",
+          "comments": ["Slightly below normal range"]
+        }
+      ],
+      "Liver Function Test": [
+        {
+          "panel_item_name": "ALT",
+          "result_value": "25",
+          "panel_item_unit": "U/L",
+          "result_status": "Normal",
+          "reference_range": "7-56",
+          "comments": []
+        },
+        {
+          "panel_item_name": "AST",
+          "result_value": "30",
+          "panel_item_unit": "U/L",
+          "result_status": "Normal",
+          "reference_range": "10-40",
+          "comments": []
+        }
+      ],
+      "Glucose": [
+        {
+          "panel_item_name": "Glucose",
+          "result_value": "95",
+          "panel_item_unit": "mg/dL",
+          "result_status": "Normal",
+          "reference_range": "70-100",
+          "comments": []
+        }
+      ],
+      "Total Cholesterol": [
+        {
+          "panel_item_name": "Total Cholesterol",
+          "result_value": "180",
+          "panel_item_unit": "mg/dL",
+          "result_status": "Normal",
+          "reference_range": "<200",
+          "comments": []
+        }
+      ]
+    }
+  }
+}
+
+=================================================
+
+ITEM DATA STRUCTURE:
+Each test item contains the following fields:
+
+{
+  "panel_item_name": string,     // Panel item name or "Unknown Item" if null
+  "result_value": string|null,   // Test result value
+  "panel_item_unit": string|null, // Unit of measurement
+  "result_status": string|null,  // Flag description from ResultLibrary or raw flag
+  "reference_range": string|null, // Reference range value if exists
+  "comments": array             // Array of panel comments
+}

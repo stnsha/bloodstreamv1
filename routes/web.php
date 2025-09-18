@@ -32,13 +32,14 @@ Route::controller(LoginController::class)->group(function () {
     Route::get('logout', 'logout')->name('logout');
 });
 
-Route::prefix('pdf')->controller(PDFController::class)->group(function () {
-    Route::get('/export', 'export')->name('export'); ///{id}generateDummyPDF
-    Route::get('/generateDummyPDF/{id}', 'getResultById')->name('generateDummyPDF'); //
-});
+// Route::prefix('pdf')->controller(PDFController::class)->group(function () {
+//     Route::get('/export', 'export')->name('export'); ///{id}generateDummyPDF
+//     Route::get('/generateDummyPDF/{id}', 'getResultById')->name('generateDummyPDF'); //
+//     Route::get('/getReviewById/{id}', 'getReviewById')->name('getReviewById');
+// });
 
 // Lab Number Results View
-Route::get('results/lab-numbers', [ImportController::class, 'labNumberResults'])->name('results.lab-numbers');
+// Route::get('results/lab-numbers', [ImportController::class, 'labNumberResults'])->name('results.lab-numbers');
 
 Route::middleware(['auth'])->group(function () {
     Route::get('api', function () {

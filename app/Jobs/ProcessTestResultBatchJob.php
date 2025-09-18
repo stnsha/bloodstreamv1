@@ -67,6 +67,7 @@ class ProcessTestResultBatchJob implements ShouldQueue
         // Initialize tracking variables
         $successfulProcessed = 0;
         $failedResults = [];
+        $successfulResults = [];
 
         try {
             // Get API token (cached or fresh)
@@ -81,6 +82,7 @@ class ProcessTestResultBatchJob implements ShouldQueue
                     $processed = $this->processTestResult($testResultId, $token);
                     if ($processed) {
                         $successfulProcessed++;
+                        $successfulResults[] = $testResultId;
                     } else {
                         $failedResults[] = $testResultId;
                     }
@@ -88,7 +90,10 @@ class ProcessTestResultBatchJob implements ShouldQueue
                     Log::error("Failed to process test result {$testResultId}", [
                         'test_result_id' => $testResultId,
                         'batch_number' => $this->batchNumber,
-                        'error' => $e->getMessage()
+                        'error' => $e->getMessage(),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine(),
+                        'trace' => $e->getTraceAsString()
                     ]);
                     $failedResults[] = $testResultId;
                 }
@@ -101,6 +106,7 @@ class ProcessTestResultBatchJob implements ShouldQueue
                 'batch_number' => $this->batchNumber,
                 'total_in_batch' => count($this->testResultIds),
                 'successful' => $successfulProcessed,
+                'successful_ids' => $successfulResults,
                 'failed' => count($failedResults),
                 'failed_ids' => $failedResults,
                 'duration_seconds' => $duration,
@@ -139,10 +145,26 @@ class ProcessTestResultBatchJob implements ShouldQueue
             }
 
             // Get patient health details (with caching)
-            $healthDetails = $this->getPatientHealthDetails($tr->patient->icno);
+            $patientIcno = $tr->patient->icno ?? null;
+            if (!$patientIcno) {
+                Log::warning("Patient ICNO is null for test result {$testResultId}", [
+                    'test_result_id' => $testResultId,
+                    'patient_id' => $tr->patient->id ?? 'unknown'
+                ]);
+                return false;
+            }
+            $healthDetails = $this->getPatientHealthDetails($patientIcno);
             
-            // Build patient info
-            $patientInfo = array_merge(['Age' => $tr->patient->age], $healthDetails);
+            // Build patient info with null value logging
+            $patientAge = $tr->patient->age ?? 'Unknown';
+            if ($patientAge === 'Unknown') {
+                Log::warning('Patient age is null, replaced with Unknown', [
+                    'test_result_id' => $testResultId,
+                    'patient_id' => $tr->patient->id,
+                    'patient_icno' => $tr->patient->icno
+                ]);
+            }
+            $patientInfo = array_merge(['Age' => $patientAge], $healthDetails ?? []);
 
             // Update patient gender if missing
             if (is_null($tr->patient->gender) && isset($healthDetails['Gender'])) {
@@ -153,10 +175,22 @@ class ProcessTestResultBatchJob implements ShouldQueue
             if (!$tr->patient->gender && isset($healthDetails['Gender'])) {
                 $patientInfo['Gender'] = $healthDetails['Gender'];
             } else {
-                $patientInfo['Gender'] = $tr->patient->gender;
+                $patientGender = $tr->patient->gender ?? 'Unknown';
+                if ($patientGender === 'Unknown') {
+                    Log::warning('Patient gender is null, replaced with Unknown', [
+                        'test_result_id' => $testResultId,
+                        'patient_id' => $tr->patient->id,
+                        'patient_icno' => $tr->patient->icno
+                    ]);
+                }
+                $patientInfo['Gender'] = $patientGender;
             }
 
             // Process test result items with new categorization logic
+            if (!$tr->testResultItems || $tr->testResultItems->isEmpty()) {
+                Log::warning("Test result {$testResultId} has no test result items");
+                return false;
+            }
             $categorizedItems = $this->categorizeTestResultItems($tr->testResultItems);
 
             if (empty($categorizedItems)) {
@@ -164,7 +198,13 @@ class ProcessTestResultBatchJob implements ShouldQueue
                 return false;
             }
 
-            $reportDate = Carbon::parse($tr->reported_date)->format('Y-m-d');
+            if (!$tr->reported_date) {
+                Log::warning('Test result reported_date is null, using current date', [
+                    'test_result_id' => $testResultId,
+                    'test_result_lab_no' => $tr->lab_no
+                ]);
+            }
+            $reportDate = $tr->reported_date ? Carbon::parse($tr->reported_date)->format('Y-m-d') : now()->format('Y-m-d');
             $finalResults[$reportDate] = $categorizedItems;
 
             $testResultData = [
@@ -176,16 +216,38 @@ class ProcessTestResultBatchJob implements ShouldQueue
             $response = $this->makeRateLimitedApiCall($token, $testResultData);
 
             if (!$response) {
+                Log::warning("API response is null for test result {$testResultId}");
+                return false;
+            }
+
+            if (!$response->successful()) {
+                Log::error("API response failed for test result {$testResultId}", [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                    'headers' => $response->headers()
+                ]);
                 return false;
             }
 
             $responseData = $response->json();
-            $result = $this->doctorReviewController->formatMarkdownToHTML($responseData['ai_analysis']);
 
-            // Store the generated review
-            $this->doctorReviewController->store($tr->id, $testResultData, $result);
+            if ($responseData['ai_analysis']['success'] && $responseData['ai_analysis']['status'] == 200) {
+                $result = $this->doctorReviewController->formatMarkdownToHTML($responseData['ai_analysis']['answer']);
 
-            Log::info("Successfully processed test result {$testResultId}");
+                // Store the generated review
+                $this->doctorReviewController->store($tr->id, $testResultData, $result);
+
+                // Mark as reviewed
+                $tr->is_reviewed = true;
+                $tr->save();
+            } else {
+                Log::error("AI analysis returned error status for test result {$testResultId}", [
+                    'response' => $responseData,
+                    'test_result_id' => $testResultId
+                ]);
+                return false;
+            }
+
             return true;
         });
     }
@@ -248,32 +310,54 @@ class ProcessTestResultBatchJob implements ShouldQueue
 
         foreach ($testResultItems as $ri) {
             try {
-                if (!$ri || !$ri->panelPanelItem || !$ri->panelPanelItem->panelItem) {
+                // More detailed null checking
+                if (!$ri) {
+                    Log::debug('Skipping null test result item');
                     continue;
                 }
 
-                $panelName = $ri->panelPanelItem->panel->name;
-                $categoryName = null;
-
-                // Check if panel category exists
-                if ($ri->panelPanelItem->panel->panelCategory && !empty($ri->panelPanelItem->panel->panelCategory->name)) {
-                    $categoryName = $ri->panelPanelItem->panel->panelCategory->name;
+                if (!$ri->panelPanelItem) {
+                    Log::debug('Skipping test result item - no panelPanelItem', [
+                        'result_item_id' => $ri->id ?? 'unknown'
+                    ]);
+                    continue;
                 }
 
-                // Build the hierarchical structure
-                if ($categoryName) {
-                    // Has category: Category > Panel > Items
-                    if (!isset($categorizedItems[$categoryName])) {
-                        $categorizedItems[$categoryName] = [];
-                    }
-                    if (!isset($categorizedItems[$categoryName][$panelName])) {
-                        $categorizedItems[$categoryName][$panelName] = [];
-                    }
+                if (!$ri->panelPanelItem->panelItem) {
+                    Log::debug('Skipping test result item - no panelItem', [
+                        'result_item_id' => $ri->id ?? 'unknown',
+                        'panel_panel_item_id' => $ri->panelPanelItem->id ?? 'unknown'
+                    ]);
+                    continue;
+                }
+
+                if (!$ri->panelPanelItem->panel) {
+                    Log::debug('Skipping test result item - no panel', [
+                        'result_item_id' => $ri->id ?? 'unknown',
+                        'panel_panel_item_id' => $ri->panelPanelItem->id ?? 'unknown'
+                    ]);
+                    continue;
+                }
+
+                $panelItemName = $ri->panelPanelItem->panelItem->name;
+                if (!$panelItemName) {
+                    Log::warning('Panel item name is null, replaced with Unknown Item', [
+                        'test_result_item_id' => $ri->id,
+                        'panel_item_id' => $ri->panelPanelItem->panelItem->id ?? 'unknown'
+                    ]);
+                    $panelItemName = 'Unknown Item';
+                }
+
+                // Determine panel name: use actual panel name or fallback to panel item name
+                if ($ri->panelPanelItem->panel && $ri->panelPanelItem->panel->name) {
+                    $panelName = $ri->panelPanelItem->panel->name;
                 } else {
-                    // No category: Panel > Items (panel becomes top level)
-                    if (!isset($categorizedItems[$panelName])) {
-                        $categorizedItems[$panelName] = [];
-                    }
+                    $panelName = $panelItemName; // Use panel item name as panel name
+                }
+
+                // Build simplified panel-only structure
+                if (!isset($categorizedItems[$panelName])) {
+                    $categorizedItems[$panelName] = [];
                 }
 
                 // Get flag description
@@ -295,8 +379,17 @@ class ProcessTestResultBatchJob implements ShouldQueue
                     }
                 }
 
+                $panelItemName = $ri->panelPanelItem->panelItem->name;
+                if (!$panelItemName) {
+                    Log::warning('Panel item name is null, replaced with Unknown Item', [
+                        'test_result_item_id' => $ri->id,
+                        'panel_item_id' => $ri->panelPanelItem->panelItem->id ?? 'unknown'
+                    ]);
+                    $panelItemName = 'Unknown Item';
+                }
+
                 $itemData = [
-                    'panel_item_name' => $ri->panelPanelItem->panelItem->name ?? 'Unknown Item',
+                    'panel_item_name' => $panelItemName,
                     'result_value' => $ri->value ?? null,
                     'panel_item_unit' => $ri->panelPanelItem->panelItem->unit ?? null,
                     'result_status' => $flagDescription ?? null,
@@ -318,12 +411,8 @@ class ProcessTestResultBatchJob implements ShouldQueue
                     }
                 }
 
-                // Add to categorized items
-                if ($categoryName) {
-                    $categorizedItems[$categoryName][$panelName][] = $itemData;
-                } else {
-                    $categorizedItems[$panelName][] = $itemData;
-                }
+                // Add item to panel (simplified structure)
+                $categorizedItems[$panelName][] = $itemData;
 
             } catch (Exception $e) {
                 Log::error('Error processing test result item', [
@@ -345,7 +434,8 @@ class ProcessTestResultBatchJob implements ShouldQueue
             'ai_api_calls',
             5, // 5 requests per second
             function () use ($token, $testResultData) {
-                return Http::timeout(60)->withToken($token)
+                return Http::timeout(60)
+                    ->withHeaders(['Authorization' => 'Bearer ' . $token])
                     ->post(config('credentials.ai_review.analysis'), $testResultData);
             },
             1 // Per 1 second
@@ -354,9 +444,10 @@ class ProcessTestResultBatchJob implements ShouldQueue
         if (!$executed) {
             Log::warning('Rate limit exceeded, waiting before retry');
             sleep(1); // Wait 1 second if rate limit hit
-            
+
             // Retry once
-            return Http::timeout(60)->withToken($token)
+            return Http::timeout(60)
+                ->withHeaders(['Authorization' => 'Bearer ' . $token])
                 ->post(config('credentials.ai_review.analysis'), $testResultData);
         }
 
