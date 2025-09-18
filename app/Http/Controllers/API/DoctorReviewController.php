@@ -204,12 +204,28 @@ class DoctorReviewController extends Controller
                                 continue;
                             }
 
-                            $categoryName = $ri->panelPanelItem->panel->panelCategory->name ??
-                                $ri->panelPanelItem->panel->name ??
-                                'Unknown Category';
+                            $panelName = $ri->panelPanelItem->panel->name;
+                            $categoryName = null;
 
-                            if (!isset($categorizedItems[$categoryName])) {
-                                $categorizedItems[$categoryName] = [];
+                            // Check if panel category exists
+                            if ($ri->panelPanelItem->panel->panelCategory && !empty($ri->panelPanelItem->panel->panelCategory->name)) {
+                                $categoryName = $ri->panelPanelItem->panel->panelCategory->name;
+                            }
+
+                            // Build the hierarchical structure
+                            if ($categoryName) {
+                                // Has category: Category > Panel > Items
+                                if (!isset($categorizedItems[$categoryName])) {
+                                    $categorizedItems[$categoryName] = [];
+                                }
+                                if (!isset($categorizedItems[$categoryName][$panelName])) {
+                                    $categorizedItems[$categoryName][$panelName] = [];
+                                }
+                            } else {
+                                // No category: Panel > Items (panel becomes top level)
+                                if (!isset($categorizedItems[$panelName])) {
+                                    $categorizedItems[$panelName] = [];
+                                }
                             }
 
                             $flagDescription = $ri->flag;
@@ -268,7 +284,11 @@ class DoctorReviewController extends Controller
                                 }
                             }
 
-                            $categorizedItems[$categoryName][] = $itemData;
+                            if ($categoryName) {
+                                $categorizedItems[$categoryName][$panelName][] = $itemData;
+                            } else {
+                                $categorizedItems[$panelName][] = $itemData;
+                            }
                             $validItemsCount++;
                         } catch (Exception $e) {
                             Log::error('Error processing test result item', [
