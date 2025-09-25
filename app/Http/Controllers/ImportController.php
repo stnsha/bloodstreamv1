@@ -687,7 +687,7 @@ class ImportController extends Controller
 
                 try {
                     // Run your import
-                    $completedLabNo = new CompletedLabNoImport();
+                    $completedLabNo = new CompletedLabNoImport($file->getPathname());
                     Excel::import($completedLabNo, $file->getPathname());
 
                     // Get match results
@@ -785,9 +785,9 @@ class ImportController extends Controller
 
                 try {
                     // Run your import
-                    $completedLabNo = new CompletedLabNoImport();
+                    $completedLabNo = new CompletedLabNoImport($file->getPathname());
                     Excel::import($completedLabNo, $file->getPathname());
-                    
+
                     // Get match results
                     $matchResults = $completedLabNo->getMatchResults();
                     $combinedStats = $completedLabNo->getCombinedStats();

@@ -39,7 +39,7 @@ Route::controller(LoginController::class)->group(function () {
 // });
 
 // Lab Number Results View
-// Route::get('results/lab-numbers', [ImportController::class, 'labNumberResults'])->name('results.lab-numbers');
+Route::get('results/lab-numbers', [ImportController::class, 'labNumberResults'])->name('results.lab-numbers');
 
 Route::middleware(['auth'])->group(function () {
     Route::get('api', function () {

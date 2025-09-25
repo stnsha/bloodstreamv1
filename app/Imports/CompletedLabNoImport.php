@@ -6,6 +6,8 @@ use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 use App\Models\TestResult;
 use Exception;
+use Maatwebsite\Excel\Facades\Excel;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class CompletedLabNoImport implements WithMultipleSheets
 {
@@ -20,15 +22,47 @@ class CompletedLabNoImport implements WithMultipleSheets
     ];
     protected array $matchResults = [];
     protected array $dbLabNumbers = [];
+    protected bool $isFinalized = false;
+    protected string $filePath = '';
+
+    public function __construct(string $filePath = '')
+    {
+        $this->filePath = $filePath;
+    }
 
     public function sheets(): array
     {
-        // Create separate sheet handlers for each sheet
-        return [
-            0 => new CompletedLabNoSheetImport($this),  // First sheet (1-5 Sept)
-            1 => new CompletedLabNoSheetImport($this),  // Second sheet (6-9 Sept)
-            2 => new CompletedLabNoSheetImport($this),  // Third sheet (9-11 Sept)
-        ];
+        $sheets = [];
+
+        if (!empty($this->filePath)) {
+            try {
+                // Use PhpSpreadsheet to get actual sheet count
+                $reader = IOFactory::createReaderForFile($this->filePath);
+                $reader->setReadDataOnly(true);
+                $spreadsheet = $reader->load($this->filePath);
+                $sheetCount = $spreadsheet->getSheetCount();
+
+                Log::info("Detected {$sheetCount} sheets in Excel file");
+
+                // Only create handlers for sheets that actually exist
+                for ($i = 0; $i < $sheetCount; $i++) {
+                    $sheets[$i] = new CompletedLabNoSheetImport($this);
+                }
+
+                $spreadsheet->disconnectWorksheets();
+                unset($spreadsheet);
+
+            } catch (Exception $e) {
+                Log::error("Could not detect sheet count: " . $e->getMessage());
+                // Fallback to single sheet
+                $sheets[0] = new CompletedLabNoSheetImport($this);
+            }
+        } else {
+            // Fallback to single sheet
+            $sheets[0] = new CompletedLabNoSheetImport($this);
+        }
+
+        return $sheets;
     }
 
     public function addProcessedData(array $data, string $sheetName): void
@@ -47,6 +81,12 @@ class CompletedLabNoImport implements WithMultipleSheets
 
     public function finalize(): void
     {
+        if ($this->isFinalized) {
+            return; // Already finalized
+        }
+
+        $this->isFinalized = true;
+
         // Get all lab_no from TestResult database once
         $this->dbLabNumbers = TestResult::pluck('lab_no')->toArray();
 
@@ -59,6 +99,11 @@ class CompletedLabNoImport implements WithMultipleSheets
 
         // Log comprehensive statistics
         $this->logCombinedSummary();
+    }
+
+    public function isFinalized(): bool
+    {
+        return $this->isFinalized;
     }
 
 

@@ -66,10 +66,9 @@ class CompletedLabNoSheetImport implements ToArray, WithHeadingRow
             // Log sheet-specific summary
             Log::info("Sheet '{$sheetName}' Summary", $sheetStats);
 
-            // If this is the last sheet (3 sheets total), finalize
-            if (self::$sheetCount >= 3) {
-                $this->parentImport->finalize();
-            }
+            // Simple approach: finalize immediately after processing any sheet
+            // The finalize method now handles duplicate calls gracefully
+            $this->parentImport->finalize();
 
         } catch (Exception $e) {
             Log::error('CompletedLabNoSheetImport failed', [
