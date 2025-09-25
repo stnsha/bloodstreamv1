@@ -3,7 +3,7 @@ REM Batch file for Splinterware System Scheduler
 REM Process blood test results for AI analysis
 
 REM Set the working directory to your Laravel project - DIFFERENT PATH FOR STAGING AND PRODUCTION!
-cd /d "C:\laragon\www\blood-stream-v1" 
+cd /d "C:\xampp\htdocs\production" 
 
 REM Log the start time
 echo [%DATE% %TIME%] Starting blood test results processing >> scheduler.log
