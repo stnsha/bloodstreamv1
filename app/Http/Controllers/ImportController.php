@@ -775,7 +775,7 @@ class ImportController extends Controller
         try {
             // Get file from the public/files directory
             $directory = public_path('files');
-            $filename  = 'IQMY-Alpro eResult Checking List 11Sept2025.xlsx';
+            $filename  = 'IQMY-Alpro eResult Checking List_17Sep-18Sep2025.xlsx';
             $targetFile = $directory . '/' . $filename;
 
             $startTime = microtime(true);
