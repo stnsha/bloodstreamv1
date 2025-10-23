@@ -52,13 +52,16 @@ class ExportController extends Controller
             $data = [];
 
             foreach (array_chunk($icNumbers, $chunkSize) as $chunk) {
-                $icList = "'" . implode("','", array_map(function($ic) {
+                $escaped = array_map(function($ic) {
                     return DB::connection('mysql2')->getPdo()->quote($ic);
-                }, $chunk)) . "'";
+                }, $chunk);
 
-                // Remove extra quotes from PDO quote
-                $icList = str_replace("''", "'", $icList);
-                $icList = trim($icList, "'");
+                // Remove outer quotes from PDO quote (PDO quote adds quotes, we'll add them in implode)
+                $escaped = array_map(function($quoted) {
+                    return trim($quoted, "'");
+                }, $escaped);
+
+                $icList = "'" . implode("','", $escaped) . "'";
 
                 $sql = "
                     SELECT r.ic, d.parameter, d.value, r.date_time
