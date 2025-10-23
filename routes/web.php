@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\API\PDFController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ExportController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\LabController;
 use App\Http\Controllers\LoginController;
@@ -31,6 +32,9 @@ Route::controller(LoginController::class)->group(function () {
     Route::post('login', 'login');
     Route::get('logout', 'logout')->name('logout');
 });
+
+// Export routes
+Route::get('/export/bp', [ExportController::class, 'exportBp'])->name('export.bp');
 
 // Route::prefix('pdf')->controller(PDFController::class)->group(function () {
 //     Route::get('/export', 'export')->name('export'); ///{id}generateDummyPDF
