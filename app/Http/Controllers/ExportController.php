@@ -15,10 +15,10 @@ class ExportController extends Controller
             ini_set('max_execution_time', 600);
             set_time_limit(600);
 
-            Log::info("Starting BP data extraction...");
+            Log::channel('bp-log')->info("Starting BP data extraction...");
 
             // Step 1: Get ICs with high BP
-            Log::info("Step 1: Finding patients with high BP...");
+            Log::channel('bp-log')->info("Step 1: Finding patients with high BP...");
 
             $sql = "
                 SELECT DISTINCT r.ic
@@ -39,14 +39,14 @@ class ExportController extends Controller
 
             $icNumbers = array_column($icNumbers, 'ic');
 
-            Log::info("Found " . count($icNumbers) . " ICs");
+            Log::channel('bp-log')->info("Found " . count($icNumbers) . " ICs");
 
             if (empty($icNumbers)) {
                 return response()->json(['error' => 'No patients found.'], 404);
             }
 
             // Step 2: Get BP and HR data
-            Log::info("Step 2: Retrieving BP and HR data...");
+            Log::channel('bp-log')->info("Step 2: Retrieving BP and HR data...");
 
             $chunkSize = 1000;
             $data = [];
@@ -107,13 +107,15 @@ class ExportController extends Controller
                 unset($tempData);
             }
 
-            Log::info("BP/HR data: " . count($data) . " records");
+            Log::channel('bp-log')->info("BP/HR data: " . count($data) . " records");
 
             // Step 3: Process lab results
             if (!empty($data)) {
-                Log::info("Step 3: Processing lab results...");
+                Log::channel('bp-log')->info("Step 3: Processing lab results...");
 
                 $icNumbers = array_keys($data);
+                $completeData = [];
+                $targetCount = 5000;
 
                 $fieldMap = [
                     'GLUCOSESERUM/PLASMA' => 'glucose',
@@ -145,59 +147,78 @@ class ExportController extends Controller
                 ";
 
                 $labChunkSize = 500;
+                $icChunks = array_chunk($icNumbers, $labChunkSize);
 
-                foreach (array_chunk($icNumbers, $labChunkSize) as $chunk) {
+                foreach ($icChunks as $chunkIndex => $chunk) {
                     $this->processLabResults('mysql', $data, $chunk, $fieldMap, $bsQuery, 'icno', 'panel_item_name', 'value');
+
+                    // Check progress every 5 chunks
+                    if ($chunkIndex % 5 === 0) {
+                        $completeData = $this->filterCompleteRecords($data);
+                        Log::channel('bp-log')->info("Progress check after chunk " . ($chunkIndex + 1) . ": " . count($completeData) . " complete records");
+
+                        if (count($completeData) >= $targetCount) {
+                            Log::channel('bp-log')->info("Target reached after bsConn processing");
+                            break;
+                        }
+                    }
                 }
 
-                Log::info("bsConn complete");
+                Log::channel('bp-log')->info("bsConn complete");
 
-                // Process btConn (mysql3 - blood_test_v1)
-                $btQuery = "
-                    SELECT
-                        r.icno,
-                        p.name as panel_item_name,
-                        i.result_value as value,
-                        r.created_at
-                    FROM test_result_items i
-                    JOIN panel_items p ON p.id = i.panel_item_id
-                    JOIN test_results r ON r.id = i.test_result_id
-                    WHERE r.icno IN ({{IC_LIST}})
-                    AND i.panel_item_id IN (1, 164, 374, 112, 424, 52, 228, 407, 73, 291, 68, 180, 185, 188, 251, 266, 268, 271, 286, 319, 352, 411, 423, 78)
-                    ORDER BY r.icno, p.name, r.created_at DESC
-                ";
+                // Only process btConn if we don't have enough complete records
+                $completeData = $this->filterCompleteRecords($data);
+                if (count($completeData) < $targetCount) {
+                    // Process btConn (mysql3 - blood_test_v1)
+                    $btQuery = "
+                        SELECT
+                            r.icno,
+                            p.name as panel_item_name,
+                            i.result_value as value,
+                            r.created_at
+                        FROM test_result_items i
+                        JOIN panel_items p ON p.id = i.panel_item_id
+                        JOIN test_results r ON r.id = i.test_result_id
+                        WHERE r.icno IN ({{IC_LIST}})
+                        AND i.panel_item_id IN (1, 164, 374, 112, 424, 52, 228, 407, 73, 291, 68, 180, 185, 188, 251, 266, 268, 271, 286, 319, 352, 411, 423, 78)
+                        ORDER BY r.icno, p.name, r.created_at DESC
+                    ";
 
-                foreach (array_chunk($icNumbers, $labChunkSize) as $chunk) {
-                    $this->processLabResults('mysql3', $data, $chunk, $fieldMap, $btQuery, 'icno', 'panel_item_name', 'value');
+                    foreach ($icChunks as $chunkIndex => $chunk) {
+                        $this->processLabResults('mysql3', $data, $chunk, $fieldMap, $btQuery, 'icno', 'panel_item_name', 'value');
+
+                        // Check progress every 5 chunks
+                        if ($chunkIndex % 5 === 0) {
+                            $completeData = $this->filterCompleteRecords($data);
+                            Log::channel('bp-log')->info("Progress check after chunk " . ($chunkIndex + 1) . ": " . count($completeData) . " complete records");
+
+                            if (count($completeData) >= $targetCount) {
+                                Log::channel('bp-log')->info("Target reached after btConn processing");
+                                break;
+                            }
+                        }
+                    }
+
+                    Log::channel('bp-log')->info("btConn complete");
                 }
-
-                Log::info("btConn complete");
             }
 
-            // Filter only records where ALL fields are NOT NULL
-            Log::info("Filtering complete records...");
-            $completeData = array_filter($data, function($record) {
-                return $record['blood_pressure'] !== null
-                    && $record['heart_rate'] !== null
-                    && $record['glucose'] !== null
-                    && $record['hba1c'] !== null
-                    && $record['creatinine'] !== null
-                    && $record['egfr'] !== null
-                    && $record['urine_protein'] !== null;
-            });
+            // Final filter for complete records
+            Log::channel('bp-log')->info("Final filtering complete records...");
+            $completeData = $this->filterCompleteRecords($data);
 
             // Limit to 5000 records
             $completeData = array_slice($completeData, 0, 5000);
             $completeData = array_values($completeData);
 
-            Log::info("Complete records (max 5000): " . count($completeData));
+            Log::channel('bp-log')->info("Complete records (max 5000): " . count($completeData));
 
             if (empty($completeData)) {
                 return response()->json(['error' => 'No complete records found.'], 404);
             }
 
             // Create Excel file
-            Log::info("Creating Excel file...");
+            Log::channel('bp-log')->info("Creating Excel file...");
 
             $spreadsheet = new Spreadsheet();
             $sheet = $spreadsheet->getActiveSheet();
@@ -232,7 +253,7 @@ class ExportController extends Controller
             $writer = new Xlsx($spreadsheet);
             $writer->save($filepath);
 
-            Log::info("Excel file created: " . $filename);
+            Log::channel('bp-log')->info("Excel file created: " . $filename);
 
             return response()->json([
                 'success' => true,
@@ -244,8 +265,8 @@ class ExportController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error("Error in exportBp: " . $e->getMessage());
-            Log::error($e->getTraceAsString());
+            Log::channel('bp-log')->error("Error in exportBp: " . $e->getMessage());
+            Log::channel('bp-log')->error($e->getTraceAsString());
 
             return response()->json([
                 'error' => 'Failed to export data',
@@ -294,5 +315,18 @@ class ExportController extends Controller
         }
 
         unset($seenParams);
+    }
+
+    private function filterCompleteRecords($data)
+    {
+        return array_filter($data, function($record) {
+            return $record['blood_pressure'] !== null
+                && $record['heart_rate'] !== null
+                && $record['glucose'] !== null
+                && $record['hba1c'] !== null
+                && $record['creatinine'] !== null
+                && $record['egfr'] !== null
+                && $record['urine_protein'] !== null;
+        });
     }
 }
