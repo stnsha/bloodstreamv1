@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\DoctorReviewController;
+use App\Http\Controllers\ExportController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\API\General\LabResultsController;
 use App\Http\Controllers\API\Innoquest\PanelResultsController;
@@ -38,6 +39,10 @@ Route::prefix('review')->controller(DoctorReviewController::class)->group(functi
     Route::get('/formatResponse', 'formatResponse')->name('formatResponse');
 });
 
+// Test export age without auth
+Route::get('/test/export-age', [ExportController::class, 'exportAge'])->name('test.export.age');
+Route::get('/test/export-bt-age', [ExportController::class, 'exportBtAge'])->name('test.export.bt.age');
+
 Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
     Route::prefix('result')->group(function () {
         if (app()->environment('production')) {
@@ -73,5 +78,10 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
 
     Route::prefix('comment')->controller(PanelCommentController::class)->group(function () {
         Route::get('/update', 'update')->name('update');
+    });
+
+    Route::prefix('export')->controller(ExportController::class)->group(function () {
+        Route::get('/age', 'exportAge')->name('export.age');
+        Route::get('/bt/age', 'exportBtAge')->name('export.bt');
     });
 });
