@@ -839,6 +839,7 @@ class PDFController extends Controller
         // Add hierarchical structure to result - this replaces the separate resultItems structure
         $result =
             [
+                'test_result_id' => $testResult->id,
                 'patient_info' => $patient_info,
                 'test_dates' => $test_dates,
                 'doctor_info' => $doctor_info,
@@ -1418,6 +1419,7 @@ class PDFController extends Controller
         // Add hierarchical structure to result - this replaces the separate resultItems structure
         $result =
             [
+                'test_result_id' => $testResult->id,
                 'patient_info' => $patient_info,
                 'test_dates' => $test_dates,
                 'doctor_info' => $doctor_info,
@@ -2752,6 +2754,7 @@ class PDFController extends Controller
 
             return response()->json([
                 'success' => true,
+                'report_id' => $result['test_result_id'],
                 'pdf' => $base64Pdf,
                 'message' => 'PDF generated successfully'
             ], 200);
