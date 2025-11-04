@@ -285,7 +285,7 @@ class PDFController extends Controller
                 'testResultItems.panelComments.masterPanelComment',
                 'profiles'
             ])
-                ->where('is_completed', true)
+                // ->where('is_completed', true)
                 ->where('ref_id', $refid)
                 ->first();
         }
@@ -865,7 +865,7 @@ class PDFController extends Controller
             'profiles',
             'review'
         ])
-            ->where('is_completed', true)
+            // ->where('is_completed', true)
             ->where('id', $id)
             ->first();
 
