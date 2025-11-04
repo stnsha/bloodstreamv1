@@ -8,6 +8,7 @@ use App\Models\PanelPanelItem;
 use App\Models\PanelPanelProfile;
 use App\Models\TestResult;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Mpdf\Mpdf;
@@ -270,7 +271,7 @@ class PDFController extends Controller
             'testResultItems.panelComments.masterPanelComment',
             'profiles'
         ])
-            ->where('is_completed', true)
+            // ->where('is_completed', true)
             ->whereHas('patient', function ($p) use ($icno) {
                 $p->where('icno', $icno);
             })
@@ -2185,6 +2186,11 @@ class PDFController extends Controller
     {
         try {
             $result = $this->processTestResult($request);
+
+            // Check if processTestResult returned an error response
+            if ($result instanceof JsonResponse) {
+                return $result;
+            }
 
             $mpdf = new Mpdf([
                 'mode' => 'utf-8',
