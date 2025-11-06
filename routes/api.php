@@ -6,6 +6,7 @@ use App\Http\Controllers\ExportController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\API\General\LabResultsController;
 use App\Http\Controllers\API\Innoquest\PanelResultsController;
+use App\Http\Controllers\API\ODB\BloodTestController;
 use App\Http\Controllers\API\PDFController;
 use App\Http\Controllers\MasterPanelItemController;
 use App\Http\Controllers\PanelCommentController;
@@ -36,6 +37,7 @@ Route::controller(AuthController::class)->group(function () {
 
 Route::prefix('review')->controller(DoctorReviewController::class)->group(function () {
     Route::get('/', 'processResult')->name('index');
+    Route::post('/format', 'convertTableBlock')->name('convertTableBlock');
     Route::get('/formatResponse', 'formatResponse')->name('formatResponse');
 });
 
@@ -83,5 +85,9 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
     Route::prefix('export')->controller(ExportController::class)->group(function () {
         Route::get('/age', 'exportAge')->name('export.age');
         Route::get('/bt/age', 'exportBtAge')->name('export.bt');
+    });
+
+    Route::prefix('odb')->controller(BloodTestController::class)->group(function () {
+        Route::post('/getReportId', 'getReportId')->name('getReportId');
     });
 });

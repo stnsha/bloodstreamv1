@@ -431,8 +431,8 @@ class ExportController extends Controller
             try {
                 // Send all 25 ICs at once
                 $data = [
-                    'username' => 'bsv1',
-                    'password' => 'Bl00dT3st!',
+                    'username' => config('credentials.odb_api.username'),
+                    'password' => config('credentials.odb_api.password'),
                     'ics' => array_values($batch) // Array of ICs
                 ];
 

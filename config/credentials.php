@@ -42,6 +42,16 @@ return [
         'password' => env('ODB_PASSWORD', 'password'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | ODB API Credentials
+    |--------------------------------------------------------------------------
+    */
+    'odb_api' => [
+        'username' => env('ODB_API_USERNAME', 'username'),
+        'password' => env('ODB_API_PASSWORD', 'password'),
+    ],
+
     'ai_review' => [
         'login' => env('AI_REVIEW_LOGIN', 'http://example.com/api/review'),
         'analysis' => env('AI_REVIEW_ANALYSIS', 'http://example.com/api/analysis'),

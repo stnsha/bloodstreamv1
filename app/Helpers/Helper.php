@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\Patient;
-use Carbon\Carbon;
 
 if (!function_exists('generate_lab_code')) {
     function generate_lab_code($labName)
@@ -81,5 +80,12 @@ if (!function_exists('trimOrNull')) {
         }
         $trimmed = trim($value);
         return $trimmed === '' ? null : $trimmed;
+    }
+}
+
+if (!function_exists('fix_encoding')) {
+    function fix_encoding($value)
+    {
+        return mb_convert_encoding($value, 'UTF-8', 'ISO-8859-1');
     }
 }
