@@ -89,3 +89,23 @@ if (!function_exists('fix_encoding')) {
         return mb_convert_encoding($value, 'UTF-8', 'ISO-8859-1');
     }
 }
+
+if (!function_exists('sanitizeDate')) {
+    function sanitizeDate($date)
+    {
+        if (empty($date) || $date === '0000-00-00' || $date === '0000-00-00 00:00:00') {
+            return null;
+        }
+        return $date;
+    }
+}
+
+if (!function_exists('cleanJsonString')) {
+    function cleanJsonString($value)
+    {
+        if (!$value) {
+            return null;
+        }
+        return str_replace('\/', '/', $value);
+    }
+}

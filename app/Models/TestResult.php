@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Eurofins\ReportRecord;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -84,5 +85,15 @@ class TestResult extends Model
     public function review(): HasOne
     {
         return $this->hasOne(DoctorReview::class, 'test_result_id', 'id');
+    }
+
+    /**
+     * Get the user associated with the TestResult
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasOne
+     */
+    public function record(): HasOne
+    {
+        return $this->hasOne(ReportRecord::class, 'test_result_id', 'id');
     }
 }

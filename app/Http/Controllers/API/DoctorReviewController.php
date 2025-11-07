@@ -83,7 +83,7 @@ class DoctorReviewController extends Controller
                 ->whereHas('patient', function ($query) {
                     $query->where('ic_type', 'NRIC');
                 })
-                ->take(5) //First 5
+                ->take(1) //First 5
                 ->get();
 
             if ($testResults->isEmpty()) {
@@ -314,12 +314,10 @@ class DoctorReviewController extends Controller
                         'Blood Test Results' => $finalResults
                     ];
 
-                    // return response()->json($testResultData); // For debugging
-                    // exit;
-
                     // Call AI API using the token from login
                     $response = Http::timeout(120)->withToken($token)
                         ->post(config('credentials.ai_review.analysis'), $testResultData);
+
 
                     if ($response->failed()) {
                         Log::channel($this->getLogChannel())->error('AI analysis API call failed', [
@@ -331,23 +329,24 @@ class DoctorReviewController extends Controller
                     }
 
                     $responseData = $response->json();
-
                     if ($responseData['ai_analysis']['success'] && $responseData['ai_analysis']['status'] == 200) {
-                        $result = $this->formatMarkdownToHTML($responseData['ai_analysis']['answer']);
-                        $successfulReviewsGenerated++;
+                        $result = $this->convertTableBlock($responseData['ai_analysis']['answer']);
+                        // $successfulReviewsGenerated++;
 
-                        // Store the generated review
-                        $this->store($tr->id, $testResultData, $result);
-                        $successfulStores++;
+                        // // Store the generated review
+                        // $this->store($tr->id, $testResultData, $result);
+                        // $successfulStores++;
 
-                        // Mark as reviewed (comment for testing)
-                        $tr->is_reviewed = true;
-                        $tr->save();
+                        // // Mark as reviewed (comment for testing)
+                        // $tr->is_reviewed = true;
+                        // $tr->save();
 
-                        $successfulResults[] = [
-                            'test_result_id' => $tr->id,
-                            'patient_icno' => $tr->patient->icno
-                        ];
+                        // $successfulResults[] = [
+                        //     'test_result_id' => $tr->id,
+                        //     'patient_icno' => $tr->patient->icno
+                        // ];
+
+                        return $result;
                     } else {
                         Log::channel($this->getLogChannel())->error('AI analysis returned error status', [
                             'test_result_id' => $tr->id,
@@ -424,101 +423,101 @@ class DoctorReviewController extends Controller
         ], $failedCount === 0 ? 200 : 207); // 207 = Multi-Status (partial success)
     }
 
-    private function convertTableBlock(array $tableLines): string
-    {
-        $html = "<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;'>\n";
-        $rows = [];
+    // private function convertTableBlock(array $tableLines): string
+    // {
+    //     $html = "<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;'>\n";
+    //     $rows = [];
 
-        // Normalize and collect rows
-        foreach ($tableLines as $line) {
-            $line = trim($line);
-            if ($line === '') continue;
-            // remove starting/trailing pipe
-            $line = preg_replace('/^\||\|$/', '', $line);
-            $cells = array_map('trim', explode('|', $line));
-            $rows[] = $cells;
-        }
+    //     // Normalize and collect rows
+    //     foreach ($tableLines as $line) {
+    //         $line = trim($line);
+    //         if ($line === '') continue;
+    //         // remove starting/trailing pipe
+    //         $line = preg_replace('/^\||\|$/', '', $line);
+    //         $cells = array_map('trim', explode('|', $line));
+    //         $rows[] = $cells;
+    //     }
 
-        if (count($rows) === 0) return '';
+    //     if (count($rows) === 0) return '';
 
-        // If the second row is a separator row (---|---), skip it
-        $startDataIndex = 1;
-        if (isset($rows[1])) {
-            $joined = implode('', $rows[1]);
-            // if row contains only dashes, spaces, colons (alignment) -> treat as separator
-            if (preg_match('/^[\s\-:|]+$/', $joined)) {
-                $startDataIndex = 2;
-            } else {
-                $startDataIndex = 1;
-            }
-        } else {
-            $startDataIndex = 1;
-        }
+    //     // If the second row is a separator row (---|---), skip it
+    //     $startDataIndex = 1;
+    //     if (isset($rows[1])) {
+    //         $joined = implode('', $rows[1]);
+    //         // if row contains only dashes, spaces, colons (alignment) -> treat as separator
+    //         if (preg_match('/^[\s\-:|]+$/', $joined)) {
+    //             $startDataIndex = 2;
+    //         } else {
+    //             $startDataIndex = 1;
+    //         }
+    //     } else {
+    //         $startDataIndex = 1;
+    //     }
 
-        // Header row is the first row
-        $header = $rows[0];
+    //     // Header row is the first row
+    //     $header = $rows[0];
 
-        // Build thead
-        $html .= "<thead><tr>";
-        foreach ($header as $hcell) {
-            $html .= '<th>' . htmlspecialchars($hcell) . '</th>';
-        }
-        $html .= "</tr></thead>\n";
+    //     // Build thead
+    //     $html .= "<thead><tr>";
+    //     foreach ($header as $hcell) {
+    //         $html .= '<th>' . htmlspecialchars($hcell) . '</th>';
+    //     }
+    //     $html .= "</tr></thead>\n";
 
-        // Build tbody
-        $html .= "<tbody>\n";
-        for ($i = $startDataIndex; $i < count($rows); $i++) {
-            $html .= "<tr>";
-            // ensure same number of columns as header (pad empty if necessary)
-            $cols = $rows[$i];
-            for ($c = 0; $c < count($header); $c++) {
-                $cell = $cols[$c] ?? '';
-                
-                // Check if cell contains bullet points and convert to unordered list
-                if (strpos($cell, '•') !== false) {
-                    // Split by bullet points and create list items
-                    $parts = preg_split('/\s*•\s*/', $cell);
-                    $firstPart = trim($parts[0]); // Text before first bullet
-                    $listItems = array_slice($parts, 1); // Everything after bullets
-                    
-                    if (!empty($listItems)) {
-                        $cellHtml = '';
-                        if (!empty($firstPart)) {
-                            $escapedFirstPart = htmlspecialchars($firstPart);
-                            // Apply bold formatting to first part
-                            $escapedFirstPart = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escapedFirstPart);
-                            $cellHtml .= $escapedFirstPart . ' ';
-                        }
-                        $cellHtml .= '<ul>';
-                        foreach ($listItems as $item) {
-                            $item = trim($item);
-                            if (!empty($item)) {
-                                $escapedItem = htmlspecialchars($item);
-                                // Apply bold formatting to list items
-                                $escapedItem = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escapedItem);
-                                $cellHtml .= '<li>' . $escapedItem . '</li>';
-                            }
-                        }
-                        $cellHtml .= '</ul>';
-                        $html .= '<td>' . $cellHtml . '</td>';
-                    } else {
-                        $escapedCell = htmlspecialchars($cell);
-                        $escapedCell = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escapedCell);
-                        $html .= '<td>' . $escapedCell . '</td>';
-                    }
-                } else {
-                    $escapedCell = htmlspecialchars($cell);
-                    // Apply bold formatting to regular cells
-                    $escapedCell = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escapedCell);
-                    $html .= '<td>' . $escapedCell . '</td>';
-                }
-            }
-            $html .= "</tr>\n";
-        }
-        $html .= "</tbody></table>\n";
+    //     // Build tbody
+    //     $html .= "<tbody>\n";
+    //     for ($i = $startDataIndex; $i < count($rows); $i++) {
+    //         $html .= "<tr>";
+    //         // ensure same number of columns as header (pad empty if necessary)
+    //         $cols = $rows[$i];
+    //         for ($c = 0; $c < count($header); $c++) {
+    //             $cell = $cols[$c] ?? '';
 
-        return $html;
-    }
+    //             // Check if cell contains bullet points and convert to unordered list
+    //             if (strpos($cell, '•') !== false) {
+    //                 // Split by bullet points and create list items
+    //                 $parts = preg_split('/\s*•\s*/', $cell);
+    //                 $firstPart = trim($parts[0]); // Text before first bullet
+    //                 $listItems = array_slice($parts, 1); // Everything after bullets
+
+    //                 if (!empty($listItems)) {
+    //                     $cellHtml = '';
+    //                     if (!empty($firstPart)) {
+    //                         $escapedFirstPart = htmlspecialchars($firstPart);
+    //                         // Apply bold formatting to first part
+    //                         $escapedFirstPart = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escapedFirstPart);
+    //                         $cellHtml .= $escapedFirstPart . ' ';
+    //                     }
+    //                     $cellHtml .= '<ul>';
+    //                     foreach ($listItems as $item) {
+    //                         $item = trim($item);
+    //                         if (!empty($item)) {
+    //                             $escapedItem = htmlspecialchars($item);
+    //                             // Apply bold formatting to list items
+    //                             $escapedItem = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escapedItem);
+    //                             $cellHtml .= '<li>' . $escapedItem . '</li>';
+    //                         }
+    //                     }
+    //                     $cellHtml .= '</ul>';
+    //                     $html .= '<td>' . $cellHtml . '</td>';
+    //                 } else {
+    //                     $escapedCell = htmlspecialchars($cell);
+    //                     $escapedCell = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escapedCell);
+    //                     $html .= '<td>' . $escapedCell . '</td>';
+    //                 }
+    //             } else {
+    //                 $escapedCell = htmlspecialchars($cell);
+    //                 // Apply bold formatting to regular cells
+    //                 $escapedCell = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escapedCell);
+    //                 $html .= '<td>' . $escapedCell . '</td>';
+    //             }
+    //         }
+    //         $html .= "</tr>\n";
+    //     }
+    //     $html .= "</tbody></table>\n";
+
+    //     return $html;
+    // }
 
     public function formatMarkdownToHTML($text)
     {
@@ -691,5 +690,129 @@ class DoctorReviewController extends Controller
                 'message' => 'Review generated successfully'
             ], 200);
         }
+    }
+
+    public function convertTableBlock(array $data): string
+    {
+        // $data = $request['ai_analysis']['answer'];
+        $html = '';
+
+        // $html = '<style>
+        //             body { font-family: Arial, sans-serif; color: #333; }
+        //             h5 { font-size: 18px; margin-bottom: 10px; color: #2b2b2b; }
+        //             table { width: 100%; border-collapse: collapse; margin-bottom: 25px; }
+        //             th, td { border: 1px solid #ccc; padding: 10px 12px; text-align: left; vertical-align: top; }
+        //             th { background-color: #f5f5f5; font-weight: bold; }
+        //             tr:nth-child(even) { background-color: #fafafa; }
+        //             .section { margin-bottom: 30px; }
+        //             .card { border: 1px solid #ddd; padding: 15px; border-radius: 8px; background-color: #fff; }
+        //             .highlight { margin-bottom: 8px; }
+        //             .disclaimer { font-size: 13px; color: #666; margin-top: 15px; }
+        //         </style>';
+
+        // SECTION A1
+        if (!empty($data['section_a1'])) {
+            $html .= '<div class="section">';
+            $html .= '<h5>Your Health at a Glance</h5>';
+            $html .= '<table><thead><tr>
+                    <th>Health Area</th>
+                    <th>Status</th>
+                    <th>Notes</th>
+                  </tr></thead><tbody>';
+
+            foreach ($data['section_a1'] as $row) {
+                $statusIcon = match (strtolower($row['status'])) {
+                    'normal', 'optimal' => '🟢',
+                    'borderline' => '🟡',
+                    'need attention', 'needs attention' => '🔴',
+                    default => '⚪️',
+                };
+
+                $html .= '<tr>';
+                $html .= '<td>' . e($row['health_area']) . '</td>';
+                $html .= '<td>' . $statusIcon . ' ' . e(ucwords($row['status'])) . '</td>';
+                $html .= '<td>' . e($row['notes']) . '</td>';
+                $html .= '</tr>';
+            }
+
+            $html .= '</tbody></table></div>';
+        }
+
+        // SECTION A2
+        if (!empty($data['section_a2'])) {
+            $html .= '<div class="section">';
+            $html .= '<h5>Your Body System Highlights</h5>';
+            $html .= '<ol>';
+            foreach ($data['section_a2'] as $highlight) {
+                $html .= '<li class="highlight">' . $highlight . '</li>';
+            }
+            $html .= '</ol></div>';
+        }
+
+        // SECTION B
+        if (!empty($data['section_b'])) {
+            $html .= '<div class="section">';
+            $html .= '<h5>3-6 Month Health Action</h5>';
+            $html .= '<table><thead><tr>
+                <th>Timeline</th>
+                <th>Action</th>
+                <th>Goals</th>
+                <th>Alpro Care for You</th>
+                <th>Appointment Date & Place</th>
+              </tr></thead><tbody>';
+
+            foreach ($data['section_b'] as $row) {
+
+                // Convert 'action' into list if contains ';'
+                $action = $row['action'] ?? '-';
+                if (strpos($action, ';') !== false) {
+                    $items = array_filter(array_map('trim', explode(';', $action)));
+                    $action = '<ul>';
+                    foreach ($items as $item) {
+                        $action .= '<li>' . e($item) . '</li>';
+                    }
+                    $action .= '</ul>';
+                } else {
+                    $action = e($action);
+                }
+
+                // Convert 'goals' into list if contains ';'
+                $goals = $row['goals'] ?? '-';
+                if (strpos($goals, ';') !== false) {
+                    $items = array_filter(array_map('trim', explode(';', $goals)));
+                    $goals = '<ul>';
+                    foreach ($items as $item) {
+                        $goals .= '<li>' . e($item) . '</li>';
+                    }
+                    $goals .= '</ul>';
+                } else {
+                    $goals = e($goals);
+                }
+
+                $html .= '<tr>';
+                $html .= '<td>' . e($row['timeline'] ?? '-') . '</td>';
+                $html .= '<td>' . $action . '</td>';
+                $html .= '<td>' . $goals . '</td>';
+                $html .= '<td>' . e($row['care'] ?? '-') . '</td>';
+                $html .= '<td>' . e($row['appointment'] ?? '-') . '</td>';
+                $html .= '</tr>';
+            }
+
+            $html .= '</tbody></table></div>';
+        }
+
+
+        // SECTION C
+        if (!empty($data['section_c'])) {
+            $html .= '<div class="section card">';
+            $html .= '<h5>With Care, from Alpro</h5>';
+            $html .= '<p>' . nl2br(e($data['section_c'])) . '</p>';
+            $html .= '<p class="disclaimer">
+                    Disclaimer: This report is for educational purposes only and should not replace consultation with a qualified healthcare professional.
+                  </p>';
+            $html .= '</div>';
+        }
+
+        return $html;
     }
 }
