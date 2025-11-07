@@ -1745,7 +1745,7 @@ class PDFController extends Controller
                                 // Add item comments if they exist
                                 if (!empty($pi['item_comments'])) {
                                     foreach ($pi['item_comments'] as $comment) {
-                                        $formattedComment = $this->formatPanelItemComment($comment['comment']);
+                                        $formattedComment = $this->formatPanelComment($comment['comment']);
                                         $content .= '<tr>
                                                         <td colspan="4" style="font-family: Courier New;font-stretch: expanded;padding:15px 15px 5px 15px;">
                                                             ' . $formattedComment . '
@@ -2510,7 +2510,7 @@ class PDFController extends Controller
                                 // Add item comments if they exist
                                 if (!empty($pi['item_comments'])) {
                                     foreach ($pi['item_comments'] as $comment) {
-                                        $formattedComment = $this->formatPanelItemComment($comment['comment']);
+                                        $formattedComment = $this->formatPanelComment($comment['comment']);
                                         $content .= '<tr>
                                                         <td colspan="4" style="font-family: Courier New;font-stretch: expanded;padding:15px 15px 5px 15px;">
                                                             ' . $formattedComment . '
