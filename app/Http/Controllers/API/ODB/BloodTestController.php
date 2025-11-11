@@ -55,6 +55,7 @@ class BloodTestController extends Controller
                     if ($testResult) {
                         $results[] = [
                             'icno' => $icno,
+                            'refid' => $refid,
                             'report_id' => $testResult->id
                         ];
                     }
