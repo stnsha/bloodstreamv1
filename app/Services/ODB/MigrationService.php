@@ -57,7 +57,7 @@ class MigrationService
 
             DB::commit();
 
-            Log::info('ODB report processed successfully', [
+            Log::channel('migrate-log')->info('ODB report processed successfully', [
                 'ref_id' => $report['ref_id'],
                 'test_result_id' => $testResult->id
             ]);

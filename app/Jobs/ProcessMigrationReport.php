@@ -38,7 +38,7 @@ class ProcessMigrationReport implements ShouldQueue
         $item = MigrationBatchItem::find($this->itemId);
 
         if (!$item) {
-            Log::error('Migration batch item not found', ['item_id' => $this->itemId]);
+            Log::channel('migrate-log')->error('Migration batch item not found', ['item_id' => $this->itemId]);
             return;
         }
 

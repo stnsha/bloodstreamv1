@@ -35,7 +35,7 @@ class ProcessMigrationBatch implements ShouldQueue
             $batch = MigrationBatch::find($this->batchId);
 
             if (!$batch) {
-                Log::error('Migration batch not found', ['batch_id' => $this->batchId]);
+                Log::channel('migrate-log')->error('Migration batch not found', ['batch_id' => $this->batchId]);
                 return;
             }
 
@@ -53,12 +53,12 @@ class ProcessMigrationBatch implements ShouldQueue
                 ProcessMigrationReport::dispatch($item->id);
             }
 
-            Log::info('Migration batch processing started', [
+            Log::channel('migrate-log')->info('Migration batch processing started', [
                 'batch_id' => $this->batchId,
                 'total_items' => $items->count()
             ]);
         } catch (Throwable $e) {
-            Log::error('Failed to process migration batch', [
+            Log::channel('migrate-log')->error('Failed to process migration batch', [
                 'batch_id' => $this->batchId,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
