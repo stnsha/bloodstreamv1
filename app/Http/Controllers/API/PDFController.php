@@ -8,6 +8,7 @@ use App\Models\PanelPanelItem;
 use App\Models\PanelPanelProfile;
 use App\Models\TestResult;
 use Carbon\Carbon;
+use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -866,7 +867,7 @@ class PDFController extends Controller
             'profiles',
             'review'
         ])
-            // ->where('is_completed', true)
+            ->where('is_completed', true)
             ->where('id', $id)
             ->first();
 
@@ -1992,7 +1993,7 @@ class PDFController extends Controller
             //     'pdf' => $base64Pdf,
             //     'message' => 'PDF generated successfully'
             // ], 200);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('PDF Generation Error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
@@ -2758,7 +2759,7 @@ class PDFController extends Controller
                 'pdf' => $base64Pdf,
                 'message' => 'PDF generated successfully'
             ], 200);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('PDF Generation Error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
@@ -2766,41 +2767,5 @@ class PDFController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
-    }
-
-    public function getReviewById($id)
-    {
-        $dr = DoctorReview::where('test_result_id', $id)->first();
-
-        // Replace emojis with text alternatives and fix HTML entities before PDF generation
-        $reviewContent = $dr->review;
-
-        // Fix HTML entities and tags
-        $reviewContent = html_entity_decode($reviewContent, ENT_QUOTES, 'UTF-8');
-        $reviewContent = str_replace('&lt;br&gt;', '<br>', $reviewContent);
-        $reviewContent = str_replace('<br>', '<br/>', $reviewContent);
-
-        // Replace emojis with text alternatives
-        $reviewContent = str_replace('🟢', '<span style="color: green; font-weight: bold;">●</span>', $reviewContent);
-        $reviewContent = str_replace('🟡', '<span style="color: orange; font-weight: bold;">●</span>', $reviewContent);
-        $reviewContent = str_replace('🔴', '<span style="color: red; font-weight: bold;">●</span>', $reviewContent);
-
-        $mpdf = new Mpdf([
-            'mode' => 'utf-8',
-            'format' => 'A4',
-            'default_font' => 'Arial',
-        ]);
-
-        $mpdf->useAdobeCJK = true;
-        $mpdf->autoScriptToLang = true;
-        $mpdf->autoLangToFont = true;
-        $mpdf->allow_charset_conversion = true;
-
-        // Write the final content with emoji replacements
-        $mpdf->WriteHTML($reviewContent);
-
-        return response($mpdf->Output('', 'S'), 200)
-            ->header('Content-Type', 'application/pdf')
-            ->header('Content-Disposition', 'inline; filename="' . $dr->test_result_id . 'review.pdf"');
     }
 }

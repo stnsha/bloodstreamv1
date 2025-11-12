@@ -35,12 +35,6 @@ Route::controller(AuthController::class)->group(function () {
     Route::post('/logout', 'logout')->name('logout');
 });
 
-Route::prefix('review')->controller(DoctorReviewController::class)->group(function () {
-    Route::get('/', 'processResult')->name('index');
-    Route::post('/format', 'convertTableBlock')->name('convertTableBlock');
-    Route::get('/formatResponse', 'formatResponse')->name('formatResponse');
-});
-
 // Test export age without auth
 Route::get('/test/export-age', [ExportController::class, 'exportAge'])->name('test.export.age');
 Route::get('/test/export-bt-age', [ExportController::class, 'exportBtAge'])->name('test.export.bt.age');
@@ -76,6 +70,10 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
 
     Route::prefix('review')->controller(DoctorReviewController::class)->group(function () {
         Route::post('/sync', 'sync')->name('sync');
+        /** Testing Purpose */
+        Route::get('/', 'processResult')->name('index');
+        Route::post('/format', 'convertTableBlock')->name('convertTableBlock');
+        Route::get('/formatResponse', 'formatResponse')->name('formatResponse');
     });
 
     Route::prefix('comment')->controller(PanelCommentController::class)->group(function () {
