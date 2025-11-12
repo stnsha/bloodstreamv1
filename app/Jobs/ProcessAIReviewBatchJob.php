@@ -20,8 +20,9 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\RateLimiter;
 use Carbon\Carbon;
 use Exception;
+use Throwable;
 
-class ProcessTestResultBatchJob implements ShouldQueue
+class ProcessAIReviewBatchJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -57,7 +58,7 @@ class ProcessTestResultBatchJob implements ShouldQueue
         $this->doctorReviewController = $doctorReviewController;
 
         $startTime = now();
-        Log::channel('job')->info("ProcessTestResultBatchJob batch {$this->batchNumber} started", [
+        Log::channel('job')->info("ProcessAIReviewBatchJob batch {$this->batchNumber} started", [
             'batch_number' => $this->batchNumber,
             'test_result_ids' => $this->testResultIds,
             'count' => count($this->testResultIds),
@@ -102,7 +103,7 @@ class ProcessTestResultBatchJob implements ShouldQueue
             $endTime = now();
             $duration = $endTime->diffInSeconds($startTime);
 
-            Log::channel('job')->info("ProcessTestResultBatchJob batch {$this->batchNumber} completed", [
+            Log::channel('job')->info("ProcessAIReviewBatchJob batch {$this->batchNumber} completed", [
                 'batch_number' => $this->batchNumber,
                 'total_in_batch' => count($this->testResultIds),
                 'successful' => $successfulProcessed,
@@ -114,13 +115,13 @@ class ProcessTestResultBatchJob implements ShouldQueue
             ]);
 
         } catch (Exception $e) {
-            Log::channel('job')->error("ProcessTestResultBatchJob batch {$this->batchNumber} failed", [
+            Log::channel('job')->error("ProcessAIReviewBatchJob batch {$this->batchNumber} failed", [
                 'batch_number' => $this->batchNumber,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
                 'duration_seconds' => now()->diffInSeconds($startTime)
             ]);
-            
+
             throw $e;
         }
     }
@@ -154,7 +155,7 @@ class ProcessTestResultBatchJob implements ShouldQueue
                 return false;
             }
             $healthDetails = $this->getPatientHealthDetails($patientIcno);
-            
+
             // Build patient info with null value logging
             $patientAge = $tr->patient->age ?? 'Unknown';
             if ($patientAge === 'Unknown') {
@@ -232,7 +233,7 @@ class ProcessTestResultBatchJob implements ShouldQueue
             $responseData = $response->json();
 
             if ($responseData['ai_analysis']['success'] && $responseData['ai_analysis']['status'] == 200) {
-                $result = $this->doctorReviewController->formatMarkdownToHTML($responseData['ai_analysis']['answer']);
+                $result = $this->doctorReviewController->convertTableBlock($responseData['ai_analysis']['answer']);
 
                 // Store the generated review
                 $this->doctorReviewController->store($tr->id, $testResultData, $result);
@@ -258,13 +259,13 @@ class ProcessTestResultBatchJob implements ShouldQueue
     private function getPatientHealthDetails(string $icno): array
     {
         $cacheKey = "patient_history_{$icno}";
-        
+
         return Cache::remember($cacheKey, 3600, function () use ($icno) { // Cache for 1 hour
             $healthDetails = [];
-            
+
             try {
                 $checkRecords = $this->myHealthService->getCheckRecordIdByIC($icno);
-                
+
                 if ($checkRecords) {
                     foreach ($checkRecords as $cr) {
                         $recordId = $cr->id;
@@ -457,9 +458,9 @@ class ProcessTestResultBatchJob implements ShouldQueue
     /**
      * Handle a job failure.
      */
-    public function failed(\Throwable $exception): void
+    public function failed(Throwable $exception): void
     {
-        Log::channel('job')->error("ProcessTestResultBatchJob batch {$this->batchNumber} failed permanently", [
+        Log::channel('job')->error("ProcessAIReviewBatchJob batch {$this->batchNumber} failed permanently", [
             'batch_number' => $this->batchNumber,
             'test_result_ids' => $this->testResultIds,
             'error' => $exception->getMessage(),

@@ -10,9 +10,10 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Facades\Log;
-use Carbon\Carbon;
+use Exception;
+use Throwable;
 
-class ProcessTestResultsJob implements ShouldQueue
+class ProcessAIReviewJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -38,7 +39,7 @@ class ProcessTestResultsJob implements ShouldQueue
     public function middleware(): array
     {
         return [
-            new WithoutOverlapping('process_test_results', 3600), // Prevent overlap for 1 hour
+            new WithoutOverlapping('process_ai_review', 3600), // Prevent overlap for 1 hour
         ];
     }
 
@@ -48,7 +49,7 @@ class ProcessTestResultsJob implements ShouldQueue
     public function handle(): void
     {
         $startTime = now();
-        Log::channel('job')->info('ProcessTestResultsJob started', [
+        Log::channel('job')->info('ProcessAIReviewJob started', [
             'batch_size' => $this->batchSize,
             'max_results' => $this->maxResults,
             'start_time' => $startTime
@@ -65,9 +66,9 @@ class ProcessTestResultsJob implements ShouldQueue
             ])
                 ->where('is_reviewed', false)
                 ->where('is_completed', true)
-                ->whereHas('patient', function ($query) {
-                    $query->where('ic_type', 'NRIC');
-                })
+                // ->whereHas('patient', function ($query) {
+                //     $query->where('ic_type', 'NRIC');
+                // })
                 ->take($this->maxResults)
                 ->get();
 
@@ -88,7 +89,7 @@ class ProcessTestResultsJob implements ShouldQueue
             // Split into batches and dispatch batch jobs
             $testResults->chunk($this->batchSize)->each(function ($batch, $batchIndex) use ($totalBatches) {
                 $batchNumber = $batchIndex + 1;
-                
+
                 Log::channel('job')->info("Dispatching batch {$batchNumber}/{$totalBatches}", [
                     'batch_number' => $batchNumber,
                     'batch_size' => $batch->count(),
@@ -96,27 +97,26 @@ class ProcessTestResultsJob implements ShouldQueue
                 ]);
 
                 // Dispatch each batch as a separate job with delay to manage rate limiting
-                ProcessTestResultBatchJob::dispatch($batch->pluck('id')->toArray(), $batchNumber)
+                ProcessAIReviewBatchJob::dispatch($batch->pluck('id')->toArray(), $batchNumber)
                     ->delay(now()->addSeconds($batchIndex * 2)); // 2 seconds delay between batches
             });
 
             $endTime = now();
             $duration = $endTime->diffInSeconds($startTime);
 
-            Log::channel('job')->info('ProcessTestResultsJob completed successfully', [
+            Log::channel('job')->info('ProcessAIReviewJob completed successfully', [
                 'total_results' => $totalResults,
                 'total_batches' => $totalBatches,
                 'duration_seconds' => $duration,
                 'end_time' => $endTime
             ]);
-
-        } catch (\Exception $e) {
-            Log::channel('job')->error('ProcessTestResultsJob failed', [
+        } catch (Exception $e) {
+            Log::channel('job')->error('ProcessAIReviewJob failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
                 'duration_seconds' => now()->diffInSeconds($startTime)
             ]);
-            
+
             throw $e; // Re-throw to trigger job failure handling
         }
     }
@@ -124,9 +124,9 @@ class ProcessTestResultsJob implements ShouldQueue
     /**
      * Handle a job failure.
      */
-    public function failed(\Throwable $exception): void
+    public function failed(Throwable $exception): void
     {
-        Log::channel('job')->error('ProcessTestResultsJob failed permanently', [
+        Log::channel('job')->error('ProcessAIReviewJob failed permanently', [
             'error' => $exception->getMessage(),
             'trace' => $exception->getTraceAsString(),
             'attempts' => $this->attempts()

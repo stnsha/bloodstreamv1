@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Jobs\ProcessTestResultsJob;
+use App\Jobs\ProcessAIReviewJob;
 use App\Services\ApiTokenService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
@@ -134,10 +134,10 @@ class ProcessTestResultsCommand extends Command
         }
 
         // Dispatch the main job
-        $this->info("\nDispatching ProcessTestResultsJob...");
-        
+        $this->info("\nDispatching ProcessAIReviewJob...");
+
         try {
-            ProcessTestResultsJob::dispatch($batchSize, $maxResults);
+            ProcessAIReviewJob::dispatch($batchSize, $maxResults);
             $this->info("✓ Job dispatched successfully");
             // $this->info("\nThe job will:");
             // $this->info("1. Fetch up to {$maxResults} unreviewed test results");
