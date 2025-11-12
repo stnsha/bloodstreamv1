@@ -137,7 +137,7 @@ class MigrationService
         $lab = Lab::find(self::LAB_ID);
         $labCode = $lab ? $lab->code : 'DUM';
 
-        $refId = $labCode . $report['ref_id'] ?? null;
+        $refId = isset($report['ref_id']) ? $labCode . $report['ref_id'] : null;
         $labNo = $report['lab_no'] ?? null;
 
         $collectedOn = $report['collected_on'] ?? null; //collected_date
