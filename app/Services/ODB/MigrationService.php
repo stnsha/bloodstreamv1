@@ -4,6 +4,7 @@ namespace App\Services\ODB;
 
 use App\Models\Doctor;
 use App\Models\Eurofins\ReportRecord;
+use App\Models\Lab;
 use App\Models\MasterPanel;
 use App\Models\MasterPanelComment;
 use App\Models\MasterPanelItem;
@@ -132,7 +133,11 @@ class MigrationService
      */
     protected function createTestResult($report, $patientId, $doctorId)
     {
-        $refId = 'INN' . $report['ref_id'] ?? null;
+        // Get lab code from Lab model
+        $lab = Lab::find(self::LAB_ID);
+        $labCode = $lab ? $lab->code : 'DUM';
+
+        $refId = $labCode . $report['ref_id'] ?? null;
         $labNo = $report['lab_no'] ?? null;
 
         $collectedOn = $report['collected_on'] ?? null; //collected_date
