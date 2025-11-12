@@ -80,10 +80,10 @@ class DoctorReviewController extends Controller
             ])
                 ->where('is_reviewed', false)
                 ->where('is_completed', true)
-                ->whereHas('patient', function ($query) {
-                    $query->where('ic_type', 'NRIC');
-                })
-                ->take(1) //First 5
+                // ->whereHas('patient', function ($query) {
+                //     $query->where('ic_type', 'NRIC');
+                // })
+                // ->take(1) //First 5
                 ->get();
 
             if ($testResults->isEmpty()) {
@@ -102,7 +102,6 @@ class DoctorReviewController extends Controller
             }
 
             // Login once before processing all results
-            Log::channel($this->getLogChannel())->info("Attempting to login to external AI service");
             $login = Http::timeout(60)->post(config('credentials.ai_review.login'), [
                 "username" => config('credentials.odb.username'),
                 "password" => config('credentials.odb.password')
@@ -128,7 +127,6 @@ class DoctorReviewController extends Controller
 
             $loginData = $login->json();
             $token = $loginData['token'];
-            Log::channel($this->getLogChannel())->info("Successfully logged into external AI service");
 
             foreach ($testResults as $tr) {
                 $totalProcessed++;
@@ -331,22 +329,22 @@ class DoctorReviewController extends Controller
                     $responseData = $response->json();
                     if ($responseData['ai_analysis']['success'] && $responseData['ai_analysis']['status'] == 200) {
                         $result = $this->convertTableBlock($responseData['ai_analysis']['answer']);
-                        // $successfulReviewsGenerated++;
+                        $successfulReviewsGenerated++;
 
-                        // // Store the generated review
-                        // $this->store($tr->id, $testResultData, $result);
-                        // $successfulStores++;
+                        // Store the generated review
+                        $this->store($tr->id, $testResultData, $result);
+                        $successfulStores++;
 
-                        // // Mark as reviewed (comment for testing)
-                        // $tr->is_reviewed = true;
-                        // $tr->save();
+                        // Mark as reviewed (comment for testing)
+                        $tr->is_reviewed = true;
+                        $tr->save();
 
-                        // $successfulResults[] = [
-                        //     'test_result_id' => $tr->id,
-                        //     'patient_icno' => $tr->patient->icno
-                        // ];
+                        $successfulResults[] = [
+                            'test_result_id' => $tr->id,
+                            'patient_icno' => $tr->patient->icno
+                        ];
 
-                        return $result;
+                        // return $successfulResults;
                     } else {
                         Log::channel($this->getLogChannel())->error('AI analysis returned error status', [
                             'test_result_id' => $tr->id,
@@ -421,275 +419,6 @@ class DoctorReviewController extends Controller
                 'failed_details' => $failedResults
             ]
         ], $failedCount === 0 ? 200 : 207); // 207 = Multi-Status (partial success)
-    }
-
-    // private function convertTableBlock(array $tableLines): string
-    // {
-    //     $html = "<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;'>\n";
-    //     $rows = [];
-
-    //     // Normalize and collect rows
-    //     foreach ($tableLines as $line) {
-    //         $line = trim($line);
-    //         if ($line === '') continue;
-    //         // remove starting/trailing pipe
-    //         $line = preg_replace('/^\||\|$/', '', $line);
-    //         $cells = array_map('trim', explode('|', $line));
-    //         $rows[] = $cells;
-    //     }
-
-    //     if (count($rows) === 0) return '';
-
-    //     // If the second row is a separator row (---|---), skip it
-    //     $startDataIndex = 1;
-    //     if (isset($rows[1])) {
-    //         $joined = implode('', $rows[1]);
-    //         // if row contains only dashes, spaces, colons (alignment) -> treat as separator
-    //         if (preg_match('/^[\s\-:|]+$/', $joined)) {
-    //             $startDataIndex = 2;
-    //         } else {
-    //             $startDataIndex = 1;
-    //         }
-    //     } else {
-    //         $startDataIndex = 1;
-    //     }
-
-    //     // Header row is the first row
-    //     $header = $rows[0];
-
-    //     // Build thead
-    //     $html .= "<thead><tr>";
-    //     foreach ($header as $hcell) {
-    //         $html .= '<th>' . htmlspecialchars($hcell) . '</th>';
-    //     }
-    //     $html .= "</tr></thead>\n";
-
-    //     // Build tbody
-    //     $html .= "<tbody>\n";
-    //     for ($i = $startDataIndex; $i < count($rows); $i++) {
-    //         $html .= "<tr>";
-    //         // ensure same number of columns as header (pad empty if necessary)
-    //         $cols = $rows[$i];
-    //         for ($c = 0; $c < count($header); $c++) {
-    //             $cell = $cols[$c] ?? '';
-
-    //             // Check if cell contains bullet points and convert to unordered list
-    //             if (strpos($cell, '•') !== false) {
-    //                 // Split by bullet points and create list items
-    //                 $parts = preg_split('/\s*•\s*/', $cell);
-    //                 $firstPart = trim($parts[0]); // Text before first bullet
-    //                 $listItems = array_slice($parts, 1); // Everything after bullets
-
-    //                 if (!empty($listItems)) {
-    //                     $cellHtml = '';
-    //                     if (!empty($firstPart)) {
-    //                         $escapedFirstPart = htmlspecialchars($firstPart);
-    //                         // Apply bold formatting to first part
-    //                         $escapedFirstPart = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escapedFirstPart);
-    //                         $cellHtml .= $escapedFirstPart . ' ';
-    //                     }
-    //                     $cellHtml .= '<ul>';
-    //                     foreach ($listItems as $item) {
-    //                         $item = trim($item);
-    //                         if (!empty($item)) {
-    //                             $escapedItem = htmlspecialchars($item);
-    //                             // Apply bold formatting to list items
-    //                             $escapedItem = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escapedItem);
-    //                             $cellHtml .= '<li>' . $escapedItem . '</li>';
-    //                         }
-    //                     }
-    //                     $cellHtml .= '</ul>';
-    //                     $html .= '<td>' . $cellHtml . '</td>';
-    //                 } else {
-    //                     $escapedCell = htmlspecialchars($cell);
-    //                     $escapedCell = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escapedCell);
-    //                     $html .= '<td>' . $escapedCell . '</td>';
-    //                 }
-    //             } else {
-    //                 $escapedCell = htmlspecialchars($cell);
-    //                 // Apply bold formatting to regular cells
-    //                 $escapedCell = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escapedCell);
-    //                 $html .= '<td>' . $escapedCell . '</td>';
-    //             }
-    //         }
-    //         $html .= "</tr>\n";
-    //     }
-    //     $html .= "</tbody></table>\n";
-
-    //     return $html;
-    // }
-
-    public function formatMarkdownToHTML($text)
-    {
-        // Normalize line endings and trim
-        $text = str_replace(["\r\n", "\r"], "\n", trim($text));
-        
-        // Remove --- before every \n\n**SECTION
-        $text = preg_replace('/---\s*\n\n\*\*SECTION/', "\n\n**SECTION", $text);
-        $lines = explode("\n", $text);
-
-        $html = '';
-        $inList = false;
-        $listType = 'ul'; // default list type
-        $i = 0;
-        $n = count($lines);
-
-        while ($i < $n) {
-            $line = rtrim($lines[$i]);
-
-            // --- TABLE DETECTION: consecutive lines starting with '|' form a table block
-            if (preg_match('/^\s*\|/', $line)) {
-                $tableLines = [];
-                while ($i < $n && preg_match('/^\s*\|/', rtrim($lines[$i]))) {
-                    $tableLines[] = $lines[$i];
-                    $i++;
-                }
-                // close any open list
-                if ($inList) {
-                    $html .= "</{$listType}>\n";
-                    $inList = false;
-                }
-
-                // **Important fix**: remove trailing blank lines/newlines so table attaches directly
-                $html = rtrim($html, "\n");
-
-                $html .= $this->convertTableBlock($tableLines);
-                continue; // continue while loop (i already advanced)
-            }
-
-            $trimmed = trim($line);
-
-            // --- LISTS: lines starting with '* ' or '- ' or numbered lists '1. '
-            if (preg_match('/^(\* |- )\s*(.+)$/', $trimmed, $m)) {
-                if (!$inList) {
-                    $inList = true;
-                    $listType = 'ul';
-                    $html .= "<{$listType}>\n";
-                }
-                $itemText = $m[2];
-                // Escape then apply inline formatting (header/bold)
-                $escaped = htmlspecialchars($itemText);
-                // Section header pattern inside list item (rare) converted to <h3>
-                $escaped = preg_replace('/\*\*(\d+\..*?)\*\*/', '<h3>$1</h3>', $escaped);
-                // Bold
-                $escaped = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escaped);
-                $html .= "<li>{$escaped}</li>\n";
-                $i++;
-                continue;
-            }
-
-            // --- Numbered lists (e.g. "1. Do this")
-            if (preg_match('/^\d+\.\s+(.+)$/', $trimmed, $m)) {
-                if (!$inList) {
-                    $inList = true;
-                    $listType = 'ol';
-                    $html .= "<{$listType}>\n";
-                } elseif ($inList && $listType !== 'ol') {
-                    // close previous list and start ordered
-                    $html .= "</{$listType}>\n";
-                    $listType = 'ol';
-                    $html .= "<{$listType}>\n";
-                }
-                $itemText = $m[1];
-                $escaped = htmlspecialchars($itemText);
-                $escaped = preg_replace('/\*\*(\d+\..*?)\*\*/', '<h3>$1</h3>', $escaped);
-                $escaped = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escaped);
-                $html .= "<li>{$escaped}</li>\n";
-                $i++;
-                continue;
-            }
-
-            // If we reach here and a list was open, close it
-            if ($inList) {
-                $html .= "</{$listType}>\n";
-                $inList = false;
-                $listType = 'ul';
-            }
-
-            // --- Skip empty lines (do NOT add extra newlines that become visible space)
-            if ($trimmed === '') {
-                // Look ahead: if next non-empty line is a table, just skip; otherwise skip too.
-                // This avoids producing an empty newline between heading and table.
-                $i++;
-                continue;
-            }
-
-            // --- HEADERS & BOLD for normal lines
-            // Escape line content first
-            $escapedLine = htmlspecialchars($trimmed);
-
-            // Section headers like **3. Diet Plan**
-            $escapedLine = preg_replace('/\*\*(\d+\..*?)\*\*/', '<h3>$1</h3>', $escapedLine);
-
-            // Bold **text**
-            $escapedLine = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $escapedLine);
-
-            // Wrap in <p> unless it's a header already (starts with <h3>)
-            if (preg_match('/^\s*<h3>.*<\/h3>\s*$/i', $escapedLine)) {
-                $html .= $escapedLine . "\n";
-            } else {
-                $html .= "<p>{$escapedLine}</p>\n";
-            }
-
-            $i++;
-        }
-
-        // Close any remaining open list
-        if ($inList) {
-            $html .= "</{$listType}>\n";
-            $inList = false;
-        }
-
-        return $html;
-    }
-
-    public function sync(Request $request)
-    {
-        $validated = $request->validate([
-            'icno' => 'required|string',
-            'refid' => 'nullable|string',
-        ], [
-            'icno.required' => 'IC No. is required.',
-        ]);
-
-        if ($validated) {
-            $icno = $validated['icno'];
-            $refid = $validated['refid'] ?? null;
-
-            $query = DoctorReview::with(['testResult', 'testResult.patient'])
-                ->where('is_sync', false)
-                ->whereHas('testResult.patient', function ($q) use ($icno) {
-                    $q->where('icno', $icno);
-                });
-
-            $review = $query->first();
-
-            if (!$review && $refid) {
-                $review = DoctorReview::with(['testResult', 'testResult.patient'])
-                    ->where('is_sync', false)
-                    ->whereHas('testResult', function ($t) use ($refid) {
-                        $t->where('ref_id', $refid);
-                    })
-                    ->first();
-            }
-
-            if (!$review) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No review found.'
-                ], 404);
-            }
-
-            //comment while still testing
-            // $review->is_sync = true;
-            // $review->save();
-
-            return response()->json([
-                'success' => true,
-                'review' => $review->review,
-                'message' => 'Review generated successfully'
-            ], 200);
-        }
     }
 
     public function convertTableBlock(array $data): string
@@ -794,7 +523,7 @@ class DoctorReviewController extends Controller
                 $html .= '<td>' . $action . '</td>';
                 $html .= '<td>' . $goals . '</td>';
                 $html .= '<td>' . e($row['care'] ?? '-') . '</td>';
-                $html .= '<td>' . e($row['appointment'] ?? '-') . '</td>';
+                $html .= '<td></td>';
                 $html .= '</tr>';
             }
 

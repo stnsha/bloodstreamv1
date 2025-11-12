@@ -4,7 +4,9 @@ namespace App\Http\Controllers\API\ODB;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ODB\MigrateRequest;
+use App\Http\Requests\ODB\ODBRequest;
 use App\Jobs\ProcessMigrationBatch;
+use App\Models\DoctorReview;
 use App\Models\MigrationBatch;
 use App\Models\MigrationBatchItem;
 use App\Models\TestResult;
@@ -16,53 +18,100 @@ use Throwable;
 class BloodTestController extends Controller
 {
     /**
-     * Sync Report ID to ODB 
+     * Sync Test Result ID as Report ID to ODB
      */
-    public function getReportId(Request $request)
+    public function getReportId(ODBRequest $request)
     {
         try {
-            $validated = $request->validate([
-                '*.icno' => 'required|string',
-                '*.refid' => 'nullable|string',
-            ], [
-                '*.icno.required' => 'IC No. is required.',
-            ]);
-
+            $validated = $request->all();
             $results = [];
 
-            if ($validated) {
-                foreach ($request->all() as $item) {
-                    $icno = $item['icno'];
-                    $refid = $item['refid'] ?? null;
+            foreach ($validated as $item) {
+                $icno = $item['icno'];
+                $refid = $item['refid'] ?? null;
 
-                    // Search by IC number first
-                    $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
-                        $p->where('icno', $icno);
-                    })->first();
+                // Search by IC number first
+                $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
+                    $p->where('icno', $icno);
+                })->first();
 
-                    // Fallback to search by refid if provided
-                    if (!$testResult && $refid) {
-                        $testResult = TestResult::where('ref_id', $refid)->first();
-                    }
-
-                    // Update ref_id if request has refid but DB has null
-                    if ($testResult && $refid && !$testResult->ref_id) {
-                        $testResult->ref_id = $refid;
-                        $testResult->save();
-                    }
-
-                    // Only add to results if test result found
-                    if ($testResult) {
-                        $results[] = [
-                            'icno' => $icno,
-                            'refid' => $refid,
-                            'report_id' => $testResult->id
-                        ];
-                    }
+                // Fallback to search by refid if provided
+                if (!$testResult && $refid) {
+                    $testResult = TestResult::where('ref_id', $refid)->where('is_completed', true)->first();
                 }
 
-                return response()->json($results);
+                // Update ref_id if request has refid but DB has null
+                if ($testResult && $refid && !$testResult->ref_id) {
+                    $testResult->ref_id = $refid;
+                    $testResult->save();
+                }
+
+                // Only add to results if test result found
+                if ($testResult) {
+                    $results[] = [
+                        'icno' => $icno,
+                        'refid' => $refid,
+                        'report_id' => $testResult->id
+                    ];
+                }
             }
+
+            return response()->json($results);
+        } catch (Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while processing the request',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Sync Doctor Review to ODB
+     */
+    public function sync(ODBRequest $request)
+    {
+        try {
+            $validated = $request->all();
+            $results = [];
+
+            foreach ($validated as $item) {
+                $icno = $item['icno'];
+                $refid = $item['refid'] ?? null;
+
+                // Search by IC number first
+                $review = DoctorReview::with(['testResult', 'testResult.patient'])
+                    ->where('is_sync', false)
+                    ->whereHas('testResult.patient', function ($q) use ($icno) {
+                        $q->where('icno', $icno);
+                    })
+                    ->first();
+
+                // Fallback to search by refid if provided
+                if (!$review && $refid) {
+                    $review = DoctorReview::with(['testResult', 'testResult.patient'])
+                        ->where('is_sync', false)
+                        ->whereHas('testResult', function ($t) use ($refid) {
+                            $t->where('ref_id', $refid);
+                        })
+                        ->first();
+                }
+
+                // Only add to results if review found
+                if ($review) {
+                    // Mark as synced
+                    $review->is_sync = true;
+                    $review->save();
+
+                    $results[] = [
+                        'icno' => $icno,
+                        'refid' => $refid,
+                        'review' => $review->review
+                    ];
+                }
+            }
+
+            return response()->json($results);
         } catch (Throwable $e) {
             return response()->json([
                 'success' => false,

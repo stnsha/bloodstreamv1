@@ -223,18 +223,10 @@ class AuthController extends Controller
         try {
             $credentials = $request->only($this->username(), 'password');
 
-            Log::info('Login attempt', [
-                'username' => $credentials['username']
-            ]);
-
             // Set JWT TTL to 30 days (43,200 minutes) before attempting login
             Auth::guard('lab')->factory()->setTTL(43200);
 
             if (!$token = Auth::guard('lab')->attempt($credentials)) {
-                Log::warning('Login failed - invalid credentials', [
-                    'username' => $credentials['username']
-                ]);
-
                 return response()->json([
                     'success' => false,
                     'message' => 'Invalid credentials',
@@ -251,11 +243,6 @@ class AuthController extends Controller
                 $labCredential->expires_at = $expiresIn;
                 $labCredential->save();
             }
-
-            Log::info('Login successful', [
-                'username' => $credentials['username'],
-                'lab_id' => $labCredential ? $labCredential->lab_id : null
-            ]);
 
             return response()->json([
                 'success' => true,
@@ -316,18 +303,7 @@ class AuthController extends Controller
     public function logout()
     {
         try {
-            $user = Auth::guard('lab')->user();
-            $username = $user ? $user->username : 'unknown';
-
-            Log::info('Logout attempt', [
-                'username' => $username
-            ]);
-
             Auth::guard('lab')->logout();
-
-            Log::info('Logout successful', [
-                'username' => $username
-            ]);
 
             return response()->json([
                 'success' => true,
