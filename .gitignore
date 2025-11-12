@@ -28,3 +28,7 @@ review_local.bat
 ai_review_log.txt
 local_process_test_results.bat
 scheduler.log
+/docs
+local_process_migration.bat
+MIGRATION_SCHEDULER_SETUP.md
+migration_scheduler.log
