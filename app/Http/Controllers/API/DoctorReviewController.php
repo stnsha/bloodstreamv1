@@ -10,7 +10,6 @@ use App\Models\ResultLibrary;
 use App\Services\MyHealthService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\Http;
@@ -37,6 +36,9 @@ class DoctorReviewController extends Controller
         return config('logging.default');
     }
 
+    /**
+     * Store generated AI review to DoctorReview
+     */
     public function store($id, $testResultData, $result)
     {
         DoctorReview::firstOrCreate(
@@ -421,6 +423,9 @@ class DoctorReviewController extends Controller
         ], $failedCount === 0 ? 200 : 207); // 207 = Multi-Status (partial success)
     }
 
+    /**
+     * Convert JSON to HTML
+     */
     public function convertTableBlock(array $data): string
     {
         // $data = $request['ai_analysis']['answer'];
