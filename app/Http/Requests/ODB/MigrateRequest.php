@@ -27,14 +27,14 @@ class MigrateRequest extends FormRequest
             
             'reports.*.report' => 'required|array',
             'reports.*.report.ref_id' => 'required',
-            'reports.*.report.ic' => 'required|string',
-            'reports.*.report.name' => 'required|string',
-            'reports.*.report.gender' => 'required|string',
-            'reports.*.report.dob' => 'required|string',
-            'reports.*.report.age' => 'required|string',
+            'reports.*.report.ic' => 'nullable|string',
+            'reports.*.report.name' => 'nullable|string',
+            'reports.*.report.gender' => 'nullable|string',
+            'reports.*.report.dob' => 'nullable|string',
+            'reports.*.report.age' => 'nullable|string',
 
-            'reports.*.report.lab_no' => 'required|string',
-            'reports.*.report.test_panel' => 'required|string',
+            'reports.*.report.lab_no' => 'nullable|string',
+            'reports.*.report.test_panel' => 'nullable|string',
 
             'reports.*.report.collected_on' => 'nullable|string',
             'reports.*.report.register_date' => 'nullable|string',
@@ -45,8 +45,8 @@ class MigrateRequest extends FormRequest
             'reports.*.report.exam_date' => 'nullable|string',
             'reports.*.report.received_date' => 'nullable|string',
 
-            'reports.*.report.dr_name' => 'required|string',
-            'reports.*.report.clinic_name' => 'required|string',
+            'reports.*.report.dr_name' => 'nullable|string',
+            'reports.*.report.clinic_name' => 'nullable|string',
 
             'reports.*.report.overall_notes' => 'nullable|string',
             // 'reports.*.report.migration_attempts' => 'nullable|integer',

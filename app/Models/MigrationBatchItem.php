@@ -31,6 +31,7 @@ class MigrationBatchItem extends Model
     const STATUS_PROCESSING = 'processing';
     const STATUS_SUCCESS = 'success';
     const STATUS_FAILED = 'failed';
+    const STATUS_SKIPPED = 'skipped';
 
     public function batch(): BelongsTo
     {
