@@ -762,8 +762,63 @@ class BloodTestController extends Controller
                 'status' => MigrationBatch::STATUS_PENDING,
             ]);
 
-            // Create batch items
+            // Separate valid and invalid reports
+            $validReports = [];
+            $skippedReports = [];
+
             foreach ($validated['reports'] as $report) {
+                $reportData = $report['report'];
+                $missingFields = [];
+
+                // Check critical fields
+                if (empty($reportData['ic'])) $missingFields[] = 'ic';
+                if (empty($reportData['name'])) $missingFields[] = 'name';
+                if (empty($reportData['gender'])) $missingFields[] = 'gender';
+                if (empty($reportData['dob']) || $reportData['dob'] === '0000-00-00') $missingFields[] = 'dob';
+                if (empty($reportData['age']) || $reportData['age'] === '0,0,0') $missingFields[] = 'age';
+                if (empty($reportData['lab_no'])) $missingFields[] = 'lab_no';
+                if (empty($reportData['dr_name'])) $missingFields[] = 'dr_name';
+                if (empty($reportData['clinic_name'])) $missingFields[] = 'clinic_name';
+
+                if (!empty($missingFields)) {
+                    $skippedReports[] = [
+                        'report' => $report,
+                        'reason' => 'Missing or invalid required fields: ' . implode(', ', $missingFields),
+                    ];
+                } else {
+                    $validReports[] = $report;
+                }
+            }
+
+            // Log skipped reports
+            if (!empty($skippedReports)) {
+                Log::channel('migrate-log')->warning('Skipped invalid reports in batch', [
+                    'batch_uuid' => $batchUuid,
+                    'skipped_count' => count($skippedReports),
+                    'total_count' => count($validated['reports']),
+                ]);
+
+                foreach ($skippedReports as $skipped) {
+                    Log::channel('migrate-log')->info('Skipped report details', [
+                        'batch_uuid' => $batchUuid,
+                        'ref_id' => $skipped['report']['ref_id'],
+                        'reason' => $skipped['reason'],
+                    ]);
+
+                    // Create batch item with skipped status
+                    MigrationBatchItem::create([
+                        'batch_id' => $batch->id,
+                        'ref_id' => $skipped['report']['ref_id'],
+                        'report_data' => json_encode($skipped['report']),
+                        'status' => MigrationBatchItem::STATUS_SKIPPED,
+                        'error_message' => $skipped['reason'],
+                        'processed_at' => now(),
+                    ]);
+                }
+            }
+
+            // Create batch items for valid reports
+            foreach ($validReports as $report) {
                 MigrationBatchItem::create([
                     'batch_id' => $batch->id,
                     'ref_id' => $report['ref_id'],
