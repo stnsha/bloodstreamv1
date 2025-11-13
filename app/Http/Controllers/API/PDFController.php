@@ -272,7 +272,7 @@ class PDFController extends Controller
             'testResultItems.panelComments.masterPanelComment',
             'profiles'
         ])
-            // ->where('is_completed', true)
+            ->where('is_completed', true)
             ->whereHas('patient', function ($p) use ($icno) {
                 $p->where('icno', $icno);
             })
@@ -286,7 +286,7 @@ class PDFController extends Controller
                 'testResultItems.panelComments.masterPanelComment',
                 'profiles'
             ])
-                // ->where('is_completed', true)
+                ->where('is_completed', true)
                 ->where('ref_id', $refid)
                 ->first();
         }
