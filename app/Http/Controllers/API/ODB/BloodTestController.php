@@ -74,7 +74,7 @@ class BloodTestController extends Controller
 
                 $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
                     $p->where('icno', $icno);
-                })->first();
+                })->where('is_completed', true)->first();
 
                 if ($testResult) {
                     Log::channel($this->getLogChannel())->info('getReportId: Test result found by IC number', [
