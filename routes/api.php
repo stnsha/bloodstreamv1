@@ -69,7 +69,6 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
     });
 
     Route::prefix('review')->controller(DoctorReviewController::class)->group(function () {
-        Route::post('/sync', 'sync')->name('sync');
         /** Testing Purpose */
         Route::get('/', 'processResult')->name('index');
         Route::post('/format', 'convertTableBlock')->name('convertTableBlock');
@@ -90,5 +89,7 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
         Route::post('/migrate', 'migrate')->name('odb.migrate');
         Route::post('/migrate-test', 'migrateTest')->name('odb.migrate.test');
         Route::get('/migration-status/{uuid}', 'migrationStatus')->name('odb.migration.status');
+        Route::post('/sync', 'sync')->name('sync');
+        Route::post('/review', 'review')->name('review');
     });
 });
