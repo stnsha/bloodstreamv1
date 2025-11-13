@@ -89,7 +89,6 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
         Route::post('/migrate', 'migrate')->name('odb.migrate');
         Route::post('/migrate-test', 'migrateTest')->name('odb.migrate.test');
         Route::get('/migration-status/{uuid}', 'migrationStatus')->name('odb.migration.status');
-        Route::post('/sync', 'sync')->name('sync');
         Route::post('/review', 'review')->name('review');
     });
 });

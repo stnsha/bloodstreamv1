@@ -7,7 +7,6 @@ use App\Http\Requests\ODB\MigrateRequest;
 use App\Http\Requests\ODB\ODBRequest;
 use App\Jobs\ProcessMigrationBatch;
 use App\Models\AIReview;
-use App\Models\DoctorReview;
 use App\Models\MigrationBatch;
 use App\Models\MigrationBatchItem;
 use App\Models\Patient;
@@ -174,67 +173,8 @@ class BloodTestController extends Controller
     }
 
     /**
-     * Get AI Review then send to ODB
+     * Retrieve IC and refID from ODB to generate AI review
      */
-    public function sync(ODBRequest $request)
-    {
-        try {
-            $validated = $request->all();
-            $results = [];
-
-            foreach ($validated as $item) {
-                $icno = $item['icno'];
-                $refid = $item['refid'] ?? null;
-
-                // Search by IC number first
-                $review = DoctorReview::with(['testResult', 'testResult.patient'])
-                    ->where('is_sync', false)
-                    ->whereHas('testResult.patient', function ($q) use ($icno) {
-                        $q->where('icno', $icno);
-                    })
-                    ->first();
-
-                // Fallback to search by refid if provided
-                if (!$review && $refid) {
-                    $review = DoctorReview::with(['testResult', 'testResult.patient'])
-                        ->where('is_sync', false)
-                        ->whereHas('testResult', function ($t) use ($refid) {
-                            $t->where('ref_id', $refid);
-                        })
-                        ->first();
-                }
-
-                // Only add to results if review found
-                if ($review) {
-                    // Update ref_id if request has refid but DB has null
-                    if ($refid && !$review->testResult->ref_id) {
-                        $review->testResult->ref_id = $refid;
-                        $review->testResult->save();
-                    }
-
-                    // Mark as synced
-                    $review->is_sync = true;
-                    $review->save();
-
-                    $results[] = [
-                        'icno' => $icno,
-                        'refid' => $refid,
-                        'report_id' => 'INN' . $review->testResult->id,
-                        'review' => $review->review
-                    ];
-                }
-            }
-
-            return response()->json($results);
-        } catch (Throwable $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'An error occurred while processing the request',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
     public function review(ODBRequest $request)
     {
         // Increase execution time for external API calls
