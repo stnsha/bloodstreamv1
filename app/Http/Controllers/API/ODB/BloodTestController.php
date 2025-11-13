@@ -536,13 +536,13 @@ class BloodTestController extends Controller
                     $successfulResults[] = [
                         'icno' => $icno,
                         'refid' => $refid,
-                        'report_id' => 'MH' . $tr->id,
+                        'report_id' => $tr->id,
                         'review' => $result
                     ];
 
                     Log::channel($this->getLogChannel())->info('Test result marked as reviewed', [
                         'test_result_id' => $tr->id,
-                        'report_id' => 'MH' . $tr->id
+                        'report_id' => $tr->id
                     ]);
 
                     DB::commit();
