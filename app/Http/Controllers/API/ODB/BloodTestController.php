@@ -54,6 +54,7 @@ class BloodTestController extends Controller
         ]);
 
         try {
+            DB::beginTransaction();
             $results = [];
 
             foreach ($validated as $index => $item) {
@@ -101,7 +102,7 @@ class BloodTestController extends Controller
                 }
 
                 // Update ref_id if request has refid but DB has null
-                if ($testResult && $refid && !$testResult->ref_id) {
+                if ($testResult && $refid && $testResult->ref_id === null) {
                     Log::channel($this->getLogChannel())->debug('getReportId: Updating null ref_id in database', [
                         'test_result_id' => $testResult->id,
                         'old_ref_id' => null,
@@ -152,8 +153,12 @@ class BloodTestController extends Controller
                 'processing_time_seconds' => $processingTime
             ]);
 
+            DB::commit();
+
             return response()->json($results);
         } catch (Throwable $e) {
+            DB::rollBack();
+
             Log::channel($this->getLogChannel())->error('getReportId: Critical error occurred', [
                 'error_message' => $e->getMessage(),
                 'error_file' => $e->getFile(),
