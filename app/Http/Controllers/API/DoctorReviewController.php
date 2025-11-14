@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\AIReview;
 use App\Models\DoctorReview;
 use App\Models\Patient;
 use App\Models\TestResult;
@@ -57,7 +58,7 @@ class DoctorReviewController extends Controller
      * Compile raw data from Test Result, Test Result Item and MyHealth
      * Send compiled data in JSON format to API AI
      */
-    public function processResult()
+    public function processResult($testResultId)
     {
         // Increase execution time for external API calls
         ini_set('max_execution_time', 300); // 5 minutes
@@ -73,7 +74,7 @@ class DoctorReviewController extends Controller
         try {
             DB::beginTransaction();
 
-            $testResults = TestResult::with([
+            $tr = TestResult::with([
                 'patient',
                 'testResultItems.panelPanelItem.panel.panelCategory',
                 'testResultItems.referenceRange',
@@ -82,25 +83,14 @@ class DoctorReviewController extends Controller
             ])
                 ->where('is_reviewed', false)
                 ->where('is_completed', true)
-                // ->whereHas('patient', function ($query) {
-                //     $query->where('ic_type', 'NRIC');
-                // })
-                // ->take(1) //First 5
-                ->get();
+                ->where('id', $testResultId)
+                ->first();
 
-            if ($testResults->isEmpty()) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'No test results found to process',
-                    'summary' => [
-                        'total_found' => 0,
-                        'total_processed' => 0,
-                        'successful_reviews_generated' => 0,
-                        'successful_stores' => 0,
-                        'failed_results' => 0,
-                        'processing_time' => '0s'
-                    ]
+            if (!$tr) {
+                Log::channel($this->getLogChannel())->warning('No test result found to process', [
+                    'test_result_id' => $testResultId
                 ]);
+                return;
             }
 
             // Login once before processing all results
@@ -111,258 +101,280 @@ class DoctorReviewController extends Controller
 
             if ($login->failed()) {
                 DB::rollBack();
-                Log::channel($this->getLogChannel())->error('External AI service login failed');
-                return response()->json([
-                    'success' => false,
-                    'message' => 'External AI service login failed - all processing stopped',
-                    'summary' => [
-                        'total_found' => $testResults->count(),
-                        'total_processed' => 0,
-                        'successful_reviews_generated' => 0,
-                        'successful_stores' => 0,
-                        'failed_results' => $testResults->count(),
-                        'processing_time' => now()->diffInSeconds($processingStartTime) . 's',
-                        'login_failed' => true
-                    ]
-                ], 401);
+                Log::channel($this->getLogChannel())->error('External AI service login failed', [
+                    'test_result_id' => $testResultId
+                ]);
+                return;
             }
 
             $loginData = $login->json();
             $token = $loginData['token'];
 
-            foreach ($testResults as $tr) {
-                $totalProcessed++;
-                $healthDetails = []; // Initialize for each test result
-                $finalResults = []; // Initialize for each test result
+            $totalProcessed++;
+            $healthDetails = []; // Initialize for each test result
+            $finalResults = []; // Initialize for each test result
 
-                try {
-                    $icno = $tr->patient->icno;
-                    $checkRecords = $this->myHealthService->getCheckRecordIdByIC($icno);
+            try {
+                $icno = $tr->patient->icno;
+                $checkRecords = $this->myHealthService->getCheckRecordIdByIC($icno);
 
-                    $patientInfo = [
-                        'Age' => $tr->patient->age
-                    ];
+                $patientInfo = [
+                    'Age' => $tr->patient->age
+                ];
 
-                    if ($checkRecords) {
-                        foreach ($checkRecords as $cr) {
-                            $recordId = $cr->id;
-                            $recordGender = $cr->gender;
-                            $recordDate = Carbon::parse($cr->date_time)->format('Y-m-d');
+                if ($checkRecords) {
+                    foreach ($checkRecords as $cr) {
+                        $recordId = $cr->id;
+                        $recordGender = $cr->gender;
+                        $recordDate = Carbon::parse($cr->date_time)->format('Y-m-d');
 
-                            if (is_null($tr->patient->gender)) {
-                                $tr->patient->gender = $recordGender == 1 ? Patient::GENDER_MALE : Patient::GENDER_FEMALE;
-                                $tr->patient->save();
-                            }
+                        if (is_null($tr->patient->gender)) {
+                            $tr->patient->gender = $recordGender == 1 ? Patient::GENDER_MALE : Patient::GENDER_FEMALE;
+                            $tr->patient->save();
+                        }
 
-                            $patientInfo['Gender'] = $tr->patient->gender;
+                        $patientInfo['Gender'] = $tr->patient->gender;
 
-                            $recordDetails = $this->myHealthService->getRecordDetailsByRecordId($recordId);
-                            if (count($recordDetails) != 0) {
-                                $transformedRecordDetails = [];
+                        $recordDetails = $this->myHealthService->getRecordDetailsByRecordId($recordId);
+                        if (count($recordDetails) != 0) {
+                            $transformedRecordDetails = [];
 
-                                foreach ($recordDetails as $rd) {
-                                    if (isset($rd->parameter)) {
-                                        $parameterName = $rd->parameter;
-                                        unset($rd->parameter);
-                                        $transformedRecordDetails[$parameterName] = $rd;
-                                    }
+                            foreach ($recordDetails as $rd) {
+                                if (isset($rd->parameter)) {
+                                    $parameterName = $rd->parameter;
+                                    unset($rd->parameter);
+                                    $transformedRecordDetails[$parameterName] = $rd;
                                 }
-                                $healthDetails[$recordDate] = $transformedRecordDetails;
-                                $patientInfo = array_merge($patientInfo, $healthDetails);
                             }
+                            $healthDetails[$recordDate] = $transformedRecordDetails;
+                            $patientInfo = array_merge($patientInfo, $healthDetails);
                         }
                     }
+                }
 
-                    if (!$tr || !$tr->id) {
-                        Log::channel($this->getLogChannel())->error('Invalid test result object');
-                        $failedResults[] = ['id' => 'unknown', 'reason' => 'Invalid test result object'];
-                        continue;
-                    }
+                if (!$tr || !$tr->id) {
+                    Log::channel($this->getLogChannel())->error('Invalid test result object');
+                    $failedResults[] = ['id' => 'unknown', 'reason' => 'Invalid test result object'];
+                }
 
-                    if (!$tr->patient) {
-                        Log::channel($this->getLogChannel())->warning('Test result has no associated patient', ['test_result_id' => $tr->id]);
-                        $failedResults[] = ['id' => $tr->id, 'reason' => 'Missing patient information'];
-                        continue;
-                    }
+                if (!$tr->patient) {
+                    Log::channel($this->getLogChannel())->warning('Test result has no associated patient', ['test_result_id' => $tr->id]);
+                    $failedResults[] = ['id' => $tr->id, 'reason' => 'Missing patient information'];
+                }
 
-                    $reportDate = Carbon::parse($tr->reported_date)->format('Y-m-d');
-                    $categorizedItems = [];
-                    $validItemsCount = 0;
+                $reportDate = Carbon::parse($tr->reported_date)->format('Y-m-d');
+                $categorizedItems = [];
+                $validItemsCount = 0;
 
-                    if ($tr->testResultItems->isEmpty()) {
-                        Log::channel($this->getLogChannel())->warning('Test result has no test result items', ['test_result_id' => $tr->id]);
-                        $failedResults[] = ['id' => $tr->id, 'reason' => 'No test result items found'];
-                        continue;
-                    }
+                if ($tr->testResultItems->isEmpty()) {
+                    Log::channel($this->getLogChannel())->warning('Test result has no test result items', ['test_result_id' => $tr->id]);
+                    $failedResults[] = ['id' => $tr->id, 'reason' => 'No test result items found'];
+                }
 
-                    foreach ($tr->testResultItems as $ri) {
-                        try {
-                            if (!$ri || !$ri->id) {
-                                Log::channel($this->getLogChannel())->warning('Invalid result item', ['test_result_id' => $tr->id]);
-                                continue;
-                            }
+                foreach ($tr->testResultItems as $ri) {
+                    try {
+                        if (!$ri || !$ri->id) {
+                            Log::channel($this->getLogChannel())->warning('Invalid result item', ['test_result_id' => $tr->id]);
+                            continue;
+                        }
 
-                            if (!$ri->panelPanelItem) {
-                                Log::channel($this->getLogChannel())->warning('Test result item missing panel relationship', [
-                                    'result_item_id' => $ri->id,
-                                    'test_result_id' => $tr->id
-                                ]);
-                                continue;
-                            }
-
-                            if (!$ri->panelPanelItem->panelItem) {
-                                Log::channel($this->getLogChannel())->warning('Test result item missing panel item relationship', [
-                                    'result_item_id' => $ri->id,
-                                    'test_result_id' => $tr->id
-                                ]);
-                                continue;
-                            }
-
-                            $panelItemName = $ri->panelPanelItem->panelItem->name ?? 'Unknown Item';
-
-                            // Determine panel name: use actual panel name or fallback to panel item name
-                            if ($ri->panelPanelItem->panel && $ri->panelPanelItem->panel->name) {
-                                $panelName = $ri->panelPanelItem->panel->name;
-                            } else {
-                                $panelName = $panelItemName; // Use panel item name as panel name
-                            }
-
-                            // Build simplified panel-only structure
-                            if (!isset($categorizedItems[$panelName])) {
-                                $categorizedItems[$panelName] = [];
-                            }
-
-                            $flagDescription = $ri->flag;
-                            if (!empty($ri->flag)) {
-                                try {
-                                    $resultLibrary = ResultLibrary::where('code', '0078')
-                                        ->where('value', $ri->flag)
-                                        ->first();
-                                    if ($resultLibrary && !empty($resultLibrary->description)) {
-                                        // Remove content within parentheses and trim whitespace
-                                        $flagDescription = trim(preg_replace('/\s*\([^)]*\)/', '', $resultLibrary->description));
-                                    } else {
-                                        $flagDescription = $ri->flag;
-                                    }
-                                } catch (Exception $e) {
-                                    Log::channel($this->getLogChannel())->error('Error fetching flag description from ResultLibrary', [
-                                        'error' => $e->getMessage(),
-                                        'flag' => $ri->flag,
-                                        'result_item_id' => $ri->id
-                                    ]);
-                                }
-                            }
-
-                            $itemData = [
-                                'panel_item_name' => $ri->panelPanelItem->panelItem->name ?? 'Unknown Item',
-                                'result_value' => $ri->value ?? null,
-                                'panel_item_unit' => $ri->panelPanelItem->panelItem->unit ?? null,
-                                'result_status' => $flagDescription ?? null,
-                                'reference_range' => null,
-                                'comments' => []
-                            ];
-
-                            if ($ri->reference_range_id && $ri->referenceRange) {
-                                try {
-                                    $itemData['reference_range'] = $ri->referenceRange->value;
-                                } catch (Exception $e) {
-                                    Log::channel($this->getLogChannel())->warning('Error accessing reference range', [
-                                        'error' => $e->getMessage(),
-                                        'result_item_id' => $ri->id
-                                    ]);
-                                }
-                            }
-
-                            if ($ri->panelComments && !$ri->panelComments->isEmpty()) {
-                                try {
-                                    foreach ($ri->panelComments as $pc) {
-                                        if ($pc && $pc->masterPanelComment && !empty($pc->masterPanelComment->comment)) {
-                                            $itemData['comments'][] = $pc->masterPanelComment->comment;
-                                        }
-                                    }
-                                } catch (Exception $e) {
-                                    Log::channel($this->getLogChannel())->warning('Error processing panel comments', [
-                                        'error' => $e->getMessage(),
-                                        'result_item_id' => $ri->id
-                                    ]);
-                                }
-                            }
-
-                            // Add item to panel (simplified structure)
-                            $categorizedItems[$panelName][] = $itemData;
-                            $validItemsCount++;
-                        } catch (Exception $e) {
-                            Log::channel($this->getLogChannel())->error('Error processing test result item', [
-                                'error' => $e->getMessage(),
-                                'result_item_id' => $ri->id ?? 'unknown',
-                                'test_result_id' => $tr->id,
-                                'trace' => $e->getTraceAsString()
+                        if (!$ri->panelPanelItem) {
+                            Log::channel($this->getLogChannel())->warning('Test result item missing panel relationship', [
+                                'result_item_id' => $ri->id,
+                                'test_result_id' => $tr->id
                             ]);
+                            continue;
                         }
-                    }
 
-                    if ($validItemsCount === 0) {
-                        Log::channel($this->getLogChannel())->warning('No valid test result items processed', ['test_result_id' => $tr->id]);
-                        $failedResults[] = ['id' => $tr->id, 'reason' => 'No valid test result items'];
-                        continue;
-                    }
+                        if (!$ri->panelPanelItem->panelItem) {
+                            Log::channel($this->getLogChannel())->warning('Test result item missing panel item relationship', [
+                                'result_item_id' => $ri->id,
+                                'test_result_id' => $tr->id
+                            ]);
+                            continue;
+                        }
 
-                    $finalResults[$reportDate] = $categorizedItems;
+                        $panelItemName = $ri->panelPanelItem->panelItem->name ?? 'Unknown Item';
 
-                    $testResultData = [
-                        'Health History' => $patientInfo,
-                        'Blood Test Results' => $finalResults
-                    ];
+                        // Determine panel name: use actual panel name or fallback to panel item name
+                        if ($ri->panelPanelItem->panel && $ri->panelPanelItem->panel->name) {
+                            $panelName = $ri->panelPanelItem->panel->name;
+                        } else {
+                            $panelName = $panelItemName; // Use panel item name as panel name
+                        }
 
-                    // Call AI API using the token from login
-                    $response = Http::timeout(120)->withToken($token)
-                        ->post(config('credentials.ai_review.analysis'), $testResultData);
+                        // Build simplified panel-only structure
+                        if (!isset($categorizedItems[$panelName])) {
+                            $categorizedItems[$panelName] = [];
+                        }
 
+                        $flagDescription = $ri->flag;
+                        if (!empty($ri->flag)) {
+                            try {
+                                $resultLibrary = ResultLibrary::where('code', '0078')
+                                    ->where('value', $ri->flag)
+                                    ->first();
+                                if ($resultLibrary && !empty($resultLibrary->description)) {
+                                    // Remove content within parentheses and trim whitespace
+                                    $flagDescription = trim(preg_replace('/\s*\([^)]*\)/', '', $resultLibrary->description));
+                                } else {
+                                    $flagDescription = $ri->flag;
+                                }
+                            } catch (Exception $e) {
+                                Log::channel($this->getLogChannel())->error('Error fetching flag description from ResultLibrary', [
+                                    'error' => $e->getMessage(),
+                                    'flag' => $ri->flag,
+                                    'result_item_id' => $ri->id
+                                ]);
+                            }
+                        }
 
-                    if ($response->failed()) {
-                        Log::channel($this->getLogChannel())->error('AI analysis API call failed', [
-                            'test_result_id' => $tr->id,
-                            'response_status' => $response->status()
-                        ]);
-                        $failedResults[] = ['id' => $tr->id, 'reason' => 'AI analysis API call failed'];
-                        continue;
-                    }
-
-                    $responseData = $response->json();
-                    if ($responseData['ai_analysis']['success'] && $responseData['ai_analysis']['status'] == 200) {
-                        $result = $this->convertTableBlock($responseData['ai_analysis']['answer']);
-                        $successfulReviewsGenerated++;
-
-                        // Store the generated review
-                        $this->store($tr->id, $testResultData, $result);
-                        $successfulStores++;
-
-                        // Mark as reviewed (comment for testing)
-                        $tr->is_reviewed = true;
-                        $tr->save();
-
-                        $successfulResults[] = [
-                            'test_result_id' => $tr->id,
-                            'patient_icno' => $tr->patient->icno
+                        $itemData = [
+                            'panel_item_name' => $ri->panelPanelItem->panelItem->name ?? 'Unknown Item',
+                            'result_value' => $ri->value ?? null,
+                            'panel_item_unit' => $ri->panelPanelItem->panelItem->unit ?? null,
+                            'result_status' => $flagDescription ?? null,
+                            'reference_range' => null,
+                            'comments' => []
                         ];
 
-                        // return $successfulResults;
-                    } else {
-                        Log::channel($this->getLogChannel())->error('AI analysis returned error status', [
+                        if ($ri->reference_range_id && $ri->referenceRange) {
+                            try {
+                                $itemData['reference_range'] = $ri->referenceRange->value;
+                            } catch (Exception $e) {
+                                Log::channel($this->getLogChannel())->warning('Error accessing reference range', [
+                                    'error' => $e->getMessage(),
+                                    'result_item_id' => $ri->id
+                                ]);
+                            }
+                        }
+
+                        if ($ri->panelComments && !$ri->panelComments->isEmpty()) {
+                            try {
+                                foreach ($ri->panelComments as $pc) {
+                                    if ($pc && $pc->masterPanelComment && !empty($pc->masterPanelComment->comment)) {
+                                        $itemData['comments'][] = $pc->masterPanelComment->comment;
+                                    }
+                                }
+                            } catch (Exception $e) {
+                                Log::channel($this->getLogChannel())->warning('Error processing panel comments', [
+                                    'error' => $e->getMessage(),
+                                    'result_item_id' => $ri->id
+                                ]);
+                            }
+                        }
+
+                        // Add item to panel (simplified structure)
+                        $categorizedItems[$panelName][] = $itemData;
+                        $validItemsCount++;
+                    } catch (Exception $e) {
+                        Log::channel($this->getLogChannel())->error('Error processing test result item', [
+                            'error' => $e->getMessage(),
+                            'result_item_id' => $ri->id ?? 'unknown',
                             'test_result_id' => $tr->id,
-                            'response' => $responseData
+                            'trace' => $e->getTraceAsString()
                         ]);
-                        $failedResults[] = ['id' => $tr->id, 'reason' => 'AI analysis returned error status'];
-                        continue;
                     }
-                } catch (Exception $e) {
-                    Log::channel($this->getLogChannel())->error('Critical error processing individual test result', [
-                        'error' => $e->getMessage(),
-                        'test_result_id' => $tr->id ?? 'unknown',
-                        'trace' => $e->getTraceAsString()
-                    ]);
-                    $failedResults[] = ['id' => $tr->id ?? 'unknown', 'reason' => 'Critical processing error: ' . $e->getMessage()];
                 }
+
+                if ($validItemsCount === 0) {
+                    Log::channel($this->getLogChannel())->warning('No valid test result items processed', ['test_result_id' => $tr->id]);
+                    $failedResults[] = ['id' => $tr->id, 'reason' => 'No valid test result items'];
+                }
+
+                $finalResults[$reportDate] = $categorizedItems;
+
+                $testResultData = [
+                    'Health History' => $patientInfo,
+                    'Blood Test Results' => $finalResults
+                ];
+
+                // Call AI API using the token from login
+                Log::channel($this->getLogChannel())->info('Calling AI analysis API', [
+                    'test_result_id' => $tr->id,
+                    'icno' => $icno,
+                ]);
+
+                $response = Http::timeout(120)->withToken($token)
+                    ->post(config('credentials.ai_review.analysis'), $testResultData);
+
+                if ($response->failed()) {
+                    Log::channel($this->getLogChannel())->error('AI analysis API call failed', [
+                        'test_result_id' => $tr->id,
+                        'icno' => $icno,
+                        'response_status' => $response->status(),
+                        'response_body' => $response->body()
+                    ]);
+
+                    // Log failed attempt to AIReview
+                    AIReview::create([
+                        'test_result_id' => $tr->id,
+                        'compiled_results' => $testResultData,
+                        'http_status' => $response->status(),
+                        'ai_response' => null,
+                        'error_message' => 'AI analysis API call failed with status ' . $response->status(),
+                        'is_successful' => false
+                    ]);
+
+                    $failedResults[] = [
+                        'icno' => $icno,
+                        'test_result_id' => $tr->id,
+                        'reason' => 'AI analysis API call failed'
+                    ];
+                }
+
+                $responseData = $response->json();
+                if ($responseData['ai_analysis']['success'] && $responseData['ai_analysis']['status'] == 200) {
+                    Log::channel($this->getLogChannel())->info('AI analysis successful', [
+                        'test_result_id' => $tr->id,
+                        'icno' => $icno
+                    ]);
+
+                    $result = $this->convertTableBlock($responseData['ai_analysis']['answer']);
+                    $successfulReviewsGenerated++;
+
+                    // Store the successful review
+                    AIReview::create([
+                        'test_result_id' => $tr->id,
+                        'compiled_results' => $testResultData,
+                        'http_status' => $responseData['ai_analysis']['status'],
+                        'ai_response' => $responseData['ai_analysis'],
+                        'error_message' => null,
+                        'is_successful' => true
+                    ]);
+
+                    $successfulStores++;
+
+                    // Mark as reviewed
+                    $tr->is_reviewed = true;
+                    $tr->save();
+
+                    $successfulResults[] = [
+                        'icno' => $icno,
+                        'report_id' => $tr->id,
+                        'review' => $result
+                    ];
+
+                    Log::channel($this->getLogChannel())->info('Test result marked as reviewed', [
+                        'test_result_id' => $tr->id,
+                        'report_id' => $tr->id
+                    ]);
+
+                    DB::commit();
+                } else {
+                    Log::channel($this->getLogChannel())->error('AI analysis returned error status', [
+                        'test_result_id' => $tr->id,
+                        'response' => $responseData
+                    ]);
+                    $failedResults[] = ['id' => $tr->id, 'reason' => 'AI analysis returned error status'];
+                }
+            } catch (Exception $e) {
+                Log::channel($this->getLogChannel())->error('Critical error processing individual test result', [
+                    'error' => $e->getMessage(),
+                    'test_result_id' => $tr->id ?? 'unknown',
+                    'trace' => $e->getTraceAsString()
+                ]);
+                $failedResults[] = ['id' => $tr->id ?? 'unknown', 'reason' => 'Critical processing error: ' . $e->getMessage()];
             }
 
             DB::commit();
@@ -370,57 +382,29 @@ class DoctorReviewController extends Controller
             DB::rollBack();
             Log::channel($this->getLogChannel())->error('Critical error in processResult method', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
+                'test_result_id' => $testResultId
             ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Critical error occurred during processing',
-                'error' => $e->getMessage(),
-                'summary' => [
-                    'total_found' => $testResults->count() ?? 0,
-                    'total_processed' => $totalProcessed,
-                    'successful_reviews_generated' => $successfulReviewsGenerated,
-                    'successful_stores' => $successfulStores,
-                    'failed_results' => count($failedResults),
-                    'processing_time' => now()->diffInSeconds($processingStartTime) . 's'
-                ]
-            ], 500);
         }
 
         // Generate final summary
         $processingTime = now()->diffInSeconds($processingStartTime);
-        $totalFound = $testResults->count();
+        $totalFound = 1;
         $failedCount = count($failedResults);
         $successRate = $totalFound > 0 ? round(($successfulStores / $totalFound) * 100, 2) : 0;
 
         // Log summary of processing
         Log::channel($this->getLogChannel())->info('DoctorReviewController processResult completed', [
+            'test_result_id' => $testResultId,
             'total_found' => $totalFound,
+            'total_processed' => $totalProcessed,
+            'successful_reviews_generated' => $successfulReviewsGenerated,
             'successful_stores' => $successfulStores,
             'failed_results' => $failedCount,
             'success_rate' => $successRate . '%',
             'processing_time' => $processingTime . 's',
-            'successful_result_ids' => array_column($successfulResults, 'test_result_id')
+            'successful_result_ids' => array_column($successfulResults, 'report_id')
         ]);
-
-        return response()->json([
-            'success' => $failedCount === 0,
-            'message' => $failedCount === 0
-                ? "All {$totalFound} test results processed successfully"
-                : "Processed {$totalFound} test results with {$failedCount} failures",
-            'summary' => [
-                'total_found' => $totalFound,
-                'total_processed' => $totalProcessed,
-                'successful_reviews_generated' => $successfulReviewsGenerated,
-                'successful_stores' => $successfulStores,
-                'successful_results' => $successfulResults,
-                'failed_results' => $failedCount,
-                'success_rate' => $successRate . '%',
-                'processing_time' => $processingTime . 's',
-                'failed_details' => $failedResults
-            ]
-        ], $failedCount === 0 ? 200 : 207); // 207 = Multi-Status (partial success)
     }
 
     /**
@@ -431,24 +415,11 @@ class DoctorReviewController extends Controller
         // $data = $request['ai_analysis']['answer'];
         $html = '';
 
-        // $html = '<style>
-        //             body { font-family: Arial, sans-serif; color: #333; }
-        //             h5 { font-size: 18px; margin-bottom: 10px; color: #2b2b2b; }
-        //             table { width: 100%; border-collapse: collapse; margin-bottom: 25px; }
-        //             th, td { border: 1px solid #ccc; padding: 10px 12px; text-align: left; vertical-align: top; }
-        //             th { background-color: #f5f5f5; font-weight: bold; }
-        //             tr:nth-child(even) { background-color: #fafafa; }
-        //             .section { margin-bottom: 30px; }
-        //             .card { border: 1px solid #ddd; padding: 15px; border-radius: 8px; background-color: #fff; }
-        //             .highlight { margin-bottom: 8px; }
-        //             .disclaimer { font-size: 13px; color: #666; margin-top: 15px; }
-        //         </style>';
-
         // SECTION A1
         if (!empty($data['section_a1'])) {
-            $html .= '<div class="section">';
+            $html .= '<div class="review-section">';
             $html .= '<h5>Your Health at a Glance</h5>';
-            $html .= '<table><thead><tr>
+            $html .= '<table class="review-table"><thead><tr>
                     <th>Health Area</th>
                     <th>Status</th>
                     <th>Notes</th>
@@ -474,9 +445,9 @@ class DoctorReviewController extends Controller
 
         // SECTION A2
         if (!empty($data['section_a2'])) {
-            $html .= '<div class="section">';
+            $html .= '<div class="review-section">';
             $html .= '<h5>Your Body System Highlights</h5>';
-            $html .= '<ol>';
+            $html .= '<ol class="review-list">';
             foreach ($data['section_a2'] as $highlight) {
                 $html .= '<li class="highlight">' . $highlight . '</li>';
             }
@@ -485,9 +456,9 @@ class DoctorReviewController extends Controller
 
         // SECTION B
         if (!empty($data['section_b'])) {
-            $html .= '<div class="section">';
+            $html .= '<div class="review-section">';
             $html .= '<h5>3-6 Month Health Action</h5>';
-            $html .= '<table><thead><tr>
+            $html .= '<table class="review-table"><thead><tr>
                 <th>Timeline</th>
                 <th>Action</th>
                 <th>Goals</th>
@@ -538,7 +509,7 @@ class DoctorReviewController extends Controller
 
         // SECTION C
         if (!empty($data['section_c'])) {
-            $html .= '<div class="section card">';
+            $html .= '<div class="review-section">';
             $html .= '<h5>With Care, from Alpro</h5>';
             $html .= '<p>' . nl2br(e($data['section_c'])) . '</p>';
             $html .= '<p class="disclaimer">

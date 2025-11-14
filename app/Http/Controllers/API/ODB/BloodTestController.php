@@ -120,18 +120,25 @@ class BloodTestController extends Controller
 
                 // Only add to results if test result found
                 if ($testResult) {
-                    $results[] = [
+                    // Check if AI review is available
+                    $aiReview = AIReview::where('test_result_id', $testResult->id)->first();
+
+                    $resultData = [
                         'icno' => $icno,
                         'refid' => $refid,
-                        'report_id' => $testResult->id
+                        'report_id' => $testResult->id,
+                        'review' => $aiReview ? $aiReview->ai_response : null
                     ];
+
+                    $results[] = $resultData;
                     $successCount++;
 
                     Log::channel($this->getLogChannel())->info('getReportId: Item processed successfully', [
                         'item_number' => $itemNumber,
                         'icno' => $icno,
                         'refid' => $refid,
-                        'report_id' => $testResult->id
+                        'report_id' => $testResult->id,
+                        'has_review' => $aiReview !== null
                     ]);
                 } else {
                     $notFoundCount++;
@@ -202,7 +209,6 @@ class BloodTestController extends Controller
             DB::beginTransaction();
 
             $validated = $request->all();
-            $results = [];
 
             //Login ONCE to AlproGPT before result processing
             Log::channel($this->getLogChannel())->info('Attempting to login to AI service');
@@ -630,24 +636,11 @@ class BloodTestController extends Controller
         // $data = $request['ai_analysis']['answer'];
         $html = '';
 
-        // $html = '<style>
-        //             body { font-family: Arial, sans-serif; color: #333; }
-        //             h5 { font-size: 18px; margin-bottom: 10px; color: #2b2b2b; }
-        //             table { width: 100%; border-collapse: collapse; margin-bottom: 25px; }
-        //             th, td { border: 1px solid #ccc; padding: 10px 12px; text-align: left; vertical-align: top; }
-        //             th { background-color: #f5f5f5; font-weight: bold; }
-        //             tr:nth-child(even) { background-color: #fafafa; }
-        //             .section { margin-bottom: 30px; }
-        //             .card { border: 1px solid #ddd; padding: 15px; border-radius: 8px; background-color: #fff; }
-        //             .highlight { margin-bottom: 8px; }
-        //             .disclaimer { font-size: 13px; color: #666; margin-top: 15px; }
-        //         </style>';
-
         // SECTION A1
         if (!empty($data['section_a1'])) {
-            $html .= '<div class="section">';
+            $html .= '<div class="review-section">';
             $html .= '<h5>Your Health at a Glance</h5>';
-            $html .= '<table><thead><tr>
+            $html .= '<table class="review-table"><thead><tr>
                     <th>Health Area</th>
                     <th>Status</th>
                     <th>Notes</th>
@@ -673,9 +666,9 @@ class BloodTestController extends Controller
 
         // SECTION A2
         if (!empty($data['section_a2'])) {
-            $html .= '<div class="section">';
+            $html .= '<div class="review-section">';
             $html .= '<h5>Your Body System Highlights</h5>';
-            $html .= '<ol>';
+            $html .= '<ol class="review-list">';
             foreach ($data['section_a2'] as $highlight) {
                 $html .= '<li class="highlight">' . $highlight . '</li>';
             }
@@ -684,9 +677,9 @@ class BloodTestController extends Controller
 
         // SECTION B
         if (!empty($data['section_b'])) {
-            $html .= '<div class="section">';
+            $html .= '<div class="review-section">';
             $html .= '<h5>3-6 Month Health Action</h5>';
-            $html .= '<table><thead><tr>
+            $html .= '<table class="review-table"><thead><tr>
                 <th>Timeline</th>
                 <th>Action</th>
                 <th>Goals</th>
@@ -737,7 +730,7 @@ class BloodTestController extends Controller
 
         // SECTION C
         if (!empty($data['section_c'])) {
-            $html .= '<div class="section card">';
+            $html .= '<div class="review-section">';
             $html .= '<h5>With Care, from Alpro</h5>';
             $html .= '<p>' . nl2br(e($data['section_c'])) . '</p>';
             $html .= '<p class="disclaimer">

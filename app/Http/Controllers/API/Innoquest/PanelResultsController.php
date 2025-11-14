@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API\Innoquest;
 
 use App\Http\Controllers\API\BaseResultsController;
+use App\Http\Controllers\API\DoctorReviewController;
 use App\Http\Requests\InnoquestResultRequest;
 use App\Models\DeliveryFile;
 use App\Models\DeliveryFileHistory;
@@ -21,6 +22,7 @@ use App\Models\TestResult;
 use App\Models\TestResultComment;
 use App\Models\TestResultItem;
 use App\Models\TestResultProfile;
+use App\Services\MyHealthService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -395,11 +397,14 @@ class PanelResultsController extends BaseResultsController
                     }
                 }
 
-
                 //check embedded pdf exist to complete blood report status
                 if (isset($validated['EncodedBase64pdf']) && filled($validated['EncodedBase64pdf']) && $test_result) {
                     $test_result->is_completed = true;
                     $test_result->save();
+
+                    // Trigger AI review process
+                    $doctorReviewController = new DoctorReviewController(app(MyHealthService::class));
+                    $doctorReviewController->processResult($test_result->id);
                 }
 
                 //create delivery file for tracking purposes
