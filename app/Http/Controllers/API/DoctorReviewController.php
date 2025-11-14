@@ -334,14 +334,18 @@ class DoctorReviewController extends Controller
                     $successfulReviewsGenerated++;
 
                     // Store the successful review
-                    AIReview::create([
-                        'test_result_id' => $tr->id,
-                        'compiled_results' => $testResultData,
-                        'http_status' => $responseData['ai_analysis']['status'],
-                        'ai_response' => $responseData['ai_analysis'],
-                        'error_message' => null,
-                        'is_successful' => true
-                    ]);
+                    AIReview::firstOrCreate(
+                        [
+                            'test_result_id' => $tr->id
+                        ],
+                        [
+                            'compiled_results' => $testResultData,
+                            'http_status' => $responseData['ai_analysis']['status'],
+                            'ai_response' => $result,
+                            'error_message' => null,
+                            'is_successful' => true
+                        ]
+                    );
 
                     $successfulStores++;
 
