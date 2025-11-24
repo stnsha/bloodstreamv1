@@ -286,7 +286,7 @@ class BloodTestController extends Controller
 
             $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
                 $p->where('icno', $icno);
-            })->where('is_completed', true)->latest()->first();
+            })->latest()->first();
 
             if ($testResult) {
                 Log::channel($this->getLogChannel())->info('getReviewById: Test result found by IC number', [
@@ -303,7 +303,6 @@ class BloodTestController extends Controller
                 ]);
 
                 $testResult = TestResult::where('ref_id', $refid)
-                    ->where('is_completed', true)
                     ->latest()->first();
 
                 if ($testResult) {
@@ -378,10 +377,14 @@ class BloodTestController extends Controller
 
             $processingTime = now()->diffInSeconds($processingStartTime);
 
+            // Determine status based on is_completed value
+            $status = $testResult->is_completed ? 'Completed' : 'Sync In Progress';
+
             $responseData = [
                 'ai_response' => $aiReview->ai_response,
                 'report_id' => $testResult->id,
-                'ref_id' => $testResult->ref_id
+                'ref_id' => $testResult->ref_id,
+                'status' => $status
             ];
 
             Log::channel($this->getLogChannel())->info('getReviewById: Processing completed', [
