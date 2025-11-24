@@ -87,6 +87,11 @@ class TestResult extends Model
         return $this->hasOne(DoctorReview::class, 'test_result_id', 'id');
     }
 
+    public function aiReview(): HasOne
+    {
+        return $this->hasOne(AIReview::class, 'test_result_id', 'id');
+    }
+
     /**
      * Get the user associated with the TestResult
      *
