@@ -57,10 +57,14 @@ class ReviewHtmlGenerator
                 default => '⚪️',
             };
 
+            // Decode HTML entities in notes and preserve <br> tags
+            $notes = html_entity_decode($row['notes'], ENT_QUOTES | ENT_HTML5);
+            $notes = strip_tags($notes, '<br>');
+
             $html .= '<tr>';
             $html .= '<td>' . e($row['health_area']) . '</td>';
             $html .= '<td>' . $statusIcon . ' ' . e(ucwords($row['status'])) . '</td>';
-            $html .= '<td>' . e($row['notes']) . '</td>';
+            $html .= '<td>' . $notes . '</td>';
             $html .= '</tr>';
         }
 
@@ -77,6 +81,9 @@ class ReviewHtmlGenerator
         $html .= '<h5>Your Body System Highlights</h5>';
         $html .= '<ol class="review-list">';
         foreach ($highlights as $highlight) {
+            // Decode HTML entities and preserve <br> tags while escaping other content
+            $highlight = html_entity_decode($highlight, ENT_QUOTES | ENT_HTML5);
+            $highlight = strip_tags($highlight, '<br>');
             $html .= '<li class="highlight">' . $highlight . '</li>';
         }
         $html .= '</ol></div>';
@@ -125,7 +132,10 @@ class ReviewHtmlGenerator
     {
         $html = '<div class="review-section">';
         $html .= '<h5>With Care, from Alpro</h5>';
-        $html .= '<p>' . nl2br(e($text)) . '</p>';
+        // Decode HTML entities first, then allow <br> tags while stripping others
+        $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5);
+        $text = strip_tags($text, '<br>');
+        $html .= '<p>' . $text . '</p>';
         $html .= '<p class="disclaimer">
                 Disclaimer: This report is for educational purposes only and should not replace consultation with a qualified healthcare professional.
               </p>';
@@ -138,6 +148,9 @@ class ReviewHtmlGenerator
      */
     protected function formatListField(string $field): string
     {
+        // Decode HTML entities first (e.g., &lt;br&gt; becomes <br>)
+        $field = html_entity_decode($field, ENT_QUOTES | ENT_HTML5);
+
         // Split on ";" or any variation of <br>
         $items = preg_split('/;|<br\s*\/?>/i', $field);
 
