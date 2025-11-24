@@ -340,6 +340,24 @@ class BloodTestController extends Controller
                 ]);
             }
 
+            // Check if test result is completed before attempting AI generation
+            if (!$testResult->is_completed) {
+                $processingTime = now()->diffInSeconds($processingStartTime);
+
+                Log::channel($this->getLogChannel())->info('getReviewById: Test result not completed, returning sync status', [
+                    'test_result_id' => $testResult->id,
+                    'is_completed' => false,
+                    'processing_time_seconds' => $processingTime
+                ]);
+
+                return response()->json([
+                    'ai_response' => null,
+                    'report_id' => $testResult->id,
+                    'ref_id' => $testResult->ref_id,
+                    'status' => 'Sync In Progress'
+                ]);
+            }
+
             // Check if AIReview exists for this test result using relationship
             $aiReview = $testResult->aiReview;
 
