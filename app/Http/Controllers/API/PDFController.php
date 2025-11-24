@@ -275,6 +275,7 @@ class PDFController extends Controller
             ->whereHas('patient', function ($p) use ($icno) {
                 $p->where('icno', $icno);
             })
+            ->latest()
             ->first();
 
         if (!$testResult && $refid) {
@@ -287,6 +288,7 @@ class PDFController extends Controller
             ])
                 ->where('is_completed', true)
                 ->where('ref_id', $refid)
+                ->latest()
                 ->first();
         }
 

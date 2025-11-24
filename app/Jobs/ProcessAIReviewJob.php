@@ -69,6 +69,7 @@ class ProcessAIReviewJob implements ShouldQueue
                 // ->whereHas('patient', function ($query) {
                 //     $query->where('ic_type', 'NRIC');
                 // })
+                ->latest()
                 ->take($this->maxResults)
                 ->get();
 

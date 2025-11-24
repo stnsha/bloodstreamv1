@@ -69,6 +69,7 @@ class TestResultCompilerService
             ->whereHas('patient', function ($query) use ($icno) {
                 $query->where('icno', $icno);
             })
+            ->latest()
             ->first();
 
         // Fallback to search by refid if provided
@@ -77,6 +78,7 @@ class TestResultCompilerService
                 ->where('ref_id', $refid)
                 ->where('is_reviewed', false)
                 ->where('is_completed', true)
+                ->latest()
                 ->first();
         }
 

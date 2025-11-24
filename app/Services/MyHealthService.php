@@ -27,8 +27,10 @@ class MyHealthService
     {
         return $this->connection->table('check_record')
             ->where('ic', $ic)
+            ->whereYear('date_time', date('Y'))
             ->select('id', 'gender', 'date_time')
-            ->get();
+            ->orderBy('date_time', 'desc')
+            ->first();
     }
 
     public function getRecordDetailsByRecordId($recordId)
