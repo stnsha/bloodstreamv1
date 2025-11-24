@@ -143,7 +143,7 @@ class TestResultCompilerService
     protected function gatherPatientHealthHistory(TestResult $testResult): array
     {
         $icno = $testResult->patient->icno;
-        $checkRecords = $this->myHealthService->getCheckRecordIdByIC($icno);
+        $checkRecord = $this->myHealthService->getCheckRecordIdByIC($icno);
 
         $patientInfo = [
             'Age' => $testResult->patient->age
@@ -151,47 +151,42 @@ class TestResultCompilerService
 
         $healthDetails = [];
 
-        if ($checkRecords && $checkRecords->isNotEmpty()) {
-            // Batch load all record details to avoid N+1 query (PERFORMANCE OPTIMIZATION)
-            $recordIds = $checkRecords->pluck('id')->toArray();
-            $allRecordDetails = $this->myHealthService->getRecordDetailsBatch($recordIds);
+        if ($checkRecord) {
+            $recordId = $checkRecord->id;
+            $recordGender = $checkRecord->gender;
+            $recordDate = Carbon::parse($checkRecord->date_time)->format('Y-m-d');
 
-            foreach ($checkRecords as $cr) {
-                $recordId = $cr->id;
-                $recordGender = $cr->gender;
-                $recordDate = Carbon::parse($cr->date_time)->format('Y-m-d');
+            if (is_null($testResult->patient->gender)) {
+                $testResult->patient->gender = $recordGender == 1
+                    ? Patient::GENDER_MALE
+                    : Patient::GENDER_FEMALE;
+                $testResult->patient->save();
+            }
 
-                if (is_null($testResult->patient->gender)) {
-                    $testResult->patient->gender = $recordGender == 1
-                        ? Patient::GENDER_MALE
-                        : Patient::GENDER_FEMALE;
-                    $testResult->patient->save();
-                }
+            $patientInfo['Gender'] = $testResult->patient->gender;
 
-                $patientInfo['Gender'] = $testResult->patient->gender;
+            // Get record details for this single record
+            $recordDetails = $this->myHealthService->getRecordDetailsByRecordId($recordId);
 
-                // Use pre-loaded record details (NO QUERY - PERFORMANCE OPTIMIZATION)
-                $recordDetails = $allRecordDetails[$recordId] ?? collect([]);
-                if ($recordDetails->isNotEmpty()) {
-                    $transformedRecordDetails = [];
+            if ($recordDetails && !empty($recordDetails)) {
+                $transformedRecordDetails = [];
 
-                    foreach ($recordDetails as $rd) {
-                        if (isset($rd->parameter)) {
-                            $parameterName = $rd->parameter;
-                            // Create a copy without record_id and parameter
-                            $rdCopy = (object)[
-                                'min_range' => $rd->min_range,
-                                'max_range' => $rd->max_range,
-                                'range' => $rd->range,
-                                'unit' => $rd->unit,
-                                'result' => $rd->result
-                            ];
-                            $transformedRecordDetails[$parameterName] = $rdCopy;
-                        }
+                foreach ($recordDetails as $rd) {
+                    if (isset($rd->parameter)) {
+                        $parameterName = $rd->parameter;
+                        // Create a copy without record_id and parameter
+                        $rdCopy = (object)[
+                            'min_range' => $rd->min_range,
+                            'max_range' => $rd->max_range,
+                            'range' => $rd->range,
+                            'unit' => $rd->unit,
+                            'result' => $rd->result
+                        ];
+                        $transformedRecordDetails[$parameterName] = $rdCopy;
                     }
-                    $healthDetails[$recordDate] = $transformedRecordDetails;
-                    $patientInfo = array_merge($patientInfo, $healthDetails);
                 }
+                $healthDetails[$recordDate] = $transformedRecordDetails;
+                $patientInfo = array_merge($patientInfo, $healthDetails);
             }
         }
 
