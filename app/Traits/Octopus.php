@@ -2,6 +2,8 @@
 
 namespace App\Traits;
 
+use Exception;
+
 trait Octopus
 {
 
@@ -39,7 +41,7 @@ trait Octopus
             $error = curl_error($curl);
             $errno = curl_errno($curl);
             curl_close($curl);
-            throw new \Exception("Connection Failure: [{$errno}] {$error}");
+            throw new Exception("Connection Failure: [{$errno}] {$error}");
         }
         curl_close($curl);
         return $result;

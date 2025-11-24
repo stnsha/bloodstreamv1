@@ -12,6 +12,7 @@ use App\Models\ReferenceRange;
 use App\Models\TestResult;
 use App\Models\TestResultItem;
 use Carbon\Carbon;
+use Exception;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -108,7 +109,7 @@ class FileImport implements ToModel, WithHeadingRow, WithValidation, WithChunkRe
 
             return null; // We're not creating a specific model, just processing data
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             DB::rollback();
 
             Log::error('Error processing row in FileImport', [
@@ -282,8 +283,8 @@ class FileImport implements ToModel, WithHeadingRow, WithValidation, WithChunkRe
 
             $patient = Patient::create($patientData);
             return $patient;
-        } catch (\Exception $e) {
-            throw new \Exception('Error creating patient: ' . $e->getMessage());
+        } catch (Exception $e) {
+            throw new Exception('Error creating patient: ' . $e->getMessage());
         }
     }
 
@@ -449,7 +450,7 @@ class FileImport implements ToModel, WithHeadingRow, WithValidation, WithChunkRe
             }
 
             return $panelPanelItemId;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             throw $e;
         }
     }
@@ -497,7 +498,7 @@ class FileImport implements ToModel, WithHeadingRow, WithValidation, WithChunkRe
 
             // Create new test result item
             TestResultItem::create($testResultItemData);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             throw $e;
         }
     }

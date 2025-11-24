@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\URL;
 
@@ -23,5 +25,15 @@ class AppServiceProvider extends ServiceProvider
         //    if (config('app.env') === 'production') {
         //     	URL::forceScheme('https');
         // 	}
+
+        DB::listen(function ($query) {
+            if ($query->time > 100) { // time is in milliseconds
+                Log::info('Slow Query Detected', [
+                    'sql' => $query->sql,
+                    'bindings' => $query->bindings,
+                    'time_ms' => $query->time,
+                ]);
+            }
+        });
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use Closure;
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Tymon\JWTAuth\Facades\JWTAuth;
@@ -38,7 +39,7 @@ class APIAuthMiddleware
             return response()->json(['error' => 'Token is invalid'], 401);
         } catch (JWTException $e) {
             return response()->json(['error' => 'Token error'], 401);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return response()->json(['error' => 'Authentication failed'], 401);
         }
     }

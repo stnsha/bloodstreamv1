@@ -266,7 +266,11 @@ class ProcessAIReviewBatchJob implements ShouldQueue
             try {
                 $checkRecords = $this->myHealthService->getCheckRecordIdByIC($icno);
 
-                if ($checkRecords) {
+                if ($checkRecords && $checkRecords->isNotEmpty()) {
+                    // Batch load all record details to avoid N+1 query (PERFORMANCE OPTIMIZATION)
+                    $recordIds = $checkRecords->pluck('id')->toArray();
+                    $allRecordDetails = $this->myHealthService->getRecordDetailsBatch($recordIds);
+
                     foreach ($checkRecords as $cr) {
                         $recordId = $cr->id;
                         $recordGender = $cr->gender;
@@ -276,15 +280,23 @@ class ProcessAIReviewBatchJob implements ShouldQueue
                             $healthDetails['Gender'] = $recordGender == 1 ? Patient::GENDER_MALE : Patient::GENDER_FEMALE;
                         }
 
-                        $recordDetails = $this->myHealthService->getRecordDetailsByRecordId($recordId);
-                        if (count($recordDetails) != 0) {
+                        // Use pre-loaded record details (NO QUERY - PERFORMANCE OPTIMIZATION)
+                        $recordDetails = $allRecordDetails[$recordId] ?? collect([]);
+                        if ($recordDetails->isNotEmpty()) {
                             $transformedRecordDetails = [];
 
                             foreach ($recordDetails as $rd) {
                                 if (isset($rd->parameter)) {
                                     $parameterName = $rd->parameter;
-                                    unset($rd->parameter);
-                                    $transformedRecordDetails[$parameterName] = $rd;
+                                    // Create a copy without record_id and parameter
+                                    $rdCopy = (object)[
+                                        'min_range' => $rd->min_range,
+                                        'max_range' => $rd->max_range,
+                                        'range' => $rd->range,
+                                        'unit' => $rd->unit,
+                                        'result' => $rd->result
+                                    ];
+                                    $transformedRecordDetails[$parameterName] = $rdCopy;
                                 }
                             }
                             $healthDetails[$recordDate] = $transformedRecordDetails;
@@ -308,6 +320,16 @@ class ProcessAIReviewBatchJob implements ShouldQueue
     private function categorizeTestResultItems($testResultItems): array
     {
         $categorizedItems = [];
+
+        // Pre-load all ResultLibrary records to avoid N+1 query (PERFORMANCE OPTIMIZATION)
+        $flags = collect($testResultItems)->pluck('flag')->filter()->unique();
+        $resultLibraries = [];
+        if ($flags->isNotEmpty()) {
+            $resultLibraries = ResultLibrary::where('code', '0078')
+                ->whereIn('value', $flags->toArray())
+                ->get()
+                ->keyBy('value');
+        }
 
         foreach ($testResultItems as $ri) {
             try {
@@ -361,13 +383,12 @@ class ProcessAIReviewBatchJob implements ShouldQueue
                     $categorizedItems[$panelName] = [];
                 }
 
-                // Get flag description
+                // Get flag description using pre-loaded data
                 $flagDescription = $ri->flag;
                 if (!empty($ri->flag)) {
                     try {
-                        $resultLibrary = ResultLibrary::where('code', '0078')
-                            ->where('value', $ri->flag)
-                            ->first();
+                        // Use pre-loaded ResultLibrary (NO QUERY - PERFORMANCE OPTIMIZATION)
+                        $resultLibrary = $resultLibraries[$ri->flag] ?? null;
                         if ($resultLibrary && !empty($resultLibrary->description)) {
                             $flagDescription = trim(preg_replace('/\s*\([^)]*\)/', '', $resultLibrary->description));
                         }

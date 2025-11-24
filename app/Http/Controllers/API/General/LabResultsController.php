@@ -21,6 +21,7 @@ use App\Models\TestResultProfile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class LabResultsController extends BaseResultsController
 {
@@ -306,13 +307,14 @@ class LabResultsController extends BaseResultsController
             ]);
 
             if ($validated) {
-                DB::beginTransaction();
                 //get current user role
                 $user = Auth::guard('lab')->user();
                 $lab_id = $user->lab_id;
 
-                //checking for batch file
-                if (filled($validated['sending_facility']) && $validated['sending_facility'] === 'INN') {
+                DB::transaction(function () use ($validated, $lab_id, $user, &$test_result_id, &$deliveryFile, &$sending_facility, &$batch_id, &$patient_id) {
+
+                    //checking for batch file
+                    if (filled($validated['sending_facility']) && $validated['sending_facility'] === 'INN') {
                     $sending_facility = $validated['sending_facility'];
                     $batch_id = $validated['batch_id'] ?? null;
                 } else {
@@ -517,20 +519,19 @@ class LabResultsController extends BaseResultsController
                     }
                 }
 
-                //create delivery file for tracking purposes
-                $deliveryFile = DeliveryFile::firstOrCreate(
-                    [
-                        'lab_id' => $lab_id,
-                        'sending_facility' => $sending_facility,
-                        'batch_id' => $batch_id,
-                    ],
-                    [
-                        'json_content' => json_encode($validated),
-                        'status' => DeliveryFile::compl,
-                    ]
-                );
-
-                DB::commit();
+                    //create delivery file for tracking purposes
+                    $deliveryFile = DeliveryFile::firstOrCreate(
+                        [
+                            'lab_id' => $lab_id,
+                            'sending_facility' => $sending_facility,
+                            'batch_id' => $batch_id,
+                        ],
+                        [
+                            'json_content' => json_encode($validated),
+                            'status' => DeliveryFile::compl,
+                        ]
+                    );
+                });
 
                 Log::info('Lab results processed successfully', [
                     'test_result_id' => $test_result_id,
@@ -546,9 +547,7 @@ class LabResultsController extends BaseResultsController
                     'message' => 'Lab results processed successfully'
                 ], 200);
             }
-        } catch (\Throwable $e) {
-            DB::rollBack();
-
+        } catch (Throwable $e) {
             /** @var \Illuminate\Http\Request $request */
             Log::error('Failed to save data', [
                 'exception' => $e->getMessage(),
@@ -557,27 +556,6 @@ class LabResultsController extends BaseResultsController
                 'trace' => $e->getTraceAsString(),
                 'data' => json_encode($request->all()),
             ]);
-
-            // Create delivery file if it doesn't exist for error tracking
-            if (!isset($deliveryFile)) {
-                $deliveryFile = DeliveryFile::create([
-                    'lab_id' => $lab_id ?? null,
-                    'sending_facility' => $sending_facility ?? 'UNKNOWN',
-                    'batch_id' => $batch_id ?? 'ERROR_' . now()->format('YmdHis'),
-                    'json_content' => json_encode($validated),
-                    'status' => DeliveryFile::fld,
-                ]);
-            }
-
-            // Always create delivery file history for errors
-            DeliveryFileHistory::create([
-                'delivery_file_id' => $deliveryFile->id,
-                'message' => $e->getMessage(),
-                'err_code' => '500',
-            ]);
-
-            // Update delivery file status to failed
-            $deliveryFile->update(['status' => DeliveryFile::fld]);
 
             return response()->json([
                 'success' => false,
@@ -847,7 +825,7 @@ class LabResultsController extends BaseResultsController
                 'data' => $responseData,
                 'message' => 'Test result retrieved successfully'
             ], 200);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('Failed to retrieve test result', [
                 'test_result_id' => $id,
                 'exception' => $e->getMessage(),

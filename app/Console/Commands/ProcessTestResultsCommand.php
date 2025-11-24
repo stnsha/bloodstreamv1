@@ -3,7 +3,9 @@
 namespace App\Console\Commands;
 
 use App\Jobs\ProcessAIReviewJob;
+use App\Models\TestResult;
 use App\Services\ApiTokenService;
+use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
@@ -91,7 +93,7 @@ class ProcessTestResultsCommand extends Command
         try {
             $queueSize = Queue::size();
             $this->info("✓ Queue connection successful (current size: {$queueSize})");
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->error("✗ Queue connection failed: " . $e->getMessage());
             $this->info("Make sure Redis is running and queue is properly configured");
             return self::FAILURE;
@@ -99,9 +101,9 @@ class ProcessTestResultsCommand extends Command
 
         if ($dryRun) {
             $this->info("\n🔍 DRY RUN MODE - No actual processing will occur");
-            
+
             // Count test results that would be processed
-            $testResultsQuery = \App\Models\TestResult::where('is_reviewed', false)
+            $testResultsQuery = TestResult::where('is_reviewed', false)
                 ->where('is_completed', true)
                 ->whereHas('patient', function ($query) {
                     $query->where('ic_type', 'NRIC');
@@ -150,7 +152,7 @@ class ProcessTestResultsCommand extends Command
             // $this->info("\nMonitor progress with:");
             // $this->info("- tail -f storage/logs/laravel.log");
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->error("✗ Failed to dispatch job: " . $e->getMessage());
             return self::FAILURE;
         }

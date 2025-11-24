@@ -29,7 +29,7 @@ class TranslationSeeder extends Seeder
                 $pi->chi_character = $tr->translate($pi->name);
                 $pi->save();
                 $success++;
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $failed++;
             }
         }

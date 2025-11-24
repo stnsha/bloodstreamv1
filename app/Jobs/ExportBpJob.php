@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -279,7 +280,7 @@ class ExportBpJob implements ShouldQueue
 
             Log::channel('bp-log')->info("Excel file created successfully: " . $filename);
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::channel('bp-log')->error("Error in exportBp job: " . $e->getMessage());
             Log::channel('bp-log')->error($e->getTraceAsString());
             throw $e;

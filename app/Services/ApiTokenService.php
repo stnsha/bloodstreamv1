@@ -11,7 +11,6 @@ class ApiTokenService
 {
     private const TOKEN_CACHE_KEY = 'ai_api_token';
     private const TOKEN_EXPIRY_DAYS = 30;
-    private const API_LOGIN_URL = 'http://172.18.28.29/alprogpt/chatgpt/login.php';
     
     /**
      * Get valid API token, refresh if expired or missing
@@ -37,10 +36,10 @@ class ApiTokenService
     {
         try {
             Log::info('Attempting to refresh AI API token');
-            
-            $response = Http::timeout(60)->post(self::API_LOGIN_URL, [
-                "username" => "971202055184",
-                "password" => "L^l9i15woDMc"
+
+            $response = Http::timeout(60)->post(config('credentials.ai_review.login'), [
+                "username" => config('credentials.odb.username'),
+                "password" => config('credentials.odb.password')
             ]);
             
             if ($response->failed()) {

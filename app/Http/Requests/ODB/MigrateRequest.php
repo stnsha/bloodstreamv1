@@ -51,7 +51,7 @@ class MigrateRequest extends FormRequest
             'reports.*.report.overall_notes' => 'nullable|string',
             // 'reports.*.report.migration_attempts' => 'nullable|integer',
 
-            'reports.*.parameter' => 'required|array',
+            'reports.*.parameter' => 'present|array',
             'reports.*.parameter.*.ref_id' => 'nullable',
 
             'reports.*.parameter.*.order_id' => 'required|integer',

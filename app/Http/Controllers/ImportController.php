@@ -180,7 +180,7 @@ class ImportController extends Controller
                     Excel::import($panelSequenceImport, $file->getPathname());
 
                     $processedFiles++;
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     $error = [
                         'file'      => $filename,
                         'error'     => $e->getMessage(),
@@ -695,7 +695,7 @@ class ImportController extends Controller
                     $combinedStats = $completedLabNo->getCombinedStats();
 
                     $processedFiles++;
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     $error = [
                         'file'      => $filename,
                         'error'     => $e->getMessage(),
@@ -802,7 +802,7 @@ class ImportController extends Controller
                         $exportFilename
                     );
 
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     return response()->json([
                         'success' => false,
                         'message' => 'Error processing file: ' . $e->getMessage()

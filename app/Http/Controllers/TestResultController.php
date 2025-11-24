@@ -14,7 +14,8 @@ class TestResultController extends Controller
     {
         $user_name = session()->get('username');
         $lab_id = session()->get('lab_id');
-        
+
+        // Add pagination to prevent memory issues (PERFORMANCE OPTIMIZATION)
         $testResults = TestResult::with([
             'patient',
             'doctor',
@@ -23,16 +24,18 @@ class TestResultController extends Controller
             'testResultItems.panelPanelItem.panelItem',
             'testResultItems.panelPanelItem.panel.panelCategory',
             'testResultItems.referenceRange'
-        ])->get();
-        
-        // Process statistics
+        ])->paginate(50); // 50 items per page
+
+        // Calculate statistics efficiently without loading all records
         $stats = [
-            'totalResults' => $testResults->count(),
-            'totalPatients' => $testResults->pluck('patient')->unique('id')->count(),
-            'totalLabs' => $testResults->pluck('doctor.lab')->unique('id')->count()
+            'totalResults' => TestResult::count(),
+            'totalPatients' => TestResult::distinct('patient_id')->count('patient_id'),
+            'totalLabs' => TestResult::join('doctors', 'test_results.doctor_id', '=', 'doctors.id')
+                ->distinct('doctors.lab_id')
+                ->count('doctors.lab_id')
         ];
-        
-        // Process each test result for display
+
+        // Process each test result for display (only current page)
         $processedResults = $testResults->map(function ($result) {
             // Process doctor info
             $doctorInfo = [
@@ -104,7 +107,8 @@ class TestResultController extends Controller
             ];
         });
         
-        return view('results.index', compact('user_name', 'lab_id', 'processedResults', 'stats'));
+        // Pass pagination object to view for pagination links
+        return view('results.index', compact('user_name', 'lab_id', 'processedResults', 'stats', 'testResults'));
     }
 
     /**

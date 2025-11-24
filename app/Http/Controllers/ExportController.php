@@ -27,7 +27,7 @@ class ExportController extends Controller
                 'message' => 'BP export job has been queued. The file will be generated in the background. Check storage/excel folder or logs for progress.',
             ]);
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::channel('bp-log')->error("Error dispatching exportBp job: " . $e->getMessage());
 
             return response()->json([

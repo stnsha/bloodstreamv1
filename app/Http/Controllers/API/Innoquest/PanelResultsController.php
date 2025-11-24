@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API\Innoquest;
 use App\Http\Controllers\API\BaseResultsController;
 use App\Http\Controllers\API\DoctorReviewController;
 use App\Http\Requests\InnoquestResultRequest;
+use App\Services\AIReviewService;
 use App\Models\DeliveryFile;
 use App\Models\DeliveryFileHistory;
 use App\Models\Doctor;
@@ -30,6 +31,13 @@ use Throwable;
 
 class PanelResultsController extends BaseResultsController
 {
+    protected $aiReviewService;
+
+    public function __construct(AIReviewService $aiReviewService)
+    {
+        $this->aiReviewService = $aiReviewService;
+    }
+
     /**
      * @OA\Post(
      *     path="/api/v1/result/panel",
@@ -161,6 +169,9 @@ class PanelResultsController extends BaseResultsController
         $deliveryFile = null;
         $sending_facility = null;
         $batch_id = null;
+        $orders_count = 0;
+        $observations_count = 0;
+        $patient_id = null;
 
         // $tr = new GoogleTranslate();
         // $tr->setSource('en');
@@ -168,10 +179,11 @@ class PanelResultsController extends BaseResultsController
 
         try {
             if ($validated) {
-                DB::beginTransaction();
                 //get current user lab id
                 $user = Auth::guard('lab')->user();
                 $lab_id = $user->lab_id;
+
+                DB::transaction(function () use ($validated, $lab_id, &$test_result, &$deliveryFile, &$sending_facility, &$batch_id, &$orders_count, &$observations_count, &$patient_id) {
 
                 //check for batch
                 if (filled($validated['SendingFacility'])) {
@@ -402,27 +414,26 @@ class PanelResultsController extends BaseResultsController
                     $test_result->is_completed = true;
                     $test_result->save();
 
-                    // Trigger AI review process
-                    $doctorReviewController = new DoctorReviewController(app(MyHealthService::class));
-                    $doctorReviewController->processResult($test_result->id);
+                    // Trigger AI review process using AIReviewService
+                    // REFACTORED: Replaced manual controller instantiation with proper dependency injection
+                    $this->aiReviewService->processSingle($test_result->id);
                 }
 
-                //create delivery file for tracking purposes
-                if ($test_result) {
-                    $deliveryFile = DeliveryFile::firstOrCreate(
-                        [
-                            'lab_id' => $lab_id,
-                            'sending_facility' => $sending_facility,
-                            'batch_id' => $batch_id,
-                        ],
-                        [
-                            'json_content' => json_encode($validated),
-                            'status' => DeliveryFile::compl,
-                        ]
-                    );
-                }
-
-                DB::commit();
+                    //create delivery file for tracking purposes
+                    if ($test_result) {
+                        $deliveryFile = DeliveryFile::firstOrCreate(
+                            [
+                                'lab_id' => $lab_id,
+                                'sending_facility' => $sending_facility,
+                                'batch_id' => $batch_id,
+                            ],
+                            [
+                                'json_content' => json_encode($validated),
+                                'status' => DeliveryFile::compl,
+                            ]
+                        );
+                    }
+                });
 
                 Log::info('Panel results processed successfully', [
                     'test_result_id' => $test_result->id ?? null,
@@ -444,8 +455,6 @@ class PanelResultsController extends BaseResultsController
                 ], 200);
             }
         } catch (Throwable $e) {
-
-            DB::rollBack();
             /** @var \Illuminate\Http\Request $request */
             Log::error('Failed to process panel results', [
                 'exception' => $e->getMessage(),
@@ -455,27 +464,6 @@ class PanelResultsController extends BaseResultsController
                 'has_pdf' => isset($validated['EncodedBase64pdf']) && filled($validated['EncodedBase64pdf']),
                 'data_stored' => false
             ]);
-
-            //sCreate delivery file if it doesn't exist for error tracking
-            if (!$deliveryFile) {
-                $deliveryFile = DeliveryFile::create([
-                    'lab_id' => $lab_id ?? null,
-                    'sending_facility' => $sending_facility ?? 'UNKNOWN',
-                    'batch_id' => $batch_id ?? 'ERROR_' . now()->format('YmdHis'),
-                    'json_content' => json_encode($validated ?? []),
-                    'status' => DeliveryFile::fld,
-                ]);
-            }
-
-            // Always create delivery file history for errors
-            DeliveryFileHistory::create([
-                'delivery_file_id' => $deliveryFile->id,
-                'message' => $e->getMessage(),
-                'err_code' => '500',
-            ]);
-
-            // Update delivery file status to failed
-            $deliveryFile->update(['status' => DeliveryFile::fld]);
 
             return response()->json([
                 'success' => false,

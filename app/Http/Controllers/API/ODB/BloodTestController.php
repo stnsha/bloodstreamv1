@@ -12,6 +12,8 @@ use App\Models\MigrationBatchItem;
 use App\Models\Patient;
 use App\Models\ResultLibrary;
 use App\Models\TestResult;
+use App\Services\AIReviewService;
+use App\Services\ApiTokenService;
 use App\Services\MyHealthService;
 use App\Services\ODB\MigrationService;
 use Carbon\Carbon;
@@ -26,10 +28,17 @@ use Throwable;
 class BloodTestController extends Controller
 {
     protected $myHealthService;
+    protected $apiTokenService;
+    protected $aiReviewService;
 
-    public function __construct(MyHealthService $myHealthService)
-    {
+    public function __construct(
+        MyHealthService $myHealthService,
+        ApiTokenService $apiTokenService,
+        AIReviewService $aiReviewService
+    ) {
         $this->myHealthService = $myHealthService;
+        $this->apiTokenService = $apiTokenService;
+        $this->aiReviewService = $aiReviewService;
     }
 
     private function getLogChannel()
@@ -54,102 +63,101 @@ class BloodTestController extends Controller
         ]);
 
         try {
-            DB::beginTransaction();
-            $results = [];
+            $results = DB::transaction(function () use ($validated, &$successCount, &$notFoundCount) {
+                $results = [];
 
-            foreach ($validated as $index => $item) {
-                $icno = $item['icno'];
-                $refid = $item['refid'] ?? null;
-                $itemNumber = $index + 1;
+                foreach ($validated as $index => $item) {
+                    $icno = $item['icno'];
+                    $refid = $item['refid'] ?? null;
+                    $itemNumber = $index + 1;
 
-                Log::channel($this->getLogChannel())->info('getReportId: Processing item', [
-                    'item_number' => $itemNumber,
-                    'icno' => $icno,
-                    'refid' => $refid
-                ]);
-
-                // Search by IC number first
-                Log::channel($this->getLogChannel())->debug('getReportId: Searching by IC number', [
-                    'icno' => $icno
-                ]);
-
-                $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
-                    $p->where('icno', $icno);
-                })->where('is_completed', true)->first();
-
-                if ($testResult) {
-                    Log::channel($this->getLogChannel())->info('getReportId: Test result found by IC number', [
-                        'icno' => $icno,
-                        'test_result_id' => $testResult->id
-                    ]);
-                }
-
-                // Fallback to search by refid if provided
-                if (!$testResult && $refid) {
-                    Log::channel($this->getLogChannel())->debug('getReportId: IC search failed, falling back to refid search', [
+                    Log::channel($this->getLogChannel())->info('getReportId: Processing item', [
+                        'item_number' => $itemNumber,
                         'icno' => $icno,
                         'refid' => $refid
                     ]);
 
-                    $testResult = TestResult::where('ref_id', $refid)->where('is_completed', true)->first();
+                    // Search by IC number first
+                    Log::channel($this->getLogChannel())->debug('getReportId: Searching by IC number', [
+                        'icno' => $icno
+                    ]);
+
+                    $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
+                        $p->where('icno', $icno);
+                    })->where('is_completed', true)->first();
 
                     if ($testResult) {
-                        Log::channel($this->getLogChannel())->info('getReportId: Test result found by refid', [
-                            'refid' => $refid,
+                        Log::channel($this->getLogChannel())->info('getReportId: Test result found by IC number', [
+                            'icno' => $icno,
                             'test_result_id' => $testResult->id
+                        ]);
+                    }
+
+                    // Fallback to search by refid if provided
+                    if (!$testResult && $refid) {
+                        Log::channel($this->getLogChannel())->debug('getReportId: IC search failed, falling back to refid search', [
+                            'icno' => $icno,
+                            'refid' => $refid
+                        ]);
+
+                        $testResult = TestResult::where('ref_id', $refid)->where('is_completed', true)->first();
+
+                        if ($testResult) {
+                            Log::channel($this->getLogChannel())->info('getReportId: Test result found by refid', [
+                                'refid' => $refid,
+                                'test_result_id' => $testResult->id
+                            ]);
+                        }
+                    }
+
+                    // Update ref_id if request has refid but DB has null
+                    if ($testResult && $refid && $testResult->ref_id === null) {
+                        Log::channel($this->getLogChannel())->debug('getReportId: Updating null ref_id in database', [
+                            'test_result_id' => $testResult->id,
+                            'old_ref_id' => null,
+                            'new_ref_id' => $refid
+                        ]);
+
+                        $testResult->ref_id = $refid;
+                        $testResult->save();
+
+                        Log::channel($this->getLogChannel())->info('getReportId: ref_id updated successfully', [
+                            'test_result_id' => $testResult->id,
+                            'ref_id' => $refid
+                        ]);
+                    }
+
+                    // Only add to results if test result found
+                    if ($testResult) {
+
+                        $resultData = [
+                            'icno' => $icno,
+                            'refid' => $refid,
+                            'report_id' => $testResult->id
+                        ];
+
+                        $results[] = $resultData;
+                        $successCount++;
+
+                        Log::channel($this->getLogChannel())->info('getReportId: Item processed successfully', [
+                            'item_number' => $itemNumber,
+                            'icno' => $icno,
+                            'refid' => $refid,
+                            'report_id' => $testResult->id
+                        ]);
+                    } else {
+                        $notFoundCount++;
+
+                        Log::channel($this->getLogChannel())->warning('getReportId: Test result not found', [
+                            'item_number' => $itemNumber,
+                            'icno' => $icno,
+                            'refid' => $refid
                         ]);
                     }
                 }
 
-                // Update ref_id if request has refid but DB has null
-                if ($testResult && $refid && $testResult->ref_id === null) {
-                    Log::channel($this->getLogChannel())->debug('getReportId: Updating null ref_id in database', [
-                        'test_result_id' => $testResult->id,
-                        'old_ref_id' => null,
-                        'new_ref_id' => $refid
-                    ]);
-
-                    $testResult->ref_id = $refid;
-                    $testResult->save();
-
-                    Log::channel($this->getLogChannel())->info('getReportId: ref_id updated successfully', [
-                        'test_result_id' => $testResult->id,
-                        'ref_id' => $refid
-                    ]);
-                }
-
-                // Only add to results if test result found
-                if ($testResult) {
-                    // Check if AI review is available
-                    $aiReview = AIReview::where('test_result_id', $testResult->id)->first();
-
-                    $resultData = [
-                        'icno' => $icno,
-                        'refid' => $refid,
-                        'report_id' => $testResult->id,
-                        'review' => $aiReview ? $aiReview->ai_response : null
-                    ];
-
-                    $results[] = $resultData;
-                    $successCount++;
-
-                    Log::channel($this->getLogChannel())->info('getReportId: Item processed successfully', [
-                        'item_number' => $itemNumber,
-                        'icno' => $icno,
-                        'refid' => $refid,
-                        'report_id' => $testResult->id,
-                        'has_review' => $aiReview !== null
-                    ]);
-                } else {
-                    $notFoundCount++;
-
-                    Log::channel($this->getLogChannel())->warning('getReportId: Test result not found', [
-                        'item_number' => $itemNumber,
-                        'icno' => $icno,
-                        'refid' => $refid
-                    ]);
-                }
-            }
+                return $results;
+            });
 
             $processingTime = now()->diffInSeconds($processingStartTime);
 
@@ -160,12 +168,8 @@ class BloodTestController extends Controller
                 'processing_time_seconds' => $processingTime
             ]);
 
-            DB::commit();
-
             return response()->json($results);
         } catch (Throwable $e) {
-            DB::rollBack();
-
             Log::channel($this->getLogChannel())->error('getReportId: Critical error occurred', [
                 'error_message' => $e->getMessage(),
                 'error_file' => $e->getFile(),
@@ -186,8 +190,71 @@ class BloodTestController extends Controller
 
     /**
      * Retrieve IC and refID from ODB to generate AI review
+     *
+     * REFACTORED: Now uses AIReviewService to eliminate code duplication
+     * Old implementation kept below as backup (search for "OLD CODE - BACKUP")
      */
     public function review(ODBRequest $request)
+    {
+        // Increase execution time for external API calls
+        ini_set('max_execution_time', 300); // 5 minutes
+        $validated = $request->all();
+        $processingStartTime = now();
+
+        Log::channel($this->getLogChannel())->info('AI Review process started', [
+            'total_items' => count($validated),
+            'timestamp' => $processingStartTime
+        ]);
+
+        try {
+            // Process using AIReviewService (new implementation - handles bulk processing)
+            $results = $this->aiReviewService->processBulk($validated);
+
+            $successfulResults = array_filter($results, fn($r) => $r->isSuccessful());
+            $failedResults = array_filter($results, fn($r) => $r->isFailed());
+
+            $processingTime = now()->diffInSeconds($processingStartTime);
+
+            Log::channel($this->getLogChannel())->info('AI Review process completed', [
+                'total_items' => count($validated),
+                'processed_results' => count($results),
+                'successful_results' => count($successfulResults),
+                'failed_results' => count($failedResults),
+                'processing_time' => $processingTime . 's'
+            ]);
+
+            if (count($successfulResults) > 0) {
+                return response()->json(
+                    array_map(fn($r) => $r->toArray(), $successfulResults)
+                );
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'No test results could be processed successfully',
+                'failed_results' => array_map(fn($r) => $r->toArray(), $failedResults),
+            ], 404);
+        } catch (Exception $e) {
+            Log::channel($this->getLogChannel())->error('Critical error in review method', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'total_items' => count($validated)
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Critical error occurred during processing',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /* ========== OLD CODE - BACKUP ==========
+     * Original review implementation before refactoring to AIReviewService
+     * Kept for rollback purposes if needed
+     * Can be removed after verification that new implementation works correctly
+     *
+    public function review_OLD(ODBRequest $request)
     {
         // Increase execution time for external API calls
         ini_set('max_execution_time', 300); // 5 minutes
@@ -206,276 +273,308 @@ class BloodTestController extends Controller
         ]);
 
         try {
-            DB::beginTransaction();
-
             $validated = $request->all();
 
-            //Login ONCE to AlproGPT before result processing
-            Log::channel($this->getLogChannel())->info('Attempting to login to AI service');
+            // Get cached token from ApiTokenService (PERFORMANCE OPTIMIZATION - cached for 30 days)
+            Log::channel($this->getLogChannel())->info('Getting AI service token');
 
-            $login = Http::timeout(60)->post(config('credentials.ai_review.login'), [
-                "username" => config('credentials.odb.username'),
-                "password" => config('credentials.odb.password')
-            ]);
+            $token = $this->apiTokenService->getValidToken();
 
-            if ($login->failed()) {
-                DB::rollBack();
-                Log::channel($this->getLogChannel())->error('AI service login failed', [
-                    'status_code' => $login->status(),
-                    'response' => $login->body()
-                ]);
+            if (!$token) {
+                Log::channel($this->getLogChannel())->error('Failed to obtain AI service token');
 
                 return response()->json([
                     'success' => false,
                     'message' => 'Failed to authenticate with AI service',
-                    'error' => 'Login failed with status ' . $login->status()
+                    'error' => 'Unable to obtain valid API token'
                 ], 401);
             }
 
-            $loginData = $login->json();
-            $token = $loginData['token'];
+            Log::channel($this->getLogChannel())->info('AI service token obtained successfully');
 
-            Log::channel($this->getLogChannel())->info('AI service login successful');
+            // Step 1: Collect all test result data IN TRANSACTION (fast, no HTTP calls)
+            $testResultsToProcess = DB::transaction(function () use ($validated, &$totalProcessed, &$failedResults) {
+                $testResultsData = [];
 
-            foreach ($validated as $item) {
-                $icno = $item['icno'];
-                $refid = $item['refid'] ?? null;
-                $totalProcessed++;
+                foreach ($validated as $item) {
+                    $icno = $item['icno'];
+                    $refid = $item['refid'] ?? null;
+                    $totalProcessed++;
 
-                Log::channel($this->getLogChannel())->info('Processing test result', [
-                    'icno' => $icno,
-                    'refid' => $refid,
-                    'item_number' => $totalProcessed
-                ]);
+                    Log::channel($this->getLogChannel())->info('Processing test result', [
+                        'icno' => $icno,
+                        'refid' => $refid,
+                        'item_number' => $totalProcessed
+                    ]);
 
-                $tr = TestResult::with([
-                    'patient',
-                    'testResultItems.panelPanelItem.panel.panelCategory',
-                    'testResultItems.referenceRange',
-                    'testResultItems.panelPanelItem.panelItem',
-                    'testResultItems.panelComments.masterPanelComment',
-                ])
-                    ->where('is_reviewed', false)
-                    ->where('is_completed', true)
-                    ->whereHas('patient', function ($query) use ($icno) {
-                        $query->where('icno', $icno);
-                    })
-                    ->first();
-
-                // Fallback to search by refid if provided
-                if (!$tr && $refid) {
-                    $tr = TestResult::where('ref_id', $refid)
+                    $tr = TestResult::with([
+                        'patient',
+                        'testResultItems.panelPanelItem.panel.panelCategory',
+                        'testResultItems.referenceRange',
+                        'testResultItems.panelPanelItem.panelItem',
+                        'testResultItems.panelComments.masterPanelComment',
+                    ])
                         ->where('is_reviewed', false)
                         ->where('is_completed', true)
+                        ->whereHas('patient', function ($query) use ($icno) {
+                            $query->where('icno', $icno);
+                        })
                         ->first();
-                }
 
-                if (!$tr) {
-                    Log::channel($this->getLogChannel())->warning('Test result not found', [
-                        'icno' => $icno,
-                        'refid' => $refid
-                    ]);
-                    $failedResults[] = [
-                        'icno' => $icno,
-                        'refid' => $refid,
-                        'reason' => 'Test result not found or already reviewed'
-                    ];
-                    continue;
-                }
-
-                Log::channel($this->getLogChannel())->info('Test result found', [
-                    'test_result_id' => $tr->id,
-                    'icno' => $icno,
-                    'refid' => $refid
-                ]);
-
-                //Prepare MyHealth history
-                $checkRecords = $this->myHealthService->getCheckRecordIdByIC($icno);
-
-                $patientInfo = [
-                    'Age' => $tr->patient->age
-                ];
-
-                if ($checkRecords) {
-                    foreach ($checkRecords as $cr) {
-                        $recordId = $cr->id;
-                        $recordGender = $cr->gender;
-                        $recordDate = Carbon::parse($cr->date_time)->format('Y-m-d');
-
-                        if (is_null($tr->patient->gender)) {
-                            $tr->patient->gender = $recordGender == 1 ? Patient::GENDER_MALE : Patient::GENDER_FEMALE;
-                            $tr->patient->save();
-                        }
-
-                        $patientInfo['Gender'] = $tr->patient->gender;
-
-                        $recordDetails = $this->myHealthService->getRecordDetailsByRecordId($recordId);
-                        if (count($recordDetails) != 0) {
-                            $transformedRecordDetails = [];
-
-                            foreach ($recordDetails as $rd) {
-                                if (isset($rd->parameter)) {
-                                    $parameterName = $rd->parameter;
-                                    unset($rd->parameter);
-                                    $transformedRecordDetails[$parameterName] = $rd;
-                                }
-                            }
-                            $healthDetails[$recordDate] = $transformedRecordDetails;
-                            $patientInfo = array_merge($patientInfo, $healthDetails);
-                        }
+                    // Fallback to search by refid if provided
+                    if (!$tr && $refid) {
+                        $tr = TestResult::where('ref_id', $refid)
+                            ->where('is_reviewed', false)
+                            ->where('is_completed', true)
+                            ->first();
                     }
-                }
 
-                if (!$tr || !$tr->id) {
-                    Log::channel($this->getLogChannel())->error('Invalid test result object', [
-                        'icno' => $icno,
-                        'refid' => $refid
-                    ]);
-                    $failedResults[] = [
-                        'icno' => $icno,
-                        'refid' => $refid,
-                        'reason' => 'Invalid test result object'
-                    ];
-                    continue;
-                }
-
-                if (!$tr->patient) {
-                    Log::channel($this->getLogChannel())->warning('Test result has no associated patient', [
-                        'test_result_id' => $tr->id,
-                        'icno' => $icno,
-                        'refid' => $refid
-                    ]);
-                    $failedResults[] = [
-                        'icno' => $icno,
-                        'refid' => $refid,
-                        'test_result_id' => $tr->id,
-                        'reason' => 'Missing patient information'
-                    ];
-                    continue;
-                }
-
-                $reportDate = Carbon::parse($tr->reported_date)->format('Y-m-d');
-                $categorizedItems = [];
-                $validItemsCount = 0;
-
-                if ($tr->testResultItems->isEmpty()) {
-                    Log::channel($this->getLogChannel())->warning('Test result has no test result items', [
-                        'test_result_id' => $tr->id,
-                        'icno' => $icno,
-                        'refid' => $refid
-                    ]);
-                    $failedResults[] = [
-                        'icno' => $icno,
-                        'refid' => $refid,
-                        'test_result_id' => $tr->id,
-                        'reason' => 'No test result items found'
-                    ];
-                    continue;
-                }
-
-                foreach ($tr->testResultItems as $ri) {
-                    try {
-                        if (!$ri || !$ri->id) {
-                            continue;
-                        }
-
-                        if (!$ri->panelPanelItem) {
-                            continue;
-                        }
-
-                        if (!$ri->panelPanelItem->panelItem) {
-                            continue;
-                        }
-
-                        $panelItemName = $ri->panelPanelItem->panelItem->name ?? 'Unknown Item';
-
-                        // Determine panel name: use actual panel name or fallback to panel item name
-                        if ($ri->panelPanelItem->panel && $ri->panelPanelItem->panel->name) {
-                            $panelName = $ri->panelPanelItem->panel->name;
-                        } else {
-                            $panelName = $panelItemName; // Use panel item name as panel name
-                        }
-
-                        // Build simplified panel-only structure
-                        if (!isset($categorizedItems[$panelName])) {
-                            $categorizedItems[$panelName] = [];
-                        }
-
-                        $flagDescription = $ri->flag;
-                        if (!empty($ri->flag)) {
-                            try {
-                                $resultLibrary = ResultLibrary::where('code', '0078')
-                                    ->where('value', $ri->flag)
-                                    ->first();
-                                if ($resultLibrary && !empty($resultLibrary->description)) {
-                                    // Remove content within parentheses and trim whitespace
-                                    $flagDescription = trim(preg_replace('/\s*\([^)]*\)/', '', $resultLibrary->description));
-                                } else {
-                                    $flagDescription = $ri->flag;
-                                }
-                            } catch (Exception $e) {
-                                // Silently continue if flag description lookup fails
-                            }
-                        }
-
-                        $itemData = [
-                            'panel_item_name' => $ri->panelPanelItem->panelItem->name ?? 'Unknown Item',
-                            'result_value' => $ri->value ?? null,
-                            'panel_item_unit' => $ri->panelPanelItem->panelItem->unit ?? null,
-                            'result_status' => $flagDescription ?? null,
-                            'reference_range' => null,
-                            'comments' => []
+                    if (!$tr) {
+                        Log::channel($this->getLogChannel())->warning('Test result not found', [
+                            'icno' => $icno,
+                            'refid' => $refid
+                        ]);
+                        $failedResults[] = [
+                            'icno' => $icno,
+                            'refid' => $refid,
+                            'reason' => 'Test result not found or already reviewed'
                         ];
+                        continue;
+                    }
 
-                        if ($ri->reference_range_id && $ri->referenceRange) {
-                            try {
-                                $itemData['reference_range'] = $ri->referenceRange->value;
-                            } catch (Exception $e) {
-                                // Silently continue if reference range lookup fails
+                    Log::channel($this->getLogChannel())->info('Test result found', [
+                        'test_result_id' => $tr->id,
+                        'icno' => $icno,
+                        'refid' => $refid
+                    ]);
+
+                    //Prepare MyHealth history
+                    $checkRecords = $this->myHealthService->getCheckRecordIdByIC($icno);
+
+                    $patientInfo = [
+                        'Age' => $tr->patient->age
+                    ];
+
+                    if ($checkRecords && $checkRecords->isNotEmpty()) {
+                        // Batch load all record details to avoid N+1 query (PERFORMANCE OPTIMIZATION)
+                        $recordIds = $checkRecords->pluck('id')->toArray();
+                        $allRecordDetails = $this->myHealthService->getRecordDetailsBatch($recordIds);
+
+                        foreach ($checkRecords as $cr) {
+                            $recordId = $cr->id;
+                            $recordGender = $cr->gender;
+                            $recordDate = Carbon::parse($cr->date_time)->format('Y-m-d');
+
+                            if (is_null($tr->patient->gender)) {
+                                $tr->patient->gender = $recordGender == 1 ? Patient::GENDER_MALE : Patient::GENDER_FEMALE;
+                                $tr->patient->save();
                             }
-                        }
 
-                        if ($ri->panelComments && !$ri->panelComments->isEmpty()) {
-                            try {
-                                foreach ($ri->panelComments as $pc) {
-                                    if ($pc && $pc->masterPanelComment && !empty($pc->masterPanelComment->comment)) {
-                                        $itemData['comments'][] = $pc->masterPanelComment->comment;
+                            $patientInfo['Gender'] = $tr->patient->gender;
+
+                            // Use pre-loaded record details (NO QUERY - PERFORMANCE OPTIMIZATION)
+                            $recordDetails = $allRecordDetails[$recordId] ?? collect([]);
+                            if ($recordDetails->isNotEmpty()) {
+                                $transformedRecordDetails = [];
+
+                                foreach ($recordDetails as $rd) {
+                                    if (isset($rd->parameter)) {
+                                        $parameterName = $rd->parameter;
+                                        // Create a copy without record_id and parameter
+                                        $rdCopy = (object)[
+                                            'min_range' => $rd->min_range,
+                                            'max_range' => $rd->max_range,
+                                            'range' => $rd->range,
+                                            'unit' => $rd->unit,
+                                            'result' => $rd->result
+                                        ];
+                                        $transformedRecordDetails[$parameterName] = $rdCopy;
                                     }
                                 }
-                            } catch (Exception $e) {
-                                // Silently continue if comments processing fails
+                                $healthDetails[$recordDate] = $transformedRecordDetails;
+                                $patientInfo = array_merge($patientInfo, $healthDetails);
                             }
                         }
-
-                        // Add item to panel (simplified structure)
-                        $categorizedItems[$panelName][] = $itemData;
-                        $validItemsCount++;
-                    } catch (Exception $e) {
-                        // Silently continue if individual item processing fails
                     }
-                }
 
-                if ($validItemsCount === 0) {
-                    Log::channel($this->getLogChannel())->warning('No valid test result items processed', [
-                        'test_result_id' => $tr->id,
-                        'icno' => $icno,
-                        'refid' => $refid
-                    ]);
-                    $failedResults[] = [
+                    if (!$tr || !$tr->id) {
+                        Log::channel($this->getLogChannel())->error('Invalid test result object', [
+                            'icno' => $icno,
+                            'refid' => $refid
+                        ]);
+                        $failedResults[] = [
+                            'icno' => $icno,
+                            'refid' => $refid,
+                            'reason' => 'Invalid test result object'
+                        ];
+                        continue;
+                    }
+
+                    if (!$tr->patient) {
+                        Log::channel($this->getLogChannel())->warning('Test result has no associated patient', [
+                            'test_result_id' => $tr->id,
+                            'icno' => $icno,
+                            'refid' => $refid
+                        ]);
+                        $failedResults[] = [
+                            'icno' => $icno,
+                            'refid' => $refid,
+                            'test_result_id' => $tr->id,
+                            'reason' => 'Missing patient information'
+                        ];
+                        continue;
+                    }
+
+                    $reportDate = Carbon::parse($tr->reported_date)->format('Y-m-d');
+                    $categorizedItems = [];
+                    $validItemsCount = 0;
+
+                    if ($tr->testResultItems->isEmpty()) {
+                        Log::channel($this->getLogChannel())->warning('Test result has no test result items', [
+                            'test_result_id' => $tr->id,
+                            'icno' => $icno,
+                            'refid' => $refid
+                        ]);
+                        $failedResults[] = [
+                            'icno' => $icno,
+                            'refid' => $refid,
+                            'test_result_id' => $tr->id,
+                            'reason' => 'No test result items found'
+                        ];
+                        continue;
+                    }
+
+                    // Pre-load all ResultLibrary records to avoid N+1 query (PERFORMANCE OPTIMIZATION)
+                    $flags = $tr->testResultItems->pluck('flag')->filter()->unique();
+                    $resultLibraries = [];
+                    if ($flags->isNotEmpty()) {
+                        $resultLibraries = ResultLibrary::where('code', '0078')
+                            ->whereIn('value', $flags->toArray())
+                            ->get()
+                            ->keyBy('value');
+                    }
+
+                    foreach ($tr->testResultItems as $ri) {
+                        try {
+                            if (!$ri || !$ri->id) {
+                                continue;
+                            }
+
+                            if (!$ri->panelPanelItem) {
+                                continue;
+                            }
+
+                            if (!$ri->panelPanelItem->panelItem) {
+                                continue;
+                            }
+
+                            $panelItemName = $ri->panelPanelItem->panelItem->name ?? 'Unknown Item';
+
+                            // Determine panel name: use actual panel name or fallback to panel item name
+                            if ($ri->panelPanelItem->panel && $ri->panelPanelItem->panel->name) {
+                                $panelName = $ri->panelPanelItem->panel->name;
+                            } else {
+                                $panelName = $panelItemName; // Use panel item name as panel name
+                            }
+
+                            // Build simplified panel-only structure
+                            if (!isset($categorizedItems[$panelName])) {
+                                $categorizedItems[$panelName] = [];
+                            }
+
+                            $flagDescription = $ri->flag;
+                            if (!empty($ri->flag)) {
+                                try {
+                                    // Use pre-loaded ResultLibrary (NO QUERY - PERFORMANCE OPTIMIZATION)
+                                    $resultLibrary = $resultLibraries[$ri->flag] ?? null;
+                                    if ($resultLibrary && !empty($resultLibrary->description)) {
+                                        // Remove content within parentheses and trim whitespace
+                                        $flagDescription = trim(preg_replace('/\s*\([^)]*\)/', '', $resultLibrary->description));
+                                    } else {
+                                        $flagDescription = $ri->flag;
+                                    }
+                                } catch (Exception $e) {
+                                    // Intentionally silent - flag description lookup failure should not stop processing
+                                }
+                            }
+
+                            $itemData = [
+                                'panel_item_name' => $ri->panelPanelItem->panelItem->name ?? 'Unknown Item',
+                                'result_value' => $ri->value ?? null,
+                                'panel_item_unit' => $ri->panelPanelItem->panelItem->unit ?? null,
+                                'result_status' => $flagDescription ?? null,
+                                'reference_range' => null,
+                                'comments' => []
+                            ];
+
+                            if ($ri->reference_range_id && $ri->referenceRange) {
+                                try {
+                                    $itemData['reference_range'] = $ri->referenceRange->value;
+                                } catch (Exception $e) {
+                                    // Intentionally silent - reference range lookup failure should not stop processing
+                                }
+                            }
+
+                            if ($ri->panelComments && !$ri->panelComments->isEmpty()) {
+                                try {
+                                    foreach ($ri->panelComments as $pc) {
+                                        if ($pc && $pc->masterPanelComment && !empty($pc->masterPanelComment->comment)) {
+                                            $itemData['comments'][] = $pc->masterPanelComment->comment;
+                                        }
+                                    }
+                                } catch (Exception $e) {
+                                    // Intentionally silent - comments processing failure should not stop processing
+                                }
+                            }
+
+                            // Add item to panel (simplified structure)
+                            $categorizedItems[$panelName][] = $itemData;
+                            $validItemsCount++;
+                        } catch (Exception $e) {
+                            // Intentionally silent - individual item processing failure should not stop processing
+                        }
+                    }
+
+                    if ($validItemsCount === 0) {
+                        Log::channel($this->getLogChannel())->warning('No valid test result items processed', [
+                            'test_result_id' => $tr->id,
+                            'icno' => $icno,
+                            'refid' => $refid
+                        ]);
+                        $failedResults[] = [
+                            'icno' => $icno,
+                            'refid' => $refid,
+                            'test_result_id' => $tr->id,
+                            'reason' => 'No valid test result items'
+                        ];
+                        continue;
+                    }
+
+                    $finalResults[$reportDate] = $categorizedItems;
+
+                    $testResultData = [
+                        'Health History' => $patientInfo,
+                        'Blood Test Results' => $finalResults
+                    ];
+
+                    // Collect data for API processing (NO HTTP CALLS IN TRANSACTION)
+                    $testResultsData[] = [
+                        'test_result' => $tr,
                         'icno' => $icno,
                         'refid' => $refid,
-                        'test_result_id' => $tr->id,
-                        'reason' => 'No valid test result items'
+                        'test_result_data' => $testResultData
                     ];
-                    continue;
                 }
 
-                $finalResults[$reportDate] = $categorizedItems;
+                return $testResultsData;
+            });
 
-                $testResultData = [
-                    'Health History' => $patientInfo,
-                    'Blood Test Results' => $finalResults
-                ];
+            // Step 2: Process AI API calls OUTSIDE transaction (no database locks)
+            foreach ($testResultsToProcess as $data) {
+                $tr = $data['test_result'];
+                $icno = $data['icno'];
+                $refid = $data['refid'];
+                $testResultData = $data['test_result_data'];
 
                 // Call AI API using the token from login
                 Log::channel($this->getLogChannel())->info('Calling AI analysis API', [
@@ -487,6 +586,7 @@ class BloodTestController extends Controller
                 $response = Http::timeout(120)->withToken($token)
                     ->post(config('credentials.ai_review.analysis'), $testResultData);
 
+                // Step 3: Save results in SEPARATE transaction (fast, no HTTP)
                 if ($response->failed()) {
                     Log::channel($this->getLogChannel())->error('AI analysis API call failed', [
                         'test_result_id' => $tr->id,
@@ -497,14 +597,16 @@ class BloodTestController extends Controller
                     ]);
 
                     // Log failed attempt to AIReview
-                    AIReview::create([
-                        'test_result_id' => $tr->id,
-                        'compiled_results' => $testResultData,
-                        'http_status' => $response->status(),
-                        'ai_response' => null,
-                        'error_message' => 'AI analysis API call failed with status ' . $response->status(),
-                        'is_successful' => false
-                    ]);
+                    DB::transaction(function () use ($tr, $testResultData, $response) {
+                        AIReview::create([
+                            'test_result_id' => $tr->id,
+                            'compiled_results' => $testResultData,
+                            'http_status' => $response->status(),
+                            'ai_response' => null,
+                            'error_message' => 'AI analysis API call failed with status ' . $response->status(),
+                            'is_successful' => false
+                        ]);
+                    });
 
                     $failedResults[] = [
                         'icno' => $icno,
@@ -526,27 +628,29 @@ class BloodTestController extends Controller
                     $result = $this->convertTableBlock($responseData['ai_analysis']['answer']);
                     $successfulReviewsGenerated++;
 
-                    // Store the successful review
-                    AIReview::firstOrCreate(
-                        [
-                            'test_result_id' => $tr->id
-                        ],
-                        [
-                            'compiled_results' => $testResultData,
-                            'http_status' => $responseData['ai_analysis']['status'],
-                            'ai_response' => $result,
-                            'error_message' => null,
-                            'is_successful' => true
-                        ]
-                    );
+                    // Store the successful review in separate transaction
+                    DB::transaction(function () use ($tr, $testResultData, $responseData, $result, $refid, &$successfulStores) {
+                        AIReview::firstOrCreate(
+                            [
+                                'test_result_id' => $tr->id
+                            ],
+                            [
+                                'compiled_results' => $testResultData,
+                                'http_status' => $responseData['ai_analysis']['status'],
+                                'ai_response' => $result,
+                                'error_message' => null,
+                                'is_successful' => true
+                            ]
+                        );
 
-                    $successfulStores++;
+                        $successfulStores++;
 
-                    // Mark as reviewed
-                    $tr->is_reviewed = true;
-                    // Update ref_id if request has refid but DB has null
-                    $tr->ref_id = $refid;
-                    $tr->save();
+                        // Mark as reviewed
+                        $tr->is_reviewed = true;
+                        // Update ref_id if request has refid but DB has null
+                        $tr->ref_id = $refid;
+                        $tr->save();
+                    });
 
                     $successfulResults[] = [
                         'icno' => $icno,
@@ -559,10 +663,6 @@ class BloodTestController extends Controller
                         'test_result_id' => $tr->id,
                         'report_id' => $tr->id
                     ]);
-
-                    DB::commit();
-
-                    return response()->json($successfulResults);
                 } else {
                     Log::channel($this->getLogChannel())->error('AI analysis returned error status', [
                         'test_result_id' => $tr->id,
@@ -572,14 +672,16 @@ class BloodTestController extends Controller
                     ]);
 
                     // Log failed attempt to AIReview
-                    AIReview::create([
-                        'test_result_id' => $tr->id,
-                        'compiled_results' => $testResultData,
-                        'http_status' => $responseData['ai_analysis']['status'] ?? 500,
-                        'ai_response' => $responseData,
-                        'error_message' => 'AI analysis returned error status',
-                        'is_successful' => false
-                    ]);
+                    DB::transaction(function () use ($tr, $testResultData, $responseData) {
+                        AIReview::create([
+                            'test_result_id' => $tr->id,
+                            'compiled_results' => $testResultData,
+                            'http_status' => $responseData['ai_analysis']['status'] ?? 500,
+                            'ai_response' => $responseData,
+                            'error_message' => 'AI analysis returned error status',
+                            'is_successful' => false
+                        ]);
+                    });
 
                     $failedResults[] = [
                         'icno' => $icno,
@@ -591,8 +693,12 @@ class BloodTestController extends Controller
                 }
             }
 
+            // After transaction completes, check if any items succeeded
+            if (count($successfulResults) > 0) {
+                return response()->json($successfulResults);
+            }
+
             // If we reach here, all items were processed but none succeeded
-            DB::rollBack();
             Log::channel($this->getLogChannel())->warning('All items processed but none succeeded', [
                 'total_processed' => $totalProcessed,
                 'failed_count' => count($failedResults)
@@ -608,7 +714,6 @@ class BloodTestController extends Controller
                 ]
             ], 404);
         } catch (Exception $e) {
-            DB::rollBack();
             Log::channel($this->getLogChannel())->error('Critical error in review method', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -631,11 +736,14 @@ class BloodTestController extends Controller
             ], 500);
         }
     }
+    ========== END OLD CODE - BACKUP ========== */
 
-    /**
-     * Convert JSON to HTML
-     */
-    public function convertTableBlock(array $data): string
+    /* ========== OLD CODE - BACKUP ==========
+     * Original convertTableBlock implementation before refactoring to ReviewHtmlGenerator service
+     * Now handled by App\Services\ReviewHtmlGenerator
+     * Kept for rollback purposes if needed
+     *
+    public function convertTableBlock_OLD(array $data): string
     {
         // $data = $request['ai_analysis']['answer'];
         $html = '';
@@ -745,6 +853,7 @@ class BloodTestController extends Controller
 
         return $html;
     }
+    ========== END OLD CODE - BACKUP ========== */
 
     /**
      * Migrate old data from ODB to MyHealth
@@ -781,6 +890,7 @@ class BloodTestController extends Controller
                 if (empty($reportData['lab_no'])) $missingFields[] = 'lab_no';
                 if (empty($reportData['dr_name'])) $missingFields[] = 'dr_name';
                 if (empty($reportData['clinic_name'])) $missingFields[] = 'clinic_name';
+                if (empty($report['parameter']) || !is_array($report['parameter'])) $missingFields[] = 'parameter';
 
                 if (!empty($missingFields)) {
                     $skippedReports[] = [

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Models\DoctorReview;
 use App\Models\PanelPanelItem;
 use App\Models\PanelPanelProfile;
 use App\Models\TestResult;

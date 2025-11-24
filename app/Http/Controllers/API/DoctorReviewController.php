@@ -8,6 +8,8 @@ use App\Models\DoctorReview;
 use App\Models\Patient;
 use App\Models\TestResult;
 use App\Models\ResultLibrary;
+use App\Services\AIReviewService;
+use App\Services\ApiTokenService;
 use App\Services\MyHealthService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
@@ -18,10 +20,17 @@ use Illuminate\Support\Facades\Http;
 class DoctorReviewController extends Controller
 {
     protected $myHealthService;
+    protected $apiTokenService;
+    protected $aiReviewService;
 
-    public function __construct(MyHealthService $myHealthService)
-    {
+    public function __construct(
+        MyHealthService $myHealthService,
+        ApiTokenService $apiTokenService,
+        AIReviewService $aiReviewService
+    ) {
         $this->myHealthService = $myHealthService;
+        $this->apiTokenService = $apiTokenService;
+        $this->aiReviewService = $aiReviewService;
     }
 
     /**
@@ -57,8 +66,42 @@ class DoctorReviewController extends Controller
     /**
      * Compile raw data from Test Result, Test Result Item and MyHealth
      * Send compiled data in JSON format to API AI
+     *
+     * REFACTORED: Now uses AIReviewService to eliminate code duplication
+     * Old implementation kept below as backup (search for "OLD CODE - BACKUP")
      */
     public function processResult($testResultId)
+    {
+        // Increase execution time for external API calls
+        ini_set('max_execution_time', 300); // 5 minutes
+        $processingStartTime = now();
+
+        try {
+            // Process using AIReviewService (new implementation)
+            $result = $this->aiReviewService->processSingle($testResultId);
+
+            $processingTime = now()->diffInSeconds($processingStartTime);
+
+            Log::channel($this->getLogChannel())->info('DoctorReviewController processResult completed', [
+                'test_result_id' => $testResultId,
+                'success' => $result->isSuccessful(),
+                'processing_time' => $processingTime . 's'
+            ]);
+        } catch (Exception $e) {
+            Log::channel($this->getLogChannel())->error('Critical error in processResult method', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'test_result_id' => $testResultId
+            ]);
+        }
+    }
+
+    /* ========== OLD CODE - BACKUP ==========
+     * Original processResult implementation before refactoring to AIReviewService
+     * Kept for rollback purposes if needed
+     * Can be removed after verification that new implementation works correctly
+     *
+    public function processResult_OLD($testResultId)
     {
         // Increase execution time for external API calls
         ini_set('max_execution_time', 300); // 5 minutes
@@ -72,57 +115,53 @@ class DoctorReviewController extends Controller
         $processingStartTime = now();
 
         try {
-            DB::beginTransaction();
+            // Get cached token from ApiTokenService (PERFORMANCE OPTIMIZATION - cached for 30 days)
+            $token = $this->apiTokenService->getValidToken();
 
-            $tr = TestResult::with([
-                'patient',
-                'testResultItems.panelPanelItem.panel.panelCategory',
-                'testResultItems.referenceRange',
-                'testResultItems.panelPanelItem.panelItem',
-                'testResultItems.panelComments.masterPanelComment',
-            ])
-                ->where('is_reviewed', false)
-                ->where('is_completed', true)
-                ->where('id', $testResultId)
-                ->first();
-
-            if (!$tr) {
-                Log::channel($this->getLogChannel())->warning('No test result found to process', [
+            if (!$token) {
+                Log::channel($this->getLogChannel())->error('Failed to obtain AI service token', [
                     'test_result_id' => $testResultId
                 ]);
                 return;
             }
 
-            // Login once before processing all results
-            $login = Http::timeout(60)->post(config('credentials.ai_review.login'), [
-                "username" => config('credentials.odb.username'),
-                "password" => config('credentials.odb.password')
-            ]);
+            DB::transaction(function () use ($testResultId, $token, &$totalProcessed, &$successfulReviewsGenerated, &$successfulStores, &$successfulResults, &$failedResults) {
+                $tr = TestResult::with([
+                    'patient',
+                    'testResultItems.panelPanelItem.panel.panelCategory',
+                    'testResultItems.referenceRange',
+                    'testResultItems.panelPanelItem.panelItem',
+                    'testResultItems.panelComments.masterPanelComment',
+                ])
+                    ->where('is_reviewed', false)
+                    ->where('is_completed', true)
+                    ->where('id', $testResultId)
+                    ->first();
 
-            if ($login->failed()) {
-                DB::rollBack();
-                Log::channel($this->getLogChannel())->error('External AI service login failed', [
-                    'test_result_id' => $testResultId
-                ]);
-                return;
-            }
+                if (!$tr) {
+                    Log::channel($this->getLogChannel())->warning('No test result found to process', [
+                        'test_result_id' => $testResultId
+                    ]);
+                    return;
+                }
 
-            $loginData = $login->json();
-            $token = $loginData['token'];
+                $totalProcessed++;
+                $healthDetails = []; // Initialize for each test result
+                $finalResults = []; // Initialize for each test result
 
-            $totalProcessed++;
-            $healthDetails = []; // Initialize for each test result
-            $finalResults = []; // Initialize for each test result
-
-            try {
-                $icno = $tr->patient->icno;
-                $checkRecords = $this->myHealthService->getCheckRecordIdByIC($icno);
+                try {
+                    $icno = $tr->patient->icno;
+                    $checkRecords = $this->myHealthService->getCheckRecordIdByIC($icno);
 
                 $patientInfo = [
                     'Age' => $tr->patient->age
                 ];
 
-                if ($checkRecords) {
+                if ($checkRecords && $checkRecords->isNotEmpty()) {
+                    // Batch load all record details to avoid N+1 query (PERFORMANCE OPTIMIZATION)
+                    $recordIds = $checkRecords->pluck('id')->toArray();
+                    $allRecordDetails = $this->myHealthService->getRecordDetailsBatch($recordIds);
+
                     foreach ($checkRecords as $cr) {
                         $recordId = $cr->id;
                         $recordGender = $cr->gender;
@@ -135,15 +174,23 @@ class DoctorReviewController extends Controller
 
                         $patientInfo['Gender'] = $tr->patient->gender;
 
-                        $recordDetails = $this->myHealthService->getRecordDetailsByRecordId($recordId);
-                        if (count($recordDetails) != 0) {
+                        // Use pre-loaded record details (NO QUERY - PERFORMANCE OPTIMIZATION)
+                        $recordDetails = $allRecordDetails[$recordId] ?? collect([]);
+                        if ($recordDetails->isNotEmpty()) {
                             $transformedRecordDetails = [];
 
                             foreach ($recordDetails as $rd) {
                                 if (isset($rd->parameter)) {
                                     $parameterName = $rd->parameter;
-                                    unset($rd->parameter);
-                                    $transformedRecordDetails[$parameterName] = $rd;
+                                    // Create a copy without record_id and parameter
+                                    $rdCopy = (object)[
+                                        'min_range' => $rd->min_range,
+                                        'max_range' => $rd->max_range,
+                                        'range' => $rd->range,
+                                        'unit' => $rd->unit,
+                                        'result' => $rd->result
+                                    ];
+                                    $transformedRecordDetails[$parameterName] = $rdCopy;
                                 }
                             }
                             $healthDetails[$recordDate] = $transformedRecordDetails;
@@ -169,6 +216,16 @@ class DoctorReviewController extends Controller
                 if ($tr->testResultItems->isEmpty()) {
                     Log::channel($this->getLogChannel())->warning('Test result has no test result items', ['test_result_id' => $tr->id]);
                     $failedResults[] = ['id' => $tr->id, 'reason' => 'No test result items found'];
+                }
+
+                // Pre-load all ResultLibrary records to avoid N+1 query (PERFORMANCE OPTIMIZATION)
+                $flags = $tr->testResultItems->pluck('flag')->filter()->unique();
+                $resultLibraries = [];
+                if ($flags->isNotEmpty()) {
+                    $resultLibraries = ResultLibrary::where('code', '0078')
+                        ->whereIn('value', $flags->toArray())
+                        ->get()
+                        ->keyBy('value');
                 }
 
                 foreach ($tr->testResultItems as $ri) {
@@ -211,9 +268,8 @@ class DoctorReviewController extends Controller
                         $flagDescription = $ri->flag;
                         if (!empty($ri->flag)) {
                             try {
-                                $resultLibrary = ResultLibrary::where('code', '0078')
-                                    ->where('value', $ri->flag)
-                                    ->first();
+                                // Use pre-loaded ResultLibrary (NO QUERY - PERFORMANCE OPTIMIZATION)
+                                $resultLibrary = $resultLibraries[$ri->flag] ?? null;
                                 if ($resultLibrary && !empty($resultLibrary->description)) {
                                     // Remove content within parentheses and trim whitespace
                                     $flagDescription = trim(preg_replace('/\s*\([^)]*\)/', '', $resultLibrary->description));
@@ -363,8 +419,6 @@ class DoctorReviewController extends Controller
                         'test_result_id' => $tr->id,
                         'report_id' => $tr->id
                     ]);
-
-                    DB::commit();
                 } else {
                     Log::channel($this->getLogChannel())->error('AI analysis returned error status', [
                         'test_result_id' => $tr->id,
@@ -380,10 +434,8 @@ class DoctorReviewController extends Controller
                 ]);
                 $failedResults[] = ['id' => $tr->id ?? 'unknown', 'reason' => 'Critical processing error: ' . $e->getMessage()];
             }
-
-            DB::commit();
+        });
         } catch (Exception $e) {
-            DB::rollBack();
             Log::channel($this->getLogChannel())->error('Critical error in processResult method', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -410,11 +462,14 @@ class DoctorReviewController extends Controller
             'successful_result_ids' => array_column($successfulResults, 'report_id')
         ]);
     }
+    ========== END OLD CODE - BACKUP ========== */
 
-    /**
-     * Convert JSON to HTML
-     */
-    public function convertTableBlock(array $data): string
+    /* ========== OLD CODE - BACKUP ==========
+     * Original convertTableBlock implementation before refactoring to ReviewHtmlGenerator service
+     * Now handled by App\Services\ReviewHtmlGenerator
+     * Kept for rollback purposes if needed
+     *
+    public function convertTableBlock_OLD(array $data): string
     {
         // $data = $request['ai_analysis']['answer'];
         $html = '';
@@ -524,4 +579,5 @@ class DoctorReviewController extends Controller
 
         return $html;
     }
+    ========== END OLD CODE - BACKUP ========== */
 }

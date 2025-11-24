@@ -29,6 +29,16 @@ class MigrationService
     const LAB_ID = 5; // Eurofins Malaysia
 
     /**
+     * In-memory caches to reduce database queries
+     */
+    protected $masterPanelItemCache = [];
+    protected $panelItemCache = [];
+    protected $pivotIdCache = [];
+    protected $masterCommentCache = [];
+    protected $refRangeCache = [];
+    protected $existingTestItems = [];
+
+    /**
      * Process a single report with its parameters
      */
     public function processReport($report, $parameters)
@@ -41,27 +51,27 @@ class MigrationService
             'total_parameters' => $totalParams
         ]);
 
-        DB::beginTransaction();
-
         try {
-            // 1. Find or create patient
-            $patientId = $this->findOrCreatePatient($report);
+            $testResult = DB::transaction(function () use ($report, $parameters, $refId) {
+                // 1. Find or create patient
+                $patientId = $this->findOrCreatePatient($report);
 
-            // 2. Find or create doctor
-            $doctorId = $this->findOrCreateDoctor($report);
+                // 2. Find or create doctor
+                $doctorId = $this->findOrCreateDoctor($report);
 
-            // 3. Create or update test result
-            $testResult = $this->createTestResult($report, $patientId, $doctorId);
+                // 3. Create or update test result
+                $testResult = $this->createTestResult($report, $patientId, $doctorId);
 
-            // 4. Process parameters hierarchically
-            $this->processParameters($testResult->id, $parameters);
+                // 4. Process parameters hierarchically
+                $this->processParameters($testResult->id, $parameters);
 
-            DB::commit();
+                Log::channel('migrate-log')->info('ODB report processed successfully', [
+                    'ref_id' => $report['ref_id'],
+                    'test_result_id' => $testResult->id
+                ]);
 
-            Log::channel('migrate-log')->info('ODB report processed successfully', [
-                'ref_id' => $report['ref_id'],
-                'test_result_id' => $testResult->id
-            ]);
+                return $testResult;
+            });
 
             Log::channel('migrate-log')->info('=== Report processing completed ===', [
                 'ref_id' => $refId,
@@ -71,7 +81,6 @@ class MigrationService
 
             return $testResult;
         } catch (Throwable $e) {
-            DB::rollBack();
             throw $e;
         }
     }
@@ -202,9 +211,16 @@ class MigrationService
 
         $counts = ['package' => 0, 'category' => 0, 'panel' => 0, 'item' => 0, 'skipped' => 0];
 
+        // Pre-fetch existing test result items to check for amendments (optimization)
+        $this->existingTestItems = TestResultItem::where('test_result_id', $testResultId)
+            ->get()
+            ->keyBy('panel_panel_item_id')
+            ->toArray();
+
         Log::channel('migrate-log')->info('Processing parameters', [
             'test_result_id' => $testResultId,
-            'total_count' => $paramCount
+            'total_count' => $paramCount,
+            'existing_items' => count($this->existingTestItems)
         ]);
 
         for ($i = 0; $i < $paramCount; $i++) {
@@ -393,61 +409,74 @@ class MigrationService
         // Clean unit field - unescape forward slashes
         $unit = cleanJsonString($unit);
 
-        // Create master panel item
-        $masterPanelItem = MasterPanelItem::firstOrCreate(
-            ['name' => $itemName],
-            [
-                'unit' => $unit,
-                'chi_character' => $chiCharacter,
-            ]
-        );
+        // Create master panel item (with caching)
+        $cacheKey = $itemName . '|' . $unit;
+        if (!isset($this->masterPanelItemCache[$cacheKey])) {
+            $this->masterPanelItemCache[$cacheKey] = MasterPanelItem::firstOrCreate(
+                ['name' => $itemName],
+                [
+                    'unit' => $unit,
+                    'chi_character' => $chiCharacter,
+                ]
+            );
+        }
+        $masterPanelItem = $this->masterPanelItemCache[$cacheKey];
 
         $code = generate_lab_code($itemName);
 
-        // Create panel item
-        $panelItem = PanelItem::firstOrCreate(
-            [
-                'lab_id' => $labId,
-                'master_panel_item_id' => $masterPanelItem->id,
-                'identifier' => 'ODB_' . $item['order_id'],
-            ],
-            [
-                'name' => $itemName,
-                'code' => $code,
-                'unit' => $unit,
-            ]
-        );
+        // Create panel item (with caching)
+        $identifier = 'ODB_' . $item['order_id'];
+        if (!isset($this->panelItemCache[$identifier])) {
+            $this->panelItemCache[$identifier] = PanelItem::firstOrCreate(
+                [
+                    'lab_id' => $labId,
+                    'master_panel_item_id' => $masterPanelItem->id,
+                    'identifier' => $identifier,
+                ],
+                [
+                    'name' => $itemName,
+                    'code' => $code,
+                    'unit' => $unit,
+                ]
+            );
+        }
+        $panelItem = $this->panelItemCache[$identifier];
 
         // Link panel item to panel
         $panel->panelItems()->syncWithoutDetaching([$panelItem->id]);
 
-        // Get panel_panel_item_id
-        $panelPanelItem = DB::table('panel_panel_items')
-            ->where('panel_id', $panel->id)
-            ->where('panel_item_id', $panelItem->id)
-            ->first();
+        // Get panel_panel_item_id (with caching to avoid repeated DB queries)
+        $pivotCacheKey = $panel->id . '_' . $panelItem->id;
+        if (!isset($this->pivotIdCache[$pivotCacheKey])) {
+            $panelPanelItem = DB::table('panel_panel_items')
+                ->where('panel_id', $panel->id)
+                ->where('panel_item_id', $panelItem->id)
+                ->first();
+            $this->pivotIdCache[$pivotCacheKey] = $panelPanelItem ? $panelPanelItem->id : null;
+        }
+        $panelPanelItemId = $this->pivotIdCache[$pivotCacheKey];
 
-        if ($panelPanelItem) {
-            // Create reference range if exists
+        if ($panelPanelItemId) {
+            // Create reference range if exists (with caching)
             $refRangeId = null;
             if ($refRange) {
-                $referenceRange = ReferenceRange::firstOrCreate(
-                    [
-                        'value' => $refRange,
-                        'panel_panel_item_id' => $panelPanelItem->id,
-                    ]
-                );
-                $refRangeId = $referenceRange->id;
+                $refCacheKey = $refRange . '_' . $panelPanelItemId;
+                if (!isset($this->refRangeCache[$refCacheKey])) {
+                    $this->refRangeCache[$refCacheKey] = ReferenceRange::firstOrCreate(
+                        [
+                            'value' => $refRange,
+                            'panel_panel_item_id' => $panelPanelItemId,
+                        ]
+                    );
+                }
+                $refRangeId = $this->refRangeCache[$refCacheKey]->id;
             }
 
-            // Check for existing item to determine has_amended
-            $existingItem = TestResultItem::where('test_result_id', $testResultId)
-                ->where('panel_panel_item_id', $panelPanelItem->id)
-                ->first();
-
+            // Check for existing item to determine has_amended (using pre-fetched data)
             $hasAmended = false;
-            if ($existingItem) {
-                $normalizedExisting = $existingItem->value === '' ? null : $existingItem->value;
+            if (isset($this->existingTestItems[$panelPanelItemId])) {
+                $existingItem = $this->existingTestItems[$panelPanelItemId];
+                $normalizedExisting = ($existingItem['value'] ?? '') === '' ? null : $existingItem['value'];
                 $normalizedNew = $resultValue === '' ? null : $resultValue;
                 $hasAmended = $normalizedExisting !== $normalizedNew;
             }
@@ -456,7 +485,7 @@ class MigrationService
             $testResultItem = TestResultItem::updateOrCreate(
                 [
                     'test_result_id' => $testResultId,
-                    'panel_panel_item_id' => $panelPanelItem->id,
+                    'panel_panel_item_id' => $panelPanelItemId,
                 ],
                 [
                     'reference_range_id' => $refRangeId,
@@ -467,12 +496,15 @@ class MigrationService
                 ]
             );
 
-            // Create comment hierarchy if range_desc exists
+            // Create comment hierarchy if range_desc exists (with caching)
             if ($rangeDesc) {
-                // Step 1: Create MasterPanelComment with range_desc text
-                $masterPanelComment = MasterPanelComment::firstOrCreate([
-                    'comment' => $rangeDesc
-                ]);
+                // Step 1: Create MasterPanelComment with caching
+                if (!isset($this->masterCommentCache[$rangeDesc])) {
+                    $this->masterCommentCache[$rangeDesc] = MasterPanelComment::firstOrCreate([
+                        'comment' => $rangeDesc
+                    ]);
+                }
+                $masterPanelComment = $this->masterCommentCache[$rangeDesc];
 
                 // Step 2: Create PanelComment linking panel + master comment
                 $panelComment = PanelComment::firstOrCreate([

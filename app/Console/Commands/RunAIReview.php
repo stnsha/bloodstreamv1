@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Jobs\AIReviewJob;
+use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -48,7 +49,7 @@ class RunAIReview extends Command
                 $this->info('Check your queue worker to see job processing.');
                 Log::info('AI Review Job dispatched to queue successfully');
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->error('Failed to run AI Review: ' . $e->getMessage());
             Log::error('AI Review command failed', [
                 'error' => $e->getMessage(),

@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class AuthController extends Controller
 {
@@ -137,7 +138,7 @@ class AuthController extends Controller
                 'input' => $request->only(['email', 'lab_id'])
             ]);
             throw $e;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('Registration failed', [
                 'exception' => $e->getMessage(),
                 'file' => $e->getFile(),
@@ -253,8 +254,7 @@ class AuthController extends Controller
                 ],
                 'message' => 'Login successful'
             ], 200);
-
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('Login error', [
                 'exception' => $e->getMessage(),
                 'file' => $e->getFile(),
@@ -309,8 +309,7 @@ class AuthController extends Controller
                 'success' => true,
                 'message' => 'Successfully logged out'
             ], 200);
-
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('Logout failed', [
                 'exception' => $e->getMessage(),
                 'file' => $e->getFile(),

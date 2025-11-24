@@ -86,9 +86,10 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
 
     Route::prefix('odb')->controller(BloodTestController::class)->group(function () {
         Route::post('/getReportId', 'getReportId')->name('odb.getReportId');
+        Route::post('/review', 'review')->name('review');
+
         Route::post('/migrate', 'migrate')->name('odb.migrate');
         Route::post('/migrate-test', 'migrateTest')->name('odb.migrate.test');
         Route::get('/migration-status/{uuid}', 'migrationStatus')->name('odb.migration.status');
-        Route::post('/review', 'review')->name('review');
     });
 });
