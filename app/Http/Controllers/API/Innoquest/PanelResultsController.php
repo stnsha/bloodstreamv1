@@ -184,240 +184,235 @@ class PanelResultsController extends BaseResultsController
                 $lab_id = $user->lab_id;
 
                 DB::transaction(function () use ($validated, $lab_id, &$test_result, &$deliveryFile, &$sending_facility, &$batch_id, &$orders_count, &$observations_count, &$patient_id) {
+                    //check for batch
+                    if (filled($validated['SendingFacility'])) {
+                        $sending_facility = $validated['SendingFacility'];
+                        $batch_id = $validated['MessageControlID'] ?? null;
+                    }
 
-                //check for batch
-                if (filled($validated['SendingFacility'])) {
-                    $sending_facility = $validated['SendingFacility'];
-                    $batch_id = $validated['MessageControlID'] ?? null;
-                }
+                    //Find or create patient information
+                    $patient_id = $this->findOrCreatePatient($validated['patient'], $batch_id);
 
-                //Find or create patient information
-                $patient_id = $this->findOrCreatePatient($validated['patient'], $batch_id);
+                    //check for reference id in field (before confirmed)
+                    $reference_id = null;
 
-                //check for reference id in field (before confirmed)
-                $reference_id = null;
+                    //counters for logging summary
+                    $orders_count = 0;
+                    $observations_count = 0;
 
-                //counters for logging summary
-                $orders_count = 0;
-                $observations_count = 0;
+                    //loop through orders
+                    foreach ($validated['Orders'] as $key => $od) {
+                        $orders_count++;
+                        if (is_null($reference_id) && filled($od['PlacerOrderNumber'])) $reference_id = $od['PlacerOrderNumber'];
 
-                //loop through orders
-                foreach ($validated['Orders'] as $key => $od) {
-                    $orders_count++;
-                    if (is_null($reference_id) && filled($od['PlacerOrderNumber'])) $reference_id = $od['PlacerOrderNumber'];
+                        //get doctor name and code
+                        $doctor_name = $od['OrderingProvider']['Name'];
+                        $doctor_id = $od['OrderingProvider']['Code'];
 
-                    //get doctor name and code
-                    $doctor_name = $od['OrderingProvider']['Name'];
-                    $doctor_id = $od['OrderingProvider']['Code'];
+                        //create doctor code
+                        $doctor_id = Doctor::firstOrCreate(
+                            [
+                                'lab_id' => $lab_id,
+                                'code' => $doctor_id
+                            ],
+                            [
+                                'name' => $doctor_name,
+                            ]
+                        );
 
-                    //create doctor code
-                    $doctor_id = Doctor::firstOrCreate(
-                        [
-                            'lab_id' => $lab_id,
-                            'code' => $doctor_id
-                        ],
-                        [
-                            'name' => $doctor_name,
-                        ]
-                    );
+                        //get doctor id
+                        $doctor_id = $doctor_id->id;
 
-                    //get doctor id
-                    $doctor_id = $doctor_id->id;
+                        //check if observations exist
+                        if (filled($od['Observations'])) {
+                            //loop through observations
+                            foreach ($od['Observations'] as $key => $obv) {
+                                $observations_count++;
 
-                    //check if observations exist
-                    if (filled($od['Observations'])) {
-                        //loop through observations
-                        foreach ($od['Observations'] as $key => $obv) {
-                            $observations_count++;
+                                //get labno
+                                $lab_no = $obv['FillerOrderNumber'];
 
-                            //get labno
-                            $lab_no = $obv['FillerOrderNumber'];
+                                //get collected and referred (reported)date
+                                $collected_date = $this->convertDatetime($obv['SpecimenDateTime']);
+                                // $received_date = $obv['EndDateTime'];
+                                $reported_date = $this->convertDatetime($obv['RequestedDateTime']);
 
-                            //get collected and referred (reported)date
-                            $collected_date = $this->convertDatetime($obv['SpecimenDateTime']);
-                            // $received_date = $obv['EndDateTime'];
-                            $reported_date = $this->convertDatetime($obv['RequestedDateTime']);
+                                //get panel code
+                                $panel_code = $obv['ProcedureCode'];
+                                $panel_name = $obv['ProcedureDescription'];
 
-                            //get panel code
-                            $panel_code = $obv['ProcedureCode'];
-                            $panel_name = $obv['ProcedureDescription'];
+                                // Check if panel is TAG ON first
+                                $isTagOn = $this->isTagOnItem($panel_name, $panel_code);
 
-                            // Check if panel is TAG ON first
-                            $isTagOn = $this->isTagOnItem($panel_name, $panel_code);
+                                //Find or create panel
+                                $panel = $this->findOrCreatePanel($lab_id, $panel_code, $panel_name);
+                                $panel_id = $panel->id;
 
-                            //Find or create panel
-                            $panel = $this->findOrCreatePanel($lab_id, $panel_code, $panel_name);
-                            $panel_id = $panel->id;
+                                //get profile code (optional)
+                                $panel_profile_id = $this->findOrCreateProfile($lab_id, $obv['PackageCode']);
 
-                            //get profile code (optional)
-                            $panel_profile_id = $this->findOrCreateProfile($lab_id, $obv['PackageCode']);
-
-                            //create test result - firstOrCreate for local tests
-                            $test_result = TestResult::updateOrCreate(
-                                [
-                                    'lab_no' => $lab_no,
-                                ],
-                                [
-                                    'ref_id' => $reference_id,
-                                    'doctor_id' => $doctor_id,
-                                    'patient_id' => $patient_id,
-                                    'collected_date' => $collected_date,
-                                    // 'received_date' => null,
-                                    'reported_date' => $reported_date,
-                                    'is_completed' => false
-                                ]
-                            );
-
-                            //get test result id
-                            $test_result_id = $test_result->id;
-
-                            if ($panel_profile_id) {
-                                //create test result profile
-                                TestResultProfile::firstOrCreate(
+                                //create test result - firstOrCreate for local tests
+                                $test_result = TestResult::updateOrCreate(
                                     [
-                                        'test_result_id' => $test_result_id,
-                                        'panel_profile_id' => $panel_profile_id,
+                                        'lab_no' => $lab_no,
+                                    ],
+                                    [
+                                        'ref_id' => $reference_id,
+                                        'doctor_id' => $doctor_id,
+                                        'patient_id' => $patient_id,
+                                        'collected_date' => $collected_date,
+                                        // 'received_date' => null,
+                                        'reported_date' => $reported_date,
+                                        'is_completed' => false
                                     ]
                                 );
-                            }
 
-                            //results
-                            $results = $obv['Results'];
-                            //check if results exist
-                            if (filled($results)) {
-                                //loop through results
-                                foreach ($results as $key => $res) {
-                                    //check if value exist and store to variable
-                                    $result_value = filled($res['Value']) ? $res['Value'] : null;
-                                    $unit = filled($res['Units']) ? $res['Units'] : null;
-                                    $result_flag = filled($res['Flags']) ? $res['Flags'] : null;
+                                //get test result id
+                                $test_result_id = $test_result->id;
 
-                                    //store field value to variable
-                                    $identifier = $res['Identifier'];
+                                if ($panel_profile_id) {
+                                    //create test result profile
+                                    TestResultProfile::firstOrCreate(
+                                        [
+                                            'test_result_id' => $test_result_id,
+                                            'panel_profile_id' => $panel_profile_id,
+                                        ]
+                                    );
+                                }
 
-                                    //result items 
-                                    if (filled($res['Text']) && ($res['Text'] != 'COMMENT' && $res['Text'] != 'NOTE')) {
-                                        // 1. Create or find master panel item
-                                        $masterPanelItem = MasterPanelItem::updateOrCreate(
-                                            [
-                                                'name' => $res['Text'],
-                                                'unit' => $unit,
-                                            ],
-                                            [
-                                                'chi_character' => null, //$tr->translate($res['Text'])
-                                            ]
-                                        );
+                                //results
+                                $results = $obv['Results'];
+                                //check if results exist
+                                if (filled($results)) {
+                                    //loop through results
+                                    foreach ($results as $key => $res) {
+                                        //check if value exist and store to variable
+                                        $result_value = filled($res['Value']) ? $res['Value'] : null;
+                                        $unit = filled($res['Units']) ? $res['Units'] : null;
+                                        $result_flag = filled($res['Flags']) ? $res['Flags'] : null;
 
-                                        // 2. Create panel item with master panel item reference
-                                        $panel_item = PanelItem::updateOrCreate([
-                                            'lab_id' => $lab_id,
-                                            'master_panel_item_id' => $masterPanelItem->id,
-                                            'identifier' => $identifier
-                                        ], [
-                                            'name' => $res['Text'],
-                                            'unit' => $masterPanelItem->unit,
-                                        ]);
+                                        //store field value to variable
+                                        $identifier = $res['Identifier'];
 
-                                        $panel_item_id = $panel_item->id;
-
-                                        // 3. Link panel item to panel through pivot table
-                                        $panel->panelItems()->syncWithoutDetaching([$panel_item_id]);
-
-                                        //get panel panel item id
-                                        $panel_panel_item_id = PanelPanelItem::where('panel_id', $panel_id)->where('panel_item_id', $panel_item_id)->first()?->id;
-
-                                        //create reference range
-                                        $ref_range_id = null;
-                                        if (filled($res['ReferenceRange'])) {
-                                            $ref_range = ReferenceRange::firstOrCreate(
+                                        //result items 
+                                        if (filled($res['Text']) && ($res['Text'] != 'COMMENT' && $res['Text'] != 'NOTE')) {
+                                            // 1. Create or find master panel item
+                                            $masterPanelItem = MasterPanelItem::updateOrCreate(
                                                 [
-                                                    'value' => $res['ReferenceRange'],
-                                                    'panel_panel_item_id' => $panel_panel_item_id,
+                                                    'name' => $res['Text'],
+                                                    'unit' => $unit,
+                                                ],
+                                                [
+                                                    'chi_character' => null, //$tr->translate($res['Text'])
                                                 ]
                                             );
-                                            $ref_range_id = $ref_range->id;
+
+                                            // 2. Create panel item with master panel item reference
+                                            $panel_item = PanelItem::updateOrCreate([
+                                                'lab_id' => $lab_id,
+                                                'master_panel_item_id' => $masterPanelItem->id,
+                                                'identifier' => $identifier
+                                            ], [
+                                                'name' => $res['Text'],
+                                                'unit' => $masterPanelItem->unit,
+                                            ]);
+
+                                            $panel_item_id = $panel_item->id;
+
+                                            // 3. Link panel item to panel through pivot table
+                                            $panel->panelItems()->syncWithoutDetaching([$panel_item_id]);
+
+                                            //get panel panel item id
+                                            $panel_panel_item_id = PanelPanelItem::where('panel_id', $panel_id)->where('panel_item_id', $panel_item_id)->first()?->id;
+
+                                            //create reference range
+                                            $ref_range_id = null;
+                                            if (filled($res['ReferenceRange'])) {
+                                                $ref_range = ReferenceRange::firstOrCreate(
+                                                    [
+                                                        'value' => $res['ReferenceRange'],
+                                                        'panel_panel_item_id' => $panel_panel_item_id,
+                                                    ]
+                                                );
+                                                $ref_range_id = $ref_range->id;
+                                            }
+
+                                            //check for existing result item to determine hasAmended
+                                            $existing_test_result_item = TestResultItem::where('test_result_id', $test_result_id)
+                                                ->where('panel_panel_item_id', $panel_panel_item_id)
+                                                ->first();
+
+                                            $hasAmended = false;
+
+                                            if ($existing_test_result_item) {
+                                                // Compare existing value with new value
+                                                $existing_value = $existing_test_result_item->value;
+
+                                                // Normalize empty strings to null for consistent comparison
+                                                $normalized_existing = $existing_value === '' ? null : $existing_value;
+                                                $normalized_new = $result_value === '' ? null : $result_value;
+
+                                                $hasAmended = $normalized_existing !== $normalized_new;
+                                            }
+
+                                            //final insert/update result item
+                                            $testResultItem = TestResultItem::updateOrCreate(
+                                                [
+                                                    'test_result_id' => $test_result_id,
+                                                    'panel_panel_item_id' => $panel_panel_item_id,
+                                                ],
+                                                [
+                                                    'reference_range_id' => $ref_range_id,
+                                                    'value' => $result_value,
+                                                    'flag' => $result_flag,
+                                                    'sequence' => $key,
+                                                    'is_tagon' => $isTagOn,
+                                                    'has_amended' => $hasAmended
+                                                ]
+                                            );
                                         }
+                                        //panel comments - create both master and panel-specific comments
+                                        if (($res['Text'] == 'NOTE' || $res['Text'] == 'COMMENT') && isset($panel_id)) {
+                                            // Create master panel comment if doesn't exist
+                                            $masterPanelComment = MasterPanelComment::firstOrCreate(
+                                                [
+                                                    'comment' => $result_value
+                                                ]
+                                            );
 
-                                        //check for existing result item to determine hasAmended
-                                        $existing_test_result_item = TestResultItem::where('test_result_id', $test_result_id)
-                                            ->where('panel_panel_item_id', $panel_panel_item_id)
-                                            ->first();
-
-                                        $hasAmended = false;
-
-                                        if ($existing_test_result_item) {
-                                            // Compare existing value with new value
-                                            $existing_value = $existing_test_result_item->value;
-
-                                            // Normalize empty strings to null for consistent comparison
-                                            $normalized_existing = $existing_value === '' ? null : $existing_value;
-                                            $normalized_new = $result_value === '' ? null : $result_value;
-
-                                            $hasAmended = $normalized_existing !== $normalized_new;
-                                        }
-
-                                        //final insert/update result item
-                                        $testResultItem = TestResultItem::updateOrCreate(
-                                            [
-                                                'test_result_id' => $test_result_id,
-                                                'panel_panel_item_id' => $panel_panel_item_id,
-                                            ],
-                                            [
-                                                'reference_range_id' => $ref_range_id,
-                                                'value' => $result_value,
-                                                'flag' => $result_flag,
-                                                'sequence' => $key,
-                                                'is_tagon' => $isTagOn,
-                                                'has_amended' => $hasAmended
-                                            ]
-                                        );
-                                    }
-                                    //panel comments - create both master and panel-specific comments
-                                    if (($res['Text'] == 'NOTE' || $res['Text'] == 'COMMENT') && isset($panel_id)) {
-                                        // Create master panel comment if doesn't exist
-                                        $masterPanelComment = MasterPanelComment::firstOrCreate(
-                                            [
-                                                'comment' => $result_value
-                                            ]
-                                        );
-
-                                        // Check if panel comment already exists for this combination
-                                        $existingPanelComment = PanelComment::where([
-                                            'panel_id' => $panel_id,
-                                            'master_panel_comment_id' => $masterPanelComment->id,
-                                        ])->first();
-
-                                        if (!$existingPanelComment) {
-                                            // Create new panel comment
-                                            $panelComment = PanelComment::create([
+                                            // Check if panel comment already exists for this combination
+                                            $existingPanelComment = PanelComment::where([
                                                 'panel_id' => $panel_id,
                                                 'master_panel_comment_id' => $masterPanelComment->id,
+                                            ])->first();
+
+                                            if (!$existingPanelComment) {
+                                                // Create new panel comment
+                                                $panelComment = PanelComment::create([
+                                                    'panel_id' => $panel_id,
+                                                    'master_panel_comment_id' => $masterPanelComment->id,
+                                                ]);
+                                            }
+
+                                            $panel_comment_id = $existingPanelComment->id ?? $panelComment->id;
+
+                                            // Create relationship using TestResultComment model
+                                            TestResultComment::firstOrCreate([
+                                                'test_result_item_id' => $testResultItem->id,
+                                                'panel_comment_id' => $panel_comment_id,
                                             ]);
                                         }
-
-                                        $panel_comment_id = $existingPanelComment->id ?? $panelComment->id;
-                                        
-                                        // Create relationship using TestResultComment model
-                                        TestResultComment::firstOrCreate([
-                                            'test_result_item_id' => $testResultItem->id,
-                                            'panel_comment_id' => $panel_comment_id,
-                                        ]);
                                     }
                                 }
                             }
                         }
                     }
-                }
 
-                //check embedded pdf exist to complete blood report status
-                if (isset($validated['EncodedBase64pdf']) && filled($validated['EncodedBase64pdf']) && $test_result) {
-                    $test_result->is_completed = true;
-                    $test_result->save();
-
-                    // Trigger AI review process using AIReviewService
-                    // REFACTORED: Replaced manual controller instantiation with proper dependency injection
-                    $this->aiReviewService->processSingle($test_result->id);
-                }
+                    //check embedded pdf exist to complete blood report status
+                    if (isset($validated['EncodedBase64pdf']) && filled($validated['EncodedBase64pdf']) && $test_result) {
+                        $test_result->is_completed = true;
+                        $test_result->save();
+                    }
 
                     //create delivery file for tracking purposes
                     if ($test_result) {
@@ -434,6 +429,12 @@ class PanelResultsController extends BaseResultsController
                         );
                     }
                 });
+
+                // Trigger AI review process AFTER transaction commits to avoid race condition
+                // This ensures is_completed is saved before AI review fetches the TestResult
+                if (isset($validated['EncodedBase64pdf']) && filled($validated['EncodedBase64pdf']) && $test_result) {
+                    $this->aiReviewService->processSingle($test_result->id);
+                }
 
                 Log::info('Panel results processed successfully', [
                     'test_result_id' => $test_result->id ?? null,
