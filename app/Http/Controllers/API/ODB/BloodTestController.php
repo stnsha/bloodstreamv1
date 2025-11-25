@@ -354,7 +354,7 @@ class BloodTestController extends Controller
                     'ai_response' => null,
                     'report_id' => $testResult->id,
                     'ref_id' => $testResult->ref_id,
-                    'status' => 'Sync In Progress. No AI Review to be generated.'
+                    'status' => 'Sync In Progress. No AI Report to be generated.'
                 ]);
             }
 
