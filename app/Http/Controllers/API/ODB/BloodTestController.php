@@ -358,30 +358,39 @@ class BloodTestController extends Controller
                 ]);
             }
 
-            // Always generate a new AI review (will update existing or create new)
-            Log::channel($this->getLogChannel())->info('getReviewById: Generating new AI review', [
-                'test_result_id' => $testResult->id
-            ]);
+            // Check if AIReview exists for this test result using relationship
+            $aiReview = $testResult->aiReview;
 
-            // Generate review synchronously
-            $result = $this->aiReviewService->processSingle($testResult->id);
+            if (!$aiReview) {
+                Log::channel($this->getLogChannel())->info('getReviewById: AIReview not found, generating new review', [
+                    'test_result_id' => $testResult->id
+                ]);
 
-            if ($result->isSuccessful()) {
-                // Reload the relationship to get the updated/created review
-                $testResult->load('aiReview');
-                $aiReview = $testResult->aiReview;
+                // Generate review synchronously
+                $result = $this->aiReviewService->processSingle($testResult->id);
 
-                Log::channel($this->getLogChannel())->info('getReviewById: AIReview generated successfully', [
+                if ($result->isSuccessful()) {
+                    // Reload the relationship
+                    $testResult->load('aiReview');
+                    $aiReview = $testResult->aiReview;
+
+                    Log::channel($this->getLogChannel())->info('getReviewById: AIReview generated successfully', [
+                        'test_result_id' => $testResult->id,
+                        'ai_review_id' => $aiReview->id
+                    ]);
+                } else {
+                    Log::channel($this->getLogChannel())->error('getReviewById: Failed to generate AIReview', [
+                        'test_result_id' => $testResult->id,
+                        'error' => $result->errorMessage
+                    ]);
+
+                    return response()->json(null);
+                }
+            } else {
+                Log::channel($this->getLogChannel())->info('getReviewById: AIReview found', [
                     'test_result_id' => $testResult->id,
                     'ai_review_id' => $aiReview->id
                 ]);
-            } else {
-                Log::channel($this->getLogChannel())->error('getReviewById: Failed to generate AIReview', [
-                    'test_result_id' => $testResult->id,
-                    'error' => $result->errorMessage
-                ]);
-
-                return response()->json(null);
             }
 
             $processingTime = now()->diffInSeconds($processingStartTime);
@@ -404,6 +413,197 @@ class BloodTestController extends Controller
             return response()->json($responseData);
         } catch (Throwable $e) {
             Log::channel($this->getLogChannel())->error('getReviewById: Critical error occurred', [
+                'error_message' => $e->getMessage(),
+                'error_file' => $e->getFile(),
+                'error_line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+                'icno' => $icno,
+                'refid' => $refid
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while processing the request',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Regenerate AI review by ID - Delete existing review and generate new one
+     * Similar flow to getReviewById but replaces existing AI review
+     */
+    public function regenerateReviewById(ODBRequest $request)
+    {
+        // Increase execution time for potential AI generation
+        ini_set('max_execution_time', 300); // 5 minutes
+
+        $validated = $request->all();
+        $processingStartTime = now();
+
+        // Extract single item from request
+        $item = $validated[0] ?? null;
+
+        if (!$item) {
+            Log::channel($this->getLogChannel())->warning('regenerateReviewById: No item provided in request');
+            return response()->json(null);
+        }
+
+        $icno = $item['icno'];
+        $refid = $item['refid'] ?? null;
+
+        Log::channel($this->getLogChannel())->info('regenerateReviewById: Processing started', [
+            'icno' => $icno,
+            'refid' => $refid,
+            'timestamp' => $processingStartTime
+        ]);
+
+        try {
+            // Search for TestResult (same logic as getReviewById)
+            Log::channel($this->getLogChannel())->debug('regenerateReviewById: Searching by IC number', [
+                'icno' => $icno
+            ]);
+
+            $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
+                $p->where('icno', $icno);
+            })->latest()->first();
+
+            if ($testResult) {
+                Log::channel($this->getLogChannel())->info('regenerateReviewById: Test result found by IC number', [
+                    'icno' => $icno,
+                    'test_result_id' => $testResult->id
+                ]);
+            }
+
+            // Fallback to search by refid if provided
+            if (!$testResult && $refid) {
+                Log::channel($this->getLogChannel())->debug('regenerateReviewById: IC search failed, falling back to refid search', [
+                    'icno' => $icno,
+                    'refid' => $refid
+                ]);
+
+                $testResult = TestResult::where('ref_id', $refid)
+                    ->latest()->first();
+
+                if ($testResult) {
+                    Log::channel($this->getLogChannel())->info('regenerateReviewById: Test result found by refid', [
+                        'refid' => $refid,
+                        'test_result_id' => $testResult->id
+                    ]);
+                }
+            }
+
+            // Return null if test result not found
+            if (!$testResult) {
+                Log::channel($this->getLogChannel())->warning('regenerateReviewById: Test result not found', [
+                    'icno' => $icno,
+                    'refid' => $refid
+                ]);
+
+                return response()->json(null);
+            }
+
+            // Update ref_id if request has refid but DB has null
+            if ($refid && $testResult->ref_id === null) {
+                Log::channel($this->getLogChannel())->debug('regenerateReviewById: Updating null ref_id in database', [
+                    'test_result_id' => $testResult->id,
+                    'old_ref_id' => null,
+                    'new_ref_id' => $refid
+                ]);
+
+                $testResult->ref_id = $refid;
+                $testResult->save();
+
+                Log::channel($this->getLogChannel())->info('regenerateReviewById: ref_id updated successfully', [
+                    'test_result_id' => $testResult->id,
+                    'ref_id' => $refid
+                ]);
+            }
+
+            // Check if test result is completed before attempting AI generation
+            if (!$testResult->is_completed) {
+                $processingTime = now()->diffInSeconds($processingStartTime);
+
+                Log::channel($this->getLogChannel())->info('regenerateReviewById: Test result not completed, cannot regenerate', [
+                    'test_result_id' => $testResult->id,
+                    'is_completed' => false,
+                    'processing_time_seconds' => $processingTime
+                ]);
+
+                return response()->json([
+                    'ai_response' => null,
+                    'report_id' => $testResult->id,
+                    'ref_id' => $testResult->ref_id,
+                    'status' => 'Sync In Progress. No AI Report to be regenerated.'
+                ]);
+            }
+
+            // Check if AIReview exists for this test result
+            $aiReview = $testResult->aiReview;
+
+            if ($aiReview) {
+                Log::channel($this->getLogChannel())->info('regenerateReviewById: Existing AIReview found, deleting', [
+                    'test_result_id' => $testResult->id,
+                    'ai_review_id' => $aiReview->id
+                ]);
+
+                // Delete existing AI review
+                $aiReview->delete();
+
+                // Update test result is_reviewed to false
+                $testResult->is_reviewed = false;
+                $testResult->save();
+
+                Log::channel($this->getLogChannel())->info('regenerateReviewById: Existing AIReview deleted and is_reviewed set to false', [
+                    'test_result_id' => $testResult->id
+                ]);
+            }
+
+            // Generate new review synchronously
+            Log::channel($this->getLogChannel())->info('regenerateReviewById: Generating new AI review', [
+                'test_result_id' => $testResult->id
+            ]);
+
+            $result = $this->aiReviewService->processSingle($testResult->id);
+
+            if ($result->isSuccessful()) {
+                // Reload the relationship
+                $testResult->load('aiReview');
+                $aiReview = $testResult->aiReview;
+
+                Log::channel($this->getLogChannel())->info('regenerateReviewById: AIReview regenerated successfully', [
+                    'test_result_id' => $testResult->id,
+                    'ai_review_id' => $aiReview->id
+                ]);
+            } else {
+                Log::channel($this->getLogChannel())->error('regenerateReviewById: Failed to regenerate AIReview', [
+                    'test_result_id' => $testResult->id,
+                    'error' => $result->errorMessage
+                ]);
+
+                return response()->json(null);
+            }
+
+            $processingTime = now()->diffInSeconds($processingStartTime);
+
+            // Determine status based on is_completed value
+            $status = $testResult->is_completed ? 'Completed' : 'Sync In Progress';
+
+            $responseData = [
+                'ai_response' => $aiReview->ai_response,
+                'report_id' => $testResult->id,
+                'ref_id' => $testResult->ref_id,
+                'status' => $status
+            ];
+
+            Log::channel($this->getLogChannel())->info('regenerateReviewById: Processing completed', [
+                'test_result_id' => $testResult->id,
+                'processing_time_seconds' => $processingTime
+            ]);
+
+            return response()->json($responseData);
+        } catch (Throwable $e) {
+            Log::channel($this->getLogChannel())->error('regenerateReviewById: Critical error occurred', [
                 'error_message' => $e->getMessage(),
                 'error_file' => $e->getFile(),
                 'error_line' => $e->getLine(),

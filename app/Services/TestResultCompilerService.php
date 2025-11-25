@@ -42,11 +42,11 @@ class TestResultCompilerService
 
     /**
      * Fetch single test result with all relationships
-     * Note: No is_reviewed filter to allow regeneration of reviews
      */
     public function fetchTestResult(int $testResultId): TestResult
     {
         $tr = TestResult::with($this->getEagerLoadRelations())
+            ->where('is_reviewed', false)
             ->where('is_completed', true)
             ->where('id', $testResultId)
             ->first();
