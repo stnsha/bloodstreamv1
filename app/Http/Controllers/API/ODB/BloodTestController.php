@@ -285,14 +285,14 @@ class BloodTestController extends Controller
         ]);
 
         try {
-            // Search for TestResult with is_completed = true and is_reviewed = true
+            // Search for TestResult with is_completed = true
             Log::channel($this->getLogChannel())->debug('getReviewById: Searching by IC number', [
                 'icno' => $icno
             ]);
 
             $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
                 $p->where('icno', $icno);
-            })->where('is_completed', true)->where('is_reviewed', true)->latest()->first();
+            })->where('is_completed', true)->latest()->first();
 
             if ($testResult) {
                 Log::channel($this->getLogChannel())->info('getReviewById: Test result found by IC number', [
@@ -314,7 +314,6 @@ class BloodTestController extends Controller
 
                 $testResult = TestResult::where('ref_id', $refid)
                     ->where('is_completed', true)
-                    ->where('is_reviewed', true)
                     ->latest()->first();
 
                 if ($testResult) {
@@ -329,9 +328,9 @@ class BloodTestController extends Controller
                 }
             }
 
-            // Return status if test result not found or not reviewed
+            // Return status if test result not found
             if (!$testResult) {
-                Log::channel($this->getLogChannel())->warning('getReviewById: Test result not found or not reviewed', [
+                Log::channel($this->getLogChannel())->warning('getReviewById: Test result not found', [
                     'icno' => $icno,
                     'refid' => $refid
                 ]);
@@ -358,6 +357,25 @@ class BloodTestController extends Controller
                 Log::channel($this->getLogChannel())->info('getReviewById: ref_id updated successfully', [
                     'test_result_id' => $testResult->id,
                     'ref_id' => $refid
+                ]);
+            }
+
+            // Check if test result is completed but not reviewed
+            if ($testResult->is_completed && !$testResult->is_reviewed) {
+                $processingTime = now()->diffInSeconds($processingStartTime);
+
+                Log::channel($this->getLogChannel())->info('getReviewById: Test result completed but not reviewed', [
+                    'test_result_id' => $testResult->id,
+                    'is_completed' => $testResult->is_completed,
+                    'is_reviewed' => $testResult->is_reviewed,
+                    'processing_time_seconds' => $processingTime
+                ]);
+
+                return response()->json([
+                    'ai_response' => null,
+                    'report_id' => $testResult->id,
+                    'ref_id' => $testResult->ref_id,
+                    'status' => 'Completed but no AI Report to be generated'
                 ]);
             }
 
