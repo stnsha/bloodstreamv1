@@ -358,39 +358,30 @@ class BloodTestController extends Controller
                 ]);
             }
 
-            // Check if AIReview exists for this test result using relationship
-            $aiReview = $testResult->aiReview;
+            // Always generate a new AI review (will update existing or create new)
+            Log::channel($this->getLogChannel())->info('getReviewById: Generating new AI review', [
+                'test_result_id' => $testResult->id
+            ]);
 
-            if (!$aiReview) {
-                Log::channel($this->getLogChannel())->info('getReviewById: AIReview not found, generating new review', [
-                    'test_result_id' => $testResult->id
-                ]);
+            // Generate review synchronously
+            $result = $this->aiReviewService->processSingle($testResult->id);
 
-                // Generate review synchronously
-                $result = $this->aiReviewService->processSingle($testResult->id);
+            if ($result->isSuccessful()) {
+                // Reload the relationship to get the updated/created review
+                $testResult->load('aiReview');
+                $aiReview = $testResult->aiReview;
 
-                if ($result->isSuccessful()) {
-                    // Reload the relationship
-                    $testResult->load('aiReview');
-                    $aiReview = $testResult->aiReview;
-
-                    Log::channel($this->getLogChannel())->info('getReviewById: AIReview generated successfully', [
-                        'test_result_id' => $testResult->id,
-                        'ai_review_id' => $aiReview->id
-                    ]);
-                } else {
-                    Log::channel($this->getLogChannel())->error('getReviewById: Failed to generate AIReview', [
-                        'test_result_id' => $testResult->id,
-                        'error' => $result->errorMessage
-                    ]);
-
-                    return response()->json(null);
-                }
-            } else {
-                Log::channel($this->getLogChannel())->info('getReviewById: AIReview found', [
+                Log::channel($this->getLogChannel())->info('getReviewById: AIReview generated successfully', [
                     'test_result_id' => $testResult->id,
                     'ai_review_id' => $aiReview->id
                 ]);
+            } else {
+                Log::channel($this->getLogChannel())->error('getReviewById: Failed to generate AIReview', [
+                    'test_result_id' => $testResult->id,
+                    'error' => $result->errorMessage
+                ]);
+
+                return response()->json(null);
             }
 
             $processingTime = now()->diffInSeconds($processingStartTime);

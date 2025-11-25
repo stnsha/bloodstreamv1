@@ -236,7 +236,7 @@ class AIReviewService
      */
     protected function storeReview(TestResult $testResult, array $compiledData, array $aiResponse, string $htmlReview): void
     {
-        AIReview::firstOrCreate(
+        AIReview::updateOrCreate(
             ['test_result_id' => $testResult->id],
             [
                 'compiled_results' => $compiledData,
