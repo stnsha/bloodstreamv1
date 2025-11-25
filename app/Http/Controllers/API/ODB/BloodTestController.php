@@ -271,7 +271,7 @@ class BloodTestController extends Controller
                 'ai_response' => null,
                 'report_id' => null,
                 'ref_id' => null,
-                'status' => 'No request data provided'
+                'status' => 'Completed'
             ]);
         }
 
