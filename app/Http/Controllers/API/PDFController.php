@@ -1983,7 +1983,7 @@ class PDFController extends Controller
 
             return response($mpdf->Output('', 'S'), 200)
                 ->header('Content-Type', 'application/pdf')
-                ->header('Content-Disposition', 'inline; filename="' . $id . 'report.pdf"');
+                ->header('Content-Disposition', 'inline; filename="' . $result['test_result_id'] . '-report.pdf"');
 
             // Get PDF content as string and convert to base64
             // $pdfContent = $mpdf->Output('', 'S');
