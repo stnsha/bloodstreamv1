@@ -84,12 +84,14 @@ class BloodTestController extends Controller
 
                     $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
                         $p->where('icno', $icno);
-                    })->where('is_completed', true)->first();
+                    })->where('is_completed', true)->latest()->first();
 
                     if ($testResult) {
                         Log::channel($this->getLogChannel())->info('getReportId: Test result found by IC number', [
                             'icno' => $icno,
-                            'test_result_id' => $testResult->id
+                            'test_result_id' => $testResult->id,
+                            'is_completed' => $testResult->is_completed,
+                            'is_completed_raw' => $testResult->getRawOriginal('is_completed')
                         ]);
                     }
 
@@ -100,12 +102,14 @@ class BloodTestController extends Controller
                             'refid' => $refid
                         ]);
 
-                        $testResult = TestResult::where('ref_id', $refid)->where('is_completed', true)->first();
+                        $testResult = TestResult::where('ref_id', $refid)->where('is_completed', true)->latest()->first();
 
                         if ($testResult) {
                             Log::channel($this->getLogChannel())->info('getReportId: Test result found by refid', [
                                 'refid' => $refid,
-                                'test_result_id' => $testResult->id
+                                'test_result_id' => $testResult->id,
+                                'is_completed' => $testResult->is_completed,
+                                'is_completed_raw' => $testResult->getRawOriginal('is_completed')
                             ]);
                         }
                     }
@@ -250,14 +254,11 @@ class BloodTestController extends Controller
     }
 
     /**
-     * Get review by ID - Check if AI review exists, generate if not
-     * Similar flow to getReportId but for reviews
+     * Get review by ID - Return existing AI review only
+     * Does not create new review if not exists
      */
     public function getReviewById(ODBRequest $request)
     {
-        // Increase execution time for potential AI generation
-        ini_set('max_execution_time', 300); // 5 minutes
-
         $validated = $request->all();
         $processingStartTime = now();
 
@@ -266,7 +267,12 @@ class BloodTestController extends Controller
 
         if (!$item) {
             Log::channel($this->getLogChannel())->warning('getReviewById: No item provided in request');
-            return response()->json(null);
+            return response()->json([
+                'ai_response' => null,
+                'report_id' => null,
+                'ref_id' => null,
+                'status' => 'No request data provided'
+            ]);
         }
 
         $icno = $item['icno'];
@@ -279,19 +285,23 @@ class BloodTestController extends Controller
         ]);
 
         try {
-            // Search for TestResult (same logic as getReportId)
+            // Search for TestResult with is_completed = true and is_reviewed = true
             Log::channel($this->getLogChannel())->debug('getReviewById: Searching by IC number', [
                 'icno' => $icno
             ]);
 
             $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
                 $p->where('icno', $icno);
-            })->latest()->first();
+            })->where('is_completed', true)->where('is_reviewed', true)->latest()->first();
 
             if ($testResult) {
                 Log::channel($this->getLogChannel())->info('getReviewById: Test result found by IC number', [
                     'icno' => $icno,
-                    'test_result_id' => $testResult->id
+                    'test_result_id' => $testResult->id,
+                    'is_completed' => $testResult->is_completed,
+                    'is_completed_raw' => $testResult->getRawOriginal('is_completed'),
+                    'is_reviewed' => $testResult->is_reviewed,
+                    'is_reviewed_raw' => $testResult->getRawOriginal('is_reviewed')
                 ]);
             }
 
@@ -303,24 +313,35 @@ class BloodTestController extends Controller
                 ]);
 
                 $testResult = TestResult::where('ref_id', $refid)
+                    ->where('is_completed', true)
+                    ->where('is_reviewed', true)
                     ->latest()->first();
 
                 if ($testResult) {
                     Log::channel($this->getLogChannel())->info('getReviewById: Test result found by refid', [
                         'refid' => $refid,
-                        'test_result_id' => $testResult->id
+                        'test_result_id' => $testResult->id,
+                        'is_completed' => $testResult->is_completed,
+                        'is_completed_raw' => $testResult->getRawOriginal('is_completed'),
+                        'is_reviewed' => $testResult->is_reviewed,
+                        'is_reviewed_raw' => $testResult->getRawOriginal('is_reviewed')
                     ]);
                 }
             }
 
-            // Return null if test result not found
+            // Return status if test result not found or not reviewed
             if (!$testResult) {
-                Log::channel($this->getLogChannel())->warning('getReviewById: Test result not found', [
+                Log::channel($this->getLogChannel())->warning('getReviewById: Test result not found or not reviewed', [
                     'icno' => $icno,
                     'refid' => $refid
                 ]);
 
-                return response()->json(null);
+                return response()->json([
+                    'ai_response' => null,
+                    'report_id' => null,
+                    'ref_id' => $refid,
+                    'status' => 'Record not found'
+                ]);
             }
 
             // Update ref_id if request has refid but DB has null
@@ -340,58 +361,26 @@ class BloodTestController extends Controller
                 ]);
             }
 
-            // Check if test result is completed before attempting AI generation
-            if (!$testResult->is_completed) {
-                $processingTime = now()->diffInSeconds($processingStartTime);
+            // Check if AIReview exists for this test result using relationship
+            $aiReview = $testResult->aiReview;
 
-                Log::channel($this->getLogChannel())->info('getReviewById: Test result not completed, returning sync status', [
-                    'test_result_id' => $testResult->id,
-                    'is_completed' => false,
-                    'processing_time_seconds' => $processingTime
+            if (!$aiReview) {
+                Log::channel($this->getLogChannel())->warning('getReviewById: AIReview not found for reviewed test result', [
+                    'test_result_id' => $testResult->id
                 ]);
 
                 return response()->json([
                     'ai_response' => null,
                     'report_id' => $testResult->id,
                     'ref_id' => $testResult->ref_id,
-                    'status' => 'Sync In Progress. No AI Report to be generated.'
+                    'status' => 'AI Review not found'
                 ]);
             }
 
-            // Check if AIReview exists for this test result using relationship
-            $aiReview = $testResult->aiReview;
-
-            if (!$aiReview) {
-                Log::channel($this->getLogChannel())->info('getReviewById: AIReview not found, generating new review', [
-                    'test_result_id' => $testResult->id
-                ]);
-
-                // Generate review synchronously
-                $result = $this->aiReviewService->processSingle($testResult->id);
-
-                if ($result->isSuccessful()) {
-                    // Reload the relationship
-                    $testResult->load('aiReview');
-                    $aiReview = $testResult->aiReview;
-
-                    Log::channel($this->getLogChannel())->info('getReviewById: AIReview generated successfully', [
-                        'test_result_id' => $testResult->id,
-                        'ai_review_id' => $aiReview->id
-                    ]);
-                } else {
-                    Log::channel($this->getLogChannel())->error('getReviewById: Failed to generate AIReview', [
-                        'test_result_id' => $testResult->id,
-                        'error' => $result->errorMessage
-                    ]);
-
-                    return response()->json(null);
-                }
-            } else {
-                Log::channel($this->getLogChannel())->info('getReviewById: AIReview found', [
-                    'test_result_id' => $testResult->id,
-                    'ai_review_id' => $aiReview->id
-                ]);
-            }
+            Log::channel($this->getLogChannel())->info('getReviewById: AIReview found', [
+                'test_result_id' => $testResult->id,
+                'ai_review_id' => $aiReview->id
+            ]);
 
             $processingTime = now()->diffInSeconds($processingStartTime);
 
@@ -407,6 +396,10 @@ class BloodTestController extends Controller
 
             Log::channel($this->getLogChannel())->info('getReviewById: Processing completed', [
                 'test_result_id' => $testResult->id,
+                'is_completed' => $testResult->is_completed,
+                'is_completed_raw' => $testResult->getRawOriginal('is_completed'),
+                'is_reviewed' => $testResult->is_reviewed,
+                'is_reviewed_raw' => $testResult->getRawOriginal('is_reviewed'),
                 'processing_time_seconds' => $processingTime
             ]);
 
@@ -459,19 +452,21 @@ class BloodTestController extends Controller
         ]);
 
         try {
-            // Search for TestResult (same logic as getReviewById)
+            // Search for TestResult with is_completed = true
             Log::channel($this->getLogChannel())->debug('regenerateReviewById: Searching by IC number', [
                 'icno' => $icno
             ]);
 
             $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
                 $p->where('icno', $icno);
-            })->latest()->first();
+            })->where('is_completed', true)->latest()->first();
 
             if ($testResult) {
                 Log::channel($this->getLogChannel())->info('regenerateReviewById: Test result found by IC number', [
                     'icno' => $icno,
-                    'test_result_id' => $testResult->id
+                    'test_result_id' => $testResult->id,
+                    'is_completed' => $testResult->is_completed,
+                    'is_completed_raw' => $testResult->getRawOriginal('is_completed')
                 ]);
             }
 
@@ -483,19 +478,22 @@ class BloodTestController extends Controller
                 ]);
 
                 $testResult = TestResult::where('ref_id', $refid)
+                    ->where('is_completed', true)
                     ->latest()->first();
 
                 if ($testResult) {
                     Log::channel($this->getLogChannel())->info('regenerateReviewById: Test result found by refid', [
                         'refid' => $refid,
-                        'test_result_id' => $testResult->id
+                        'test_result_id' => $testResult->id,
+                        'is_completed' => $testResult->is_completed,
+                        'is_completed_raw' => $testResult->getRawOriginal('is_completed')
                     ]);
                 }
             }
 
-            // Return null if test result not found
+            // Return null if test result not found or not completed
             if (!$testResult) {
-                Log::channel($this->getLogChannel())->warning('regenerateReviewById: Test result not found', [
+                Log::channel($this->getLogChannel())->warning('regenerateReviewById: Test result not found or not completed', [
                     'icno' => $icno,
                     'refid' => $refid
                 ]);
@@ -517,24 +515,6 @@ class BloodTestController extends Controller
                 Log::channel($this->getLogChannel())->info('regenerateReviewById: ref_id updated successfully', [
                     'test_result_id' => $testResult->id,
                     'ref_id' => $refid
-                ]);
-            }
-
-            // Check if test result is completed before attempting AI generation
-            if (!$testResult->is_completed) {
-                $processingTime = now()->diffInSeconds($processingStartTime);
-
-                Log::channel($this->getLogChannel())->info('regenerateReviewById: Test result not completed, cannot regenerate', [
-                    'test_result_id' => $testResult->id,
-                    'is_completed' => false,
-                    'processing_time_seconds' => $processingTime
-                ]);
-
-                return response()->json([
-                    'ai_response' => null,
-                    'report_id' => $testResult->id,
-                    'ref_id' => $testResult->ref_id,
-                    'status' => 'Sync In Progress. No AI Report to be regenerated.'
                 ]);
             }
 
@@ -598,6 +578,8 @@ class BloodTestController extends Controller
 
             Log::channel($this->getLogChannel())->info('regenerateReviewById: Processing completed', [
                 'test_result_id' => $testResult->id,
+                'is_completed' => $testResult->is_completed,
+                'is_completed_raw' => $testResult->getRawOriginal('is_completed'),
                 'processing_time_seconds' => $processingTime
             ]);
 

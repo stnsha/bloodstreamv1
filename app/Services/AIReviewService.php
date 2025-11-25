@@ -64,15 +64,22 @@ class AIReviewService
     public function processSingle(int $testResultId): AIReviewResult
     {
         $token = $this->getToken();
+        $compiledData = [];
 
         try {
-            return DB::transaction(function () use ($testResultId, $token) {
+            return DB::transaction(function () use ($testResultId, $token, &$compiledData) {
                 // Step 1: Fetch and compile test result data
                 $testResult = $this->compiler->fetchTestResult($testResultId);
                 $compiledData = $this->compiler->compileTestResultData($testResult);
 
                 // Step 2: Call AI API
                 $aiResponse = $this->apiClient->analyze($compiledData, $token);
+
+                // Log raw AI response from API
+                Log::channel('gpt-log')->info('GPT API Response', [
+                    'test_result_id' => $testResult->id,
+                    'ai_response' => $aiResponse['ai_analysis']['answer']
+                ]);
 
                 // Step 3: Convert response to HTML
                 $htmlReview = $this->htmlGenerator->convertToHtml($aiResponse['ai_analysis']['answer']);
@@ -104,7 +111,7 @@ class AIReviewService
             try {
                 AIReview::create([
                     'test_result_id' => $testResultId,
-                    'compiled_results' => null,
+                    'compiled_results' => !empty($compiledData) ? $compiledData : [],
                     'http_status' => null,
                     'ai_response' => null,
                     'error_message' => 'Processing error: ' . $e->getMessage(),
@@ -155,6 +162,13 @@ class AIReviewService
             try {
                 // Call AI API (can take up to 120 seconds)
                 $aiResponse = $this->apiClient->analyze($data['compiled_data'], $token);
+
+                // Log raw AI response from API
+                Log::channel('gpt-log')->info('GPT API Response', [
+                    'test_result_id' => $data['test_result']->id,
+                    'icno' => $data['icno'],
+                    'ai_response' => $aiResponse['ai_analysis']['answer']
+                ]);
 
                 // Convert to HTML
                 $htmlReview = $this->htmlGenerator->convertToHtml($aiResponse['ai_analysis']['answer']);
