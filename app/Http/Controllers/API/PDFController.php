@@ -300,7 +300,7 @@ class PDFController extends Controller
             ], 404);
         }
 
-        $dob = $testResult->patient->dob != null ? Carbon::createFromFormat('Ymd', $testResult->patient->dob)->format('d/m/y') : null;
+        $dob = $testResult->patient->dob != null ? Carbon::createFromFormat('Ymd', str_replace('-', '', $testResult->patient->dob))->format('d/m/y') : null;
 
         // Patient information
         $patient_info = [
@@ -880,7 +880,7 @@ class PDFController extends Controller
             ], 404);
         }
 
-        $dob = $testResult->patient->dob != null ? Carbon::createFromFormat('Ymd', $testResult->patient->dob)->format('d/m/y') : null;
+        $dob = $testResult->patient->dob != null ? Carbon::createFromFormat('Ymd', str_replace('-', '', $testResult->patient->dob))->format('d/m/y') : null;
 
         // Patient information
         $patient_info = [
