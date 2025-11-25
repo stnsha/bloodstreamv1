@@ -166,6 +166,7 @@ class ReviewHtmlGenerator
             return $html;
         }
 
-        return e($field);
+        // Preserve <br> tags while escaping other potentially dangerous HTML
+        return strip_tags($field, '<br>');
     }
 }
