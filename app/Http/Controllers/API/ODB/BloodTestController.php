@@ -77,29 +77,72 @@ class BloodTestController extends Controller
                         'refid' => $refid
                     ]);
 
-                    // Search by IC number first
-                    Log::channel($this->getLogChannel())->debug('getReportId: Searching by IC number', [
-                        'icno' => $icno
-                    ]);
+                    $testResult = null;
 
-                    $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
-                        $p->where('icno', $icno);
-                    })
-                        ->where('is_completed', true)
-                        ->whereNotNull('collected_date')
-                        ->whereYear('collected_date', date('Y'))
-                        ->latest()->first();
-
-                    if ($testResult) {
-                        Log::channel($this->getLogChannel())->info('getReportId: Test result found by IC number', [
+                    // Step 1: If refid provided, try searching by BOTH IC number AND refid
+                    if ($refid) {
+                        Log::channel($this->getLogChannel())->debug('getReportId: Searching by IC AND refid', [
                             'icno' => $icno,
-                            'test_result_id' => $testResult->id,
-                            'is_completed' => $testResult->is_completed,
-                            'is_completed_raw' => $testResult->getRawOriginal('is_completed')
+                            'refid' => $refid
                         ]);
+
+                        $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
+                            $p->where('icno', $icno);
+                        })
+                            ->where('ref_id', $refid)
+                            ->where('is_completed', true)
+                            ->whereNotNull('collected_date')
+                            ->whereYear('collected_date', date('Y'))
+                            ->latest()->first();
+
+                        if ($testResult) {
+                            Log::channel($this->getLogChannel())->info('getReportId: Test result found by IC AND refid', [
+                                'icno' => $icno,
+                                'refid' => $refid,
+                                'test_result_id' => $testResult->id,
+                                'is_completed' => $testResult->is_completed,
+                                'is_completed_raw' => $testResult->getRawOriginal('is_completed')
+                            ]);
+                        }
                     }
 
-                    // Fallback to search by refid if provided
+                    // Step 2: Search by IC number only
+                    if (!$testResult) {
+                        Log::channel($this->getLogChannel())->debug('getReportId: Searching by IC number', [
+                            'icno' => $icno
+                        ]);
+
+                        $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
+                            $p->where('icno', $icno);
+                        })
+                            ->where('is_completed', true)
+                            ->whereNotNull('collected_date')
+                            ->whereYear('collected_date', date('Y'))
+                            ->latest()->first();
+
+                        if ($testResult) {
+                            Log::channel($this->getLogChannel())->info('getReportId: Test result found by IC number', [
+                                'icno' => $icno,
+                                'test_result_id' => $testResult->id,
+                                'is_completed' => $testResult->is_completed,
+                                'is_completed_raw' => $testResult->getRawOriginal('is_completed'),
+                                'database_ref_id' => $testResult->ref_id
+                            ]);
+
+                            // Update ref_id if it's null and we have a refid to set
+                            if ($refid && is_null($testResult->ref_id)) {
+                                $testResult->ref_id = $refid;
+                                $testResult->save();
+
+                                Log::channel($this->getLogChannel())->info('getReportId: Updated ref_id from null', [
+                                    'test_result_id' => $testResult->id,
+                                    'new_ref_id' => $refid
+                                ]);
+                            }
+                        }
+                    }
+
+                    // Step 3: Fallback to search by refid if provided
                     if (!$testResult && $refid) {
                         Log::channel($this->getLogChannel())->debug('getReportId: IC search failed, falling back to refid search', [
                             'icno' => $icno,
@@ -120,23 +163,6 @@ class BloodTestController extends Controller
                                 'is_completed_raw' => $testResult->getRawOriginal('is_completed')
                             ]);
                         }
-                    }
-
-                    // Update ref_id if request has refid but DB has null
-                    if ($testResult && $refid && $testResult->ref_id === null) {
-                        Log::channel($this->getLogChannel())->debug('getReportId: Updating null ref_id in database', [
-                            'test_result_id' => $testResult->id,
-                            'old_ref_id' => null,
-                            'new_ref_id' => $refid
-                        ]);
-
-                        $testResult->ref_id = $refid;
-                        $testResult->save();
-
-                        Log::channel($this->getLogChannel())->info('getReportId: ref_id updated successfully', [
-                            'test_result_id' => $testResult->id,
-                            'ref_id' => $refid
-                        ]);
                     }
 
                     // Only add to results if test result found
@@ -293,31 +319,76 @@ class BloodTestController extends Controller
         ]);
 
         try {
-            // Search for TestResult with is_completed = true
-            Log::channel($this->getLogChannel())->debug('getReviewById: Searching by IC number', [
-                'icno' => $icno
-            ]);
+            $testResult = null;
 
-            $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
-                $p->where('icno', $icno);
-            })
-                ->where('is_completed', true)
-                ->whereNotNull('collected_date')
-                ->whereYear('collected_date', date('Y'))
-                ->latest()->first();
-
-            if ($testResult) {
-                Log::channel($this->getLogChannel())->info('getReviewById: Test result found by IC number', [
+            // Step 1: If refid provided, try searching by BOTH IC number AND refid
+            if ($refid) {
+                Log::channel($this->getLogChannel())->debug('getReviewById: Searching by IC AND refid', [
                     'icno' => $icno,
-                    'test_result_id' => $testResult->id,
-                    'is_completed' => $testResult->is_completed,
-                    'is_completed_raw' => $testResult->getRawOriginal('is_completed'),
-                    'is_reviewed' => $testResult->is_reviewed,
-                    'is_reviewed_raw' => $testResult->getRawOriginal('is_reviewed')
+                    'refid' => $refid
                 ]);
+
+                $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
+                    $p->where('icno', $icno);
+                })
+                    ->where('ref_id', $refid)
+                    ->where('is_completed', true)
+                    ->whereNotNull('collected_date')
+                    ->whereYear('collected_date', date('Y'))
+                    ->latest()->first();
+
+                if ($testResult) {
+                    Log::channel($this->getLogChannel())->info('getReviewById: Test result found by IC AND refid', [
+                        'icno' => $icno,
+                        'refid' => $refid,
+                        'test_result_id' => $testResult->id,
+                        'is_completed' => $testResult->is_completed,
+                        'is_completed_raw' => $testResult->getRawOriginal('is_completed'),
+                        'is_reviewed' => $testResult->is_reviewed,
+                        'is_reviewed_raw' => $testResult->getRawOriginal('is_reviewed')
+                    ]);
+                }
             }
 
-            // Fallback to search by refid if provided
+            // Step 2: Search by IC number only
+            if (!$testResult) {
+                Log::channel($this->getLogChannel())->debug('getReviewById: Searching by IC number', [
+                    'icno' => $icno
+                ]);
+
+                $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
+                    $p->where('icno', $icno);
+                })
+                    ->where('is_completed', true)
+                    ->whereNotNull('collected_date')
+                    ->whereYear('collected_date', date('Y'))
+                    ->latest()->first();
+
+                if ($testResult) {
+                    Log::channel($this->getLogChannel())->info('getReviewById: Test result found by IC number', [
+                        'icno' => $icno,
+                        'test_result_id' => $testResult->id,
+                        'is_completed' => $testResult->is_completed,
+                        'is_completed_raw' => $testResult->getRawOriginal('is_completed'),
+                        'is_reviewed' => $testResult->is_reviewed,
+                        'is_reviewed_raw' => $testResult->getRawOriginal('is_reviewed'),
+                        'database_ref_id' => $testResult->ref_id
+                    ]);
+
+                    // Update ref_id if it's null and we have a refid to set
+                    if ($refid && is_null($testResult->ref_id)) {
+                        $testResult->ref_id = $refid;
+                        $testResult->save();
+
+                        Log::channel($this->getLogChannel())->info('getReviewById: Updated ref_id from null', [
+                            'test_result_id' => $testResult->id,
+                            'new_ref_id' => $refid
+                        ]);
+                    }
+                }
+            }
+
+            // Step 3: Fallback to search by refid if provided
             if (!$testResult && $refid) {
                 Log::channel($this->getLogChannel())->debug('getReviewById: IC search failed, falling back to refid search', [
                     'icno' => $icno,
