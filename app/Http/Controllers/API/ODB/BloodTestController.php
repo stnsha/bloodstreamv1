@@ -112,16 +112,27 @@ class BloodTestController extends Controller
                             'icno' => $icno
                         ]);
 
-                        $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
+                        $query = TestResult::whereHas('patient', function ($p) use ($icno) {
                             $p->where('icno', $icno);
-                        })
+                        });
+
+                        // Only require NULL ref_id if user provided a refid
+                        if ($refid) {
+                            $query->whereNull('ref_id');
+                        }
+
+                        $testResult = $query
                             ->where('is_completed', true)
                             ->whereNotNull('collected_date')
                             ->whereYear('collected_date', date('Y'))
                             ->latest()->first();
 
                         if ($testResult) {
-                            Log::channel($this->getLogChannel())->info('getReportId: Test result found by IC number', [
+                            $logMessage = $refid
+                                ? 'getReportId: Test result found by IC with NULL ref_id'
+                                : 'getReportId: Test result found by IC number';
+
+                            Log::channel($this->getLogChannel())->info($logMessage, [
                                 'icno' => $icno,
                                 'test_result_id' => $testResult->id,
                                 'is_completed' => $testResult->is_completed,
@@ -156,12 +167,28 @@ class BloodTestController extends Controller
                             ->latest()->first();
 
                         if ($testResult) {
-                            Log::channel($this->getLogChannel())->info('getReportId: Test result found by refid', [
-                                'refid' => $refid,
-                                'test_result_id' => $testResult->id,
-                                'is_completed' => $testResult->is_completed,
-                                'is_completed_raw' => $testResult->getRawOriginal('is_completed')
-                            ]);
+                            // Verify IC mismatch - only return if IC is different
+                            $foundIcno = $testResult->patient->icno ?? null;
+
+                            if ($foundIcno !== $icno) {
+                                Log::channel($this->getLogChannel())->info('getReportId: Test result found by refid with different IC', [
+                                    'refid' => $refid,
+                                    'provided_icno' => $icno,
+                                    'found_icno' => $foundIcno,
+                                    'test_result_id' => $testResult->id,
+                                    'is_completed' => $testResult->is_completed,
+                                    'is_completed_raw' => $testResult->getRawOriginal('is_completed')
+                                ]);
+                            } else {
+                                // IC matches - reject to avoid returning mismatched record
+                                Log::channel($this->getLogChannel())->warning('getReportId: Found by refid but IC matches - rejecting', [
+                                    'refid' => $refid,
+                                    'icno' => $icno,
+                                    'test_result_id' => $testResult->id,
+                                    'database_ref_id' => $testResult->ref_id
+                                ]);
+                                $testResult = null;
+                            }
                         }
                     }
 
@@ -356,16 +383,27 @@ class BloodTestController extends Controller
                     'icno' => $icno
                 ]);
 
-                $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
+                $query = TestResult::whereHas('patient', function ($p) use ($icno) {
                     $p->where('icno', $icno);
-                })
+                });
+
+                // Only require NULL ref_id if user provided a refid
+                if ($refid) {
+                    $query->whereNull('ref_id');
+                }
+
+                $testResult = $query
                     ->where('is_completed', true)
                     ->whereNotNull('collected_date')
                     ->whereYear('collected_date', date('Y'))
                     ->latest()->first();
 
                 if ($testResult) {
-                    Log::channel($this->getLogChannel())->info('getReviewById: Test result found by IC number', [
+                    $logMessage = $refid
+                        ? 'getReviewById: Test result found by IC with NULL ref_id'
+                        : 'getReviewById: Test result found by IC number';
+
+                    Log::channel($this->getLogChannel())->info($logMessage, [
                         'icno' => $icno,
                         'test_result_id' => $testResult->id,
                         'is_completed' => $testResult->is_completed,
@@ -402,14 +440,30 @@ class BloodTestController extends Controller
                     ->latest()->first();
 
                 if ($testResult) {
-                    Log::channel($this->getLogChannel())->info('getReviewById: Test result found by refid', [
-                        'refid' => $refid,
-                        'test_result_id' => $testResult->id,
-                        'is_completed' => $testResult->is_completed,
-                        'is_completed_raw' => $testResult->getRawOriginal('is_completed'),
-                        'is_reviewed' => $testResult->is_reviewed,
-                        'is_reviewed_raw' => $testResult->getRawOriginal('is_reviewed')
-                    ]);
+                    // Verify IC mismatch - only return if IC is different
+                    $foundIcno = $testResult->patient->icno ?? null;
+
+                    if ($foundIcno !== $icno) {
+                        Log::channel($this->getLogChannel())->info('getReviewById: Test result found by refid with different IC', [
+                            'refid' => $refid,
+                            'provided_icno' => $icno,
+                            'found_icno' => $foundIcno,
+                            'test_result_id' => $testResult->id,
+                            'is_completed' => $testResult->is_completed,
+                            'is_completed_raw' => $testResult->getRawOriginal('is_completed'),
+                            'is_reviewed' => $testResult->is_reviewed,
+                            'is_reviewed_raw' => $testResult->getRawOriginal('is_reviewed')
+                        ]);
+                    } else {
+                        // IC matches - reject to avoid returning mismatched record
+                        Log::channel($this->getLogChannel())->warning('getReviewById: Found by refid but IC matches - rejecting', [
+                            'refid' => $refid,
+                            'icno' => $icno,
+                            'test_result_id' => $testResult->id,
+                            'database_ref_id' => $testResult->ref_id
+                        ]);
+                        $testResult = null;
+                    }
                 }
             }
 
@@ -590,16 +644,27 @@ class BloodTestController extends Controller
                     'icno' => $icno
                 ]);
 
-                $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
+                $query = TestResult::whereHas('patient', function ($p) use ($icno) {
                     $p->where('icno', $icno);
-                })
+                });
+
+                // Only require NULL ref_id if user provided a refid
+                if ($refid) {
+                    $query->whereNull('ref_id');
+                }
+
+                $testResult = $query
                     ->where('is_completed', true)
                     ->whereNotNull('collected_date')
                     ->whereYear('collected_date', date('Y'))
                     ->latest()->first();
 
                 if ($testResult) {
-                    Log::channel($this->getLogChannel())->info('regenerateReviewById: Test result found by IC number', [
+                    $logMessage = $refid
+                        ? 'regenerateReviewById: Test result found by IC with NULL ref_id'
+                        : 'regenerateReviewById: Test result found by IC number';
+
+                    Log::channel($this->getLogChannel())->info($logMessage, [
                         'icno' => $icno,
                         'test_result_id' => $testResult->id,
                         'database_ref_id' => $testResult->ref_id,
@@ -633,13 +698,28 @@ class BloodTestController extends Controller
                     ->latest()->first();
 
                 if ($testResult) {
-                    Log::channel($this->getLogChannel())->info('regenerateReviewById: Test result found by refid', [
-                        'refid' => $refid,
-                        'test_result_id' => $testResult->id,
-                        'patient_icno' => $testResult->patient->icno ?? 'N/A',
-                        'is_completed' => $testResult->is_completed,
-                        'is_completed_raw' => $testResult->getRawOriginal('is_completed')
-                    ]);
+                    // Verify IC mismatch - only return if IC is different
+                    $foundIcno = $testResult->patient->icno ?? null;
+
+                    if ($foundIcno !== $icno) {
+                        Log::channel($this->getLogChannel())->info('regenerateReviewById: Test result found by refid with different IC', [
+                            'refid' => $refid,
+                            'provided_icno' => $icno,
+                            'found_icno' => $foundIcno,
+                            'test_result_id' => $testResult->id,
+                            'is_completed' => $testResult->is_completed,
+                            'is_completed_raw' => $testResult->getRawOriginal('is_completed')
+                        ]);
+                    } else {
+                        // IC matches - reject to avoid returning mismatched record
+                        Log::channel($this->getLogChannel())->warning('regenerateReviewById: Found by refid but IC matches - rejecting', [
+                            'refid' => $refid,
+                            'icno' => $icno,
+                            'test_result_id' => $testResult->id,
+                            'database_ref_id' => $testResult->ref_id
+                        ]);
+                        $testResult = null;
+                    }
                 }
             }
 
