@@ -264,22 +264,61 @@ class PDFController extends Controller
         $icno = $validated['icno'];
         $refid = $validated['refid'] ?? null;
 
-        $testResult = TestResult::with([
-            'doctor',
-            'patient',
-            'testResultProfiles',
-            'testResultItems.panelComments.masterPanelComment',
-            'profiles'
-        ])
-            ->where('is_completed', true)
-            ->whereNotNull('collected_date')
-            ->whereYear('collected_date', date('Y'))
-            ->whereHas('patient', function ($p) use ($icno) {
-                $p->where('icno', $icno);
-            })
-            ->latest()
-            ->first();
+        $testResult = null;
 
+        // Step 1: If refid provided, try searching by BOTH IC number AND refid
+        if ($refid) {
+            $testResult = TestResult::with([
+                'doctor',
+                'patient',
+                'testResultProfiles',
+                'testResultItems.panelComments.masterPanelComment',
+                'profiles'
+            ])
+                ->whereHas('patient', function ($p) use ($icno) {
+                    $p->where('icno', $icno);
+                })
+                ->where('ref_id', $refid)
+                ->where('is_completed', true)
+                ->whereNotNull('collected_date')
+                ->whereYear('collected_date', date('Y'))
+                ->latest()
+                ->first();
+        }
+
+        // Step 2: Search by IC number only
+        if (!$testResult) {
+            $query = TestResult::with([
+                'doctor',
+                'patient',
+                'testResultProfiles',
+                'testResultItems.panelComments.masterPanelComment',
+                'profiles'
+            ])
+                ->whereHas('patient', function ($p) use ($icno) {
+                    $p->where('icno', $icno);
+                });
+
+            // Only require NULL ref_id if user provided a refid
+            if ($refid) {
+                $query->whereNull('ref_id');
+            }
+
+            $testResult = $query
+                ->where('is_completed', true)
+                ->whereNotNull('collected_date')
+                ->whereYear('collected_date', date('Y'))
+                ->latest()
+                ->first();
+
+            // Update ref_id if it's null and we have a refid to set
+            if ($testResult && $refid && is_null($testResult->ref_id)) {
+                $testResult->ref_id = $refid;
+                $testResult->save();
+            }
+        }
+
+        // Step 3: Fallback to search by refid if provided
         if (!$testResult && $refid) {
             $testResult = TestResult::with([
                 'doctor',
@@ -288,12 +327,22 @@ class PDFController extends Controller
                 'testResultItems.panelComments.masterPanelComment',
                 'profiles'
             ])
+                ->where('ref_id', $refid)
                 ->where('is_completed', true)
                 ->whereNotNull('collected_date')
                 ->whereYear('collected_date', date('Y'))
-                ->where('ref_id', $refid)
                 ->latest()
                 ->first();
+
+            // Verify IC mismatch - only return if IC is different
+            if ($testResult) {
+                $foundIcno = $testResult->patient->icno ?? null;
+
+                if ($foundIcno === $icno) {
+                    // IC matches - reject to avoid returning mismatched record
+                    $testResult = null;
+                }
+            }
         }
 
         if (!$testResult) {
