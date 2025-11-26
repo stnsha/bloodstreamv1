@@ -272,6 +272,8 @@ class PDFController extends Controller
             'profiles'
         ])
             ->where('is_completed', true)
+            ->whereNotNull('collected_date')
+            ->whereYear('collected_date', date('Y'))
             ->whereHas('patient', function ($p) use ($icno) {
                 $p->where('icno', $icno);
             })
@@ -287,6 +289,8 @@ class PDFController extends Controller
                 'profiles'
             ])
                 ->where('is_completed', true)
+                ->whereNotNull('collected_date')
+                ->whereYear('collected_date', date('Y'))
                 ->where('ref_id', $refid)
                 ->latest()
                 ->first();
@@ -869,6 +873,8 @@ class PDFController extends Controller
             'review'
         ])
             ->where('is_completed', true)
+            ->whereNotNull('collected_date')
+            ->whereYear('collected_date', date('Y'))
             ->where('id', $id)
             ->first();
 

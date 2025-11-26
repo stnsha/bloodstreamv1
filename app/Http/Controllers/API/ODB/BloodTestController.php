@@ -84,7 +84,11 @@ class BloodTestController extends Controller
 
                     $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
                         $p->where('icno', $icno);
-                    })->where('is_completed', true)->latest()->first();
+                    })
+                        ->where('is_completed', true)
+                        ->whereNotNull('collected_date')
+                        ->whereYear('collected_date', date('Y'))
+                        ->latest()->first();
 
                     if ($testResult) {
                         Log::channel($this->getLogChannel())->info('getReportId: Test result found by IC number', [
@@ -102,7 +106,11 @@ class BloodTestController extends Controller
                             'refid' => $refid
                         ]);
 
-                        $testResult = TestResult::where('ref_id', $refid)->where('is_completed', true)->latest()->first();
+                        $testResult = TestResult::where('ref_id', $refid)
+                            ->where('is_completed', true)
+                            ->whereNotNull('collected_date')
+                            ->whereYear('collected_date', date('Y'))
+                            ->latest()->first();
 
                         if ($testResult) {
                             Log::channel($this->getLogChannel())->info('getReportId: Test result found by refid', [
@@ -292,7 +300,11 @@ class BloodTestController extends Controller
 
             $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
                 $p->where('icno', $icno);
-            })->where('is_completed', true)->latest()->first();
+            })
+                ->where('is_completed', true)
+                ->whereNotNull('collected_date')
+                ->whereYear('collected_date', date('Y'))
+                ->latest()->first();
 
             if ($testResult) {
                 Log::channel($this->getLogChannel())->info('getReviewById: Test result found by IC number', [
@@ -314,6 +326,8 @@ class BloodTestController extends Controller
 
                 $testResult = TestResult::where('ref_id', $refid)
                     ->where('is_completed', true)
+                    ->whereNotNull('collected_date')
+                    ->whereYear('collected_date', date('Y'))
                     ->latest()->first();
 
                 if ($testResult) {
@@ -477,7 +491,11 @@ class BloodTestController extends Controller
 
             $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
                 $p->where('icno', $icno);
-            })->where('is_completed', true)->latest()->first();
+            })
+                ->where('is_completed', true)
+                ->whereNotNull('collected_date')
+                ->whereYear('collected_date', date('Y'))
+                ->latest()->first();
 
             if ($testResult) {
                 Log::channel($this->getLogChannel())->info('regenerateReviewById: Test result found by IC number', [
@@ -497,6 +515,8 @@ class BloodTestController extends Controller
 
                 $testResult = TestResult::where('ref_id', $refid)
                     ->where('is_completed', true)
+                    ->whereNotNull('collected_date')
+                    ->whereYear('collected_date', date('Y'))
                     ->latest()->first();
 
                 if ($testResult) {

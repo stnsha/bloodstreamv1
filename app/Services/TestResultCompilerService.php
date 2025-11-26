@@ -48,6 +48,8 @@ class TestResultCompilerService
         $tr = TestResult::with($this->getEagerLoadRelations())
             ->where('is_reviewed', false)
             ->where('is_completed', true)
+            ->whereNotNull('collected_date')
+            ->whereYear('collected_date', date('Y'))
             ->where('id', $testResultId)
             ->first();
 
@@ -66,6 +68,8 @@ class TestResultCompilerService
         $tr = TestResult::with($this->getEagerLoadRelations())
             ->where('is_reviewed', false)
             ->where('is_completed', true)
+            ->whereNotNull('collected_date')
+            ->whereYear('collected_date', date('Y'))
             ->whereHas('patient', function ($query) use ($icno) {
                 $query->where('icno', $icno);
             })
@@ -78,6 +82,8 @@ class TestResultCompilerService
                 ->where('ref_id', $refid)
                 ->where('is_reviewed', false)
                 ->where('is_completed', true)
+                ->whereNotNull('collected_date')
+                ->whereYear('collected_date', date('Y'))
                 ->latest()
                 ->first();
         }
