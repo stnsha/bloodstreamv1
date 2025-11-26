@@ -194,6 +194,7 @@ class ProcessUnreviewedResults extends Command
         return DB::transaction(function () {
             return TestResult::where('is_completed', true)
                 ->where('is_reviewed', false)
+                ->whereYear('collected_date', date('Y'))
                 ->orderBy('id', 'desc')
                 ->limit(10)
                 ->lockForUpdate()
