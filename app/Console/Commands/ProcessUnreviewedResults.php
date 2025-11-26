@@ -194,7 +194,7 @@ class ProcessUnreviewedResults extends Command
         return DB::transaction(function () {
             return TestResult::where('is_completed', true)
                 ->where('is_reviewed', false)
-                ->orderBy('id', 'asc')
+                ->orderBy('id', 'desc')
                 ->limit(10)
                 ->lockForUpdate()
                 ->pluck('id')
