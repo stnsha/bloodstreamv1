@@ -112,7 +112,7 @@ class AIReviewService
                 AIReview::create([
                     'test_result_id' => $testResultId,
                     'compiled_results' => !empty($compiledData) ? $compiledData : [],
-                    'http_status' => 0,
+                    'http_status' => 500,
                     'ai_response' => null,
                     'error_message' => 'Processing error: ' . $e->getMessage(),
                     'is_successful' => false

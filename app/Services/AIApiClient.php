@@ -53,13 +53,15 @@ class AIApiClient
             ->post(config('credentials.ai_review.analysis'), $compiledData);
 
         if ($response->failed()) {
+            $responseBody = $response->body();
+
             Log::channel($this->logChannel)->error('AI analysis API call failed', [
                 'response_status' => $response->status(),
-                'response_body' => $response->body()
+                'response_body' => $responseBody
             ]);
 
             throw new RuntimeException(
-                "AI analysis API call failed with status {$response->status()}"
+                "AI analysis API call failed with status {$response->status()}. Response: " . $responseBody
             );
         }
 
@@ -67,20 +69,24 @@ class AIApiClient
 
         // Validate response structure and status
         if (!isset($responseData['ai_analysis'])) {
+            $errorDetails = json_encode($responseData);
+
             Log::channel($this->logChannel)->error('Invalid AI response structure', [
                 'response' => $responseData
             ]);
 
-            throw new RuntimeException('Invalid AI response structure: missing ai_analysis key');
+            throw new RuntimeException('Invalid AI response structure: missing ai_analysis key. Response: ' . $errorDetails);
         }
 
         if (!($responseData['ai_analysis']['success'] ?? false)
             || ($responseData['ai_analysis']['status'] ?? 500) != 200) {
+            $errorDetails = json_encode($responseData);
+
             Log::channel($this->logChannel)->error('AI analysis returned error status', [
                 'response' => $responseData
             ]);
 
-            throw new RuntimeException('AI analysis returned error status');
+            throw new RuntimeException('AI analysis returned error status. Response: ' . $errorDetails);
         }
 
         Log::channel($this->logChannel)->info('AI analysis successful');
