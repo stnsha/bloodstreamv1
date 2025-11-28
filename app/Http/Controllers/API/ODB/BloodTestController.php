@@ -817,6 +817,67 @@ class BloodTestController extends Controller
         }
     }
 
+    public function checkVitals(ODBRequest $request)
+    {
+        $validated = $request->all();
+        $processingStartTime = now();
+
+        Log::channel($this->getLogChannel())->info('checkVitals: Processing started', [
+            'total_items' => count($validated),
+            'timestamp' => $processingStartTime
+        ]);
+
+        try {
+            // Extract ICs from the request
+            $ics = array_map(function ($item) {
+                return $item['icno'];
+            }, $validated);
+
+            Log::channel($this->getLogChannel())->debug('checkVitals: Extracted ICs', [
+                'ics' => $ics
+            ]);
+
+            // Check if vitals are filled for these ICs
+            $results = $this->myHealthService->isFilledVitals($ics);
+
+            // Format response to match request items
+            $response = [];
+            foreach ($validated as $item) {
+                $icno = $item['icno'];
+                $refid = $item['refid'] ?? null;
+
+                $response[] = [
+                    'icno' => $icno,
+                    'refid' => $refid,
+                    'is_filled' => $results[$icno] ?? false
+                ];
+            }
+
+            $processingTime = now()->diffInSeconds($processingStartTime);
+
+            Log::channel($this->getLogChannel())->info('checkVitals: Processing completed', [
+                'total_items' => count($validated),
+                'processing_time_seconds' => $processingTime
+            ]);
+
+            return response()->json($response);
+        } catch (Throwable $e) {
+            Log::channel($this->getLogChannel())->error('checkVitals: Critical error occurred', [
+                'error_message' => $e->getMessage(),
+                'error_file' => $e->getFile(),
+                'error_line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+                'total_items' => count($validated)
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while processing the request',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     /**
      * Migrate old data from ODB to MyHealth
      */

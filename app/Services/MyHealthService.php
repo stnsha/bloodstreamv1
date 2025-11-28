@@ -77,4 +77,42 @@ class MyHealthService
             ->groupBy('record_id');
     }
 
+    /**
+     * check_normal_range:
+     * BMI ID: 55
+     * BP ID: 10
+     *
+     * @param array $recordICs Array of IC numbers
+     * @return array Associative array (IC => boolean) indicating if vitals are filled within last 14 days
+     */
+    public function isFilledVitals(array $recordICs)
+    {
+        if (empty($recordICs)) {
+            return [];
+        }
+
+        // Initialize all ICs as false
+        $result = array_fill_keys($recordICs, false);
+
+        // Get ICs that have BOTH parameters (55 and 10) within the last 14 days
+        $fourteenDaysAgo = now()->subDays(14)->format('Y-m-d H:i:s');
+
+        $validICs = $this->connection->table('check_record as c')
+            ->join('check_record_details as d', 'c.id', '=', 'd.record_id')
+            ->whereIn('c.ic', $recordICs)
+            ->where('c.date_time', '>=', $fourteenDaysAgo)
+            ->whereIn('d.parameter', [55, 10])
+            ->select('c.ic', DB::raw('COUNT(DISTINCT d.parameter) as param_count'))
+            ->groupBy('c.ic')
+            ->havingRaw('COUNT(DISTINCT d.parameter) = 2')
+            ->pluck('ic')
+            ->toArray();
+
+        // Set true for ICs that meet all criteria
+        foreach ($validICs as $ic) {
+            $result[$ic] = true;
+        }
+
+        return $result;
+    }
 }

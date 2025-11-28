@@ -10,7 +10,6 @@ use App\Http\Controllers\API\ODB\BloodTestController;
 use App\Http\Controllers\API\PDFController;
 use App\Http\Controllers\MasterPanelItemController;
 use App\Http\Controllers\PanelCommentController;
-use App\Http\Controllers\TestingController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
 
@@ -89,6 +88,7 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
         Route::post('/getReviewById', 'getReviewById')->name('odb.getReviewById');
         Route::post('/regenerateReviewById', 'regenerateReviewById')->name('odb.regenerateReviewById');
         Route::post('/review', 'review')->name('review');
+        Route::post('/checkVitals', 'checkVitals')->name('checkVitals');
 
         Route::post('/migrate', 'migrate')->name('odb.migrate');
         Route::post('/migrate-test', 'migrateTest')->name('odb.migrate.test');
