@@ -90,6 +90,7 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
         Route::post('/regenerateReviewById', 'regenerateReviewById')->name('odb.regenerateReviewById');
         Route::post('/review', 'review')->name('review');
         Route::post('/checkVitals', 'checkVitals')->name('checkVitals');
+        Route::post('/searchReportId', 'searchReportId')->name('searchReportId');
 
         Route::post('/migrate', 'migrate')->name('odb.migrate');
         Route::post('/migrate-test', 'migrateTest')->name('odb.migrate.test');

@@ -931,6 +931,127 @@ class BloodTestController extends Controller
     }
 
     /**
+     * Manual search existing result
+     * Get ALL test results for a given IC number with status and AI review
+     */
+    public function searchReportId(ODBRequest $request)
+    {
+        $validated = $request->all();
+        $processingStartTime = now();
+
+        // Extract single item from request
+        $item = $validated[0] ?? null;
+
+        if (!$item) {
+            Log::channel($this->getLogChannel())->warning('searchReportId: No item provided in request');
+            return response()->json([]);
+        }
+
+        $icno = $item['icno'];
+
+        Log::channel($this->getLogChannel())->info('searchReportId: Processing started', [
+            'icno' => $icno,
+            'timestamp' => $processingStartTime
+        ]);
+
+        try {
+            // Query: Get ALL test results for this icno
+            $testResults = TestResult::whereHas('patient', function ($p) use ($icno) {
+                $p->where('icno', $icno);
+            })
+                ->with('aiReview')  // Eager load AI review relationship
+                ->orderBy('collected_date', 'desc')
+                ->get();
+
+            if ($testResults->isEmpty()) {
+                Log::channel($this->getLogChannel())->info('searchReportId: No test results found', [
+                    'icno' => $icno
+                ]);
+
+                return response()->json([]);
+            }
+
+            Log::channel($this->getLogChannel())->info('searchReportId: Test results found', [
+                'icno' => $icno,
+                'count' => $testResults->count()
+            ]);
+
+            // Build response array
+            $results = [];
+
+            foreach ($testResults as $testResult) {
+                // Determine status based on completion and review flags
+                $status = $this->determineTestResultStatus($testResult);
+
+                // Get AI review HTML if exists
+                $review = $testResult->aiReview ? $testResult->aiReview->ai_response : null;
+
+                $results[] = [
+                    'status' => $status,
+                    'labno' => $testResult->lab_no,
+                    'collected_date' => $testResult->collected_date ? Carbon::parse($testResult->collected_date)->format('Y-m-d') : null,
+                    'reported_date' => $testResult->reported_date ? Carbon::parse($testResult->reported_date)->format('Y-m-d') : null,
+                    'report_id' => $testResult->id,
+                    'review' => $review
+                ];
+
+                Log::channel($this->getLogChannel())->debug('searchReportId: Processing test result', [
+                    'test_result_id' => $testResult->id,
+                    'lab_no' => $testResult->lab_no,
+                    'status' => $status,
+                    'is_completed' => $testResult->is_completed,
+                    'is_reviewed' => $testResult->is_reviewed,
+                    'has_ai_review' => $testResult->aiReview !== null
+                ]);
+            }
+
+            $processingTime = now()->diffInSeconds($processingStartTime);
+
+            Log::channel($this->getLogChannel())->info('searchReportId: Processing completed', [
+                'icno' => $icno,
+                'results_count' => count($results),
+                'processing_time_seconds' => $processingTime
+            ]);
+
+            return response()->json($results);
+        } catch (Throwable $e) {
+            Log::channel($this->getLogChannel())->error('searchReportId: Critical error occurred', [
+                'error_message' => $e->getMessage(),
+                'error_file' => $e->getFile(),
+                'error_line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+                'icno' => $icno
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while processing the request',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Helper method to determine test result status based on completion and review flags
+     *
+     * @param TestResult $testResult
+     * @return string
+     */
+    private function determineTestResultStatus(TestResult $testResult): string
+    {
+        if (!$testResult->is_completed) {
+            return 'Processing';
+        }
+
+        if ($testResult->is_completed && $testResult->is_reviewed) {
+            return 'Completed';
+        }
+
+        // is_completed = true, is_reviewed = false
+        return 'Completed but no AI Report to be generated';
+    }
+
+    /**
      * Migrate old data from ODB to MyHealth
      */
     public function migrate(MigrateRequest $request)
