@@ -257,7 +257,7 @@ class PanelResultsController extends BaseResultsController
                                         'lab_no' => $lab_no,
                                     ],
                                     [
-                                        'ref_id' => $reference_id,
+                                        'ref_id' => strtoupper($reference_id),
                                         'doctor_id' => $doctor_id,
                                         'patient_id' => $patient_id,
                                         'collected_date' => $collected_date,
