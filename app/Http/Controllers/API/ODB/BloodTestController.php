@@ -841,6 +841,10 @@ class BloodTestController extends Controller
         }
     }
 
+    /**
+     * New module by Mr Hong
+     * Check BP, BMI and report if exist
+     */
     public function checkVitals(ODBRequest $request)
     {
         $validated = $request->all();

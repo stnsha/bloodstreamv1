@@ -265,8 +265,8 @@ class PDFController extends Controller
 
         $icno = $validated['icno'];
         $refid = $validated['refid'] ?? null;
-        $month = $item['month'] ?? null;
-        $year  = $item['year'] ?? null;
+        $month = $validated['month'] ?? null;
+        $year  = $validated['year'] ?? null;
 
         $year  = $year  ?: date('Y');
         $month = $month ?: date('m');
@@ -293,6 +293,8 @@ class PDFController extends Controller
                 ->latest()
                 ->first();
         }
+
+
 
         // Step 2: Search by IC number only
         if (!$testResult) {
