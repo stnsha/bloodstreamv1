@@ -17,10 +17,10 @@ use Mpdf\Mpdf;
 class PDFController extends Controller
 {
     /**
-     * API for PDF generation from ODB 
+     * API for PDF generation from ODB
      * Flow: ODB > export > processTestResult > export
      */
-    public function export(Request $request)
+    public function export(ODBRequest $request)
     {
         try {
             $result = $this->processTestResult($request);
