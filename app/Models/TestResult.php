@@ -101,4 +101,16 @@ class TestResult extends Model
     {
         return $this->hasOne(ReportRecord::class, 'test_result_id', 'id');
     }
+
+    /**
+     * Set the ref_id attribute.
+     * Automatically converts ref_id to uppercase.
+     *
+     * @param  string|null  $value
+     * @return void
+     */
+    public function setRefIdAttribute($value)
+    {
+        $this->attributes['ref_id'] = $value !== null ? strtoupper($value) : null;
+    }
 }

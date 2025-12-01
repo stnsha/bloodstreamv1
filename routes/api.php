@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\DoctorReviewController;
+use App\Http\Controllers\API\Fixes\HotFixController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\API\General\LabResultsController;
@@ -93,5 +94,9 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
         Route::post('/migrate', 'migrate')->name('odb.migrate');
         Route::post('/migrate-test', 'migrateTest')->name('odb.migrate.test');
         Route::get('/migration-status/{uuid}', 'migrationStatus')->name('odb.migration.status');
+    });
+
+    Route::prefix('fixes')->controller(HotFixController::class)->group(function () {
+        Route::post('/normalize-refid', 'normalizeRefId')->name('fixes.normalizeRefId');
     });
 });
