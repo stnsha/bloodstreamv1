@@ -611,10 +611,20 @@ class PDFController extends Controller
     {
         $validated = $request->all();
 
-        $icno = $validated['icno'];
-        $refid = $validated['refid'] ?? null;
-        $month = $validated['month'] ?? null;
-        $year  = $validated['year'] ?? null;
+        // Extract single item from request (similar to BloodTestController)
+        $item = $validated[0] ?? null;
+
+        if (!$item) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No data provided in request'
+            ], 400);
+        }
+
+        $icno = $item['icno'];
+        $refid = $item['refid'] ?? null;
+        $month = $item['month'] ?? null;
+        $year  = $item['year'] ?? null;
 
         $year  = $year  ?: date('Y');
         $month = $month ?: date('m');
