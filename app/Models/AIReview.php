@@ -27,7 +27,7 @@ class AIReview extends Model
         'test_result_id' => 'integer',
         'compiled_results' => 'array',
         'http_status' => 'integer',
-        // ai_response stores HTML string, not array - no cast needed
+        'ai_response' => 'array',
         'raw_response' => 'array',
         'is_successful' => 'boolean',
         'created_at' => 'datetime',
