@@ -248,21 +248,43 @@ class PanelResultsController extends BaseResultsController
                                 //get profile code (optional)
                                 $panel_profile_id = $this->findOrCreateProfile($lab_id, $obv['PackageCode']);
 
-                                //create test result - firstOrCreate for local tests
-                                $test_result = TestResult::updateOrCreate(
-                                    [
-                                        'lab_no' => $lab_no,
-                                    ],
-                                    [
+                                //create test result - separate create/update to preserve is_completed status
+                                $existingTestResult = TestResult::where('lab_no', $lab_no)->first();
+
+                                if ($existingTestResult) {
+                                    // UPDATE: Preserve is_completed status
+                                    $existingTestResult->update([
                                         'ref_id' => $reference_id,
                                         'doctor_id' => $doctor_id,
                                         'patient_id' => $patient_id,
                                         'collected_date' => $collected_date,
-                                        // 'received_date' => null,
+                                        'reported_date' => $reported_date,
+                                        // is_completed NOT updated - preserved
+                                    ]);
+                                    $test_result = $existingTestResult;
+
+                                    Log::info('Test result updated - completion status preserved', [
+                                        'lab_no' => $lab_no,
+                                        'test_result_id' => $test_result->id,
+                                        'is_completed' => $test_result->is_completed
+                                    ]);
+                                } else {
+                                    // CREATE: New record starts incomplete
+                                    $test_result = TestResult::create([
+                                        'lab_no' => $lab_no,
+                                        'ref_id' => $reference_id,
+                                        'doctor_id' => $doctor_id,
+                                        'patient_id' => $patient_id,
+                                        'collected_date' => $collected_date,
                                         'reported_date' => $reported_date,
                                         'is_completed' => false
-                                    ]
-                                );
+                                    ]);
+
+                                    Log::info('New test result created', [
+                                        'lab_no' => $lab_no,
+                                        'test_result_id' => $test_result->id
+                                    ]);
+                                }
 
                                 //get test result id
                                 $test_result_id = $test_result->id;
