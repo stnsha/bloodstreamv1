@@ -25,9 +25,11 @@ class MyHealthService
 
     public function getCheckRecordIdByIC($ic)
     {
+        $fourteenDaysAgo = now()->subDays(14)->format('Y-m-d H:i:s');
+
         return $this->connection->table('check_record')
             ->where('ic', $ic)
-            ->whereYear('date_time', date('Y'))
+            ->where('date_time', '>=', $fourteenDaysAgo)
             ->select('id', 'gender', 'date_time')
             ->orderBy('date_time', 'desc')
             ->first();
