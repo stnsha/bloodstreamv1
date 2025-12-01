@@ -751,7 +751,9 @@ class BloodTestController extends Controller
             if (!$testResult) {
                 Log::channel($this->getLogChannel())->warning('regenerateReviewById: Test result not found or not completed', [
                     'icno' => $icno,
-                    'refid' => $refid
+                    'refid' => $refid,
+                    'month' => $month,
+                    'year' => $year
                 ]);
 
                 return response()->json(null);
