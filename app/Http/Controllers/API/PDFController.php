@@ -257,12 +257,19 @@ class PDFController extends Controller
         $validated = $request->validate([
             'icno' => 'required|string',
             'refid' => 'nullable|string',
+            'month' => 'nullable|integer',
+            'year' => 'nullable|integer',
         ], [
             'icno.required' => 'IC No. is required.',
         ]);
 
         $icno = $validated['icno'];
         $refid = $validated['refid'] ?? null;
+        $month = $item['month'] ?? null;
+        $year  = $item['year'] ?? null;
+
+        $year  = $year  ?: date('Y');
+        $month = $month ?: date('m');
 
         $testResult = null;
 
@@ -281,7 +288,8 @@ class PDFController extends Controller
                 ->where('ref_id', $refid)
                 ->where('is_completed', true)
                 ->whereNotNull('collected_date')
-                ->whereYear('collected_date', date('Y'))
+                ->whereYear('collected_date', $year)
+                ->whereMonth('collected_date', $month)
                 ->latest()
                 ->first();
         }
@@ -307,7 +315,8 @@ class PDFController extends Controller
             $testResult = $query
                 ->where('is_completed', true)
                 ->whereNotNull('collected_date')
-                ->whereYear('collected_date', date('Y'))
+                ->whereYear('collected_date', $year)
+                ->whereMonth('collected_date', $month)
                 ->latest()
                 ->first();
 
@@ -330,7 +339,8 @@ class PDFController extends Controller
                 ->where('ref_id', $refid)
                 ->where('is_completed', true)
                 ->whereNotNull('collected_date')
-                ->whereYear('collected_date', date('Y'))
+                ->whereYear('collected_date', $year)
+                ->whereMonth('collected_date', $month)
                 ->latest()
                 ->first();
 

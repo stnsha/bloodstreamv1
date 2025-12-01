@@ -18,6 +18,7 @@ class AIReview extends Model
         'compiled_results',
         'http_status',
         'ai_response',
+        'raw_response',
         'error_message',
         'is_successful'
     ];
@@ -27,6 +28,7 @@ class AIReview extends Model
         'compiled_results' => 'array',
         'http_status' => 'integer',
         'ai_response' => 'array',
+        'raw_response' => 'array',
         'is_successful' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',

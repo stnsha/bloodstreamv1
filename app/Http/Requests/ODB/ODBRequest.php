@@ -24,6 +24,8 @@ class ODBRequest extends FormRequest
         return [
             '*.icno' => 'required|string',
             '*.refid' => 'nullable|string',
+            '*.month' => 'nullable|integer',
+            '*.year' => 'nullable|integer',
         ];
     }
 

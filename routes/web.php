@@ -7,7 +7,6 @@ use App\Http\Controllers\ImportController;
 use App\Http\Controllers\LabController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\PanelController;
-use App\Http\Controllers\TestingController;
 use App\Http\Controllers\TestResultController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -53,7 +52,6 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::resource('lab', LabController::class);
-    Route::resource('testing', TestingController::class);
     Route::resource('results', TestResultController::class);
     Route::resource('panels', PanelController::class);
 });

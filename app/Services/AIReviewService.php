@@ -75,12 +75,6 @@ class AIReviewService
                 // Step 2: Call AI API
                 $aiResponse = $this->apiClient->analyze($compiledData, $token);
 
-                // Log raw AI response from API
-                Log::channel('gpt-log')->info('GPT API Response', [
-                    'test_result_id' => $testResult->id,
-                    'ai_response' => $aiResponse['ai_analysis']['answer']
-                ]);
-
                 // Step 3: Convert response to HTML
                 $htmlReview = $this->htmlGenerator->convertToHtml($aiResponse['ai_analysis']['answer']);
 
@@ -162,13 +156,6 @@ class AIReviewService
             try {
                 // Call AI API (can take up to 120 seconds)
                 $aiResponse = $this->apiClient->analyze($data['compiled_data'], $token);
-
-                // Log raw AI response from API
-                Log::channel('gpt-log')->info('GPT API Response', [
-                    'test_result_id' => $data['test_result']->id,
-                    'icno' => $data['icno'],
-                    'ai_response' => $aiResponse['ai_analysis']['answer']
-                ]);
 
                 // Convert to HTML
                 $htmlReview = $this->htmlGenerator->convertToHtml($aiResponse['ai_analysis']['answer']);
@@ -256,6 +243,7 @@ class AIReviewService
                 'compiled_results' => $compiledData,
                 'http_status' => $aiResponse['ai_analysis']['status'],
                 'ai_response' => $htmlReview,
+                'raw_response' => $aiResponse,
                 'error_message' => null,
                 'is_successful' => true
             ]

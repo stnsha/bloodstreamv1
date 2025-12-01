@@ -69,6 +69,11 @@ class BloodTestController extends Controller
                 foreach ($validated as $index => $item) {
                     $icno = $item['icno'];
                     $refid = $item['refid'] ?? null;
+                    $month = $item['month'] ?? null;
+                    $year = $item['year'] ?? null;
+
+                    $year  = $year  ?: date('Y');
+                    $month = $month ?: date('m');
                     $itemNumber = $index + 1;
 
                     Log::channel($this->getLogChannel())->info('getReportId: Processing item', [
@@ -92,7 +97,8 @@ class BloodTestController extends Controller
                             ->where('ref_id', $refid)
                             ->where('is_completed', true)
                             ->whereNotNull('collected_date')
-                            ->whereYear('collected_date', date('Y'))
+                            ->whereYear('collected_date', $year)
+                            ->whereMonth('collected_date', $month)
                             ->latest()->first();
 
                         if ($testResult) {
@@ -124,7 +130,8 @@ class BloodTestController extends Controller
                         $testResult = $query
                             ->where('is_completed', true)
                             ->whereNotNull('collected_date')
-                            ->whereYear('collected_date', date('Y'))
+                            ->whereYear('collected_date', $year)
+                            ->whereMonth('collected_date', $month)
                             ->latest()->first();
 
                         if ($testResult) {
@@ -163,7 +170,8 @@ class BloodTestController extends Controller
                         $testResult = TestResult::where('ref_id', $refid)
                             ->where('is_completed', true)
                             ->whereNotNull('collected_date')
-                            ->whereYear('collected_date', date('Y'))
+                            ->whereYear('collected_date', $year)
+                            ->whereMonth('collected_date', $month)
                             ->latest()->first();
 
                         if ($testResult) {
@@ -338,6 +346,11 @@ class BloodTestController extends Controller
 
         $icno = $item['icno'];
         $refid = $item['refid'] ?? null;
+        $month = $item['month'] ?? null;
+        $year  = $item['year'] ?? null;
+
+        $year  = $year  ?: date('Y');
+        $month = $month ?: date('m');
 
         Log::channel($this->getLogChannel())->info('getReviewById: Processing started', [
             'icno' => $icno,
@@ -361,7 +374,8 @@ class BloodTestController extends Controller
                     ->where('ref_id', $refid)
                     ->where('is_completed', true)
                     ->whereNotNull('collected_date')
-                    ->whereYear('collected_date', date('Y'))
+                    ->whereYear('collected_date', $year)
+                    ->whereMonth('collected_date', $month)
                     ->latest()->first();
 
                 if ($testResult) {
@@ -395,7 +409,8 @@ class BloodTestController extends Controller
                 $testResult = $query
                     ->where('is_completed', true)
                     ->whereNotNull('collected_date')
-                    ->whereYear('collected_date', date('Y'))
+                    ->whereYear('collected_date', $year)
+                    ->whereMonth('collected_date', $month)
                     ->latest()->first();
 
                 if ($testResult) {
@@ -436,7 +451,8 @@ class BloodTestController extends Controller
                 $testResult = TestResult::where('ref_id', $refid)
                     ->where('is_completed', true)
                     ->whereNotNull('collected_date')
-                    ->whereYear('collected_date', date('Y'))
+                    ->whereYear('collected_date', $year)
+                    ->whereMonth('collected_date', $month)
                     ->latest()->first();
 
                 if ($testResult) {
@@ -601,6 +617,11 @@ class BloodTestController extends Controller
 
         $icno = $item['icno'];
         $refid = $item['refid'] ?? null;
+        $month = $item['month'] ?? null;
+        $year  = $item['year'] ?? null;
+
+        $year  = $year  ?: date('Y');
+        $month = $month ?: date('m');
 
         Log::channel($this->getLogChannel())->info('regenerateReviewById: Processing started', [
             'icno' => $icno,
@@ -624,7 +645,8 @@ class BloodTestController extends Controller
                     ->where('ref_id', $refid)
                     ->where('is_completed', true)
                     ->whereNotNull('collected_date')
-                    ->whereYear('collected_date', date('Y'))
+                    ->whereYear('collected_date', $year)
+                    ->whereMonth('collected_date', $month)
                     ->latest()->first();
 
                 if ($testResult) {
@@ -656,7 +678,8 @@ class BloodTestController extends Controller
                 $testResult = $query
                     ->where('is_completed', true)
                     ->whereNotNull('collected_date')
-                    ->whereYear('collected_date', date('Y'))
+                    ->whereYear('collected_date', $year)
+                    ->whereMonth('collected_date', $month)
                     ->latest()->first();
 
                 if ($testResult) {
@@ -694,7 +717,8 @@ class BloodTestController extends Controller
                 $testResult = TestResult::where('ref_id', $refid)
                     ->where('is_completed', true)
                     ->whereNotNull('collected_date')
-                    ->whereYear('collected_date', date('Y'))
+                    ->whereYear('collected_date', $year)
+                    ->whereMonth('collected_date', $month)
                     ->latest()->first();
 
                 if ($testResult) {
