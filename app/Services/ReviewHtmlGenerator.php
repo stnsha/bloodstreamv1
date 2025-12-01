@@ -57,9 +57,8 @@ class ReviewHtmlGenerator
                 default => '⚪️',
             };
 
-            // Decode HTML entities in notes and preserve <br> tags
-            $notes = html_entity_decode($row['notes'], ENT_QUOTES | ENT_HTML5);
-            $notes = strip_tags($notes, '<br>');
+            // Safely escape notes while preserving line breaks
+            $notes = $this->escapeWithBreaks($row['notes']);
 
             $html .= '<tr>';
             $html .= '<td>' . e($row['health_area']) . '</td>';
@@ -81,9 +80,8 @@ class ReviewHtmlGenerator
         $html .= '<h5>Your Body System Highlights</h5>';
         $html .= '<ol class="review-list">';
         foreach ($highlights as $highlight) {
-            // Decode HTML entities and preserve <br> tags while escaping other content
-            $highlight = html_entity_decode($highlight, ENT_QUOTES | ENT_HTML5);
-            $highlight = strip_tags($highlight, '<br>');
+            // Safely escape highlight while preserving line breaks
+            $highlight = $this->escapeWithBreaks($highlight);
             $html .= '<li class="highlight">' . $highlight . '</li>';
         }
         $html .= '</ol></div>';
@@ -132,9 +130,8 @@ class ReviewHtmlGenerator
     {
         $html = '<div class="review-section">';
         $html .= '<h5>With Care, from Alpro</h5>';
-        // Decode HTML entities first, then allow <br> tags while stripping others
-        $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5);
-        $text = strip_tags($text, '<br>');
+        // Safely escape text while preserving line breaks
+        $text = $this->escapeWithBreaks($text);
         $html .= '<p>' . $text . '</p>';
         $html .= '<p class="disclaimer">
                 Disclaimer: This report is for educational purposes only and should not replace consultation with a qualified healthcare professional.
@@ -166,7 +163,37 @@ class ReviewHtmlGenerator
             return $html;
         }
 
-        // Preserve <br> tags while escaping other potentially dangerous HTML
-        return strip_tags($field, '<br>');
+        // Single item - safely escape while preserving line breaks
+        return $this->escapeWithBreaks($field);
+    }
+
+    /**
+     * Safely escape AI-generated content while preserving intentional line breaks
+     *
+     * This method prevents HTML injection and data truncation from special characters
+     * like < > & while allowing legitimate <br> tags to render as line breaks.
+     *
+     * @param string $content The AI-generated content that may contain special chars
+     * @return string Safely escaped HTML content with preserved line breaks
+     */
+    protected function escapeWithBreaks(string $content): string
+    {
+        // Step 1: Decode HTML entities first
+        // AI might return: "Value is &lt;2.60&lt;br&gt;Check again"
+        $content = html_entity_decode($content, ENT_QUOTES | ENT_HTML5);
+
+        // Step 2: Temporarily replace legitimate line breaks with unique placeholder
+        // Matches: <br>, <br/>, <br />, <BR>, etc.
+        $placeholder = '___LINEBREAK___';
+        $content = preg_replace('/<br\s*\/?>/i', $placeholder, $content);
+
+        // Step 3: Escape ALL HTML special characters
+        // Now "<2.60 mmol/L" becomes "&lt;2.60 mmol/L"
+        $content = e($content);
+
+        // Step 4: Restore line breaks as actual HTML
+        $content = str_replace($placeholder, '<br>', $content);
+
+        return $content;
     }
 }
