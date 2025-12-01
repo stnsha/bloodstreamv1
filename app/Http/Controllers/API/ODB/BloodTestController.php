@@ -546,7 +546,7 @@ class BloodTestController extends Controller
                     'ai_response' => null,
                     'report_id' => $testResult->id,
                     'ref_id' => $testResult->ref_id,
-                    'status' => 'AI Review not found'
+                    'status' => 'Completed but no AI Report to be generated'
                 ]);
             }
 
