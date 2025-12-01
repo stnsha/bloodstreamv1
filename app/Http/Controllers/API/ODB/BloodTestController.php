@@ -855,6 +855,24 @@ class BloodTestController extends Controller
             'timestamp' => $processingStartTime
         ]);
 
+        $reportId = 0;
+        $report = $this->getReportId($request);
+
+        // get decoded JSON data (object)
+        $data = $report->getData();
+
+        // validate structure before accessing
+        if (
+            is_array($data) &&
+            isset($data[0]) &&
+            isset($data[0]->report_id)
+        ) {
+            $reportId = $data[0]->report_id;
+        } else {
+            // fallback or error handling
+            $reportId = 0; // or null
+        }
+
         try {
             // Extract ICs from the request
             $ics = array_map(function ($item) {
@@ -877,7 +895,8 @@ class BloodTestController extends Controller
                 $response[] = [
                     'icno' => $icno,
                     'refid' => $refid,
-                    'is_filled' => $results[$icno] ?? false
+                    'is_filled' => $results[$icno] ?? false,
+                    'report_id' => $reportId
                 ];
             }
 
