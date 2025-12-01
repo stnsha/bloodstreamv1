@@ -620,6 +620,11 @@ class BloodTestController extends Controller
         $month = $item['month'] ?? null;
         $year  = $item['year'] ?? null;
 
+        Log::channel($this->getLogChannel())->debug('regenerateReviewById: Checking month and year received', [
+            'month' => $month,
+            'year' => $year
+        ]);
+
         $year  = $year  ?: date('Y');
         $month = $month ?: date('m');
 
