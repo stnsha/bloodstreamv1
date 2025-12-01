@@ -3,11 +3,9 @@
 namespace App\Http\Controllers\API\Innoquest;
 
 use App\Http\Controllers\API\BaseResultsController;
-use App\Http\Controllers\API\DoctorReviewController;
 use App\Http\Requests\InnoquestResultRequest;
 use App\Services\AIReviewService;
 use App\Models\DeliveryFile;
-use App\Models\DeliveryFileHistory;
 use App\Models\Doctor;
 use App\Models\MasterPanel;
 use App\Models\MasterPanelComment;
@@ -23,7 +21,6 @@ use App\Models\TestResult;
 use App\Models\TestResultComment;
 use App\Models\TestResultItem;
 use App\Models\TestResultProfile;
-use App\Services\MyHealthService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -203,7 +200,7 @@ class PanelResultsController extends BaseResultsController
                     //loop through orders
                     foreach ($validated['Orders'] as $key => $od) {
                         $orders_count++;
-                        if (is_null($reference_id) && filled($od['PlacerOrderNumber'])) $reference_id = $od['PlacerOrderNumber'];
+                        if (is_null($reference_id) && filled($od['PlacerOrderNumber'])) $reference_id = strtoupper($od['PlacerOrderNumber']);
 
                         //get doctor name and code
                         $doctor_name = $od['OrderingProvider']['Name'];
@@ -257,7 +254,7 @@ class PanelResultsController extends BaseResultsController
                                         'lab_no' => $lab_no,
                                     ],
                                     [
-                                        'ref_id' => strtoupper($reference_id),
+                                        'ref_id' => $reference_id,
                                         'doctor_id' => $doctor_id,
                                         'patient_id' => $patient_id,
                                         'collected_date' => $collected_date,
