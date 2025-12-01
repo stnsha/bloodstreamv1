@@ -27,27 +27,6 @@
             <!-- Right side: Navigation + Logout Button -->
             <div class="hidden md:flex items-center">
                 <ul class="flex flex-row font-medium mt-0 space-x-8 rtl:space-x-reverse text-sm mr-8">
-                    @if (session()->get('lab_id') == 1)
-                        <li>
-                            <a href="{{ route('dashboard') }}"
-                                class="{{ request()->is('dashboard') ? 'text-[#991B1B] font-semibold border-b-2 border-[#991B1B] pb-1' : 'text-[#003049] hover:text-[#991B1B] transition-colors duration-200' }}">
-                                Dashboard
-                            </a>
-                        </li>
-                        <li>
-                            <a href="{{ route('lab.index') }}"
-                                class="{{ request()->is('lab') ? 'text-[#991B1B] font-semibold border-b-2 border-[#991B1B] pb-1' : 'text-[#003049] hover:text-[#991B1B] transition-colors duration-200' }}">Labs</a>
-                        </li>
-                        <li>
-                            <a href="{{ route('panels.index') }}"
-                                class="{{ request()->is('panels') ? 'text-[#991B1B] font-semibold border-b-2 border-[#991B1B] pb-1' : 'text-[#003049] hover:text-[#991B1B] transition-colors duration-200' }}">Panels</a>
-                        </li>
-                        <li>
-                            <a href="{{ route('results.index') }}"
-                                class="{{ request()->is('results') ? 'text-[#991B1B] font-semibold border-b-2 border-[#991B1B] pb-1' : 'text-[#003049] hover:text-[#991B1B] transition-colors duration-200' }}">Results</a>
-                        </li>
-                    @endif
-                    <li>
                         <a href="{{ route('apis.index') }}"
                             class="{{ request()->is('api') ? 'text-[#991B1B] font-semibold border-b-2 border-[#991B1B] pb-1' : 'text-[#003049] hover:text-[#991B1B] transition-colors duration-200' }}">API
                             Documentation</a>
@@ -75,24 +54,6 @@
         <!-- Mobile Navigation Menu (hidden by default) -->
         <div id="mobile-menu" class="md:hidden hidden bg-white border-t border-gray-200 shadow-lg">
             <div class="px-4 py-3 space-y-3">
-                @if (session()->get('lab_id') == 1)
-                    <a href="{{ route('dashboard') }}"
-                        class="block py-2 {{ request()->is('dashboard') ? 'text-[#991B1B] font-semibold' : 'text-[#003049] hover:text-[#991B1B] transition-colors duration-200' }}">
-                        Dashboard
-                    </a>
-                    <a href="{{ route('lab.index') }}"
-                        class="block py-2 {{ request()->is('lab') ? 'text-[#991B1B] font-semibold' : 'text-[#003049] hover:text-[#991B1B] transition-colors duration-200' }}">
-                        Labs
-                    </a>
-                    <a href="{{ route('panels.index') }}"
-                        class="block py-2 {{ request()->is('panels') ? 'text-[#991B1B] font-semibold' : 'text-[#003049] hover:text-[#991B1B] transition-colors duration-200' }}">
-                        Panels
-                    </a>
-                    <a href="{{ route('results.index') }}"
-                        class="block py-2 {{ request()->is('results') ? 'text-[#991B1B] font-semibold' : 'text-[#003049] hover:text-[#991B1B] transition-colors duration-200' }}">
-                        Results
-                    </a>
-                @endif
                 <a href="{{ route('apis.index') }}"
                     class="block py-2 text-[#003049] hover:text-[#991B1B] transition-colors duration-200">API
                     Documentation</a>

@@ -12,6 +12,9 @@ use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
+/**
+ * BP & HbA1C extraction requested by Dione, 22/10/2025
+ */
 class ExportController extends Controller
 {
     use Octopus;

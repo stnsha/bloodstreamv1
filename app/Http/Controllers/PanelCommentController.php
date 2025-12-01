@@ -3,28 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\API\BaseResultsController;
-use App\Http\Requests\InnoquestResultRequest;
 use App\Jobs\ProcessPanelComments;
 use App\Models\DeliveryFile;
-use App\Models\PanelProfile;
-use App\Models\TestResult;
-use App\Models\TestResultProfile;
-use App\Models\MasterPanelComment;
-use App\Models\MasterPanelItem;
-use App\Models\MasterPanel;
-use App\Models\Panel;
-use App\Models\PanelComment;
-use App\Models\PanelItem;
-use App\Models\PanelPanelItem;
-use App\Models\ReferenceRange;
-use App\Models\TestResultComment;
-use App\Models\TestResultItem;
-use Exception;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Validator;
-use Stichoza\GoogleTranslate\GoogleTranslate;
+
 
 class PanelCommentController extends BaseResultsController
 {
@@ -64,44 +47,5 @@ class PanelCommentController extends BaseResultsController
                 'status' => 'Jobs dispatched to queue - monitor logs for progress'
             ]
         ]);
-    }
-
-    private function findOrCreateProfile($lab_id, $profile_code = null)
-    {
-        if (filled($profile_code)) {
-            $panel_profile = PanelProfile::firstOrCreate(
-                [
-                    'lab_id' => $lab_id,
-                    'code' => $profile_code,
-                ],
-                [
-                    'name' => $profile_code,
-                ]
-            );
-
-            return $panel_profile->id;
-        }
-
-        return null;
-    }
-
-    private function findOrCreatePanel($lab_id, $panel_code, $panel_name)
-    {
-
-        // 1. First, create or find master panel
-        $masterPanel = MasterPanel::firstOrCreate([
-            'name' => $panel_name
-        ]);
-
-        // 2. Create or get Panel with master panel reference
-        $panel = Panel::firstOrCreate([
-            'lab_id' => $lab_id,
-            'master_panel_id' => $masterPanel->id,
-            'code' => $panel_code,
-        ], [
-            'name' => $panel_name
-        ]);
-
-        return $panel;
     }
 }

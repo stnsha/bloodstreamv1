@@ -264,8 +264,6 @@ class BloodTestController extends Controller
     /**
      * Retrieve IC and refID from ODB to check if AI review exist
      * If not exist, generate 
-     * 
-     * 
      */
     public function review(ODBRequest $request)
     {

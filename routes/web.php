@@ -41,8 +41,6 @@ Route::get('/export/bp', [ExportController::class, 'exportBp'])->name('export.bp
 //     Route::get('/getReviewById/{id}', 'getReviewById')->name('getReviewById');
 // });
 
-// Lab Number Results View
-// Route::get('results/lab-numbers', [ImportController::class, 'labNumberResults'])->name('results.lab-numbers');
 
 Route::middleware(['auth'])->group(function () {
     Route::get('api', function () {
@@ -50,7 +48,6 @@ Route::middleware(['auth'])->group(function () {
         return view('apis.index', compact('lab_id'));
     })->name('apis.index');
 
-    Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::resource('lab', LabController::class);
     Route::resource('results', TestResultController::class);
     Route::resource('panels', PanelController::class);

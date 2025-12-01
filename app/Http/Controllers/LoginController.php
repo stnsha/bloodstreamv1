@@ -40,10 +40,7 @@ class LoginController extends Controller
                     Auth::login($user);
                     session()->put('lab_id', $labCredential->lab_id);
                     session()->put('username', $labCredential->username);
-                    if ($labCredential->lab_id == 1)
-                        return redirect()->intended('dashboard');
-                    else
-                        return redirect()->route('apis.index');
+                    return redirect()->route('apis.index');
                 }
             }
         }

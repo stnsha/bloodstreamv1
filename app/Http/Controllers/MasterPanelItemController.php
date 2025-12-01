@@ -8,6 +8,9 @@ use Stichoza\GoogleTranslate\GoogleTranslate;
 
 class MasterPanelItemController extends Controller
 {
+    /**
+     * Translate PanelItem to chinese character
+     */
     public function translate()
     {
         $masterPanelItems = MasterPanelItem::all();

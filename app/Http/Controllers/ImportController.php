@@ -253,6 +253,10 @@ class ImportController extends Controller
         }
     }
 
+    /**
+     * Old SFTP integration, migrate to bsv1
+     * Not used yet
+     */
     public function files()
     {
         // Increase execution time limit
@@ -411,6 +415,9 @@ class ImportController extends Controller
         }
     }
 
+    /**
+     * Re-run JSON files to store TestResult
+     */
     public function json()
     {
         // Increase execution time limit
@@ -568,6 +575,9 @@ class ImportController extends Controller
         }
     }
 
+    /**
+     * Re-update TestResult using data in DeliveryFiles
+     */
     public function deliveryFiles()
     {
         // Increase execution time limit

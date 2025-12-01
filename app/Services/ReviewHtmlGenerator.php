@@ -171,7 +171,7 @@ class ReviewHtmlGenerator
      * Safely escape AI-generated content while preserving intentional line breaks
      *
      * This method prevents HTML injection and data truncation from special characters
-     * like < > & while allowing legitimate <br> tags to render as line breaks.
+     * like <> & while allowing legitimate <br> tags to render as line breaks.
      *
      * @param string $content The AI-generated content that may contain special chars
      * @return string Safely escaped HTML content with preserved line breaks
@@ -183,12 +183,11 @@ class ReviewHtmlGenerator
         $content = html_entity_decode($content, ENT_QUOTES | ENT_HTML5);
 
         // Step 2: Temporarily replace legitimate line breaks with unique placeholder
-        // Matches: <br>, <br/>, <br />, <BR>, etc.
+        // Matches: <br>, <br />, <br />, <BR>, etc.
         $placeholder = '___LINEBREAK___';
-        $content = preg_replace('/<br\s*\/?>/i', $placeholder, $content);
+        $content = preg_replace('/<br\s*\ /?>/i', $placeholder, $content);
 
         // Step 3: Escape ALL HTML special characters
-        // Now "<2.60 mmol/L" becomes "&lt;2.60 mmol/L"
         $content = e($content);
 
         // Step 4: Restore line breaks as actual HTML

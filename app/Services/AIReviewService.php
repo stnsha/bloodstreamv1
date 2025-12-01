@@ -12,7 +12,6 @@ use RuntimeException;
 /**
  * Main orchestrator for AI Review processing
  * Coordinates data compilation, AI API calls, and result storage
- * Extracted from DoctorReviewController and BloodTestController to eliminate 450+ lines of duplication
  */
 class AIReviewService
 {
@@ -56,7 +55,7 @@ class AIReviewService
 
     /**
      * Process single test result for AI review
-     * Used by DoctorReviewController and PanelResultsController
+     * Used by PanelResultsController
      *
      * @param int $testResultId The test result ID to process
      * @return AIReviewResult The processing result
