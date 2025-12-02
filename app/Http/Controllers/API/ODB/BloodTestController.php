@@ -481,8 +481,32 @@ class BloodTestController extends Controller
                 }
             }
 
-            // Return status if test result not found
+
+            //Step 4: Check with manual sync for unmatch date
+            if ($month != date('m')) {
+                $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
+                    $p->where('icno', $icno);
+                })
+                    ->where('ref_id', $refid)
+                    ->where('is_completed', true)
+                    ->whereNotNull('manual_sync_date')
+                    ->latest()->first();
+
+                if ($testResult) {
+                    Log::channel($this->getLogChannel())->info('getReviewById: Test result found by manual_sync_date', [
+                        'icno' => $icno,
+                        'refid' => $refid,
+                        'test_result_id' => $testResult->id,
+                        'is_completed' => $testResult->is_completed,
+                        'is_completed_raw' => $testResult->getRawOriginal('is_completed'),
+                        'is_reviewed' => $testResult->is_reviewed,
+                        'is_reviewed_raw' => $testResult->getRawOriginal('is_reviewed')
+                    ]);
+                }
+            }
+
             if (!$testResult) {
+                // Return status if test result not found
                 Log::channel($this->getLogChannel())->warning('getReviewById: Test result not found', [
                     'icno' => $icno,
                     'refid' => $refid
