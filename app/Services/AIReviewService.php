@@ -9,6 +9,7 @@ use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
+use Throwable;
 
 /**
  * Main orchestrator for AI Review processing
@@ -236,20 +237,28 @@ class AIReviewService
     {
         $httpStatus = $this->extractHttpStatus($e);
 
-        AIError::updateOrCreate(
-            ['test_result_id' => $testResultId],
-            [
+        try {
+            AIError::create([
+                'test_result_id' => $testResultId,
                 'http_status' => $httpStatus,
                 'error_message' => $e->getMessage(),
                 'compiled_data' => $compiledData,
-                'attempt_count' => DB::raw('attempt_count + 1')
-            ]
-        );
+                'attempt_count' => 1
+            ]);
 
-        Log::channel($this->logChannel)->info('AI error stored', [
-            'test_result_id' => $testResultId,
-            'http_status' => $httpStatus
-        ]);
+            Log::channel($this->logChannel)->info('AI error stored', [
+                'test_result_id' => $testResultId,
+                'http_status' => $httpStatus
+            ]);
+        } catch (Throwable $dbError) {
+            // Log the failure to store error in database
+            Log::channel($this->logChannel)->error('Failed to store AI error to database', [
+                'test_result_id' => $testResultId,
+                'http_status' => $httpStatus,
+                'original_error' => $e->getMessage(),
+                'db_error' => $dbError->getMessage()
+            ]);
+        }
     }
 
     /**
