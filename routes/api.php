@@ -88,6 +88,7 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
         Route::post('/getReportId', 'getReportId')->name('odb.getReportId');
         Route::post('/getReviewById', 'getReviewById')->name('odb.getReviewById');
         Route::post('/regenerateReviewById', 'regenerateReviewById')->name('odb.regenerateReviewById');
+        Route::post('/updateReportId/{reportId}', 'updateReportId')->name('odb.updateReportId');
         Route::post('/review', 'review')->name('review');
         Route::post('/checkVitals', 'checkVitals')->name('checkVitals');
         Route::post('/searchReportId', 'searchReportId')->name('searchReportId');

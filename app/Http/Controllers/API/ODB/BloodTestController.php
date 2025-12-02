@@ -1032,6 +1032,157 @@ class BloodTestController extends Controller
     }
 
     /**
+     * Update Test Result for manual sync
+     */
+    public function updateReportId(ODBRequest $request, $reportId)
+    {
+        $processingStartTime = now();
+        $validated = $request->all();
+        $item = $validated[0] ?? null;
+
+        Log::channel($this->getLogChannel())->info('updateReportId: Processing started', [
+            'report_id' => $reportId,
+            'request_count' => count($validated)
+        ]);
+
+        try {
+            // Step 1: Validate Request Data
+            if (!$item) {
+                Log::channel($this->getLogChannel())->warning('updateReportId: No item provided in request', [
+                    'report_id' => $reportId
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No data provided in request',
+                    'report_id' => null,
+                    'ai_response' => null
+                ], 400);
+            }
+
+            $icno = $item['icno'] ?? null;
+            $refid = $item['refid'] ?? null;
+
+            Log::channel($this->getLogChannel())->info('updateReportId: Request validated', [
+                'report_id' => $reportId,
+                'icno' => $icno,
+                'refid' => $refid
+            ]);
+
+            // Step 2: Fetch TestResult by ID
+            $testResult = TestResult::find($reportId);
+
+            if (!$testResult) {
+                Log::channel($this->getLogChannel())->warning('updateReportId: TestResult not found', [
+                    'report_id' => $reportId,
+                    'icno' => $icno
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Test result not found',
+                    'report_id' => $reportId,
+                    'ai_response' => null
+                ], 404);
+            }
+
+            Log::channel($this->getLogChannel())->info('updateReportId: TestResult found', [
+                'report_id' => $testResult->id,
+                'icno' => $icno,
+                'current_ref_id' => $testResult->ref_id,
+                'is_completed' => $testResult->is_completed,
+                'is_reviewed' => $testResult->is_reviewed
+            ]);
+
+            // Step 3: Update ref_id Conditionally
+            if (is_null($testResult->ref_id)) {
+                if ($refid) {
+                    $testResult->ref_id = $refid;
+                    $testResult->manual_sync_date = Carbon::now();
+                    $testResult->save();
+
+                    Log::channel($this->getLogChannel())->info('updateReportId: ref_id updated', [
+                        'report_id' => $testResult->id,
+                        'new_ref_id' => $refid,
+                        'manual_sync_date' => $testResult->manual_sync_date,
+                        'icno' => $icno
+                    ]);
+                } else {
+                    Log::channel($this->getLogChannel())->warning('updateReportId: ref_id is null and no refid provided', [
+                        'report_id' => $reportId,
+                        'icno' => $icno
+                    ]);
+                }
+            } else {
+                Log::channel($this->getLogChannel())->info('updateReportId: ref_id already set, skipping update', [
+                    'report_id' => $testResult->id,
+                    'existing_ref_id' => $testResult->ref_id,
+                    'provided_refid' => $refid,
+                    'icno' => $icno
+                ]);
+            }
+
+            // Step 4: Get AIReview (No Generation)
+            $aiReview = $testResult->aiReview;
+            $aiResponse = null;
+
+            if ($aiReview && $aiReview->http_status == 200 && $aiReview->ai_response) {
+                $aiResponse = $aiReview->ai_response;
+
+                Log::channel($this->getLogChannel())->info('updateReportId: AIReview found with successful status', [
+                    'report_id' => $testResult->id,
+                    'ai_review_id' => $aiReview->id,
+                    'http_status' => $aiReview->http_status,
+                    'icno' => $icno
+                ]);
+            } else {
+                $reason = !$aiReview
+                    ? 'AIReview not found'
+                    : ($aiReview->http_status != 200
+                        ? 'AIReview has failed status: ' . $aiReview->http_status
+                        : 'AIReview has no response data');
+
+                Log::channel($this->getLogChannel())->info('updateReportId: AI response not available', [
+                    'report_id' => $testResult->id,
+                    'reason' => $reason,
+                    'icno' => $icno
+                ]);
+            }
+
+            $processingTime = now()->diffInSeconds($processingStartTime);
+
+            Log::channel($this->getLogChannel())->info('updateReportId: Processing completed successfully', [
+                'report_id' => $testResult->id,
+                'icno' => $icno,
+                'ref_id_updated' => !is_null($testResult->ref_id),
+                'has_ai_response' => $aiResponse !== null,
+                'processing_time_seconds' => $processingTime
+            ]);
+
+            return response()->json([
+                'report_id' => $testResult->id,
+                'ai_response' => $aiResponse
+            ]);
+        } catch (Throwable $e) {
+            Log::channel($this->getLogChannel())->error('updateReportId: Critical error occurred', [
+                'report_id' => $reportId,
+                'error_message' => $e->getMessage(),
+                'error_file' => $e->getFile(),
+                'error_line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while processing the request',
+                'report_id' => $reportId,
+                'ai_response' => null,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Helper method to determine test result status based on completion and review flags
      *
      * @param TestResult $testResult

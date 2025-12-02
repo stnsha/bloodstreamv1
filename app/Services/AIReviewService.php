@@ -94,28 +94,11 @@ class AIReviewService
                 );
             });
         } catch (Exception $e) {
-            Log::channel($this->logChannel)->error('Failed to process AI review', [
+            Log::channel($this->logChannel)->error('Failed to process AI review - skipping database storage', [
                 'test_result_id' => $testResultId,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-
-            // Store failed attempt
-            try {
-                AIReview::create([
-                    'test_result_id' => $testResultId,
-                    'compiled_results' => !empty($compiledData) ? $compiledData : [],
-                    'http_status' => 500,
-                    'ai_response' => null,
-                    'error_message' => 'Processing error: ' . $e->getMessage(),
-                    'is_successful' => false
-                ]);
-            } catch (Exception $storeError) {
-                Log::channel($this->logChannel)->error('Failed to store error record', [
-                    'test_result_id' => $testResultId,
-                    'error' => $storeError->getMessage()
-                ]);
-            }
 
             return new AIReviewResult(
                 $testResultId,
@@ -178,30 +161,11 @@ class AIReviewService
                     $data['refid']
                 );
             } catch (Exception $e) {
-                Log::channel($this->logChannel)->error('Failed to process bulk item', [
+                Log::channel($this->logChannel)->error('Failed to process bulk item - skipping database storage', [
                     'test_result_id' => $data['test_result']->id ?? 'unknown',
                     'icno' => $data['icno'],
                     'error' => $e->getMessage()
                 ]);
-
-                // Store failed attempt in separate transaction
-                try {
-                    DB::transaction(function () use ($data, $e) {
-                        AIReview::create([
-                            'test_result_id' => $data['test_result']->id,
-                            'compiled_results' => $data['compiled_data'],
-                            'http_status' => 0,
-                            'ai_response' => null,
-                            'error_message' => $e->getMessage(),
-                            'is_successful' => false
-                        ]);
-                    });
-                } catch (Exception $storeError) {
-                    Log::channel($this->logChannel)->error('Failed to store error record for bulk item', [
-                        'test_result_id' => $data['test_result']->id,
-                        'error' => $storeError->getMessage()
-                    ]);
-                }
 
                 $results[] = new AIReviewResult(
                     $data['test_result']->id ?? 0,
