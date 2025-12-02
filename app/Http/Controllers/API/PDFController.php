@@ -610,8 +610,6 @@ class PDFController extends Controller
     private function processTestResult(ODBRequest $request)
     {
         $validated = $request->all();
-
-        // Extract single item from request (similar to BloodTestController)
         $item = $validated[0] ?? null;
 
         if (!$item) {

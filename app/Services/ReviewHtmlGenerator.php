@@ -185,7 +185,7 @@ class ReviewHtmlGenerator
         // Step 2: Temporarily replace legitimate line breaks with unique placeholder
         // Matches: <br>, <br />, <br />, <BR>, etc.
         $placeholder = '___LINEBREAK___';
-        $content = preg_replace('/<br\s*\ /?>/i', $placeholder, $content);
+        $content = preg_replace('/<br\s*\/?>/i', $placeholder, $content);
 
         // Step 3: Escape ALL HTML special characters
         $content = e($content);
