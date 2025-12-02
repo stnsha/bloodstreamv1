@@ -5,31 +5,24 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
-class AIReview extends Model
+class AIError extends Model
 {
-    use HasFactory, SoftDeletes;
-
-    protected $table = 'ai_reviews';
+    use HasFactory;
 
     protected $fillable = [
         'test_result_id',
-        'compiled_results',
         'http_status',
-        'ai_response',
-        'raw_response',
+        'error_message',
+        'compiled_data',
+        'attempt_count',
     ];
 
     protected $casts = [
         'test_result_id' => 'integer',
-        'compiled_results' => 'array',
         'http_status' => 'integer',
-        'ai_response' => 'array',
-        'raw_response' => 'array',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-        'deleted_at' => 'datetime',
+        'compiled_data' => 'array',
+        'attempt_count' => 'integer',
     ];
 
     public function testResult(): BelongsTo

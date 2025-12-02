@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AIError;
 use App\Models\AIReview;
 use App\Models\TestResult;
 use Exception;
@@ -94,11 +95,14 @@ class AIReviewService
                 );
             });
         } catch (Exception $e) {
-            Log::channel($this->logChannel)->error('Failed to process AI review - skipping database storage', [
+            Log::channel($this->logChannel)->error('Failed to process AI review', [
                 'test_result_id' => $testResultId,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
+
+            // Store error to ai_errors table
+            $this->storeError($testResultId, $e, $compiledData);
 
             return new AIReviewResult(
                 $testResultId,
@@ -161,11 +165,14 @@ class AIReviewService
                     $data['refid']
                 );
             } catch (Exception $e) {
-                Log::channel($this->logChannel)->error('Failed to process bulk item - skipping database storage', [
+                Log::channel($this->logChannel)->error('Failed to process bulk item', [
                     'test_result_id' => $data['test_result']->id ?? 'unknown',
                     'icno' => $data['icno'],
                     'error' => $e->getMessage()
                 ]);
+
+                // Store error to ai_errors table
+                $this->storeError($data['test_result']->id, $e, $data['compiled_data']);
 
                 $results[] = new AIReviewResult(
                     $data['test_result']->id ?? 0,
@@ -206,9 +213,7 @@ class AIReviewService
                 'compiled_results' => $compiledData,
                 'http_status' => $aiResponse['ai_analysis']['status'],
                 'ai_response' => $htmlReview,
-                'raw_response' => $aiResponse,
-                'error_message' => null,
-                'is_successful' => true
+                'raw_response' => $aiResponse
             ]
         );
 
@@ -218,6 +223,48 @@ class AIReviewService
         Log::channel($this->logChannel)->info('AI review stored and test result marked as reviewed', [
             'test_result_id' => $testResult->id
         ]);
+    }
+
+    /**
+     * Store AI error to database
+     *
+     * @param int $testResultId The test result ID
+     * @param Exception $e The exception that occurred
+     * @param array|null $compiledData The compiled data (optional)
+     */
+    protected function storeError(int $testResultId, Exception $e, ?array $compiledData = null): void
+    {
+        $httpStatus = $this->extractHttpStatus($e);
+
+        AIError::updateOrCreate(
+            ['test_result_id' => $testResultId],
+            [
+                'http_status' => $httpStatus,
+                'error_message' => $e->getMessage(),
+                'compiled_data' => $compiledData,
+                'attempt_count' => DB::raw('attempt_count + 1')
+            ]
+        );
+
+        Log::channel($this->logChannel)->info('AI error stored', [
+            'test_result_id' => $testResultId,
+            'http_status' => $httpStatus
+        ]);
+    }
+
+    /**
+     * Extract HTTP status code from exception message
+     *
+     * @param Exception $e The exception
+     * @return int|null The HTTP status code if found, null otherwise
+     */
+    protected function extractHttpStatus(Exception $e): ?int
+    {
+        if (preg_match('/status\s+(\d{3})/', $e->getMessage(), $matches)) {
+            return (int)$matches[1];
+        }
+
+        return null;
     }
 
     /**

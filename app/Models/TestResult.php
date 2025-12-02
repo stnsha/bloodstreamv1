@@ -95,6 +95,11 @@ class TestResult extends Model
         return $this->hasOne(AIReview::class, 'test_result_id', 'id');
     }
 
+    public function aiError(): HasOne
+    {
+        return $this->hasOne(AIError::class, 'test_result_id', 'id');
+    }
+
     /**
      * Get the user associated with the TestResult
      *
