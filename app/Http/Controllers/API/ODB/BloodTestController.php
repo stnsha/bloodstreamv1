@@ -1118,30 +1118,23 @@ class BloodTestController extends Controller
                 'is_reviewed' => $testResult->is_reviewed
             ]);
 
-            // Step 3: Update ref_id Conditionally
-            if (is_null($testResult->ref_id)) {
-                if ($refid) {
-                    $testResult->ref_id = $refid;
-                    $testResult->manual_sync_date = Carbon::now();
-                    $testResult->save();
+            // Step 3: Update ref_id (always update if refid provided)
+            if ($refid) {
+                $oldRefId = $testResult->ref_id;
+                $testResult->ref_id = $refid;
+                $testResult->manual_sync_date = Carbon::now();
+                $testResult->save();
 
-                    Log::channel($this->getLogChannel())->info('updateReportId: ref_id updated', [
-                        'report_id' => $testResult->id,
-                        'new_ref_id' => $refid,
-                        'manual_sync_date' => $testResult->manual_sync_date,
-                        'icno' => $icno
-                    ]);
-                } else {
-                    Log::channel($this->getLogChannel())->warning('updateReportId: ref_id is null and no refid provided', [
-                        'report_id' => $reportId,
-                        'icno' => $icno
-                    ]);
-                }
-            } else {
-                Log::channel($this->getLogChannel())->info('updateReportId: ref_id already set, skipping update', [
+                Log::channel($this->getLogChannel())->info('updateReportId: ref_id updated', [
                     'report_id' => $testResult->id,
-                    'existing_ref_id' => $testResult->ref_id,
-                    'provided_refid' => $refid,
+                    'old_ref_id' => $oldRefId,
+                    'new_ref_id' => $refid,
+                    'manual_sync_date' => $testResult->manual_sync_date,
+                    'icno' => $icno
+                ]);
+            } else {
+                Log::channel($this->getLogChannel())->warning('updateReportId: No refid provided to update', [
+                    'report_id' => $reportId,
                     'icno' => $icno
                 ]);
             }
