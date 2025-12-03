@@ -10,6 +10,8 @@ class AIError extends Model
 {
     use HasFactory;
 
+    protected $table = 'ai_errors';
+
     protected $fillable = [
         'test_result_id',
         'http_status',
