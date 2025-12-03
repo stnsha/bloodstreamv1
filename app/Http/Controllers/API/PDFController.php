@@ -1714,7 +1714,7 @@ class PDFController extends Controller
             'profiles',
             'review'
         ])
-            ->where('is_completed', true)
+            //->where('is_completed', true)
             ->whereNotNull('collected_date')
             ->whereYear('collected_date', date('Y'))
             ->where('id', $id)
