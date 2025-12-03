@@ -35,11 +35,11 @@ Route::controller(LoginController::class)->group(function () {
 // Export routes
 Route::get('/export/bp', [ExportController::class, 'exportBp'])->name('export.bp');
 
-// Route::prefix('pdf')->controller(PDFController::class)->group(function () {
-//     Route::get('/export', 'export')->name('export'); ///{id}generateDummyPDF
-//     Route::get('/generateDummyPDF/{id}', 'getResultById')->name('generateDummyPDF'); //
-//     Route::get('/getReviewById/{id}', 'getReviewById')->name('getReviewById');
-// });
+Route::prefix('pdf')->controller(PDFController::class)->group(function () {
+    Route::get('/export', 'export')->name('export'); ///{id}generateDummyPDF
+    Route::get('/generateDummyPDF/{id}', 'getResultById')->name('generateDummyPDF'); //
+    Route::get('/getReviewById/{id}', 'getReviewById')->name('getReviewById');
+});
 
 
 Route::middleware(['auth'])->group(function () {
