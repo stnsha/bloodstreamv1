@@ -67,7 +67,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/job.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 30,
+            'days' => 5,
         ],
 
         'daily' => [
@@ -81,35 +81,35 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/bp-export.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 14,
+            'days' => 5,
         ],
 
         'migrate-log' => [
             'driver' => 'daily',
             'path' => storage_path('logs/migration.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 14,
+            'days' => 5,
         ],
 
         'odb-log' => [
             'driver' => 'daily',
             'path' => storage_path('logs/odb.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 14,
+            'days' => 5,
         ],
 
         'gpt-log' => [
             'driver' => 'daily',
             'path' => storage_path('logs/gpt.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 14,
+            'days' => 5,
         ],
 
         'ai-command' => [
             'driver' => 'daily',
             'path' => storage_path('logs/ai-command.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => 14,
+            'days' => 5,
         ],
 
         'slack' => [
