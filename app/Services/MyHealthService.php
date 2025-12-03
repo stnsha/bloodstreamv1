@@ -32,7 +32,7 @@ class MyHealthService
             ->where('date_time', '>=', $fourteenDaysAgo)
             ->select('id', 'gender', 'date_time')
             ->orderBy('date_time', 'desc')
-            ->first();
+            ->get();
     }
 
     public function getRecordDetailsByRecordId($recordId)

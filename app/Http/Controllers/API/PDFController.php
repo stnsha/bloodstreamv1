@@ -1711,12 +1711,11 @@ class PDFController extends Controller
             'patient',
             'testResultProfiles',
             'testResultItems.panelComments.masterPanelComment',
-            'profiles',
-            'review'
+            'profiles'
         ])
             //->where('is_completed', true)
-            ->whereNotNull('collected_date')
-            ->whereYear('collected_date', date('Y'))
+            //->whereNotNull('collected_date')
+            //->whereYear('collected_date', date('Y'))
             ->where('id', $id)
             ->first();
 

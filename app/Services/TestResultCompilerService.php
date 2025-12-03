@@ -144,59 +144,94 @@ class TestResultCompilerService
 
     /**
      * Gather patient health history from MyHealth
-     * EXTRACTED FROM BOTH CONTROLLERS - 100% IDENTICAL
+     * AGGREGATES ALL RECORDS within 14 days to capture complete vitals
      */
     protected function gatherPatientHealthHistory(TestResult $testResult): array
     {
         $icno = $testResult->patient->icno;
-        $checkRecord = $this->myHealthService->getCheckRecordIdByIC($icno);
+        $checkRecords = $this->myHealthService->getCheckRecordIdByIC($icno);
 
         $patientInfo = [
             'Age' => $testResult->patient->age
         ];
 
-        $healthDetails = [];
+        // Early return if no records found
+        if ($checkRecords->isEmpty()) {
+            return $patientInfo;
+        }
 
-        if ($checkRecord) {
-            $recordId = $checkRecord->id;
-            $recordGender = $checkRecord->gender;
-            $recordDate = Carbon::parse($checkRecord->date_time)->format('Y-m-d');
+        // Get the most recent record for gender and date
+        $mostRecentRecord = $checkRecords->first();
+        $recordGender = $mostRecentRecord->gender;
+        $mostRecentDate = Carbon::parse($mostRecentRecord->date_time)->format('Y-m-d');
 
-            if (is_null($testResult->patient->gender)) {
-                $testResult->patient->gender = $recordGender == 1
-                    ? Patient::GENDER_MALE
-                    : Patient::GENDER_FEMALE;
-                $testResult->patient->save();
-            }
+        // Update patient gender if not set
+        if (is_null($testResult->patient->gender)) {
+            $testResult->patient->gender = $recordGender == 1
+                ? Patient::GENDER_MALE
+                : Patient::GENDER_FEMALE;
+            $testResult->patient->save();
+        }
 
-            $patientInfo['Gender'] = $testResult->patient->gender;
+        $patientInfo['Gender'] = $testResult->patient->gender;
 
-            // Get record details for this single record
-            $recordDetails = $this->myHealthService->getRecordDetailsByRecordId($recordId);
+        // Batch load all record details efficiently (avoid N+1 queries)
+        $recordIds = $checkRecords->pluck('id')->toArray();
+        $recordDetailsBatch = $this->myHealthService->getRecordDetailsBatch($recordIds);
 
-            if ($recordDetails && !empty($recordDetails)) {
-                $transformedRecordDetails = [];
+        // Aggregate vitals from all records
+        $aggregatedVitals = $this->aggregateVitalsFromRecords($recordDetailsBatch, $checkRecords);
 
-                foreach ($recordDetails as $rd) {
-                    if (isset($rd->parameter)) {
-                        $parameterName = $rd->parameter;
-                        // Create a copy without record_id and parameter
-                        $rdCopy = (object)[
-                            'min_range' => $rd->min_range,
-                            'max_range' => $rd->max_range,
-                            'range' => $rd->range,
-                            'unit' => $rd->unit,
-                            'result' => $rd->result
-                        ];
-                        $transformedRecordDetails[$parameterName] = $rdCopy;
-                    }
-                }
-                $healthDetails[$recordDate] = $transformedRecordDetails;
-                $patientInfo = array_merge($patientInfo, $healthDetails);
-            }
+        // Add aggregated vitals under the most recent date
+        if (!empty($aggregatedVitals)) {
+            $patientInfo[$mostRecentDate] = $aggregatedVitals;
         }
 
         return $patientInfo;
+    }
+
+    /**
+     * Aggregate vitals from multiple check records
+     * Strategy: Most recent value wins for each parameter
+     *
+     * @param \Illuminate\Support\Collection $recordDetailsBatch Grouped by record_id
+     * @param \Illuminate\Support\Collection $checkRecords Ordered by date_time DESC
+     * @return array Aggregated vitals keyed by parameter name
+     */
+    protected function aggregateVitalsFromRecords($recordDetailsBatch, $checkRecords): array
+    {
+        $aggregatedVitals = [];
+
+        // Process records from most recent to oldest
+        // Most recent value for each parameter is kept
+        foreach ($checkRecords as $record) {
+            $recordId = $record->id;
+
+            // Skip if no details found for this record
+            if (!isset($recordDetailsBatch[$recordId])) {
+                continue;
+            }
+
+            $recordDetails = $recordDetailsBatch[$recordId];
+
+            foreach ($recordDetails as $detail) {
+                $parameterName = $detail->parameter;
+
+                // Only add if this parameter hasn't been seen yet
+                // (keeps most recent value since we iterate from newest to oldest)
+                if (!isset($aggregatedVitals[$parameterName])) {
+                    $aggregatedVitals[$parameterName] = (object)[
+                        'min_range' => $detail->min_range,
+                        'max_range' => $detail->max_range,
+                        'range' => $detail->range,
+                        'unit' => $detail->unit,
+                        'result' => $detail->result
+                    ];
+                }
+            }
+        }
+
+        return $aggregatedVitals;
     }
 
     /**
