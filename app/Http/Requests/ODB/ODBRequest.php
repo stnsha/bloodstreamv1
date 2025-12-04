@@ -26,6 +26,7 @@ class ODBRequest extends FormRequest
             '*.refid' => 'nullable|string',
             '*.month' => 'nullable|integer',
             '*.year' => 'nullable|integer',
+            '*.labid' => 'nullable|integer'
         ];
     }
 

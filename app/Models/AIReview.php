@@ -36,4 +36,17 @@ class AIReview extends Model
     {
         return $this->belongsTo(TestResult::class, 'test_result_id', 'id');
     }
+
+    protected static function booted()
+    {
+        static::updated(function ($model) {
+            AuditTrail::create([
+                'table_name' => $model->getTable(),
+                'record_id' => $model->id,
+                'action' => 'updated',
+                'before' => $model->getOriginal(),
+                'after' => $model->getDirty(),
+            ]);
+        });
+    }
 }

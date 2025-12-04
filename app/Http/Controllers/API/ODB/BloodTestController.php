@@ -6,11 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\ODB\MigrateRequest;
 use App\Http\Requests\ODB\ODBRequest;
 use App\Jobs\ProcessMigrationBatch;
-use App\Models\AIReview;
 use App\Models\MigrationBatch;
 use App\Models\MigrationBatchItem;
-use App\Models\Patient;
-use App\Models\ResultLibrary;
 use App\Models\TestResult;
 use App\Services\AIReviewService;
 use App\Services\ApiTokenService;
@@ -20,7 +17,6 @@ use Carbon\Carbon;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
@@ -30,6 +26,11 @@ class BloodTestController extends Controller
     protected $myHealthService;
     protected $apiTokenService;
     protected $aiReviewService;
+
+    const complete = 1;
+    const ungenerate = 2;
+    const processing = 3;
+    const notfound = 4;
 
     public function __construct(
         MyHealthService $myHealthService,
@@ -71,6 +72,7 @@ class BloodTestController extends Controller
                     $refid = $item['refid'] ?? null;
                     $month = $item['month'] ?? null;
                     $year = $item['year'] ?? null;
+                    $labId = $item['labid'] ?? null;
 
                     $year  = $year  ?: date('Y');
                     $month = $month ?: date('m');
@@ -84,16 +86,32 @@ class BloodTestController extends Controller
 
                     $testResult = null;
 
-                    // Step 1: If refid provided, try searching by BOTH IC number AND refid
+                    // Step 1: Create closure to build fresh base query
+                    $buildBaseQuery = function () use ($icno, $labId) {
+                        $query = TestResult::whereHas('patient', function ($p) use ($icno) {
+                            $p->where('icno', $icno);
+                        });
+
+                        //Step 2: Search by lab_id if provided
+                        if ($labId) {
+                            $query->whereHas('doctor', function ($d) use ($labId) {
+                                $d->where('lab_id', $labId);
+                            });
+                        }
+
+                        return $query;
+                    };
+
+                    // Step 3: If refid provided, try searching by BOTH IC number AND refid
+                    // Condition: ref_id IS NOT NULL
                     if ($refid) {
                         Log::channel($this->getLogChannel())->debug('getReportId: Searching by IC AND refid', [
                             'icno' => $icno,
                             'refid' => $refid
                         ]);
 
-                        $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
-                            $p->where('icno', $icno);
-                        })
+                        $testResult = $buildBaseQuery()
+                            ->whereNotNull('ref_id')
                             ->where('ref_id', $refid)
                             ->where('is_completed', true)
                             ->whereNotNull('collected_date')
@@ -112,15 +130,14 @@ class BloodTestController extends Controller
                         }
                     }
 
-                    // Step 2: Search by IC number only
+                    // Step 4: Search by IC number only
+                    // Condition: ref_id IS NULL
                     if (!$testResult) {
                         Log::channel($this->getLogChannel())->debug('getReportId: Searching by IC number', [
                             'icno' => $icno
                         ]);
 
-                        $query = TestResult::whereHas('patient', function ($p) use ($icno) {
-                            $p->where('icno', $icno);
-                        });
+                        $query = $buildBaseQuery();
 
                         // Only require NULL ref_id if user provided a refid
                         if ($refid) {
@@ -160,14 +177,16 @@ class BloodTestController extends Controller
                         }
                     }
 
-                    // Step 3: Fallback to search by refid if provided
+                    // Step 5: Fallback to search by refid ONLY if provided
+                    // Condition: Possible mismatch IC
                     if (!$testResult && $refid) {
                         Log::channel($this->getLogChannel())->debug('getReportId: IC search failed, falling back to refid search', [
                             'icno' => $icno,
                             'refid' => $refid
                         ]);
 
-                        $testResult = TestResult::where('ref_id', $refid)
+                        $testResult = TestResult::whereNotNull('ref_id')
+                            ->where('ref_id', $refid)
                             ->where('is_completed', true)
                             ->whereNotNull('collected_date')
                             ->whereYear('collected_date', $year)
@@ -202,7 +221,6 @@ class BloodTestController extends Controller
 
                     // Only add to results if test result found
                     if ($testResult) {
-
                         $resultData = [
                             'icno' => $icno,
                             'refid' => $refid,
@@ -338,7 +356,7 @@ class BloodTestController extends Controller
                 'ai_response' => null,
                 'report_id' => null,
                 'ref_id' => null,
-                'status' => 'Completed'
+                'status' => self::notfound
             ]);
         }
 
@@ -346,6 +364,7 @@ class BloodTestController extends Controller
         $refid = $item['refid'] ?? null;
         $month = $item['month'] ?? null;
         $year  = $item['year'] ?? null;
+        $labId = $item['labid'] ?? null;
 
         $year  = $year  ?: date('Y');
         $month = $month ?: date('m');
@@ -359,16 +378,32 @@ class BloodTestController extends Controller
         try {
             $testResult = null;
 
-            // Step 1: If refid provided, try searching by BOTH IC number AND refid
+            // Step 1: Create closure to build fresh base query
+            $buildBaseQuery = function () use ($icno, $labId) {
+                $query = TestResult::with('aiReview')->whereHas('patient', function ($p) use ($icno) {
+                    $p->where('icno', $icno);
+                });
+
+                //Step 2: Search by lab_id if provided
+                if ($labId) {
+                    $query->whereHas('doctor', function ($d) use ($labId) {
+                        $d->where('lab_id', $labId);
+                    });
+                }
+
+                return $query;
+            };
+
+            // Step 3: If refid provided, try searching by BOTH IC number AND refid
+            // Condition: ref_id IS NOT NULL
             if ($refid) {
                 Log::channel($this->getLogChannel())->debug('getReviewById: Searching by IC AND refid', [
                     'icno' => $icno,
                     'refid' => $refid
                 ]);
 
-                $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
-                    $p->where('icno', $icno);
-                })
+                $testResult = $buildBaseQuery()
+                    ->whereNotNull('ref_id')
                     ->where('ref_id', $refid)
                     ->where('is_completed', true)
                     ->whereNotNull('collected_date')
@@ -389,15 +424,14 @@ class BloodTestController extends Controller
                 }
             }
 
-            // Step 2: Search by IC number only
+            // Step 4: Search by IC number only
+            // Condition: ref_id IS NULL
             if (!$testResult) {
                 Log::channel($this->getLogChannel())->debug('getReviewById: Searching by IC number', [
                     'icno' => $icno
                 ]);
 
-                $query = TestResult::whereHas('patient', function ($p) use ($icno) {
-                    $p->where('icno', $icno);
-                });
+                $query = $buildBaseQuery();
 
                 // Only require NULL ref_id if user provided a refid
                 if ($refid) {
@@ -439,14 +473,16 @@ class BloodTestController extends Controller
                 }
             }
 
-            // Step 3: Fallback to search by refid if provided
+            // Step 5: Fallback to search by refid ONLY if provided
+            // Condition: Possible mismatch IC
             if (!$testResult && $refid) {
                 Log::channel($this->getLogChannel())->debug('getReviewById: IC search failed, falling back to refid search', [
                     'icno' => $icno,
                     'refid' => $refid
                 ]);
 
-                $testResult = TestResult::where('ref_id', $refid)
+                $testResult = TestResult::with('aiReview')->whereNotNull('ref_id')
+                    ->where('ref_id', $refid)
                     ->where('is_completed', true)
                     ->whereNotNull('collected_date')
                     ->whereYear('collected_date', $year)
@@ -482,11 +518,13 @@ class BloodTestController extends Controller
             }
 
 
-            //Step 4: Check with manual sync for unmatch date
+            //Step 6: Check with manual sync for unmatch date - already updated
+            //Condition: Earlier invoice date due to postpone/etc
             if ($month != date('m')) {
-                $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
+                $testResult = TestResult::with('aiReview')->whereHas('patient', function ($p) use ($icno) {
                     $p->where('icno', $icno);
                 })
+                    ->whereNotNull('ref_id')
                     ->where('ref_id', $refid)
                     ->where('is_completed', true)
                     ->whereNotNull('manual_sync_date')
@@ -496,11 +534,7 @@ class BloodTestController extends Controller
                     Log::channel($this->getLogChannel())->info('getReviewById: Test result found by manual_sync_date', [
                         'icno' => $icno,
                         'refid' => $refid,
-                        'test_result_id' => $testResult->id,
-                        'is_completed' => $testResult->is_completed,
-                        'is_completed_raw' => $testResult->getRawOriginal('is_completed'),
-                        'is_reviewed' => $testResult->is_reviewed,
-                        'is_reviewed_raw' => $testResult->getRawOriginal('is_reviewed')
+                        'test_result_id' => $testResult->id
                     ]);
                 }
             }
@@ -516,7 +550,7 @@ class BloodTestController extends Controller
                     'ai_response' => null,
                     'report_id' => null,
                     'ref_id' => $refid,
-                    'status' => 'Record not found'
+                    'status' => self::notfound
                 ]);
             }
 
@@ -552,7 +586,7 @@ class BloodTestController extends Controller
                     'ai_response' => null,
                     'report_id' => $testResult->id,
                     'ref_id' => $testResult->ref_id,
-                    'status' => 'Completed but no AI Report to be generated'
+                    'status' => self::ungenerate
                 ]);
             }
 
@@ -568,7 +602,7 @@ class BloodTestController extends Controller
                     'ai_response' => null,
                     'report_id' => $testResult->id,
                     'ref_id' => $testResult->ref_id,
-                    'status' => 'Completed but no AI Report to be generated'
+                    'status' => self::ungenerate
                 ]);
             }
 
@@ -580,7 +614,7 @@ class BloodTestController extends Controller
             $processingTime = now()->diffInSeconds($processingStartTime);
 
             // Determine status based on is_completed value
-            $status = $testResult->is_completed ? 'Completed' : 'Sync In Progress';
+            $status = $testResult->is_completed ? self::complete : self::processing;
 
             $responseData = [
                 'ai_response' => $aiReview->ai_response,
@@ -641,6 +675,7 @@ class BloodTestController extends Controller
         $refid = $item['refid'] ?? null;
         $month = $item['month'] ?? null;
         $year  = $item['year'] ?? null;
+        $labId = $item['labid'] ?? null;
 
         Log::channel($this->getLogChannel())->debug('regenerateReviewById: Checking month and year received', [
             'month' => $month,
@@ -659,16 +694,34 @@ class BloodTestController extends Controller
         try {
             $testResult = null;
 
-            // Step 1: If refid provided, try searching by BOTH IC number AND refid
+            // Step 1: Create closure to build fresh base query
+            $buildBaseQuery = function () use ($icno, $labId) {
+                $query = TestResult::whereHas('patient', function ($p) use ($icno) {
+                    $p->where('icno', $icno);
+                });
+
+                //Step 2: Search by lab_id if provided
+                if ($labId) {
+                    $query->whereHas('doctor', function ($d) use ($labId) {
+                        $d->where('lab_id', $labId);
+                    });
+                }
+
+                $query->with('aiReview');
+
+                return $query;
+            };
+
+            // Step 3: If refid provided, try searching by BOTH IC number AND refid
+            // Condition: ref_id IS NOT NULL
             if ($refid) {
                 Log::channel($this->getLogChannel())->debug('regenerateReviewById: Searching by IC AND refid', [
                     'icno' => $icno,
                     'refid' => $refid
                 ]);
 
-                $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
-                    $p->where('icno', $icno);
-                })
+                $testResult = $buildBaseQuery()
+                    ->whereNotNull('ref_id')
                     ->where('ref_id', $refid)
                     ->where('is_completed', true)
                     ->whereNotNull('collected_date')
@@ -687,15 +740,14 @@ class BloodTestController extends Controller
                 }
             }
 
-            // Step 2: Search by IC number only
+            // Step 4: Search by IC number only
+            // Condition: ref_id IS NULL
             if (!$testResult) {
                 Log::channel($this->getLogChannel())->debug('regenerateReviewById: Searching by IC number', [
                     'icno' => $icno
                 ]);
 
-                $query = TestResult::whereHas('patient', function ($p) use ($icno) {
-                    $p->where('icno', $icno);
-                });
+                $query = $buildBaseQuery();
 
                 // Only require NULL ref_id if user provided a refid
                 if ($refid) {
@@ -735,13 +787,15 @@ class BloodTestController extends Controller
                 }
             }
 
-            // Step 3: Fallback to search by refid if provided
+            // Step 5: Fallback to search by refid ONLY if provided
+            // Condition: Possible mismatch IC
             if (!$testResult && $refid) {
                 Log::channel($this->getLogChannel())->debug('regenerateReviewById: Searching by refid', [
                     'refid' => $refid
                 ]);
 
-                $testResult = TestResult::where('ref_id', $refid)
+                $testResult = TestResult::with('aiReview')->whereNotNull('ref_id')
+                    ->where('ref_id', $refid)
                     ->where('is_completed', true)
                     ->whereNotNull('collected_date')
                     ->whereYear('collected_date', $year)
@@ -774,11 +828,13 @@ class BloodTestController extends Controller
                 }
             }
 
-            //Step 4: Check with manual sync for unmatch date
+            //Step 6: Check with manual sync for unmatch date - already updated
+            //Condition: Earlier invoice date due to postpone/etc
             if ($month != date('m')) {
-                $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
+                $testResult = TestResult::with('aiReview')->whereHas('patient', function ($p) use ($icno) {
                     $p->where('icno', $icno);
                 })
+                    ->whereNotNull('ref_id')
                     ->where('ref_id', $refid)
                     ->where('is_completed', true)
                     ->whereNotNull('manual_sync_date')
@@ -854,7 +910,7 @@ class BloodTestController extends Controller
             $processingTime = now()->diffInSeconds($processingStartTime);
 
             // Determine status based on is_completed value
-            $status = $testResult->is_completed ? 'Completed' : 'Sync In Progress';
+            $status = $testResult->is_completed ? self::complete : self::processing;
 
             $responseData = [
                 'ai_response' => $aiReview->ai_response,
@@ -991,9 +1047,11 @@ class BloodTestController extends Controller
         }
 
         $icno = $item['icno'];
+        $labId = $item['labid'];
 
         Log::channel($this->getLogChannel())->info('searchReportId: Processing started', [
             'icno' => $icno,
+            'labid' => $labId,
             'timestamp' => $processingStartTime
         ]);
 
@@ -1002,13 +1060,18 @@ class BloodTestController extends Controller
             $testResults = TestResult::whereHas('patient', function ($p) use ($icno) {
                 $p->where('icno', $icno);
             })
+                ->whereHas('doctor', function ($d) use ($labId) {
+                    $d->where('lab_id', $labId);
+                })
+                ->whereNull('manual_date_sync')
                 ->with('aiReview')  // Eager load AI review relationship
                 ->orderBy('collected_date', 'desc')
                 ->get();
 
             if ($testResults->isEmpty()) {
                 Log::channel($this->getLogChannel())->info('searchReportId: No test results found', [
-                    'icno' => $icno
+                    'icno' => $icno,
+                    'labid' => $labId
                 ]);
 
                 return response()->json([]);
@@ -1016,6 +1079,7 @@ class BloodTestController extends Controller
 
             Log::channel($this->getLogChannel())->info('searchReportId: Test results found', [
                 'icno' => $icno,
+                'labid' => $labId,
                 'count' => $testResults->count()
             ]);
 
@@ -1026,16 +1090,13 @@ class BloodTestController extends Controller
                 // Determine status based on completion and review flags
                 $status = $this->determineTestResultStatus($testResult);
 
-                // Get AI review HTML if exists
-                $review = $testResult->aiReview ? $testResult->aiReview->ai_response : null;
-
                 $results[] = [
                     'status' => $status,
                     'labno' => $testResult->lab_no,
                     'collected_date' => $testResult->collected_date ? Carbon::parse($testResult->collected_date)->format('Y-m-d') : null,
                     'reported_date' => $testResult->reported_date ? Carbon::parse($testResult->reported_date)->format('Y-m-d') : null,
                     'report_id' => $testResult->id,
-                    'review' => $review
+                    'is_reviewed' => $testResult->is_reviewed
                 ];
 
                 Log::channel($this->getLogChannel())->debug('searchReportId: Processing test result', [
@@ -1219,23 +1280,107 @@ class BloodTestController extends Controller
     }
 
     /**
+     * Manual search by labno
+     * Condition: Mismatch refid OR icno
+     */
+    public function searchLabNo(Request $request)
+    {
+        $validated = $request->validate([
+            'labno' => 'required|string',
+            'labid' => 'nullable|integer'
+        ], [
+            'labno.required' => 'Labno is required.'
+        ]);
+
+        $processingStartTime = now();
+
+        if (!$validated || !isset($validated['labno'])) {
+            Log::channel($this->getLogChannel())->warning('searchLabNo: No labno provided in request');
+            return response()->json([]);
+        }
+
+        $labno = $validated['labno'];
+        $labId = $validated['labid'] ?? null;
+
+        Log::channel($this->getLogChannel())->info('searchLabNo: Processing started', [
+            'labno' => $labno,
+            'labId' => $labId,
+            'timestamp' => $processingStartTime
+        ]);
+
+        try {
+            // Step 1: Search by labno
+            // Return result regardless of status and date
+            $testResult = TestResult::with('aiReview')->where('lab_no', $labno)->latest()->first();
+
+            if (!$testResult) {
+                Log::channel($this->getLogChannel())->info('searchLabNo: No test result found', [
+                    'labno' => $labno,
+                    'labId' => $labId
+                ]);
+                return response()->json([]);
+            }
+
+            // Determine status based on completion and review flags
+            $status = $this->determineTestResultStatus($testResult);
+
+            // Step 2: Build response array
+            $results = [];
+
+            $results[] = [
+                'status' => $status,
+                'labno' => $testResult->lab_no,
+                'collected_date' => $testResult->collected_date ? Carbon::parse($testResult->collected_date)->format('Y-m-d') : null,
+                'reported_date' => $testResult->reported_date ? Carbon::parse($testResult->reported_date)->format('Y-m-d') : null,
+                'report_id' => $testResult->id,
+                'is_reviewed' => $testResult->is_reviewed
+            ];
+
+            $processingTime = now()->diffInSeconds($processingStartTime);
+
+            Log::channel($this->getLogChannel())->info('searchLabNo: Processing completed', [
+                'labno' => $labno,
+                'labId' => $labId,
+                'result_found' => true,
+                'processing_time_seconds' => $processingTime
+            ]);
+
+            return response()->json($results);
+        } catch (Throwable $e) {
+            Log::channel($this->getLogChannel())->error('searchLabNo: Critical error occurred', [
+                'error_message' => $e->getMessage(),
+                'error_file' => $e->getFile(),
+                'error_line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+                'labno' => $labno ?? null
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while processing the request',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Helper method to determine test result status based on completion and review flags
      *
      * @param TestResult $testResult
-     * @return string
+     * @return int
      */
-    private function determineTestResultStatus(TestResult $testResult): string
+    private function determineTestResultStatus(TestResult $testResult): int
     {
         if (!$testResult->is_completed) {
-            return 'Processing';
+            return self::processing;
         }
 
         if ($testResult->is_completed && $testResult->is_reviewed) {
-            return 'Completed';
+            return self::complete;
         }
 
         // is_completed = true, is_reviewed = false
-        return 'Completed but no AI Report to be generated';
+        return self::ungenerate;
     }
 
     /**
