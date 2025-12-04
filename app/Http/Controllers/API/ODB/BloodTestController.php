@@ -1062,8 +1062,7 @@ class BloodTestController extends Controller
             })
                 ->whereHas('doctor', function ($d) use ($labId) {
                     $d->where('lab_id', $labId);
-                })
-                //->whereNull('manual_sync_date')
+            })
                 ->with('aiReview')  // Eager load AI review relationship
                 ->orderBy('collected_date', 'desc')
                 ->get();
