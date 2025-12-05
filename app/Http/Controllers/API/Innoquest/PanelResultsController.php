@@ -430,6 +430,7 @@ class PanelResultsController extends BaseResultsController
                     //check embedded pdf exist to complete blood report status
                     if (isset($validated['EncodedBase64pdf']) && filled($validated['EncodedBase64pdf']) && $test_result) {
                         $test_result->is_completed = true;
+                        $test_result->is_reviewed = false;
                         $test_result->save();
                     }
 
@@ -448,12 +449,6 @@ class PanelResultsController extends BaseResultsController
                         );
                     }
                 });
-
-                // Trigger AI review process AFTER transaction commits to avoid race condition
-                // This ensures is_completed is saved before AI review fetches the TestResult
-                if (isset($validated['EncodedBase64pdf']) && filled($validated['EncodedBase64pdf']) && $test_result) {
-                    $this->aiReviewService->processSingle($test_result->id);
-                }
 
                 Log::info('Panel results processed successfully', [
                     'test_result_id' => $test_result->id ?? null,
