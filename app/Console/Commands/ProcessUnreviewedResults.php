@@ -243,7 +243,7 @@ class ProcessUnreviewedResults extends Command
      */
     protected function acquireLock(): bool
     {
-        return Cache::lock($this->lockKey, 3600)->get();
+        return Cache::lock($this->lockKey, 1800)->get();
     }
 
     /**
