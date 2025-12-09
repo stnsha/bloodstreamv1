@@ -93,6 +93,7 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
         Route::post('/checkVitals', 'checkVitals')->name('checkVitals');
         Route::post('/searchReportId', 'searchReportId')->name('searchReportId');
         Route::post('/searchLabNo', 'searchLabNo')->name('searchLabNo');
+        Route::post('/updateLabNo', 'updateLabNo')->name('updateLabNo');
 
         Route::post('/migrate', 'migrate')->name('odb.migrate');
         Route::post('/migrate-test', 'migrateTest')->name('odb.migrate.test');
