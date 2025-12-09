@@ -1363,6 +1363,210 @@ class BloodTestController extends Controller
     }
 
     /**
+     * Update Test Result by Lab Number
+     * Search by labno and update ref_id and patient icno
+     */
+    public function updateLabNo(ODBRequest $request)
+    {
+        $processingStartTime = now();
+        $validated = $request->all();
+        $item = $validated[0] ?? null;
+
+        Log::channel($this->getLogChannel())->info('updateLabNo: Processing started', [
+            'request_count' => count($validated)
+        ]);
+
+        try {
+            // Step 1: Validate Request Data
+            if (!$item) {
+                Log::channel($this->getLogChannel())->warning('updateLabNo: No item provided in request');
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No data provided in request',
+                    'report_id' => null,
+                    'ai_response' => null
+                ], 400);
+            }
+
+            $labno = $item['labno'] ?? null;
+            $refid = $item['refid'] ?? null;
+            $icno = $item['icno'] ?? null;
+
+            // Validate required field
+            if (!$labno) {
+                Log::channel($this->getLogChannel())->warning('updateLabNo: labno is required', [
+                    'refid' => $refid,
+                    'icno' => $icno
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'labno is required for search',
+                    'report_id' => null,
+                    'ai_response' => null
+                ], 400);
+            }
+
+            Log::channel($this->getLogChannel())->info('updateLabNo: Request validated', [
+                'labno' => $labno,
+                'refid' => $refid,
+                'icno' => $icno
+            ]);
+
+            // Step 2: Search for TestResult by lab_no
+            $testResult = TestResult::with('aiReview', 'patient')
+                ->where('lab_no', $labno)
+                ->first();
+
+            if (!$testResult) {
+                Log::channel($this->getLogChannel())->warning('updateLabNo: TestResult not found', [
+                    'labno' => $labno
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Test result not found for the given lab number',
+                    'report_id' => null,
+                    'ai_response' => null
+                ], 404);
+            }
+
+            Log::channel($this->getLogChannel())->info('updateLabNo: TestResult found', [
+                'report_id' => $testResult->id,
+                'labno' => $testResult->lab_no,
+                'current_ref_id' => $testResult->ref_id,
+                'current_patient_icno' => $testResult->patient->icno,
+                'is_completed' => $testResult->is_completed,
+                'is_reviewed' => $testResult->is_reviewed
+            ]);
+
+            // Step 3: Update Patient ICNO if provided
+            if ($icno) {
+                $currentIcno = $testResult->patient->icno;
+
+                if ($currentIcno !== $icno) {
+                    Log::channel($this->getLogChannel())->warning('updateLabNo: Patient ICNO will be changed', [
+                        'report_id' => $testResult->id,
+                        'patient_id' => $testResult->patient_id,
+                        'old_icno' => $currentIcno,
+                        'new_icno' => $icno,
+                        'labno' => $labno
+                    ]);
+
+                    // Update patient ICNO
+                    $testResult->patient->icno = $icno;
+                    $testResult->patient->save();
+
+                    Log::channel($this->getLogChannel())->info('updateLabNo: Patient ICNO updated', [
+                        'patient_id' => $testResult->patient_id,
+                        'old_icno' => $currentIcno,
+                        'new_icno' => $icno
+                    ]);
+                } else {
+                    Log::channel($this->getLogChannel())->debug('updateLabNo: Patient ICNO unchanged', [
+                        'patient_id' => $testResult->patient_id,
+                        'icno' => $icno
+                    ]);
+                }
+            } else {
+                Log::channel($this->getLogChannel())->debug('updateLabNo: No icno provided, patient not updated', [
+                    'report_id' => $testResult->id
+                ]);
+            }
+
+            // Step 4: Update TestResult ref_id and manual_sync_date
+            if ($refid) {
+                $oldRefId = $testResult->ref_id;
+                $testResult->ref_id = $refid;
+                $testResult->manual_sync_date = Carbon::now();
+                $testResult->save();
+
+                Log::channel($this->getLogChannel())->info('updateLabNo: ref_id and manual_sync_date updated', [
+                    'report_id' => $testResult->id,
+                    'old_ref_id' => $oldRefId,
+                    'new_ref_id' => $refid,
+                    'manual_sync_date' => $testResult->manual_sync_date,
+                    'labno' => $labno
+                ]);
+            } else {
+                // If no refid provided but icno was updated, still set manual_sync_date
+                if ($icno && $testResult->patient->icno === $icno) {
+                    $testResult->manual_sync_date = Carbon::now();
+                    $testResult->save();
+
+                    Log::channel($this->getLogChannel())->info('updateLabNo: manual_sync_date updated (icno changed)', [
+                        'report_id' => $testResult->id,
+                        'manual_sync_date' => $testResult->manual_sync_date
+                    ]);
+                } else {
+                    Log::channel($this->getLogChannel())->warning('updateLabNo: No refid provided to update', [
+                        'report_id' => $testResult->id,
+                        'labno' => $labno
+                    ]);
+                }
+            }
+
+            // Step 5: Get AIReview (No Generation)
+            $aiReview = $testResult->aiReview;
+            $aiResponse = null;
+
+            if ($aiReview && $aiReview->http_status == 200 && $aiReview->ai_response) {
+                $aiResponse = $aiReview->ai_response;
+
+                Log::channel($this->getLogChannel())->info('updateLabNo: AIReview found with successful status', [
+                    'report_id' => $testResult->id,
+                    'ai_review_id' => $aiReview->id,
+                    'http_status' => $aiReview->http_status
+                ]);
+            } else {
+                $reason = !$aiReview
+                    ? 'AIReview not found'
+                    : ($aiReview->http_status != 200
+                        ? 'AIReview has failed status: ' . $aiReview->http_status
+                        : 'AIReview has no response data');
+
+                Log::channel($this->getLogChannel())->info('updateLabNo: AI response not available', [
+                    'report_id' => $testResult->id,
+                    'reason' => $reason
+                ]);
+            }
+
+            $processingTime = now()->diffInSeconds($processingStartTime);
+
+            Log::channel($this->getLogChannel())->info('updateLabNo: Processing completed successfully', [
+                'report_id' => $testResult->id,
+                'labno' => $labno,
+                'ref_id_updated' => !is_null($refid),
+                'icno_updated' => !is_null($icno),
+                'has_ai_response' => $aiResponse !== null,
+                'processing_time_seconds' => $processingTime
+            ]);
+
+            return response()->json([
+                'report_id' => $testResult->id,
+                'ai_response' => $aiResponse
+            ]);
+        } catch (Throwable $e) {
+            Log::channel($this->getLogChannel())->error('updateLabNo: Critical error occurred', [
+                'labno' => $labno ?? null,
+                'error_message' => $e->getMessage(),
+                'error_file' => $e->getFile(),
+                'error_line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while processing the request',
+                'report_id' => null,
+                'ai_response' => null,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Helper method to determine test result status based on completion and review flags
      *
      * @param TestResult $testResult
