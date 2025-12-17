@@ -14,9 +14,6 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         // $schedule->command('inspire')->hourly();
-        $schedule->job(new ProcessCsvFilesJob())
-            ->everyThirtyMinutes()
-            ->withoutOverlapping(3600); // 1-hour overlap protection
 
     }
 
