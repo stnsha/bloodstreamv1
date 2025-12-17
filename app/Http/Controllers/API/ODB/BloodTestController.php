@@ -283,60 +283,60 @@ class BloodTestController extends Controller
      * Retrieve IC and refID from ODB to check if AI review exist
      * If not exist, generate 
      */
-    public function review(ODBRequest $request)
-    {
-        // Increase execution time for external API calls
-        ini_set('max_execution_time', 300); // 5 minutes
-        $validated = $request->all();
-        $processingStartTime = now();
+    // public function review(ODBRequest $request)
+    // {
+    //     // Increase execution time for external API calls
+    //     ini_set('max_execution_time', 300); // 5 minutes
+    //     $validated = $request->all();
+    //     $processingStartTime = now();
 
-        Log::channel($this->getLogChannel())->info('AI Review process started', [
-            'total_items' => count($validated),
-            'timestamp' => $processingStartTime
-        ]);
+    //     Log::channel($this->getLogChannel())->info('AI Review process started', [
+    //         'total_items' => count($validated),
+    //         'timestamp' => $processingStartTime
+    //     ]);
 
-        try {
-            // Process using AIReviewService (new implementation - handles bulk processing)
-            $results = $this->aiReviewService->processBulk($validated);
+    //     try {
+    //         // Process using AIReviewService (new implementation - handles bulk processing)
+    //         $results = $this->aiReviewService->processBulk($validated);
 
-            $successfulResults = array_filter($results, fn($r) => $r->isSuccessful());
-            $failedResults = array_filter($results, fn($r) => $r->isFailed());
+    //         $successfulResults = array_filter($results, fn($r) => $r->isSuccessful());
+    //         $failedResults = array_filter($results, fn($r) => $r->isFailed());
 
-            $processingTime = now()->diffInSeconds($processingStartTime);
+    //         $processingTime = now()->diffInSeconds($processingStartTime);
 
-            Log::channel($this->getLogChannel())->info('AI Review process completed', [
-                'total_items' => count($validated),
-                'processed_results' => count($results),
-                'successful_results' => count($successfulResults),
-                'failed_results' => count($failedResults),
-                'processing_time' => $processingTime . 's'
-            ]);
+    //         Log::channel($this->getLogChannel())->info('AI Review process completed', [
+    //             'total_items' => count($validated),
+    //             'processed_results' => count($results),
+    //             'successful_results' => count($successfulResults),
+    //             'failed_results' => count($failedResults),
+    //             'processing_time' => $processingTime . 's'
+    //         ]);
 
-            if (count($successfulResults) > 0) {
-                return response()->json(
-                    array_map(fn($r) => $r->toArray(), $successfulResults)
-                );
-            }
+    //         if (count($successfulResults) > 0) {
+    //             return response()->json(
+    //                 array_map(fn($r) => $r->toArray(), $successfulResults)
+    //             );
+    //         }
 
-            return response()->json([
-                'success' => false,
-                'message' => 'No test results could be processed successfully',
-                'failed_results' => array_map(fn($r) => $r->toArray(), $failedResults),
-            ], 404);
-        } catch (Exception $e) {
-            Log::channel($this->getLogChannel())->error('Critical error in review method', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'total_items' => count($validated)
-            ]);
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'No test results could be processed successfully',
+    //             'failed_results' => array_map(fn($r) => $r->toArray(), $failedResults),
+    //         ], 404);
+    //     } catch (Exception $e) {
+    //         Log::channel($this->getLogChannel())->error('Critical error in review method', [
+    //             'error' => $e->getMessage(),
+    //             'trace' => $e->getTraceAsString(),
+    //             'total_items' => count($validated)
+    //         ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Critical error occurred during processing',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Critical error occurred during processing',
+    //             'error' => $e->getMessage()
+    //         ], 500);
+    //     }
+    // }
 
     /**
      * Get review by ID - Return existing AI review only
@@ -887,7 +887,7 @@ class BloodTestController extends Controller
                 'test_result_id' => $testResult->id
             ]);
 
-            $result = $this->aiReviewService->processSingle($testResult->id);
+            $result = $this->aiReviewService->processSingle($testResult->id, 'Octopus Server');
 
             if ($result->isSuccessful()) {
                 // Reload the relationship

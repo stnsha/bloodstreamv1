@@ -2,61 +2,43 @@
 
 namespace App\Console\Commands;
 
+use App\Jobs\ProcessAIReview;
 use App\Models\TestResult;
-use App\Services\AIReviewService;
 use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-class ProcessUnreviewedResults extends Command
+class DispatchUnreviewedResults extends Command
 {
     /**
      * The name and signature of the console command.
      *
      * @var string
      */
-    protected $signature = 'ai:process-unreviewed {--dry-run : Preview records without processing}';
+    protected $signature = 'ai:dispatch-unreviewed {--dry-run : Preview records without dispatching}';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Process unreviewed test results through AI review service (batch of 10, runs hourly)';
+    protected $description = 'Dispatch unreviewed test results to AI review queue (batch of 10, runs hourly)';
 
     /**
-     * Command timeout in seconds (1 hour)
+     * Command timeout in seconds (2 minutes - fast dispatch)
      *
      * @var int
      */
-    public $timeout = 3600;
+    public $timeout = 120;
 
     /**
      * Cache lock key to prevent concurrent execution
      *
      * @var string
      */
-    protected $lockKey = 'ai:process-unreviewed';
-
-    /**
-     * AI Review Service instance
-     *
-     * @var AIReviewService
-     */
-    protected $aiReviewService;
-
-    /**
-     * Create a new command instance.
-     *
-     * @param AIReviewService $aiReviewService
-     */
-    public function __construct(AIReviewService $aiReviewService)
-    {
-        parent::__construct();
-        $this->aiReviewService = $aiReviewService;
-    }
+    protected $lockKey = 'ai:dispatch-unreviewed';
 
     /**
      * Execute the console command.
@@ -65,9 +47,9 @@ class ProcessUnreviewedResults extends Command
      */
     public function handle()
     {
-        // Set resource limits to prevent CPU clogging
-        ini_set('memory_limit', '256M');
-        ini_set('max_execution_time', '3600');
+        // Set resource limits
+        ini_set('memory_limit', '128M');
+        ini_set('max_execution_time', '120');
 
         // Acquire lock to prevent concurrent execution
         if (!$this->acquireLock()) {
@@ -77,22 +59,22 @@ class ProcessUnreviewedResults extends Command
         }
 
         try {
-            return $this->processUnreviewedResults();
+            return $this->dispatchUnreviewedResults();
         } finally {
             $this->releaseLock();
         }
     }
 
     /**
-     * Main processing logic
+     * Main dispatching logic
      *
      * @return int
      */
-    protected function processUnreviewedResults()
+    protected function dispatchUnreviewedResults()
     {
         $startTime = now();
 
-        Log::channel('ai-command')->info('Command started', [
+        Log::channel('ai-command')->info('Dispatch command started', [
             'timestamp' => $startTime,
             'dry_run' => $this->option('dry-run')
         ]);
@@ -102,7 +84,7 @@ class ProcessUnreviewedResults extends Command
 
         if (empty($testResultIds)) {
             $this->info('No unreviewed test results found.');
-            Log::channel('ai-command')->info('No records to process');
+            Log::channel('ai-command')->info('No records to dispatch');
             return Command::SUCCESS;
         }
 
@@ -111,74 +93,54 @@ class ProcessUnreviewedResults extends Command
             return $this->handleDryRun($testResultIds);
         }
 
-        // Process records
-        $successCount = 0;
-        $failureCount = 0;
+        // Dispatch jobs
+        $dispatchedCount = 0;
+        $failedDispatchCount = 0;
 
-        $this->info("Processing " . count($testResultIds) . " unreviewed test results...");
-        $this->output->progressStart(count($testResultIds));
+        $this->info("Dispatching " . count($testResultIds) . " AI review jobs to queue...");
 
         foreach ($testResultIds as $id) {
             try {
-                $result = $this->aiReviewService->processSingle($id, 'MyHealth Job');
+                ProcessAIReview::dispatch($id);
+                $dispatchedCount++;
 
-                if ($result->isSuccessful()) {
-                    $successCount++;
-                    Log::channel('ai-command')->info('Processed successfully', [
-                        'test_result_id' => $id
-                    ]);
-                } else {
-                    $failureCount++;
-                    Log::channel('ai-command')->error('Processing failed', [
-                        'test_result_id' => $id,
-                        'error' => $result->errorMessage
-                    ]);
-                }
-
-                $this->output->progressAdvance();
-
-                // Small delay to prevent API rate limiting and CPU saturation
-                sleep(2);
-
-                // Garbage collection every 5 iterations
-                if (($successCount + $failureCount) % 5 === 0) {
-                    gc_collect_cycles();
-                }
+                Log::channel('ai-command')->info('Job dispatched', [
+                    'test_result_id' => $id
+                ]);
             } catch (Exception $e) {
-                $failureCount++;
-                Log::channel('ai-command')->error('Exception during processing', [
+                $failedDispatchCount++;
+
+                Log::channel('ai-command')->error('Failed to dispatch job', [
                     'test_result_id' => $id,
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
+                    'error' => $e->getMessage()
                 ]);
 
-                $this->output->progressAdvance();
-
-                // Continue with next record - don't abort batch
+                // Continue with next - don't abort batch
                 continue;
             }
         }
 
-        $this->output->progressFinish();
-
-        // Summary
         $processingTime = now()->diffInSeconds($startTime);
 
-        $this->info("\nProcessing complete:");
-        $this->info("  Successful: {$successCount}");
-        $this->info("  Failed: {$failureCount}");
+        // Summary output
+        $this->info("\nDispatch complete:");
+        $this->info("  Successfully dispatched: {$dispatchedCount}");
+        if ($failedDispatchCount > 0) {
+            $this->warn("  Failed to dispatch: {$failedDispatchCount}");
+        }
         $this->info("  Time: {$processingTime} seconds");
+        $this->info("\nJobs are processing in the background.");
 
-        Log::channel('ai-command')->info('Command completed', [
+        Log::channel('ai-command')->info('Dispatch command completed', [
             'total' => count($testResultIds),
-            'successful' => $successCount,
-            'failed' => $failureCount,
+            'dispatched' => $dispatchedCount,
+            'failed_dispatch' => $failedDispatchCount,
             'processing_time_seconds' => $processingTime
         ]);
 
         // Determine exit code
-        if ($failureCount > 0 && $successCount === 0) {
-            return Command::FAILURE; // Complete failure
+        if ($failedDispatchCount > 0 && $dispatchedCount === 0) {
+            return Command::FAILURE; // Complete dispatch failure
         }
 
         return Command::SUCCESS; // Success or partial success
@@ -204,14 +166,14 @@ class ProcessUnreviewedResults extends Command
     }
 
     /**
-     * Handle dry-run mode - preview records without processing
+     * Handle dry-run mode - preview records without dispatching
      *
      * @param array $testResultIds
      * @return int
      */
     protected function handleDryRun(array $testResultIds)
     {
-        $this->info("DRY RUN MODE - No records will be processed\n");
+        $this->info("DRY RUN MODE - No jobs will be dispatched\n");
 
         $testResults = TestResult::whereIn('id', $testResultIds)
             ->with('patient:id,icno')
@@ -227,7 +189,7 @@ class ProcessUnreviewedResults extends Command
             ])
         );
 
-        $this->info("\nWould process {$testResults->count()} records");
+        $this->info("\nWould dispatch {$testResults->count()} jobs to queue");
 
         Log::channel('ai-command')->info('Dry run completed', [
             'records_found' => $testResults->count()

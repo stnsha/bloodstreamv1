@@ -128,11 +128,19 @@ class TestResultCompilerService
     /**
      * Compile complete test result data with MyHealth history
      */
-    public function compileTestResultData(TestResult $testResult): array
+    public function compileTestResultData(TestResult $testResult, string $source): array
     {
         $patientInfo = $this->gatherPatientHealthHistory($testResult);
         $categorizedItems = $this->categorizeTestResultItems($testResult);
         $reportDate = Carbon::parse($testResult->reported_date)->format('Y-m-d');
+
+        Log::channel($this->logChannel)->info('Report and Source AI API call', [
+            'testResultId' => $testResult->id,
+            'source' => $source
+        ]);
+
+        // 'ReportID' => $testResult->id,
+        // 'Source' => $source,
 
         return [
             'Health History' => $patientInfo,

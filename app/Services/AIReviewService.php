@@ -60,18 +60,21 @@ class AIReviewService
      * Used by PanelResultsController
      *
      * @param int $testResultId The test result ID to process
+     * @param string $source Source of request
      * @return AIReviewResult The processing result
      */
-    public function processSingle(int $testResultId): AIReviewResult
+    public function processSingle(int $testResultId, string $source): AIReviewResult
     {
         $token = $this->getToken();
         $compiledData = [];
 
+        $source != null ? $source : 'Unknown';
+
         try {
-            return DB::transaction(function () use ($testResultId, $token, &$compiledData) {
+            return DB::transaction(function () use ($testResultId, $source, $token, &$compiledData) {
                 // Step 1: Fetch and compile test result data
                 $testResult = $this->compiler->fetchTestResult($testResultId);
-                $compiledData = $this->compiler->compileTestResultData($testResult);
+                $compiledData = $this->compiler->compileTestResultData($testResult, $source);
 
                 // Step 2: Call AI API
                 $aiResponse = $this->apiClient->analyze($compiledData, $token);
