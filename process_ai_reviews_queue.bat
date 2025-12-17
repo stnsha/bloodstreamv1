@@ -13,7 +13,7 @@ if not "%1"=="silent" (
 )
 
 REM Set the working directory - UPDATE PATH FOR STAGING/PRODUCTION!
-cd /d "C:\xampp\htdocs\production"
+cd /d "C:\laragon\www\blood-stream-v1"
 
 REM Check if another instance is running
 tasklist /FI "WINDOWTITLE eq AI Review Queue*" 2>NUL | find /I /N "cmd.exe">NUL
