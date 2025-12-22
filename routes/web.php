@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\API\Fixes\HotFixController;
 use App\Http\Controllers\API\PDFController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExportController;
@@ -47,8 +48,4 @@ Route::middleware(['auth'])->group(function () {
         $lab_id = session()->get('lab_id');
         return view('apis.index', compact('lab_id'));
     })->name('apis.index');
-
-    Route::resource('lab', LabController::class);
-    Route::resource('results', TestResultController::class);
-    Route::resource('panels', PanelController::class);
 });

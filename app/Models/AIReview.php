@@ -15,6 +15,7 @@ class AIReview extends Model
 
     protected $fillable = [
         'test_result_id',
+        'processing_status',
         'compiled_results',
         'http_status',
         'ai_response',
@@ -23,6 +24,7 @@ class AIReview extends Model
 
     protected $casts = [
         'test_result_id' => 'integer',
+        'processing_status' => 'string',
         'compiled_results' => 'array',
         'http_status' => 'integer',
         'ai_response' => 'array',

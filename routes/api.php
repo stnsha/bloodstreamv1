@@ -3,6 +3,7 @@
 use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\DoctorReviewController;
 use App\Http\Controllers\API\Fixes\HotFixController;
+use App\Http\Controllers\API\Webhook\AIResultController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\API\General\LabResultsController;
@@ -39,6 +40,13 @@ Route::controller(AuthController::class)->group(function () {
 Route::get('/test/export-age', [ExportController::class, 'exportAge'])->name('test.export.age');
 Route::get('/test/export-bt-age', [ExportController::class, 'exportBtAge'])->name('test.export.bt.age');
 
+// Webhook routes (secured with webhook.auth middleware)
+Route::prefix('webhook')->group(function () {
+    Route::post('/ai-result', [AIResultController::class, 'store'])
+        ->middleware('webhook.auth')
+        ->name('webhook.ai-result');
+});
+
 Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
     Route::prefix('result')->group(function () {
         if (app()->environment('production')) {
@@ -67,14 +75,6 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
     Route::prefix('pdf')->controller(PDFController::class)->group(function () {
         Route::post('/export', 'export')->name('export');
     });
-
-    Route::prefix('review')->controller(DoctorReviewController::class)->group(function () {
-        /** Testing Purpose */
-        Route::get('/', 'processResult')->name('index');
-        Route::post('/format', 'convertTableBlock')->name('convertTableBlock');
-        Route::get('/formatResponse', 'formatResponse')->name('formatResponse');
-    });
-
     Route::prefix('comment')->controller(PanelCommentController::class)->group(function () {
         Route::get('/update', 'update')->name('update');
     });

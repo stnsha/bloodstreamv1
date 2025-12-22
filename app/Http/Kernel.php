@@ -65,5 +65,6 @@ class Kernel extends HttpKernel
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
         'api.auth' => \App\Http\Middleware\APIAuthMiddleware::class,
         'swagger.auth' => \App\Http\Middleware\SwaggerAuth::class,
+        'webhook.auth' => \App\Http\Middleware\ValidateWebhookToken::class,
     ];
 }

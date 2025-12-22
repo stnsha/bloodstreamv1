@@ -2,15 +2,13 @@
 
 namespace App\Services;
 
-class ReviewHtmlGenerator
-{
+class ReviewHtmlGenerator {
     /**
      * Convert JSON AI response to HTML table blocks
      * Extracted from DoctorReviewController and BloodTestController
      * to eliminate 109 lines of code duplication
      */
-    public function convertToHtml(array $data): string
-    {
+    public function convertToHtml(array $data): string {
         $html = '';
 
         // SECTION A1: Health at a Glance
@@ -39,8 +37,7 @@ class ReviewHtmlGenerator
     /**
      * Render Section A1: Your Health at a Glance
      */
-    protected function renderSectionA1(array $rows): string
-    {
+    protected function renderSectionA1(array $rows): string {
         $html = '<div class="review-section">';
         $html .= '<h5>Your Health at a Glance</h5>';
         $html .= '<table class="review-table"><thead><tr>
@@ -74,8 +71,7 @@ class ReviewHtmlGenerator
     /**
      * Render Section A2: Your Body System Highlights
      */
-    protected function renderSectionA2(array $highlights): string
-    {
+    protected function renderSectionA2(array $highlights): string {
         $html = '<div class="review-section">';
         $html .= '<h5>Your Body System Highlights</h5>';
         $html .= '<ol class="review-list">';
@@ -91,8 +87,7 @@ class ReviewHtmlGenerator
     /**
      * Render Section B: 3-6 Month Health Action
      */
-    protected function renderSectionB(array $rows): string
-    {
+    protected function renderSectionB(array $rows): string {
         $html = '<div class="review-section">';
         $html .= '<h5>3-6 Month Health Action</h5>';
         $html .= '<table class="review-table"><thead><tr>
@@ -126,16 +121,18 @@ class ReviewHtmlGenerator
     /**
      * Render Section C: With Care, from Alpro
      */
-    protected function renderSectionC(string $text): string
-    {
+    protected function renderSectionC(string $text): string {
         $html = '<div class="review-section">';
         $html .= '<h5>With Care, from Alpro</h5>';
         // Safely escape text while preserving line breaks
         $text = $this->escapeWithBreaks($text);
         $html .= '<p>' . $text . '</p>';
         $html .= '<p class="disclaimer">
-                Disclaimer: This report is for educational purposes only and should not replace consultation with a qualified healthcare professional.
-              </p>';
+            Disclaimer: This review is based solely on your blood test results at the time of testing. It does not include physical examination, 
+            symptom assessment, or your complete medical history. If you are experiencing symptoms, have ongoing medical conditions, 
+            or notice changes in your health, a face-to-face consultation with a qualified healthcare professional is strongly recommended for a comprehensive clinical evaluation.
+        </p>';
+
         $html .= '</div>';
         return $html;
     }
@@ -143,49 +140,48 @@ class ReviewHtmlGenerator
     /**
      * Format field with semicolon-separated items into HTML list
      */
-    protected function formatListField(string $field): string
-    {
+    protected function formatListField(string $field): string {
         // Decode HTML entities first (e.g., &lt;br&gt; becomes <br>)
         $field = html_entity_decode($field, ENT_QUOTES | ENT_HTML5);
 
         // Split on ";" or any variation of <br>
         $items = preg_split('/;|<br\s*\/?>/i', $field);
 
-        $items = array_filter(array_map('trim', $items));
+$items = array_filter(array_map('trim', $items));
 
-        if (count($items) > 1) {
-            $html = '<ul>';
-            foreach ($items as $item) {
-                $html .= '<li>' . e($item) . '</li>';
-            }
-            $html .= '</ul>';
-
-            return $html;
-        }
-
-        // Single item - safely escape while preserving line breaks
-        return $this->escapeWithBreaks($field);
+if (count($items) > 1) {
+$html = '<ul>';
+    foreach ($items as $item) {
+    $html .= '<li>' . e($item) . '</li>';
     }
+    $html .= '</ul>';
 
-    /**
-     * Safely escape AI-generated content while preserving intentional line breaks
-     *
-     * This method prevents HTML injection and data truncation from special characters
-     * like <> & while allowing legitimate <br> tags to render as line breaks.
-     *
-     * @param string $content The AI-generated content that may contain special chars
-     * @return string Safely escaped HTML content with preserved line breaks
-     */
-    protected function escapeWithBreaks(string $content): string
-    {
-        // Step 1: Decode HTML entities first
-        // AI might return: "Value is &lt;2.60&lt;br&gt;Check again"
-        $content = html_entity_decode($content, ENT_QUOTES | ENT_HTML5);
+return $html;
+}
 
-        // Step 2: Temporarily replace legitimate line breaks with unique placeholder
-        // Matches: <br>, <br />, <br />, <BR>, etc.
-        $placeholder = '___LINEBREAK___';
-        $content = preg_replace('/<br\s*\/?>/i', $placeholder, $content);
+// Single item - safely escape while preserving line breaks
+return $this->escapeWithBreaks($field);
+}
+
+/**
+* Safely escape AI-generated content while preserving intentional line breaks
+*
+* This method prevents HTML injection and data truncation from special characters
+* like <> & while allowing legitimate <br> tags to render as line breaks.
+    *
+    * @param string $content The AI-generated content that may contain special chars
+    * @return string Safely escaped HTML content with preserved line breaks
+    */
+    protected function escapeWithBreaks(string $content): string {
+    // Step 1: Decode HTML entities first
+    // AI might return: "Value is &lt;2.60&lt;br&gt;Check again"
+    $content = html_entity_decode($content, ENT_QUOTES | ENT_HTML5);
+
+    // Step 2: Temporarily replace legitimate line breaks with unique placeholder
+    // Matches: <br>, <br />, <br />, <BR>, etc.
+    $placeholder = '___LINEBREAK___';
+    $content = preg_replace('/<br\s*\/?>/i', $placeholder, $content);
+
 
         // Step 3: Escape ALL HTML special characters
         $content = e($content);
@@ -194,5 +190,5 @@ class ReviewHtmlGenerator
         $content = str_replace($placeholder, '<br>', $content);
 
         return $content;
-    }
-}
+        }
+        }

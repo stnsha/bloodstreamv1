@@ -14,6 +14,7 @@ class AIError extends Model
 
     protected $fillable = [
         'test_result_id',
+        'processing_status',
         'http_status',
         'error_message',
         'compiled_data',
@@ -22,6 +23,7 @@ class AIError extends Model
 
     protected $casts = [
         'test_result_id' => 'integer',
+        'processing_status' => 'string',
         'http_status' => 'integer',
         'compiled_data' => 'array',
         'attempt_count' => 'integer',

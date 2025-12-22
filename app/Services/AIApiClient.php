@@ -93,4 +93,31 @@ class AIApiClient
 
         return $responseData;
     }
+
+    /**
+     * Send test result data to AI server asynchronously (webhook-based)
+     *
+     * @param array $payload The payload to send (includes test_result_id, source, and compiled data)
+     * @param string $token The authentication token
+     * @return array The AI server response data (status)
+     * @throws RuntimeException If the API call fails
+     */
+    public function sendAsync(array $payload, string $token): array
+    {
+        $response = Http::timeout(30)
+            ->withToken($token)
+            ->post(config('credentials.ai_review.testing'), $payload); //change to analysis after done testing
+
+        if ($response->failed()) {
+            $responseBody = $response->body();
+
+            // throw new RuntimeException(
+            //     "Failed to send data to AI server - status {$response->status()}. Response: " . $responseBody
+            // );
+        }
+
+        $responseData = $response->json();
+
+        return $responseData;
+    }
 }

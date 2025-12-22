@@ -21,7 +21,7 @@ class ApiTokenService
         $token = Cache::get(self::TOKEN_CACHE_KEY);
         
         if ($token) {
-            Log::info('Using cached API token');
+            // Log::info('Using cached API token');
             return $token;
         }
         

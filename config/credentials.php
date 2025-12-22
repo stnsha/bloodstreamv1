@@ -55,5 +55,15 @@ return [
     'ai_review' => [
         'login' => env('AI_REVIEW_LOGIN', 'http://example.com/api/review'),
         'analysis' => env('AI_REVIEW_ANALYSIS', 'http://example.com/api/analysis'),
+        'testing' => env('AI_REVIEW_TESTING', 'http://example.com/api/testing'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Webhook Credentials
+    |--------------------------------------------------------------------------
+    */
+    'webhook' => [
+        'ai_result_token' => env('WEBHOOK_AI_RESULT_TOKEN'),
     ],
 ];
