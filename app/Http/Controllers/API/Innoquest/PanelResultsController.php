@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API\Innoquest;
 
 use App\Http\Controllers\API\BaseResultsController;
 use App\Http\Requests\InnoquestResultRequest;
+use App\Jobs\ProcessAIReview;
 use App\Services\AIReviewService;
 use App\Models\DeliveryFile;
 use App\Models\Doctor;
@@ -21,6 +22,7 @@ use App\Models\TestResult;
 use App\Models\TestResultComment;
 use App\Models\TestResultItem;
 use App\Models\TestResultProfile;
+use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -449,6 +451,24 @@ class PanelResultsController extends BaseResultsController
                         );
                     }
                 });
+
+                // Trigger AI review in background if PDF exists
+                // if (isset($validated['EncodedBase64pdf']) && filled($validated['EncodedBase64pdf']) && $test_result) {
+                //     try {
+                //         ProcessAIReview::dispatch($test_result->id);
+
+                //         Log::info('AI review job dispatched', [
+                //             'test_result_id' => $test_result->id,
+                //             'lab_no' => $test_result->lab_no
+                //         ]);
+                //     } catch (Exception $e) {
+                //         // Log but don't fail the request
+                //         Log::error('Failed to dispatch AI review job', [
+                //             'test_result_id' => $test_result->id,
+                //             'error' => $e->getMessage()
+                //         ]);
+                //     }
+                // }
 
                 Log::info('Panel results processed successfully', [
                     'test_result_id' => $test_result->id ?? null,

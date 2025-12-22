@@ -78,7 +78,7 @@ class DoctorReviewController extends Controller
 
         try {
             // Process using AIReviewService (new implementation)
-            $result = $this->aiReviewService->processSingle($testResultId);
+            $result = $this->aiReviewService->processSingle($testResultId, 'Doctor Review (Testing)');
 
             $processingTime = now()->diffInSeconds($processingStartTime);
 
