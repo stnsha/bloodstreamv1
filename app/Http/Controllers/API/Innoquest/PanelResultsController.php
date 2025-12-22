@@ -22,7 +22,6 @@ use App\Models\TestResult;
 use App\Models\TestResultComment;
 use App\Models\TestResultItem;
 use App\Models\TestResultProfile;
-use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
