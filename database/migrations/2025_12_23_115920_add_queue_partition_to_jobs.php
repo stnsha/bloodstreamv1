@@ -14,8 +14,9 @@ return new class extends Migration
     {
         Schema::table('jobs', function (Blueprint $table) {
             // Add partition column (0-9) based on id % 10
-            // This spreads jobs across 10 "buckets" to reduce lock contention
-            DB::statement('ALTER TABLE jobs ADD COLUMN `partition` TINYINT UNSIGNED GENERATED ALWAYS AS (MOD(id, 10)) STORED AFTER `queue`');
+            // Use VIRTUAL instead of STORED to avoid AUTO_INCREMENT restriction
+            // VIRTUAL is computed on-the-fly but can still be indexed
+            DB::statement('ALTER TABLE jobs ADD COLUMN `partition` TINYINT UNSIGNED GENERATED ALWAYS AS (MOD(id, 10)) VIRTUAL AFTER `queue`');
 
             // Add index on partition to segment worker queries
             // This index helps distribute workers across different partitions
