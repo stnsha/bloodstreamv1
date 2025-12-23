@@ -1162,7 +1162,7 @@ class BloodTestController extends Controller
             $aiReview = $testResult->aiReview;
             $aiResponse = null;
 
-            if ($aiReview && $aiReview->http_status == 200 && $aiReview->ai_response) {
+            if ($aiReview && $aiReview->http_status == 200 && $aiReview->ai_response && $aiReview->processing_status == 'COMPLETED') {
                 $aiResponse = $aiReview->ai_response;
 
                 Log::channel($this->getLogChannel())->info('updateReportId: AIReview found with successful status', [
