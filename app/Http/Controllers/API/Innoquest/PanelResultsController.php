@@ -451,24 +451,6 @@ class PanelResultsController extends BaseResultsController
                     }
                 });
 
-                // Trigger AI review in background if PDF exists
-                // if (isset($validated['EncodedBase64pdf']) && filled($validated['EncodedBase64pdf']) && $test_result) {
-                //     try {
-                //         ProcessAIReview::dispatch($test_result->id);
-
-                //         Log::info('AI review job dispatched', [
-                //             'test_result_id' => $test_result->id,
-                //             'lab_no' => $test_result->lab_no
-                //         ]);
-                //     } catch (Exception $e) {
-                //         // Log but don't fail the request
-                //         Log::error('Failed to dispatch AI review job', [
-                //             'test_result_id' => $test_result->id,
-                //             'error' => $e->getMessage()
-                //         ]);
-                //     }
-                // }
-
                 Log::info('Panel results processed successfully', [
                     'test_result_id' => $test_result->id ?? null,
                     'lab_no' => $test_result->lab_no ?? null,
