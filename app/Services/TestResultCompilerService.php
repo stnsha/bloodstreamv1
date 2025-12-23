@@ -45,11 +45,15 @@ class TestResultCompilerService
      */
     public function fetchTestResult(int $testResultId): TestResult
     {
+        $currentYear = date('Y');
         $tr = TestResult::with($this->getEagerLoadRelations())
             ->where('is_reviewed', false)
             ->where('is_completed', true)
             ->whereNotNull('collected_date')
-            ->whereYear('collected_date', date('Y'))
+            ->whereBetween('collected_date', [
+                Carbon::create($currentYear, 1, 1)->startOfYear(),
+                Carbon::create($currentYear, 12, 31)->endOfYear()
+            ])
             ->where('id', $testResultId)
             ->first();
 
@@ -65,11 +69,17 @@ class TestResultCompilerService
      */
     public function fetchTestResultByIdentifier(string $icno, ?string $refid = null): TestResult
     {
+        $currentYear = date('Y');
+        $yearRange = [
+            Carbon::create($currentYear, 1, 1)->startOfYear(),
+            Carbon::create($currentYear, 12, 31)->endOfYear()
+        ];
+
         $tr = TestResult::with($this->getEagerLoadRelations())
             ->where('is_reviewed', false)
             ->where('is_completed', true)
             ->whereNotNull('collected_date')
-            ->whereYear('collected_date', date('Y'))
+            ->whereBetween('collected_date', $yearRange)
             ->whereHas('patient', function ($query) use ($icno) {
                 $query->where('icno', $icno);
             })
@@ -83,7 +93,7 @@ class TestResultCompilerService
                 ->where('is_reviewed', false)
                 ->where('is_completed', true)
                 ->whereNotNull('collected_date')
-                ->whereYear('collected_date', date('Y'))
+                ->whereBetween('collected_date', $yearRange)
                 ->latest()
                 ->first();
         }

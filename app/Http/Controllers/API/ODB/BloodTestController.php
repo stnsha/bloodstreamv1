@@ -114,8 +114,10 @@ class BloodTestController extends Controller
                             ->where('ref_id', $refid)
                             ->where('is_completed', true)
                             ->whereNotNull('collected_date')
-                            ->whereYear('collected_date', $year)
-                            ->whereMonth('collected_date', $month)
+                            ->whereBetween('collected_date', [
+                                Carbon::create($year, $month, 1)->startOfMonth(),
+                                Carbon::create($year, $month, 1)->endOfMonth()
+                            ])
                             ->latest()->first();
 
                         if ($testResult) {
@@ -146,8 +148,10 @@ class BloodTestController extends Controller
                         $testResult = $query
                             ->where('is_completed', true)
                             ->whereNotNull('collected_date')
-                            ->whereYear('collected_date', $year)
-                            ->whereMonth('collected_date', $month)
+                            ->whereBetween('collected_date', [
+                                Carbon::create($year, $month, 1)->startOfMonth(),
+                                Carbon::create($year, $month, 1)->endOfMonth()
+                            ])
                             ->latest()->first();
 
                         if ($testResult) {
@@ -188,8 +192,10 @@ class BloodTestController extends Controller
                             ->where('ref_id', $refid)
                             ->where('is_completed', true)
                             ->whereNotNull('collected_date')
-                            ->whereYear('collected_date', $year)
-                            ->whereMonth('collected_date', $month)
+                            ->whereBetween('collected_date', [
+                                Carbon::create($year, $month, 1)->startOfMonth(),
+                                Carbon::create($year, $month, 1)->endOfMonth()
+                            ])
                             ->latest()->first();
 
                         if ($testResult) {
@@ -347,8 +353,10 @@ class BloodTestController extends Controller
                     ->where('ref_id', $refid)
                     ->where('is_completed', true)
                     ->whereNotNull('collected_date')
-                    ->whereYear('collected_date', $year)
-                    ->whereMonth('collected_date', $month)
+                    ->whereBetween('collected_date', [
+                        Carbon::create($year, $month, 1)->startOfMonth(),
+                        Carbon::create($year, $month, 1)->endOfMonth()
+                    ])
                     ->latest()->first();
 
                 if ($testResult) {
@@ -381,8 +389,10 @@ class BloodTestController extends Controller
                 $testResult = $query
                     ->where('is_completed', true)
                     ->whereNotNull('collected_date')
-                    ->whereYear('collected_date', $year)
-                    ->whereMonth('collected_date', $month)
+                    ->whereBetween('collected_date', [
+                        Carbon::create($year, $month, 1)->startOfMonth(),
+                        Carbon::create($year, $month, 1)->endOfMonth()
+                    ])
                     ->latest()->first();
 
                 if ($testResult) {
@@ -425,8 +435,10 @@ class BloodTestController extends Controller
                     ->where('ref_id', $refid)
                     ->where('is_completed', true)
                     ->whereNotNull('collected_date')
-                    ->whereYear('collected_date', $year)
-                    ->whereMonth('collected_date', $month)
+                    ->whereBetween('collected_date', [
+                        Carbon::create($year, $month, 1)->startOfMonth(),
+                        Carbon::create($year, $month, 1)->endOfMonth()
+                    ])
                     ->latest()->first();
 
                 if ($testResult) {
@@ -665,8 +677,10 @@ class BloodTestController extends Controller
                     ->where('ref_id', $refid)
                     ->where('is_completed', true)
                     ->whereNotNull('collected_date')
-                    ->whereYear('collected_date', $year)
-                    ->whereMonth('collected_date', $month)
+                    ->whereBetween('collected_date', [
+                        Carbon::create($year, $month, 1)->startOfMonth(),
+                        Carbon::create($year, $month, 1)->endOfMonth()
+                    ])
                     ->latest()->first();
 
                 if ($testResult) {
@@ -697,8 +711,10 @@ class BloodTestController extends Controller
                 $testResult = $query
                     ->where('is_completed', true)
                     ->whereNotNull('collected_date')
-                    ->whereYear('collected_date', $year)
-                    ->whereMonth('collected_date', $month)
+                    ->whereBetween('collected_date', [
+                        Carbon::create($year, $month, 1)->startOfMonth(),
+                        Carbon::create($year, $month, 1)->endOfMonth()
+                    ])
                     ->latest()->first();
 
                 if ($testResult) {
@@ -738,8 +754,10 @@ class BloodTestController extends Controller
                     ->where('ref_id', $refid)
                     ->where('is_completed', true)
                     ->whereNotNull('collected_date')
-                    ->whereYear('collected_date', $year)
-                    ->whereMonth('collected_date', $month)
+                    ->whereBetween('collected_date', [
+                        Carbon::create($year, $month, 1)->startOfMonth(),
+                        Carbon::create($year, $month, 1)->endOfMonth()
+                    ])
                     ->latest()->first();
 
                 if ($testResult) {

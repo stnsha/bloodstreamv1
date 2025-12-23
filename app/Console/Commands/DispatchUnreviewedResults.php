@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Jobs\ProcessAIReview;
 use App\Models\TestResult;
+use Carbon\Carbon;
 use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
@@ -154,9 +155,13 @@ class DispatchUnreviewedResults extends Command
     protected function fetchUnreviewedIds(): array
     {
         return DB::transaction(function () {
+            $currentYear = date('Y');
             return TestResult::where('is_completed', true)
                 ->where('is_reviewed', false)
-                ->whereYear('collected_date', date('Y'))
+                ->whereBetween('collected_date', [
+                    Carbon::create($currentYear, 1, 1)->startOfYear(),
+                    Carbon::create($currentYear, 12, 31)->endOfYear()
+                ])
                 ->orderBy('id', 'desc')
                 ->limit(10)
                 ->lockForUpdate()
