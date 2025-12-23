@@ -29,12 +29,13 @@ return new class extends Migration
             BEFORE INSERT ON jobs
             FOR EACH ROW
             BEGIN
-                SET NEW.partition = FLOOR(RAND() * 10);
+                SET NEW.`partition` = FLOOR(RAND() * 10);
             END
         ');
 
         // Update existing rows with random partition values
-        DB::statement('UPDATE jobs SET partition = FLOOR(RAND() * 10)');
+        // Note: 'partition' is a reserved keyword, must escape with backticks
+        DB::statement('UPDATE jobs SET `partition` = FLOOR(RAND() * 10)');
     }
 
     /**
