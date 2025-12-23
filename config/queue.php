@@ -36,10 +36,13 @@ return [
 
         'database' => [
             'driver' => 'database',
+            'connection' => 'mysql_queue',  // Use dedicated queue connection with READ COMMITTED isolation
             'table' => 'jobs',
             'queue' => 'default',
             'retry_after' => 90,
             'after_commit' => false,
+            'block_for' => null,  // Don't block waiting for jobs (reduces lock contention)
+            'force' => false,
         ],
 
         'beanstalkd' => [
