@@ -32,7 +32,7 @@ class ProcessAIReview implements ShouldQueue
         ]);
 
         try {
-            $result = $aiReviewService->processSingle($this->testResultId, 'MyHealth Job');
+            $result = $aiReviewService->processSingle($this->testResultId, 'OCTOPUS');
 
             if ($result->isSuccessful()) {
                 Log::info('AI review job completed successfully', [

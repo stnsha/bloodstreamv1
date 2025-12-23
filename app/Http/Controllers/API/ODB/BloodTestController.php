@@ -811,7 +811,7 @@ class BloodTestController extends Controller
                 ]);
 
                 // Delete existing AI review
-                $aiReview->delete();
+                $aiReview->forceDelete();
 
                 // Update test result is_reviewed to false
                 $testResult->is_reviewed = false;
@@ -827,7 +827,7 @@ class BloodTestController extends Controller
                 'test_result_id' => $testResult->id
             ]);
 
-            $result = $this->aiReviewService->processSingle($testResult->id, 'Octopus Server');
+            $result = $this->aiReviewService->processSingle($testResult->id, 'OCTOPUS');
 
             if ($result->isSuccessful()) {
                 // Reload the relationship

@@ -106,7 +106,7 @@ class AIApiClient
     {
         $response = Http::timeout(30)
             ->withToken($token)
-            ->post(config('credentials.ai_review.testing'), $payload); //change to analysis after done testing
+            ->post(config('credentials.ai_review.analysis'), $payload); //change to analysis after done testing
 
         if ($response->failed()) {
             $responseBody = $response->body();

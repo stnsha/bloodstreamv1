@@ -78,6 +78,7 @@ class ProcessAIWebhookResult implements ShouldQueue
                         $existingReview->http_status = $aiAnalysis['status'];
                         $existingReview->ai_response = $htmlReview;
                         $existingReview->raw_response = $aiAnalysis;
+                        // Preserve existing compiled_results
                         $existingReview->save();
                     } else {
                         // No existing record - create new one
@@ -96,6 +97,7 @@ class ProcessAIWebhookResult implements ShouldQueue
                     $aiReview->http_status = $aiAnalysis['status'];
                     $aiReview->ai_response = $htmlReview;
                     $aiReview->raw_response = $aiAnalysis;
+                    // Preserve existing compiled_results
                     $aiReview->save();
                 }
 

@@ -73,7 +73,7 @@ class AIResultRequest extends FormRequest
         AIError::create([
             'test_result_id' => $this->input('test_result_id'),
             'processing_status' => 'FAILED',
-            'http_status' => 500,
+            'http_status' => 422,
             'error_message' => $validator->errors()->toJson(),
             'attempt_count' => 1,
         ]);

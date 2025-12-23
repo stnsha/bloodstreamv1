@@ -51,7 +51,7 @@ class SendToAIServer implements ShouldQueue
 
             // Fetch and compile test result data
             $testResult = $compiler->fetchTestResult($this->testResultId);
-            $compiledData = $compiler->compileTestResultData($testResult, 'TESTING');
+            $compiledData = $compiler->compileTestResultData($testResult, 'MHJOB');
 
             // Create ai_reviews record with pending status
             $aiReview = DB::transaction(function () use ($compiledData) {
@@ -67,7 +67,7 @@ class SendToAIServer implements ShouldQueue
             // Build payload with callback URL
             $payload = array_merge([
                 'test_result_id' => $this->testResultId,
-                'source' => 'TESTING',
+                'source' => 'MHJOB',
             ], $compiledData);
 
             // Send to AI server asynchronously and capture response
