@@ -75,6 +75,7 @@ class ProcessAIWebhookResult implements ShouldQueue
                     if ($existingReview) {
                         // Update existing record using model (respects casts and preserves compiled_results)
                         $existingReview->processing_status = 'COMPLETED';
+                        $existingReview->http_status = $aiAnalysis['status'];
                         $existingReview->ai_response = $htmlReview;
                         $existingReview->raw_response = $aiAnalysis;
                         $existingReview->save();
@@ -83,6 +84,7 @@ class ProcessAIWebhookResult implements ShouldQueue
                         AIReview::create([
                             'test_result_id' => $testResultId,
                             'processing_status' => 'COMPLETED',
+                            'http_status' => $aiAnalysis['status'],
                             'ai_response' => $htmlReview,
                             'raw_response' => $aiAnalysis,
                             'compiled_results' => []
@@ -91,6 +93,7 @@ class ProcessAIWebhookResult implements ShouldQueue
                 } else {
                     // Update existing pending record using model (respects casts and preserves compiled_results)
                     $aiReview->processing_status = 'COMPLETED';
+                    $aiReview->http_status = $aiAnalysis['status'];
                     $aiReview->ai_response = $htmlReview;
                     $aiReview->raw_response = $aiAnalysis;
                     $aiReview->save();

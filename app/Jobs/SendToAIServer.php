@@ -86,6 +86,7 @@ class SendToAIServer implements ShouldQueue
                     AIError::create([
                         'test_result_id' => $this->testResultId,
                         'processing_status' => 'FAILED',
+                        'http_status' => 500,
                         'error_message' => $responseData['message'] ?? $responseData['error'] ?? 'AI server rejected request',
                         'compiled_data' => $compiledData,
                         'attempt_count' => $this->attempts()
@@ -172,6 +173,7 @@ class SendToAIServer implements ShouldQueue
             AIError::create([
                 'test_result_id' => $this->testResultId,
                 'processing_status' => 'FAILED',
+                'http_status' => 500,
                 'error_message' => $e->getMessage(),
                 'compiled_data' => $compiledData,
                 'attempt_count' => $this->attempts()

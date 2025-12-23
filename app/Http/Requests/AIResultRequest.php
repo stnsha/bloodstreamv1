@@ -2,7 +2,12 @@
 
 namespace App\Http\Requests;
 
+use App\Models\AIError;
+use App\Models\AIReview;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Contracts\Validation\Validator;
+use Illuminate\Validation\ValidationException;
+
 
 class AIResultRequest extends FormRequest
 {
@@ -55,4 +60,25 @@ class AIResultRequest extends FormRequest
             'data.ai_analysis.answer.section_c' => ['nullable'],
         ];
     }
+
+    protected function failedValidation(Validator $validator): void
+    {
+        $aiReview = AIReview::where('test_result_id', $this->input('test_result_id'))->first();
+
+        if($aiReview)
+        {
+            $aiReview->forceDelete();
+        }
+        
+        AIError::create([
+            'test_result_id' => $this->input('test_result_id'),
+            'processing_status' => 'FAILED',
+            'http_status' => 500,
+            'error_message' => $validator->errors()->toJson(),
+            'attempt_count' => 1,
+        ]);
+
+        throw new ValidationException($validator);
+    }
+
 }
