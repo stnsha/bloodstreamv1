@@ -75,6 +75,7 @@ class AIResultRequest extends FormRequest
             'processing_status' => 'FAILED',
             'http_status' => 422,
             'error_message' => $validator->errors()->toJson(),
+            'compiled_data' => json_encode($this->all()),
             'attempt_count' => 1,
         ]);
 
