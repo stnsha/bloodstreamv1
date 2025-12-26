@@ -4,7 +4,6 @@ namespace App\Http\Controllers\API\Innoquest;
 
 use App\Http\Controllers\API\BaseResultsController;
 use App\Http\Requests\InnoquestResultRequest;
-use App\Jobs\ProcessAIReview;
 use App\Services\AIReviewService;
 use App\Models\DeliveryFile;
 use App\Models\Doctor;
