@@ -27,7 +27,7 @@ REM ============================================
 echo [%TIMESTAMP%] Running migration dashboard... >> "%LOG_FILE%" 2>&1
 echo. >> "%LOG_FILE%" 2>&1
 
-php artisan migration:dashboard >> "%LOG_FILE%" 2>&1
+start /B /LOW /WAIT php artisan migration:dashboard >> "%LOG_FILE%" 2>&1
 
 echo. >> "%LOG_FILE%" 2>&1
 echo -------------------------------------------- >> "%LOG_FILE%" 2>&1
@@ -39,7 +39,7 @@ REM ============================================
 echo [%TIMESTAMP%] Checking for stuck batches... >> "%LOG_FILE%" 2>&1
 echo. >> "%LOG_FILE%" 2>&1
 
-php artisan migration:detect-stuck --fix >> "%LOG_FILE%" 2>&1
+start /B /LOW /WAIT php artisan migration:detect-stuck --fix >> "%LOG_FILE%" 2>&1
 
 echo. >> "%LOG_FILE%" 2>&1
 echo ============================================ >> "%LOG_FILE%" 2>&1

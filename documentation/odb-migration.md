@@ -502,47 +502,9 @@ Ready for Splinterware System Scheduler:
 
 ### 3.5 Automated Monitoring Scripts
 
-Three batch files created for automated monitoring (no manual intervention needed):
+Two batch files created for automated monitoring (no manual intervention needed):
 
-#### 3.5.1 Dashboard Monitoring
-
-**Location**: `C:\laragon\www\blood-stream-v1\monitor_migration_dashboard.bat`
-**Production Path**: `C:\xampp\htdocs\production` (configured in script)
-**Purpose**: Logs migration statistics automatically
-
-**Features**:
-- Runs `php artisan migration:dashboard`
-- Logs to `storage\logs\migration_dashboard.log`
-- Timestamped entries
-- Scheduled execution (daily or hourly)
-
-**Splinterware Setup**:
-- Task: "ODB Migration Dashboard Monitor"
-- Command: `C:\xampp\htdocs\production\monitor_migration_dashboard.bat`
-- Schedule: Daily at midnight or hourly
-
----
-
-#### 3.5.2 Auto-Fix Stuck Batches
-
-**Location**: `C:\laragon\www\blood-stream-v1\auto_fix_stuck_batches.bat`
-**Production Path**: `C:\xampp\htdocs\production` (configured in script)
-**Purpose**: Automatically fixes stuck batches
-
-**Features**:
-- Runs `php artisan migration:detect-stuck --fix`
-- Logs to `storage\logs\stuck_batches_autofix.log`
-- Timestamped entries
-- Automatic recovery (no manual intervention)
-
-**Splinterware Setup**:
-- Task: "ODB Migration Auto-Fix Stuck Batches"
-- Command: `C:\xampp\htdocs\production\auto_fix_stuck_batches.bat`
-- Schedule: Every 30 minutes
-
----
-
-#### 3.5.3 Complete Monitoring (Recommended) ⭐
+#### 3.5.1 Complete Monitoring
 
 **Location**: `C:\laragon\www\blood-stream-v1\monitor_migration_complete.bat`
 **Production Path**: `C:\xampp\htdocs\production` (configured in script)
@@ -552,14 +514,36 @@ Three batch files created for automated monitoring (no manual intervention neede
 - Runs both dashboard AND auto-fix
 - Logs to `storage\logs\migration_monitoring.log`
 - Single comprehensive log file
-- Best for production use
+- Timestamped entries
+- Silent execution with `start /B /LOW /WAIT` (no terminal window)
 
 **Splinterware Setup**:
 - Task: "ODB Migration Complete Monitoring"
 - Command: `C:\xampp\htdocs\production\monitor_migration_complete.bat`
 - Schedule: Hourly
 
-**Recommendation**: Use this script instead of the two separate ones for simpler monitoring.
+---
+
+#### 3.5.2 Queue Worker
+
+**Location**: `C:\laragon\www\blood-stream-v1\process_migration_dispatch_and_work.bat`
+**Production Path**: `C:\xampp\htdocs\production` (configured in script)
+**Purpose**: Process migration queue jobs with time limits
+
+**Features**:
+- Runs queue worker for max 5 minutes
+- Memory limit: 1024MB
+- Job timeout: 120 seconds
+- Logs to `storage\logs\migration_queue_worker.log`
+- Silent execution with `start /B /LOW /WAIT` (no terminal window)
+
+**Splinterware Setup**:
+- Task: "ODB Migration Queue Worker"
+- Command: `C:\xampp\htdocs\production\process_migration_dispatch_and_work.bat`
+- Schedule: Every 15 minutes
+
+**IMPORTANT - Silent Execution**:
+All batch files use `start /B /LOW /WAIT` to run completely silent with NO terminal windows.
 
 ---
 
@@ -1476,8 +1460,6 @@ This section provides detailed instructions for setting up all batch files in Sp
 2. Verify batch files exist in production:
    - `process_migration_dispatch_and_work.bat`
    - `monitor_migration_complete.bat`
-   - `monitor_migration_dashboard.bat`
-   - `auto_fix_stuck_batches.bat`
 
 3. Test each batch file manually before scheduling:
    ```bash
@@ -1494,23 +1476,12 @@ This section provides detailed instructions for setting up all batch files in Sp
 
 ### 10.2 Recommended Scheduler Configuration
 
-**Option A: Minimal Setup (2 Tasks)**
-
-Use this if you want the simplest configuration:
+**Required Setup (2 Tasks)**:
 
 1. **Queue Worker** - Processes migration jobs
 2. **Complete Monitoring** - Dashboard + Auto-fix combined
 
-**Option B: Detailed Setup (4 Tasks)**
-
-Use this if you want separate logs for each function:
-
-1. **Queue Worker** - Processes migration jobs
-2. **Dashboard Monitoring** - Statistics only
-3. **Auto-Fix Stuck Batches** - Recovery only
-4. **Combined Monitoring** - Both dashboard and auto-fix
-
-**Recommendation**: Use Option A (Minimal Setup) for production.
+This simplified configuration provides all necessary functionality with minimal complexity.
 
 ---
 
@@ -1598,75 +1569,7 @@ type C:\xampp\htdocs\production\storage\logs\migration_monitoring.log
 
 ---
 
-### 10.5 Task 3: Dashboard Monitoring (Optional)
-
-**Purpose**: Logs migration statistics only (separate from auto-fix)
-
-**Use Case**: If you want separate logs for statistics
-
-**Splinterware Configuration**:
-```
-Task Name: ODB Migration Dashboard Monitor
-Command: C:\xampp\htdocs\production\monitor_migration_dashboard.bat
-Working Directory: C:\xampp\htdocs\production
-Schedule: Daily at 08:00 (or hourly)
-Run As: SYSTEM or your user account
-Priority: Low
-```
-
-**Windows Task Scheduler Steps**:
-1. Open Task Scheduler
-2. Create Basic Task
-3. Name: "ODB Migration Dashboard Monitor"
-4. Trigger: Daily at 08:00
-5. Action: Start a program
-   - Program: `C:\xampp\htdocs\production\monitor_migration_dashboard.bat`
-   - Start in: `C:\xampp\htdocs\production`
-
-**Verify**:
-```bash
-type C:\xampp\htdocs\production\storage\logs\migration_dashboard.log
-```
-
----
-
-### 10.6 Task 4: Auto-Fix Stuck Batches (Optional)
-
-**Purpose**: Automatically fixes stuck batches only
-
-**Use Case**: If you want more frequent stuck batch checks (every 30 minutes)
-
-**Splinterware Configuration**:
-```
-Task Name: ODB Migration Auto-Fix Stuck Batches
-Command: C:\xampp\htdocs\production\auto_fix_stuck_batches.bat
-Working Directory: C:\xampp\htdocs\production
-Schedule: Every 30 minutes
-Run As: SYSTEM or your user account
-Priority: Low
-```
-
-**Windows Task Scheduler Steps**:
-1. Open Task Scheduler
-2. Create Basic Task
-3. Name: "ODB Migration Auto-Fix Stuck Batches"
-4. Trigger: Daily at 00:00
-5. Action: Start a program
-   - Program: `C:\xampp\htdocs\production\auto_fix_stuck_batches.bat`
-   - Start in: `C:\xampp\htdocs\production`
-6. Triggers tab (after creation):
-   - Edit trigger
-   - Repeat task every: 30 minutes
-   - For a duration of: Indefinitely
-
-**Verify**:
-```bash
-type C:\xampp\htdocs\production\storage\logs\stuck_batches_autofix.log
-```
-
----
-
-### 10.7 Testing Scheduled Tasks
+### 10.5 Testing Scheduled Tasks
 
 **Manual Testing**:
 ```bash
@@ -1680,14 +1583,6 @@ type storage\logs\migration_queue_worker.log
 # 2. Test complete monitoring
 monitor_migration_complete.bat
 type storage\logs\migration_monitoring.log
-
-# 3. Test dashboard (if using separate task)
-monitor_migration_dashboard.bat
-type storage\logs\migration_dashboard.log
-
-# 4. Test auto-fix (if using separate task)
-auto_fix_stuck_batches.bat
-type storage\logs\stuck_batches_autofix.log
 ```
 
 **Verify Scheduled Tasks**:
@@ -1715,7 +1610,7 @@ type storage\logs\stuck_batches_autofix.log
 
 ---
 
-### 10.8 Monitoring Scheduled Tasks
+### 10.6 Monitoring Scheduled Tasks
 
 **Daily Checks**:
 ```bash
@@ -1756,7 +1651,7 @@ findstr /C:"FAIL" storage\logs\*.log
 
 ---
 
-### 10.9 Production Deployment Checklist
+### 10.7 Production Deployment Checklist
 
 **Pre-Deployment**:
 - [ ] All batch files copied to production directory
@@ -1768,8 +1663,6 @@ findstr /C:"FAIL" storage\logs\*.log
 **Task Setup**:
 - [ ] Queue Worker task created and tested
 - [ ] Complete Monitoring task created and tested
-- [ ] (Optional) Dashboard Monitoring task created
-- [ ] (Optional) Auto-Fix task created
 
 **Verification**:
 - [ ] All tasks show "Ready" status
@@ -1787,7 +1680,7 @@ findstr /C:"FAIL" storage\logs\*.log
 
 ---
 
-### 10.10 Recommended Scheduler Setup
+### 10.8 Recommended Scheduler Setup
 
 **For Production (Minimal Setup)**:
 

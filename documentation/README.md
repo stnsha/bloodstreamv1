@@ -42,19 +42,17 @@ This folder contains comprehensive documentation for the ODB Migration System op
 ## Batch Files Location
 
 All batch files are stored in the Laravel root directory:
-- `C:\laragon\www\blood-stream-v1\monitor_migration_dashboard.bat`
-- `C:\laragon\www\blood-stream-v1\auto_fix_stuck_batches.bat`
-- `C:\laragon\www\blood-stream-v1\monitor_migration_complete.bat` ⭐ Recommended
-- `C:\laragon\www\blood-stream-v1\process_migration_dispatch_and_work.bat`
+- `C:\laragon\www\blood-stream-v1\monitor_migration_complete.bat` - Dashboard + Auto-fix combined
+- `C:\laragon\www\blood-stream-v1\process_migration_dispatch_and_work.bat` - Queue worker
 
 **Production**: Copy these to `C:\xampp\htdocs\production\` for deployment
+
+**Silent Execution**: All batch files use `start /B /LOW /WAIT` to run completely silent with NO terminal windows when scheduled
 
 ## Log Files
 
 All logs are in `storage\logs\`:
-- `migration_monitoring.log` - Combined monitoring (recommended)
-- `migration_dashboard.log` - Dashboard statistics
-- `stuck_batches_autofix.log` - Auto-fix results
+- `migration_monitoring.log` - Combined monitoring (dashboard + auto-fix)
 - `migration_queue_worker.log` - Queue worker activity
 - `laravel.log` - Main application log
 
