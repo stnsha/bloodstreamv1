@@ -57,6 +57,7 @@ class ProcessMigrationReport implements ShouldQueue
     public function __construct($itemId)
     {
         $this->itemId = $itemId;
+        $this->onQueue('migration');
     }
 
     /**

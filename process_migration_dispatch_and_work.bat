@@ -25,7 +25,7 @@ echo. >> "%LOG_FILE%" 2>&1
 echo [%DATE% %TIME%] Processing migration queue jobs... >> "%LOG_FILE%" 2>&1
 
 REM Queue worker parameters:
-REM --queue=default      : Process default queue
+REM --queue=migration    : Process migration queue only
 REM --timeout=120        : Kill job after 2 minutes
 REM --memory=1024        : Restart worker if memory exceeds 1024MB
 REM --max-time=300       : Run for max 5 minutes then exit
@@ -33,7 +33,7 @@ REM --sleep=3            : Sleep 3 seconds when no jobs available
 REM --tries=1            : Process jobs once (retry handled by job itself)
 REM --rest=1             : Rest 1 second between jobs (throttling)
 
-start /B /LOW /WAIT php -d memory_limit=%PHP_MEMORY_LIMIT% -d max_execution_time=%PHP_MAX_EXECUTION_TIME% artisan queue:work database --queue=default --timeout=120 --memory=1024 --max-time=300 --sleep=3 --tries=1 --rest=1 >> "%LOG_FILE%" 2>&1
+start /B /LOW /WAIT php -d memory_limit=%PHP_MEMORY_LIMIT% -d max_execution_time=%PHP_MAX_EXECUTION_TIME% artisan queue:work database --queue=migration --timeout=120 --memory=1024 --max-time=300 --sleep=3 --tries=1 --rest=1 >> "%LOG_FILE%" 2>&1
 
 set EXIT_CODE=%ERRORLEVEL%
 

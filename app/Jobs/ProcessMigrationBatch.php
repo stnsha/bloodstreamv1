@@ -24,6 +24,7 @@ class ProcessMigrationBatch implements ShouldQueue
     public function __construct($batchId)
     {
         $this->batchId = $batchId;
+        $this->onQueue('migration');
     }
 
     /**
@@ -59,7 +60,7 @@ class ProcessMigrationBatch implements ShouldQueue
                 $delay = ($index * 0.1);  // 0.1 second = 100ms
 
                 ProcessMigrationReport::dispatch($item->id)
-                    ->onQueue('default')  // Use default queue
+                    ->onQueue('migration')  // Use migration queue
                     ->delay(now()->addSeconds($delay));
 
                 // Log every 10th dispatch
