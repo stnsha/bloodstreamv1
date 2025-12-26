@@ -20,7 +20,7 @@ class ProcessMigrationReport implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    protected $itemId;
+    public $itemId;
 
     public $tries = 3;
     public $backoff = [60, 300, 900]; // 1 min, 5 min, 15 min
