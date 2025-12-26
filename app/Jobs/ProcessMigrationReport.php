@@ -43,11 +43,8 @@ class ProcessMigrationReport implements ShouldQueue
             // Prevent concurrent processing of same item
             new WithoutOverlapping($this->itemId),
 
-            // Rate limit: max 10 jobs per minute per partition
-            (new RateLimited('migration-processing'))
-                ->allow(10)
-                ->everyMinute()
-                ->releaseAfter(60),
+            // Rate limit: max 10 jobs per minute per partition (Laravel 10 syntax)
+            new RateLimited('migration-processing'),
 
             // Throttle exceptions: max 3 exceptions per 5 minutes
             new ThrottlesExceptions(3, 5)
