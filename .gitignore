@@ -34,3 +34,5 @@ MIGRATION_SCHEDULER_SETUP.md
 migration_scheduler.log
 test_ai_review.bat
 ai_review_queue_async.log
+ai_review_dispatch_process.log
+ai_review_webhook_process.log
