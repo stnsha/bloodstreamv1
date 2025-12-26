@@ -212,6 +212,7 @@ class MigrationService
                 'reported_date' => $validatedDate,
                 'validated_by' => $validated_by,
                 'is_completed' => true,
+                'is_reviewed' => true
             ]
         );
 
