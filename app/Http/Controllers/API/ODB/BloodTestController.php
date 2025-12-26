@@ -609,6 +609,7 @@ class BloodTestController extends Controller
     /**
      * Regenerate AI review by ID - Delete existing review and generate new one
      * Similar flow to getReviewById but replaces existing AI review
+     * TEMPORARILY DISABLED - 26/12/2025
      */
     public function regenerateReviewById(ODBRequest $request)
     {

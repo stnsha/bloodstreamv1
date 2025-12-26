@@ -9,6 +9,9 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\Middleware\RateLimited;
+use Illuminate\Queue\Middleware\ThrottlesExceptions;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -21,6 +24,35 @@ class ProcessMigrationReport implements ShouldQueue
 
     public $tries = 3;
     public $backoff = [60, 300, 900]; // 1 min, 5 min, 15 min
+
+    /**
+     * The number of seconds the job can run before timing out
+     *
+     * @var int
+     */
+    public $timeout = 120;  // 2 minutes hard limit
+
+    /**
+     * Get the middleware the job should pass through
+     *
+     * @return array
+     */
+    public function middleware()
+    {
+        return [
+            // Prevent concurrent processing of same item
+            new WithoutOverlapping($this->itemId),
+
+            // Rate limit: max 10 jobs per minute per partition
+            (new RateLimited('migration-processing'))
+                ->allow(10)
+                ->everyMinute()
+                ->releaseAfter(60),
+
+            // Throttle exceptions: max 3 exceptions per 5 minutes
+            new ThrottlesExceptions(3, 5)
+        ];
+    }
 
     /**
      * Create a new job instance.
@@ -41,6 +73,18 @@ class ProcessMigrationReport implements ShouldQueue
             Log::channel('migrate-log')->error('Migration batch item not found', ['item_id' => $this->itemId]);
             return;
         }
+
+        // Check if batch has timed out
+        $this->checkBatchTimeout($item->batch_id);
+
+        // Track memory usage
+        $memoryBefore = memory_get_usage(true) / 1024 / 1024;
+
+        Log::channel('migrate-log')->debug('Job started', [
+            'item_id' => $this->itemId,
+            'ref_id' => $item->ref_id,
+            'memory_mb' => round($memoryBefore, 2)
+        ]);
 
         try {
             // Update status to processing
@@ -76,6 +120,9 @@ class ProcessMigrationReport implements ShouldQueue
             // Update batch counters
             $this->updateBatchCounters($item->batch_id);
 
+            // Log memory usage after processing
+            $memoryAfter = memory_get_usage(true) / 1024 / 1024;
+
             // Log successful completion with detailed summary
             Log::channel('migrate-log')->info('Migration report processed successfully', [
                 'item_id' => $this->itemId,
@@ -86,23 +133,51 @@ class ProcessMigrationReport implements ShouldQueue
                 'patient_name' => $reportData['report']['patient_name'] ?? 'N/A',
                 'test_date' => $reportData['report']['test_date'] ?? 'N/A',
                 'parameter_count' => count($reportData['parameter'] ?? []),
+                'memory_before_mb' => round($memoryBefore, 2),
+                'memory_after_mb' => round($memoryAfter, 2),
+                'memory_delta_mb' => round($memoryAfter - $memoryBefore, 2)
             ]);
         } catch (Throwable $e) {
-            // Log error with full details
-            Log::channel('migrate-log')->error('Failed to process migration report', [
-                'item_id' => $this->itemId,
-                'ref_id' => $item->ref_id,
-                'batch_id' => $item->batch_id,
-                'attempt' => $item->attempt_count,
-                'max_tries' => $this->tries,
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
+            $errorMessage = $e->getMessage();
+            $isDeadlock = false;
+
+            // Detect MySQL deadlock errors
+            if (strpos($errorMessage, 'Deadlock found') !== false ||
+                strpos($errorMessage, 'Lock wait timeout exceeded') !== false) {
+
+                $isDeadlock = true;
+
+                Log::channel('migrate-log')->error('Database deadlock detected', [
+                    'item_id' => $this->itemId,
+                    'ref_id' => $item->ref_id,
+                    'batch_id' => $item->batch_id,
+                    'error' => $errorMessage
+                ]);
+            } else {
+                // Log error with full details
+                Log::channel('migrate-log')->error('Failed to process migration report', [
+                    'item_id' => $this->itemId,
+                    'ref_id' => $item->ref_id,
+                    'batch_id' => $item->batch_id,
+                    'attempt' => $item->attempt_count,
+                    'max_tries' => $this->tries,
+                    'error' => $errorMessage,
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ]);
+            }
 
             // Check if we should retry
             if ($item->attempt_count < $this->tries) {
-                $retryDelay = $this->backoff[$item->attempt_count - 1] ?? 900;
+                $baseDelay = $this->backoff[$item->attempt_count - 1] ?? 900;
+
+                // Add jitter for deadlocks to prevent retry storms
+                if ($isDeadlock) {
+                    $jitter = rand(1, 10);  // Random 1-10 second jitter
+                    $retryDelay = $baseDelay + $jitter;
+                } else {
+                    $retryDelay = $baseDelay;
+                }
 
                 // Log retry notification
                 Log::channel('migrate-log')->warning('Migration report failed, will retry', [
@@ -111,6 +186,7 @@ class ProcessMigrationReport implements ShouldQueue
                     'batch_id' => $item->batch_id,
                     'attempt' => $item->attempt_count,
                     'max_tries' => $this->tries,
+                    'is_deadlock' => $isDeadlock,
                     'retry_delay_seconds' => $retryDelay,
                     'error' => $e->getMessage(),
                 ]);
@@ -181,6 +257,46 @@ class ProcessMigrationReport implements ShouldQueue
                 'final_status' => $status,
                 'completed_at' => now()->toDateTimeString(),
             ]);
+        }
+    }
+
+    /**
+     * Check if batch has timed out and mark stuck items as failed
+     *
+     * @param int $batchId
+     * @return void
+     */
+    protected function checkBatchTimeout($batchId)
+    {
+        $batch = MigrationBatch::find($batchId);
+
+        if (!$batch) {
+            return;
+        }
+
+        // If batch has been processing for more than 30 minutes, mark as failed
+        if ($batch->status === MigrationBatch::STATUS_PROCESSING &&
+            $batch->started_at &&
+            $batch->started_at->diffInMinutes(now()) > 30) {
+
+            Log::channel('migrate-log')->error('Batch timeout detected', [
+                'batch_id' => $batchId,
+                'batch_uuid' => $batch->batch_uuid,
+                'started_at' => $batch->started_at,
+                'duration_minutes' => $batch->started_at->diffInMinutes(now())
+            ]);
+
+            // Mark remaining pending/processing items as failed
+            $batch->items()
+                ->whereIn('status', [MigrationBatchItem::STATUS_PENDING, MigrationBatchItem::STATUS_PROCESSING])
+                ->update([
+                    'status' => MigrationBatchItem::STATUS_FAILED,
+                    'error_message' => 'Batch timeout: exceeded 30 minutes',
+                    'processed_at' => now()
+                ]);
+
+            // Update batch counters
+            $this->updateBatchCounters($batchId);
         }
     }
 }

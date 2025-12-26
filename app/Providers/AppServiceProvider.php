@@ -2,8 +2,10 @@
 
 namespace App\Providers;
 
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\URL;
 
@@ -34,6 +36,13 @@ class AppServiceProvider extends ServiceProvider
                     'time_ms' => $query->time,
                 ]);
             }
+        });
+
+        // Register migration processing rate limiter
+        RateLimiter::for('migration-processing', function ($job) {
+            // Rate limit per partition (0-9)
+            return Limit::perMinute(10)
+                ->by($job->itemId % 10);
         });
     }
 }

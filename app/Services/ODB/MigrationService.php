@@ -39,50 +39,83 @@ class MigrationService
     protected $existingTestItems = [];
 
     /**
-     * Process a single report with its parameters
+     * Process a single report with its parameters (split into smaller transactions)
      */
     public function processReport($report, $parameters)
     {
         $refId = $report['ref_id'] ?? 'unknown';
         $totalParams = count($parameters);
+        $startTime = microtime(true);
 
-        Log::channel('migrate-log')->info('=== Starting report processing ===', [
+        Log::channel('migrate-log')->info('Processing report', [
             'ref_id' => $refId,
-            'total_parameters' => $totalParams
+            'param_count' => $totalParams
         ]);
 
         try {
-            $testResult = DB::transaction(function () use ($report, $parameters, $refId) {
-                // 1. Find or create patient
+            // Transaction 1: Create core entities (fast, minimal lock time)
+            $coreData = DB::transaction(function () use ($report) {
                 $patientId = $this->findOrCreatePatient($report);
-
-                // 2. Find or create doctor
                 $doctorId = $this->findOrCreateDoctor($report);
-
-                // 3. Create or update test result
                 $testResult = $this->createTestResult($report, $patientId, $doctorId);
 
-                // 4. Process parameters hierarchically
-                $this->processParameters($testResult->id, $parameters);
-
-                Log::channel('migrate-log')->info('ODB report processed successfully', [
-                    'ref_id' => $report['ref_id'],
-                    'test_result_id' => $testResult->id
-                ]);
-
-                return $testResult;
+                return [
+                    'test_result_id' => $testResult->id,
+                    'patient_id' => $patientId,
+                    'doctor_id' => $doctorId
+                ];
             });
 
-            Log::channel('migrate-log')->info('=== Report processing completed ===', [
+            // Clear cache after core creation
+            $this->clearCaches();
+
+            // Transaction 2: Process parameters (can be slow)
+            DB::transaction(function () use ($parameters, $coreData) {
+                $this->processParameters($coreData['test_result_id'], $parameters);
+            });
+
+            // Clear cache after parameter processing
+            $this->clearCaches();
+
+            // Force garbage collection
+            if (function_exists('gc_collect_cycles')) {
+                gc_collect_cycles();
+            }
+
+            $duration = round(microtime(true) - $startTime, 2);
+
+            Log::channel('migrate-log')->info('Report processed successfully', [
                 'ref_id' => $refId,
-                'test_result_id' => $testResult->id,
-                'total_parameters' => $totalParams
+                'test_result_id' => $coreData['test_result_id'],
+                'duration_seconds' => $duration
             ]);
 
-            return $testResult;
+            return TestResult::find($coreData['test_result_id']);
+
         } catch (Throwable $e) {
+            Log::channel('migrate-log')->error('Report processing failed', [
+                'ref_id' => $refId,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+
             throw $e;
         }
+    }
+
+    /**
+     * Clear all in-memory caches
+     *
+     * @return void
+     */
+    protected function clearCaches()
+    {
+        $this->masterPanelItemCache = [];
+        $this->panelItemCache = [];
+        $this->pivotIdCache = [];
+        $this->referenceRangeCache = [];
+        $this->masterCommentCache = [];
     }
 
     /**

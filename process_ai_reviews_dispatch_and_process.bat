@@ -7,7 +7,7 @@ REM Runs hourly via Splinterware System Scheduler
 REM ============================================
 
 REM Set the working directory - UPDATE PATH FOR STAGING/PRODUCTION!
-cd /d "C:\laragon\www\blood-stream-v1"
+cd /d "C:\xampp\htdocs\production"
 
 REM Note: Instance locking is handled by the command's cache lock mechanism
 
