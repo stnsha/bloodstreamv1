@@ -1,0 +1,88 @@
+[Fri 12/26/2025 10:00:00.54] Step 0: Clearing cache for testing 
+
+   INFO  Application cache cleared successfully.  
+
+[Fri 12/26/2025 10:00:01.87] Step 1: Dispatching async jobs to queue 
+No unreviewed test results found.
+[Fri 12/26/2025 10:00:03.22] Async jobs dispatched successfully 
+[Fri 12/26/2025 10:00:03.23] Step 2: Processing queue jobs 
+[Fri 12/26/2025 10:05:05.60] Queue processing completed successfully 
+[Fri 12/26/2025 11:00:00.79] Step 0: Clearing cache for testing 
+
+   INFO  Application cache cleared successfully.  
+
+[Fri 12/26/2025 11:00:02.98] Step 1: Dispatching async jobs to queue 
+Dispatching 1 async AI review jobs to queue...
+
+Dispatch complete:
+  Successfully dispatched: 1
+  Time: 0 seconds
+
+Async jobs are processing in the background (webhook-based).
+[Fri 12/26/2025 11:00:05.30] Async jobs dispatched successfully 
+[Fri 12/26/2025 11:00:05.30] Step 2: Processing queue jobs 
+  2025-12-26 11:00:07 App\Jobs\SendToAIServer ................................................................ RUNNING
+  2025-12-26 11:00:07 App\Jobs\SendToAIServer .......................................................... 391.67ms DONE
+  2025-12-26 11:00:37 App\Jobs\ProcessAIWebhookResult ........................................................ RUNNING
+  2025-12-26 11:00:37 App\Jobs\ProcessAIWebhookResult ................................................... 26.58ms DONE
+[Fri 12/26/2025 11:05:09.01] Queue processing completed successfully 
+[Fri 12/26/2025 12:00:00.82] Step 0: Clearing cache for testing 
+
+   INFO  Application cache cleared successfully.  
+
+[Fri 12/26/2025 12:00:03.03] Step 1: Dispatching async jobs to queue 
+No unreviewed test results found.
+[Fri 12/26/2025 12:00:04.34] Async jobs dispatched successfully 
+[Fri 12/26/2025 12:00:04.35] Step 2: Processing queue jobs 
+[Fri 12/26/2025 12:05:06.81] Queue processing completed successfully 
+[Fri 12/26/2025 13:00:00.65] Step 0: Clearing cache for testing 
+
+   INFO  Application cache cleared successfully.  
+
+[Fri 12/26/2025 13:00:01.98] Step 1: Dispatching async jobs to queue 
+Dispatching 1 async AI review jobs to queue...
+
+Dispatch complete:
+  Successfully dispatched: 1
+  Time: 0 seconds
+
+Async jobs are processing in the background (webhook-based).
+[Fri 12/26/2025 13:00:03.36] Async jobs dispatched successfully 
+[Fri 12/26/2025 13:00:03.37] Step 2: Processing queue jobs 
+  2025-12-26 13:00:04 App\Jobs\SendToAIServer ................................................................ RUNNING
+  2025-12-26 13:00:04 App\Jobs\SendToAIServer .......................................................... 390.51ms DONE
+  2025-12-26 13:00:47 App\Jobs\ProcessAIWebhookResult ........................................................ RUNNING
+  2025-12-26 13:00:47 App\Jobs\ProcessAIWebhookResult ................................................... 25.39ms DONE
+[Fri 12/26/2025 13:05:06.00] Queue processing completed successfully 
+[Fri 12/26/2025 14:00:00.52] Step 0: Clearing cache for testing 
+
+   INFO  Application cache cleared successfully.  
+
+[Fri 12/26/2025 14:00:02.69] Step 1: Dispatching async jobs to queue 
+No unreviewed test results found.
+[Fri 12/26/2025 14:00:04.02] Async jobs dispatched successfully 
+[Fri 12/26/2025 14:00:04.02] Step 2: Processing queue jobs 
+[Fri 12/26/2025 14:05:06.38] Queue processing completed successfully 
+[Fri 12/26/2025 15:00:00.83] Step 0: Clearing cache for testing 
+
+   INFO  Application cache cleared successfully.  
+
+[Fri 12/26/2025 15:00:02.27] Step 1: Dispatching async jobs to queue 
+Dispatching 2 async AI review jobs to queue...
+
+Dispatch complete:
+  Successfully dispatched: 2
+  Time: 0 seconds
+
+Async jobs are processing in the background (webhook-based).
+[Fri 12/26/2025 15:00:03.74] Async jobs dispatched successfully 
+[Fri 12/26/2025 15:00:03.74] Step 2: Processing queue jobs 
+  2025-12-26 15:00:05 App\Jobs\SendToAIServer ................................................................ RUNNING
+  2025-12-26 15:00:05 App\Jobs\SendToAIServer .......................................................... 509.99ms DONE
+  2025-12-26 15:00:05 App\Jobs\SendToAIServer ................................................................ RUNNING
+  2025-12-26 15:00:05 App\Jobs\SendToAIServer .......................................................... 110.07ms DONE
+  2025-12-26 15:00:35 App\Jobs\ProcessAIWebhookResult ........................................................ RUNNING
+  2025-12-26 15:00:35 App\Jobs\ProcessAIWebhookResult ................................................... 28.58ms DONE
+  2025-12-26 15:01:06 App\Jobs\ProcessAIWebhookResult ........................................................ RUNNING
+  2025-12-26 15:01:06 App\Jobs\ProcessAIWebhookResult ................................................... 23.91ms DONE
+[Fri 12/26/2025 15:05:07.21] Queue processing completed successfully 
