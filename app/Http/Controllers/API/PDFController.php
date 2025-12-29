@@ -643,6 +643,7 @@ class PDFController extends Controller
                 })
                 ->where('ref_id', $refid)
                 ->where('is_completed', true)
+                ->where('is_reviewed', true)
                 ->whereNotNull('collected_date')
                 ->whereBetween('collected_date', [
                     Carbon::create($year, $month, 1)->startOfMonth(),
