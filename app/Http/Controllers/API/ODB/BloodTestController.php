@@ -227,15 +227,13 @@ class BloodTestController extends Controller
                         }
                     }
 
-                    // Only add to results if test result found
+                    // Always add to results - with report_id=0 if not found
                     if ($testResult) {
                         $resultData = [
                             'icno' => $icno,
                             'refid' => $refid,
                             'report_id' => $testResult->id
                         ];
-
-                        $results[] = $resultData;
                         $successCount++;
 
                         Log::channel($this->getLogChannel())->info('getReportId: Item processed successfully', [
@@ -245,6 +243,11 @@ class BloodTestController extends Controller
                             'report_id' => $testResult->id
                         ]);
                     } else {
+                        $resultData = [
+                            'icno' => $icno,
+                            'refid' => $refid,
+                            'report_id' => 0
+                        ];
                         $notFoundCount++;
 
                         Log::channel($this->getLogChannel())->warning('getReportId: Test result not found', [
@@ -253,6 +256,15 @@ class BloodTestController extends Controller
                             'refid' => $refid
                         ]);
                     }
+
+                    // Add to results in both cases
+                    $results[] = $resultData;
+                    Log::channel($this->getLogChannel())->info('getReportId: Item added to results', [
+                        'item_number' => $itemNumber,
+                        'icno' => $icno,
+                        'refid' => $refid,
+                        'report_id' => $resultData['report_id']
+                    ]);
                 }
 
                 return $results;
