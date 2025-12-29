@@ -355,6 +355,7 @@ class BloodTestController extends Controller
                     ->whereNotNull('ref_id')
                     ->where('ref_id', $refid)
                     ->where('is_completed', true)
+                    ->where('is_reviewed', true)
                     ->whereNotNull('collected_date')
                     ->whereBetween('collected_date', [
                         Carbon::create($year, $month, 1)->startOfMonth(),
@@ -391,6 +392,7 @@ class BloodTestController extends Controller
 
                 $testResult = $query
                     ->where('is_completed', true)
+                    ->where('is_reviewed', true)
                     ->whereNotNull('collected_date')
                     ->whereBetween('collected_date', [
                         Carbon::create($year, $month, 1)->startOfMonth(),
@@ -437,6 +439,7 @@ class BloodTestController extends Controller
                 $testResult = TestResult::with('aiReview')->whereNotNull('ref_id')
                     ->where('ref_id', $refid)
                     ->where('is_completed', true)
+                    ->where('is_reviewed', true)
                     ->whereNotNull('collected_date')
                     ->whereBetween('collected_date', [
                         Carbon::create($year, $month, 1)->startOfMonth(),
@@ -482,6 +485,7 @@ class BloodTestController extends Controller
                     ->whereNotNull('ref_id')
                     ->where('ref_id', $refid)
                     ->where('is_completed', true)
+                    ->where('is_reviewed', true)
                     ->whereNotNull('manual_sync_date')
                     ->latest()->first();
 
