@@ -279,7 +279,10 @@ class BloodTestController extends Controller
                 'processing_time_seconds' => $processingTime
             ]);
 
-            return response()->json($results);
+            return response()->json($results)
+                ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                ->header('Pragma', 'no-cache')
+                ->header('Expires', '0');
         } catch (Throwable $e) {
             Log::channel($this->getLogChannel())->error('getReportId: Critical error occurred', [
                 'error_message' => $e->getMessage(),
@@ -295,7 +298,10 @@ class BloodTestController extends Controller
                 'success' => false,
                 'message' => 'An error occurred while processing the request',
                 'error' => $e->getMessage()
-            ], 500);
+            ], 500)
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', '0');
         }
     }
 
@@ -318,7 +324,10 @@ class BloodTestController extends Controller
                 'report_id' => null,
                 'ref_id' => null,
                 'status' => self::notfound
-            ]);
+            ])
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', '0');
         }
 
         $icno = $item['icno'];
@@ -522,7 +531,10 @@ class BloodTestController extends Controller
                     'report_id' => null,
                     'ref_id' => $refid,
                     'status' => self::notfound
-                ]);
+                ])
+                ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                ->header('Pragma', 'no-cache')
+                ->header('Expires', '0');
             }
 
             // Update ref_id if request has refid but DB has null
@@ -558,7 +570,10 @@ class BloodTestController extends Controller
                     'report_id' => $testResult->id,
                     'ref_id' => $testResult->ref_id,
                     'status' => self::ungenerate
-                ]);
+                ])
+                ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                ->header('Pragma', 'no-cache')
+                ->header('Expires', '0');
             }
 
             // Check if AIReview exists for this test result using relationship
@@ -574,7 +589,10 @@ class BloodTestController extends Controller
                     'report_id' => $testResult->id,
                     'ref_id' => $testResult->ref_id,
                     'status' => self::ungenerate
-                ]);
+                ])
+                ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                ->header('Pragma', 'no-cache')
+                ->header('Expires', '0');
             }
 
             Log::channel($this->getLogChannel())->info('getReviewById: AIReview found', [
@@ -603,7 +621,10 @@ class BloodTestController extends Controller
                 'processing_time_seconds' => $processingTime
             ]);
 
-            return response()->json($responseData);
+            return response()->json($responseData)
+                ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                ->header('Pragma', 'no-cache')
+                ->header('Expires', '0');
         } catch (Throwable $e) {
             Log::channel($this->getLogChannel())->error('getReviewById: Critical error occurred', [
                 'error_message' => $e->getMessage(),
@@ -618,7 +639,10 @@ class BloodTestController extends Controller
                 'success' => false,
                 'message' => 'An error occurred while processing the request',
                 'error' => $e->getMessage()
-            ], 500);
+            ], 500)
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', '0');
         }
     }
 
