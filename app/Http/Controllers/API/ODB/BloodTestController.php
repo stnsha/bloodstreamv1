@@ -1603,6 +1603,7 @@ class BloodTestController extends Controller
                     'total_count' => count($validated['reports']),
                 ]);
 
+                $skippedBatchItems = [];
                 foreach ($skippedReports as $skipped) {
                     Log::channel('migrate-log')->info('Skipped report details', [
                         'batch_uuid' => $batchUuid,
@@ -1610,26 +1611,41 @@ class BloodTestController extends Controller
                         'reason' => $skipped['reason'],
                     ]);
 
-                    // Create batch item with skipped status
-                    MigrationBatchItem::create([
+                    // Build batch item data for bulk insert
+                    $skippedBatchItems[] = [
                         'batch_id' => $batch->id,
                         'ref_id' => $skipped['report']['ref_id'],
                         'report_data' => json_encode($skipped['report']),
                         'status' => MigrationBatchItem::STATUS_SKIPPED,
                         'error_message' => $skipped['reason'],
                         'processed_at' => now(),
-                    ]);
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                }
+
+                // Bulk insert skipped batch items
+                if (!empty($skippedBatchItems)) {
+                    MigrationBatchItem::insert($skippedBatchItems);
                 }
             }
 
             // Create batch items for valid reports
+            $validBatchItems = [];
             foreach ($validReports as $report) {
-                MigrationBatchItem::create([
+                $validBatchItems[] = [
                     'batch_id' => $batch->id,
                     'ref_id' => $report['ref_id'],
                     'report_data' => json_encode($report),
                     'status' => MigrationBatchItem::STATUS_PENDING,
-                ]);
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+
+            // Bulk insert valid batch items
+            if (!empty($validBatchItems)) {
+                MigrationBatchItem::insert($validBatchItems);
             }
 
             // Dispatch job to process batch asynchronously
