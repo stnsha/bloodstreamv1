@@ -925,23 +925,32 @@ class BloodTestController extends Controller
             'timestamp' => $processingStartTime
         ]);
 
-        $reportId = 0;
         $report = $this->getReportId($request);
-
-        // get decoded JSON data (object)
         $data = $report->getData();
 
-        // validate structure before accessing
-        if (
-            is_array($data) &&
-            isset($data[0]) &&
-            isset($data[0]->report_id)
-        ) {
-            $reportId = $data[0]->report_id;
-        } else {
-            // fallback or error handling
-            $reportId = 0; // or null
+        // Build lookup map: key = "icno:refid", value = report_id
+        $reportIdMap = [];
+        if (is_array($data)) {
+            foreach ($data as $item) {
+                if (isset($item->icno) && isset($item->report_id)) {
+                    // Create composite key using icno and refid (refid may be null)
+                    $key = $item->icno . ':' . ($item->refid ?? '');
+                    $reportIdMap[$key] = $item->report_id;
+
+                    Log::channel($this->getLogChannel())->debug('checkVitals: Mapped report_id', [
+                        'icno' => $item->icno,
+                        'refid' => $item->refid,
+                        'report_id' => $item->report_id,
+                        'map_key' => $key
+                    ]);
+                }
+            }
         }
+
+        Log::channel($this->getLogChannel())->debug('checkVitals: Report ID map built', [
+            'map_size' => count($reportIdMap),
+            'total_validated_items' => count($validated)
+        ]);
 
         try {
             // Extract ICs from the request
@@ -961,6 +970,18 @@ class BloodTestController extends Controller
             foreach ($validated as $item) {
                 $icno = $item['icno'];
                 $refid = $item['refid'] ?? null;
+
+                // Build same composite key to lookup report_id
+                $key = $icno . ':' . ($refid ?? '');
+                $reportId = $reportIdMap[$key] ?? 0;
+
+                if ($reportId === 0) {
+                    Log::channel($this->getLogChannel())->debug('checkVitals: No report_id found for item', [
+                        'icno' => $icno,
+                        'refid' => $refid,
+                        'map_key' => $key
+                    ]);
+                }
 
                 $response[] = [
                     'icno' => $icno,
