@@ -17,10 +17,10 @@ set PHP_MEMORY_LIMIT=512M
 REM ============================================
 REM Dispatch AI review jobs to queue (errors only logged)
 REM ============================================
-php -d memory_limit=%PHP_MEMORY_LIMIT% artisan ai:dispatch-unreviewed-async 2>> storage\logs\ai_dispatch.log
+php -d memory_limit=%PHP_MEMORY_LIMIT% artisan ai:dispatch-unreviewed-async 2>&1 | findstr /C:"error" /C:"Error" /C:"ERROR" /C:"warning" /C:"Warning" /C:"WARNING" /C:"exception" /C:"Exception" /C:"failed" /C:"Failed" >> storage\logs\ai_dispatch.log
 
-if %ERRORLEVEL% neq 0 (
-    echo [%DATE% %TIME%] ERROR: Failed to dispatch jobs - Exit code: %ERRORLEVEL% >> storage\logs\ai_dispatch.log 2>&1
+if %ERRORLEVEL% GTR 1 (
+    echo [%DATE% %TIME%] ERROR: Failed to dispatch jobs - Exit code: %ERRORLEVEL% >> storage\logs\ai_dispatch.log
     exit /b %ERRORLEVEL%
 )
 
