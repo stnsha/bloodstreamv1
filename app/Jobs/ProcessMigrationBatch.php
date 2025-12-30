@@ -75,7 +75,7 @@ class ProcessMigrationBatch implements ShouldQueue
 
             Log::channel('migrate-log')->info('ProcessMigrationBatch: All jobs dispatched', [
                 'batch_id' => $this->batchId,
-                'dispatched_count' => $items->count()
+                'dispatched_count' => $itemIds->count()
             ]);
         } catch (Throwable $e) {
             Log::channel('migrate-log')->error('Failed to process migration batch', [
