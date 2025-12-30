@@ -24,6 +24,7 @@ use App\Models\TestResultProfile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Jobs\Innoquest\ProcessPanelResults;
 use Throwable;
 
 class PanelResultsController extends BaseResultsController
@@ -176,7 +177,7 @@ class PanelResultsController extends BaseResultsController
             'payload_size_kb' => round(strlen(json_encode($request->all())) / 1024, 2),
         ]);
 
-        \App\Jobs\Innoquest\ProcessPanelResults::dispatch($validated, $requestId, $lab_id);
+        ProcessPanelResults::dispatch($validated, $requestId, $lab_id);
 
         $duration = round((microtime(true) - $requestStartTime) * 1000, 2);
 

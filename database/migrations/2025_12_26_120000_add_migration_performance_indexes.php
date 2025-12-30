@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Exception;
 
 class AddMigrationPerformanceIndexes extends Migration
 {
@@ -19,7 +20,7 @@ class AddMigrationPerformanceIndexes extends Migration
                 // Index for status queries
                 $table->index('status', 'migration_batches_status_idx');
             });
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Index may already exist, skip
         }
 
@@ -28,7 +29,7 @@ class AddMigrationPerformanceIndexes extends Migration
                 // Index for cleanup queries
                 $table->index('created_at', 'migration_batches_created_at_idx');
             });
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Index may already exist, skip
         }
 
@@ -37,7 +38,7 @@ class AddMigrationPerformanceIndexes extends Migration
                 // Composite for status + created_at
                 $table->index(['status', 'created_at'], 'migration_batches_status_created_idx');
             });
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Index may already exist, skip
         }
 
@@ -46,7 +47,7 @@ class AddMigrationPerformanceIndexes extends Migration
                 // Composite index for batch + status queries
                 $table->index(['batch_id', 'status'], 'migration_batch_items_batch_status_idx');
             });
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Index may already exist, skip
         }
 
@@ -55,7 +56,7 @@ class AddMigrationPerformanceIndexes extends Migration
                 // Index for ref_id lookups
                 $table->index('ref_id', 'migration_batch_items_ref_id_idx');
             });
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Index may already exist, skip
         }
 
@@ -64,7 +65,7 @@ class AddMigrationPerformanceIndexes extends Migration
                 // Index for attempt count (retry queries)
                 $table->index('attempt_count', 'migration_batch_items_attempt_idx');
             });
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Index may already exist, skip
         }
 
@@ -78,7 +79,7 @@ class AddMigrationPerformanceIndexes extends Migration
                     'test_result_items_upsert_idx'
                 );
             });
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Index may already exist, skip
         }
 
@@ -88,7 +89,7 @@ class AddMigrationPerformanceIndexes extends Migration
             Schema::table('patients', function (Blueprint $table) {
                 $table->index('icno', 'patients_icno_idx');
             });
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Index may already exist or icno is unique key, skip
         }
 
@@ -98,7 +99,7 @@ class AddMigrationPerformanceIndexes extends Migration
                 // Composite index for lab_id + name
                 $table->index(['lab_id', 'name'], 'doctors_lab_name_idx');
             });
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Index may already exist, skip
         }
     }
@@ -126,7 +127,7 @@ class AddMigrationPerformanceIndexes extends Migration
             Schema::table('test_result_items', function (Blueprint $table) {
                 $table->dropIndex('test_result_items_upsert_idx');
             });
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Index may not exist, skip
         }
 
@@ -134,7 +135,7 @@ class AddMigrationPerformanceIndexes extends Migration
             Schema::table('patients', function (Blueprint $table) {
                 $table->dropIndex('patients_icno_idx');
             });
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Index may not exist, skip
         }
 

@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Exception;
 
 return new class extends Migration
 {
@@ -15,7 +16,7 @@ return new class extends Migration
             Schema::table('test_result_items', function (Blueprint $table) {
                 $table->dropIndex('test_result_items_upsert_idx');
             });
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Index may not exist if the previous migration failed, continue
         }
     }

@@ -14,6 +14,7 @@ use Illuminate\Queue\Middleware\ThrottlesExceptions;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Exception;
 use Throwable;
 
 class ProcessMigrationReport implements ShouldQueue
@@ -295,7 +296,7 @@ class ProcessMigrationReport implements ShouldQueue
                 ]);
             }
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Error updating batch counters', [
                 'batch_id' => $batchId,
                 'error' => $e->getMessage(),
