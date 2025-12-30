@@ -62,13 +62,10 @@ class ProcessAIWebhookResult implements ShouldQueue
 
             // Update ai_reviews and test_result in transaction
             DB::transaction(function () use ($testResultId, $aiAnalysis, $htmlReview) {
-                // Single optimized query - prioritize PENDING status (was 2 queries, now 1)
+                // Get most recent AIReview record for this test result
                 $aiReview = AIReview::where('test_result_id', $testResultId)
-                    ->orderByRaw("FIELD(processing_status, 'QUEUED', 'COMPLETED', 'PENDING')")
                     ->orderBy('id', 'desc')
                     ->first();
-
-                $wasQueued = $aiReview?->processing_status === 'QUEUED';
 
                 if (!$aiReview) {
                     // Log warning
@@ -87,13 +84,6 @@ class ProcessAIWebhookResult implements ShouldQueue
                     ]);
 
                     return;
-                }
-
-                if (!$wasQueued) {
-                    Log::channel('webhook')->warning('AI review not queued', [
-                        'test_result_id' => $testResultId,
-                        'status' => $aiReview->processing_status,
-                    ]);
                 }
 
                 // Update record using model (respects casts and preserves compiled_results)
