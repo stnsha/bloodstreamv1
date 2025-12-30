@@ -167,7 +167,8 @@ class TestResultCompilerService
         $checkRecords = $this->myHealthService->getCheckRecordIdByIC($icno);
 
         $patientInfo = [
-            'Age' => $testResult->patient->age
+            'Age' => $testResult->patient->age,
+            'Gender' => $testResult->patient->gender ?? ''
         ];
 
         // Early return if no records found
