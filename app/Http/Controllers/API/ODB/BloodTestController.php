@@ -318,7 +318,8 @@ class BloodTestController extends Controller
         $item = $validated[0] ?? null;
 
         if (!$item) {
-            Log::channel($this->getLogChannel())->warning('getReviewById: No item provided in request');
+            Log::channel($this->getLogChannel())->warning('getReviewById: No item provided in request',['payload' => $validated]);
+
             return response()->json([
                 'ai_response' => null,
                 'report_id' => null,
@@ -1065,7 +1066,7 @@ class BloodTestController extends Controller
         $item = $validated[0] ?? null;
 
         if (!$item) {
-            Log::channel($this->getLogChannel())->warning('searchReportId: No item provided in request');
+            Log::channel($this->getLogChannel())->warning('searchReportId: No item provided in request',['payload' => $validated]);
             return response()->json([]);
         }
 
@@ -1175,7 +1176,8 @@ class BloodTestController extends Controller
             // Step 1: Validate Request Data
             if (!$item) {
                 Log::channel($this->getLogChannel())->warning('updateReportId: No item provided in request', [
-                    'report_id' => $reportId
+                    'report_id' => $reportId,
+                    'payload' => $validated
                 ]);
 
                 return response()->json([
@@ -1402,7 +1404,7 @@ class BloodTestController extends Controller
         try {
             // Step 1: Validate Request Data
             if (!$item) {
-                Log::channel($this->getLogChannel())->warning('updateLabNo: No item provided in request');
+                Log::channel($this->getLogChannel())->warning('updateLabNo: No item provided in request',['payload' => $validated]);
 
                 return response()->json([
                     'success' => false,
