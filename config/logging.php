@@ -124,8 +124,8 @@ return [
         'auth' => [
             'driver' => 'daily',
             'path' => storage_path('logs/auth.log'),
-            // 'level' => env('LOG_LEVEL', 'warning'),
-            'level' => 'debug',
+            'level' => env('LOG_LEVEL', 'warning'),
+            // 'level' => 'debug',
             'days' => 3,
         ],
 
