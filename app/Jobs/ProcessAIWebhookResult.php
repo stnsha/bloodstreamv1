@@ -21,6 +21,7 @@ class ProcessAIWebhookResult implements ShouldQueue
 
     public $timeout = 60;  // Fast DB operation
     public $tries = 1;     // Webhook already acknowledged, don't retry
+    public $queue = 'ai-webhooks';  // Dedicated queue for time-sensitive webhook responses
     protected $webhookData;
 
     /**
@@ -36,6 +37,9 @@ class ProcessAIWebhookResult implements ShouldQueue
      */
     public function handle(ReviewHtmlGenerator $htmlGenerator): void
     {
+        $startTime = microtime(true);
+        $startMemory = memory_get_usage();
+
         $testResultId = $this->webhookData['test_result_id'];
 
         Log::channel('webhook')->info('ProcessAIWebhookResult job started', [
@@ -58,48 +62,47 @@ class ProcessAIWebhookResult implements ShouldQueue
 
             // Update ai_reviews and test_result in transaction
             DB::transaction(function () use ($testResultId, $aiAnalysis, $htmlReview) {
-                // Find the pending ai_reviews record
+                // Single optimized query - prioritize PENDING status (was 2 queries, now 1)
                 $aiReview = AIReview::where('test_result_id', $testResultId)
-                    ->where('processing_status', 'PENDING')
+                    ->orderByRaw("FIELD(processing_status, 'PENDING', 'COMPLETED', 'FAILED')")
                     ->orderBy('id', 'desc')
                     ->first();
 
+                $wasPending = $aiReview?->processing_status === 'PENDING';
+
                 if (!$aiReview) {
-                    // If no pending record found, check if any record exists
-                    Log::channel('webhook')->warning('No pending ai_reviews record found, checking for existing record', [
-                        'test_result_id' => $testResultId
+                    // Log warning
+                    Log::channel('webhook')->warning('No AI review record found for webhook - storing to ai_errors', [
+                        'test_result_id' => $testResultId,
                     ]);
 
-                    $existingReview = AIReview::where('test_result_id', $testResultId)->first();
+                    // Store webhook data to ai_errors table for recovery
+                    AIError::create([
+                        'test_result_id' => $testResultId,
+                        'processing_status' => 'FAILED',
+                        'http_status' => $aiAnalysis['status'] ?? 200,
+                        'error_message' => 'Webhook received but AIReview record not found in database',
+                        'compiled_data' => $this->webhookData,
+                        'attempt_count' => 1,
+                    ]);
 
-                    if ($existingReview) {
-                        // Update existing record using model (respects casts and preserves compiled_results)
-                        $existingReview->processing_status = 'COMPLETED';
-                        $existingReview->http_status = $aiAnalysis['status'];
-                        $existingReview->ai_response = $htmlReview;
-                        $existingReview->raw_response = $aiAnalysis;
-                        // Preserve existing compiled_results
-                        $existingReview->save();
-                    } else {
-                        // No existing record - create new one
-                        AIReview::create([
-                            'test_result_id' => $testResultId,
-                            'processing_status' => 'COMPLETED',
-                            'http_status' => $aiAnalysis['status'],
-                            'ai_response' => $htmlReview,
-                            'raw_response' => $aiAnalysis,
-                            'compiled_results' => []
-                        ]);
-                    }
-                } else {
-                    // Update existing pending record using model (respects casts and preserves compiled_results)
-                    $aiReview->processing_status = 'COMPLETED';
-                    $aiReview->http_status = $aiAnalysis['status'];
-                    $aiReview->ai_response = $htmlReview;
-                    $aiReview->raw_response = $aiAnalysis;
-                    // Preserve existing compiled_results
-                    $aiReview->save();
+                    return;
                 }
+
+                if (!$wasPending) {
+                    Log::channel('webhook')->warning('AI review not pending', [
+                        'test_result_id' => $testResultId,
+                        'status' => $aiReview->processing_status,
+                    ]);
+                }
+
+                // Update record using model (respects casts and preserves compiled_results)
+                $aiReview->processing_status = 'COMPLETED';
+                $aiReview->http_status = $aiAnalysis['status'];
+                $aiReview->ai_response = $htmlReview;
+                $aiReview->raw_response = $aiAnalysis;
+                // Preserve existing compiled_results
+                $aiReview->save();
 
                 // Update test_result.is_reviewed flag
                 $testResult = TestResult::find($testResultId);
@@ -116,6 +119,18 @@ class ProcessAIWebhookResult implements ShouldQueue
             Log::channel('webhook')->info('AI review stored successfully from webhook', [
                 'test_result_id' => $testResultId
             ]);
+
+            // Log performance metrics
+            $duration = round((microtime(true) - $startTime) * 1000, 2);
+            $memoryUsed = round((memory_get_usage() - $startMemory) / 1024 / 1024, 2);
+
+            Log::channel('performance')->info('AI webhook job completed', [
+                'test_result_id' => $testResultId,
+                'duration_ms' => $duration,
+                'memory_mb' => $memoryUsed,
+                'attempt' => $this->attempts(),
+            ]);
+
         } catch (Exception $e) {
             Log::channel('webhook')->error('ProcessAIWebhookResult job failed', [
                 'test_result_id' => $testResultId,

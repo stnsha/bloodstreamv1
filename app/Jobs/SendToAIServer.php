@@ -23,6 +23,7 @@ class SendToAIServer implements ShouldQueue
 
     public $timeout = 60;  // HTTP send only, not processing
     public $tries = 1;     // Can retry failed sends
+    public $queue = 'ai-reviews';  // Dedicated queue for AI review dispatch
     public $testResultId;
 
     /**
@@ -41,6 +42,9 @@ class SendToAIServer implements ShouldQueue
         AIApiClient $apiClient,
         ApiTokenService $apiTokenService
     ): void {
+        $startTime = microtime(true);
+        $startMemory = memory_get_usage();
+
         try {
             // Get authentication token
             $token = $apiTokenService->getValidToken();
@@ -99,6 +103,17 @@ class SendToAIServer implements ShouldQueue
                 // Success - update AIReview with status from server (QUEUED, PROCESSING, etc.)
                 $aiReview->processing_status = $responseData['status'];
                 $aiReview->save();
+
+                // Log performance metrics
+                $duration = round((microtime(true) - $startTime) * 1000, 2);
+                $memoryUsed = round((memory_get_usage() - $startMemory) / 1024 / 1024, 2);
+
+                Log::channel('performance')->info('AI review sent successfully', [
+                    'test_result_id' => $this->testResultId,
+                    'duration_ms' => $duration,
+                    'memory_mb' => $memoryUsed,
+                    'attempt' => $this->attempts(),
+                ]);
             }
         } catch (Exception $e) {
 

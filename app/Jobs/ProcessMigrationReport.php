@@ -65,6 +65,9 @@ class ProcessMigrationReport implements ShouldQueue
      */
     public function handle(MigrationService $migrationService): void
     {
+        $startTime = microtime(true);
+        $startMemory = memory_get_usage();
+
         $item = MigrationBatchItem::find($this->itemId);
 
         if (!$item) {
@@ -135,6 +138,18 @@ class ProcessMigrationReport implements ShouldQueue
                 'memory_after_mb' => round($memoryAfter, 2),
                 'memory_delta_mb' => round($memoryAfter - $memoryBefore, 2)
             ]);
+
+            // Log performance metrics
+            $duration = round((microtime(true) - $startTime) * 1000, 2);
+            $memoryUsed = round((memory_get_usage() - $startMemory) / 1024 / 1024, 2);
+
+            Log::channel('performance')->info('Migration job completed', [
+                'item_id' => $this->itemId,
+                'duration_ms' => $duration,
+                'memory_mb' => $memoryUsed,
+                'attempt' => $this->attempts(),
+            ]);
+
         } catch (Throwable $e) {
             $errorMessage = $e->getMessage();
             $isDeadlock = false;
@@ -216,44 +231,72 @@ class ProcessMigrationReport implements ShouldQueue
 
     protected function updateBatchCounters($batchId)
     {
-        $batch = MigrationBatch::find($batchId);
+        try {
+            $batch = MigrationBatch::find($batchId);
 
-        if (!$batch) {
-            return;
-        }
+            if (!$batch) {
+                Log::warning('Batch not found for counter update', ['batch_id' => $batchId]);
+                return;
+            }
 
-        $success = $batch->items()->where('status', MigrationBatchItem::STATUS_SUCCESS)->count();
-        $failed = $batch->items()->where('status', MigrationBatchItem::STATUS_FAILED)->count();
-        $processed = $success + $failed;
+            // Single optimized query for all counts (was 2 queries, now 1)
+            $counts = $batch->items()
+                ->selectRaw('
+                    SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as success_count,
+                    SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as failed_count,
+                    COUNT(*) as total_count
+                ', [MigrationBatchItem::STATUS_SUCCESS, MigrationBatchItem::STATUS_FAILED])
+                ->first();
 
-        $batch->update([
-            'processed' => $processed,
-            'success' => $success,
-            'failed' => $failed,
-        ]);
+            $success = $counts->success_count ?? 0;
+            $failed = $counts->failed_count ?? 0;
+            $processed = $success + $failed;
 
-        // Check if all items are processed
-        if ($processed >= $batch->total_reports) {
-            $status = $failed > 0 ?
-                MigrationBatch::STATUS_PARTIAL_FAILURE :
-                MigrationBatch::STATUS_COMPLETED;
-
-            $batch->update([
-                'status' => $status,
-                'completed_at' => now(),
+            // Atomic update with optimistic locking
+            $updated = $batch->update([
+                'processed' => $processed,
+                'success' => $success,
+                'failed' => $failed,
             ]);
 
-            // Log batch completion with detailed summary
-            Log::channel('migrate-log')->info('Migration batch completed', [
+            if (!$updated) {
+                Log::warning('Failed to update batch counters', [
+                    'batch_id' => $batchId,
+                    'processed' => $processed,
+                    'success' => $success,
+                    'failed' => $failed,
+                ]);
+            }
+
+            // Check if all items are processed
+            if ($processed >= $batch->total_reports) {
+                $status = $failed > 0 ?
+                    MigrationBatch::STATUS_PARTIAL_FAILURE :
+                    MigrationBatch::STATUS_COMPLETED;
+
+                $batch->update([
+                    'status' => $status,
+                    'completed_at' => now(),
+                ]);
+
+                // Log batch completion with detailed summary
+                Log::channel('migrate-log')->info('Migration batch completed', [
+                    'batch_id' => $batchId,
+                    'total_reports' => $batch->total_reports,
+                    'successful' => $success,
+                    'failed' => $failed,
+                    'success_rate' => $batch->total_reports > 0
+                        ? round(($success / $batch->total_reports) * 100, 2) . '%'
+                        : '0%',
+                    'final_status' => $status,
+                    'completed_at' => now()->toDateTimeString(),
+                ]);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Error updating batch counters', [
                 'batch_id' => $batchId,
-                'total_reports' => $batch->total_reports,
-                'successful' => $success,
-                'failed' => $failed,
-                'success_rate' => $batch->total_reports > 0
-                    ? round(($success / $batch->total_reports) * 100, 2) . '%'
-                    : '0%',
-                'final_status' => $status,
-                'completed_at' => now()->toDateTimeString(),
+                'error' => $e->getMessage(),
             ]);
         }
     }

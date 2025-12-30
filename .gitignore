@@ -36,3 +36,4 @@ ai_review_queue_async.log
 ai_review_dispatch_process.log
 ai_review_webhook_process.log
 process_migration_dispatch_and_work_local.bat
+process_all_queues_priority_local.bat
