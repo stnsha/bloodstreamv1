@@ -64,11 +64,11 @@ class ProcessAIWebhookResult implements ShouldQueue
             DB::transaction(function () use ($testResultId, $aiAnalysis, $htmlReview) {
                 // Single optimized query - prioritize PENDING status (was 2 queries, now 1)
                 $aiReview = AIReview::where('test_result_id', $testResultId)
-                    ->orderByRaw("FIELD(processing_status, 'PENDING', 'COMPLETED', 'FAILED')")
+                    ->orderByRaw("FIELD(processing_status, 'QUEUED', 'COMPLETED', 'PENDING')")
                     ->orderBy('id', 'desc')
                     ->first();
 
-                $wasPending = $aiReview?->processing_status === 'PENDING';
+                $wasQueued = $aiReview?->processing_status === 'QUEUED';
 
                 if (!$aiReview) {
                     // Log warning
@@ -89,8 +89,8 @@ class ProcessAIWebhookResult implements ShouldQueue
                     return;
                 }
 
-                if (!$wasPending) {
-                    Log::channel('webhook')->warning('AI review not pending', [
+                if (!$wasQueued) {
+                    Log::channel('webhook')->warning('AI review not queued', [
                         'test_result_id' => $testResultId,
                         'status' => $aiReview->processing_status,
                     ]);
