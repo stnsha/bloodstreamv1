@@ -240,10 +240,7 @@ class AuthController extends Controller
 
             $labCredential = LabCredential::where('username', $credentials['username'])->first();
 
-           if ($labCredential) {
-                $labCredential->expires_at = now()->addSeconds($expiresIn)->timestamp;
-                $labCredential->save();
-            }
+           if ($labCredential) { $labCredential->expires_at = $expiresIn; $labCredential->save(); }
 
             return response()->json([
                 'success' => true,
