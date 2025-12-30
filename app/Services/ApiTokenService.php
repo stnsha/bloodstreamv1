@@ -35,7 +35,7 @@ class ApiTokenService
     public function refreshToken(): ?string
     {
         try {
-            Log::info('Attempting to refresh AI API token');
+            Log::info('ApiTokenService: Attempting to refresh AI API token');
 
             $response = Http::timeout(60)->post(config('credentials.ai_review.login'), [
                 "username" => config('credentials.odb.username'),
@@ -43,7 +43,7 @@ class ApiTokenService
             ]);
             
             if ($response->failed()) {
-                Log::error('API token refresh failed', [
+                Log::error('ApiTokenService: API token refresh failed', [
                     'status' => $response->status(),
                     'response' => $response->body()
                 ]);
@@ -54,18 +54,18 @@ class ApiTokenService
             $token = $responseData['token'] ?? null;
             
             if (!$token) {
-                Log::error('No token in API response', ['response' => $responseData]);
+                Log::error('ApiTokenService: No token in API response', ['response' => $responseData]);
                 return null;
             }
             
             // Cache the new token for 30 days
             Cache::put(self::TOKEN_CACHE_KEY, $token, now()->addDays(self::TOKEN_EXPIRY_DAYS));
             
-            Log::info('API token refreshed and cached successfully');
+            Log::info('ApiTokenService: API token refreshed and cached successfully');
             return $token;
             
         } catch (Exception $e) {
-            Log::error('Exception during API token refresh', [
+            Log::error('ApiTokenService: Exception during API token refresh', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -79,7 +79,7 @@ class ApiTokenService
     public function clearToken(): void
     {
         Cache::forget(self::TOKEN_CACHE_KEY);
-        Log::info('API token cache cleared');
+        Log::info('ApiTokenService: API token cache cleared');
     }
     
     /**
