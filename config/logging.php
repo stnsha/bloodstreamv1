@@ -50,6 +50,7 @@ return [
     |
     */
 
+    //'level' => env('LOG_LEVEL', 'warning'), change to debug if needed
     'channels' => [
         'stack' => [
             'driver' => 'stack',
@@ -60,76 +61,76 @@ return [
         'single' => [
             'driver' => 'single',
             'path' => storage_path('logs/laravel.log'),
-            'level' => env('LOG_LEVEL', 'debug'),
+            'level' => env('LOG_LEVEL', 'warning'),
         ],
 
         'job' => [
             'driver' => 'daily',
             'path' => storage_path('logs/job.log'),
-            'level' => env('LOG_LEVEL', 'debug'),
+            'level' => env('LOG_LEVEL', 'warning'),
             'days' => 5,
         ],
 
         'daily' => [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),
-            'level' => env('LOG_LEVEL', 'debug'),
+            'level' => env('LOG_LEVEL', 'warning'),
             'days' => 5,
         ],
 
         'bp-log' => [
             'driver' => 'daily',
             'path' => storage_path('logs/bp-export.log'),
-            'level' => env('LOG_LEVEL', 'debug'),
+            'level' => env('LOG_LEVEL', 'warning'),
             'days' => 5,
         ],
 
         'migrate-log' => [
             'driver' => 'daily',
             'path' => storage_path('logs/migration.log'),
-            'level' => env('LOG_LEVEL', 'debug'),
+            'level' => env('LOG_LEVEL', 'warning'),
             'days' => 5,
         ],
 
         'odb-log' => [
             'driver' => 'daily',
             'path' => storage_path('logs/odb.log'),
-            'level' => env('LOG_LEVEL', 'debug'),
+            'level' => env('LOG_LEVEL', 'warning'),
             'days' => 5,
         ],
 
         'gpt-log' => [
             'driver' => 'daily',
             'path' => storage_path('logs/gpt.log'),
-            'level' => env('LOG_LEVEL', 'debug'),
+            'level' => env('LOG_LEVEL', 'warning'),
             'days' => 5,
         ],
 
         'ai-command' => [
             'driver' => 'daily',
             'path' => storage_path('logs/ai-command.log'),
-            'level' => env('LOG_LEVEL', 'debug'),
+            'level' => env('LOG_LEVEL', 'warning'),
             'days' => 5,
         ],
 
         'webhook' => [
             'driver' => 'daily',
             'path' => storage_path('logs/webhook.log'),
-            'level' => env('LOG_LEVEL', 'debug'),
+            'level' => env('LOG_LEVEL', 'warning'),
             'days' => 5,
         ],
 
         'auth' => [
             'driver' => 'daily',
             'path' => storage_path('logs/auth.log'),
-            'level' => env('LOG_LEVEL', 'debug'),
+            'level' => env('LOG_LEVEL', 'warning'),
             'days' => 5,
         ],
 
         'performance' => [
             'driver' => 'daily',
             'path' => storage_path('logs/performance.log'),
-            'level' => env('LOG_LEVEL', 'debug'),
+            'level' => env('LOG_LEVEL', 'warning'),
             'days' => 14,
         ],
 
