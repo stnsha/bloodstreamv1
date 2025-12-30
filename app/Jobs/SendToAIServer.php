@@ -23,7 +23,6 @@ class SendToAIServer implements ShouldQueue
 
     public $timeout = 60;  // HTTP send only, not processing
     public $tries = 1;     // Can retry failed sends
-    public $queue = 'ai-reviews';  // Dedicated queue for AI review dispatch
     public $testResultId;
 
     /**
@@ -32,6 +31,7 @@ class SendToAIServer implements ShouldQueue
     public function __construct(int $testResultId)
     {
         $this->testResultId = $testResultId;
+        $this->onQueue('ai-reviews');  // Dedicated queue for AI review dispatch
     }
 
     /**

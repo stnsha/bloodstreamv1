@@ -21,7 +21,6 @@ class ProcessAIWebhookResult implements ShouldQueue
 
     public $timeout = 60;  // Fast DB operation
     public $tries = 1;     // Webhook already acknowledged, don't retry
-    public $queue = 'ai-webhooks';  // Dedicated queue for time-sensitive webhook responses
     protected $webhookData;
 
     /**
@@ -30,6 +29,7 @@ class ProcessAIWebhookResult implements ShouldQueue
     public function __construct(array $webhookData)
     {
         $this->webhookData = $webhookData;
+        $this->onQueue('ai-webhooks');  // Dedicated queue for time-sensitive webhook responses
     }
 
     /**
