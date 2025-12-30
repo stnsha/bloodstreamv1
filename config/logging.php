@@ -68,56 +68,57 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/job.log'),
             'level' => env('LOG_LEVEL', 'warning'),
-            'days' => 5,
+            'days' => 3,
         ],
 
         'daily' => [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'warning'),
-            'days' => 5,
+            'days' => 3,
         ],
 
         'bp-log' => [
             'driver' => 'daily',
             'path' => storage_path('logs/bp-export.log'),
             'level' => env('LOG_LEVEL', 'warning'),
-            'days' => 5,
+            'days' => 3,
         ],
 
         'migrate-log' => [
             'driver' => 'daily',
             'path' => storage_path('logs/migration.log'),
             'level' => env('LOG_LEVEL', 'warning'),
-            'days' => 5,
+            'days' => 3,
         ],
 
         'odb-log' => [
             'driver' => 'daily',
             'path' => storage_path('logs/odb.log'),
-            'level' => env('LOG_LEVEL', 'warning'),
-            'days' => 5,
+            // 'level' => env('LOG_LEVEL', 'error'),
+            'level' => 'error',
+            'days' => 3,
         ],
 
         'gpt-log' => [
             'driver' => 'daily',
             'path' => storage_path('logs/gpt.log'),
             'level' => env('LOG_LEVEL', 'warning'),
-            'days' => 5,
+            'days' => 3,
         ],
 
         'ai-command' => [
             'driver' => 'daily',
             'path' => storage_path('logs/ai-command.log'),
             'level' => env('LOG_LEVEL', 'warning'),
-            'days' => 5,
+            'days' => 3,
         ],
 
         'webhook' => [
             'driver' => 'daily',
             'path' => storage_path('logs/webhook.log'),
             'level' => env('LOG_LEVEL', 'warning'),
-            'days' => 5,
+            'days' => 3,
         ],
 
         'auth' => [
@@ -125,7 +126,7 @@ return [
             'path' => storage_path('logs/auth.log'),
             // 'level' => env('LOG_LEVEL', 'warning'),
             'level' => 'debug',
-            'days' => 5,
+            'days' => 3,
         ],
 
         'performance' => [
