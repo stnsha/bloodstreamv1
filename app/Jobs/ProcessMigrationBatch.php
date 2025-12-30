@@ -18,6 +18,8 @@ class ProcessMigrationBatch implements ShouldQueue
 
     protected $batchId;
 
+    public $timeout = 300;
+
     /**
      * Create a new job instance.
      */
