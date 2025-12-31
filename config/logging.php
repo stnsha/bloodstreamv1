@@ -133,7 +133,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/performance.log'),
             'level' => env('LOG_LEVEL', 'warning'),
-            'days' => 14,
+            'days' => 3,
         ],
 
         'slack' => [
