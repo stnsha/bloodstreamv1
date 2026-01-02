@@ -129,7 +129,7 @@ class TestResultCompilerService
     /**
      * Compile complete test result data with MyHealth history
      */
-    public function compileTestResultData(TestResult $testResult, string $source): array
+    public function compileTestResultData(TestResult $testResult, string $source = null): array
     {
         $patientInfo = $this->gatherPatientHealthHistory($testResult);
         $categorizedItems = $this->categorizeTestResultItems($testResult);
@@ -157,8 +157,10 @@ class TestResultCompilerService
         $icno = $testResult->patient->icno;
         $checkRecords = $this->myHealthService->getCheckRecordIdByIC($icno);
 
+        $age = calculatePatientAge($testResult->patient->dob, $testResult->collected_date);
+
         $patientInfo = [
-            'Age' => $testResult->patient->age,
+            'Age' => $age,
             'Gender' => $testResult->patient->gender ?? ''
         ];
 

@@ -109,3 +109,21 @@ if (!function_exists('cleanJsonString')) {
         return str_replace('\/', '/', $value);
     }
 }
+
+//Based of collected_date
+if (!function_exists('calculatePatientAge')) {
+    function calculatePatientAge($dob, $reportDate)
+    {
+        // Normalize DOB format
+        if (preg_match('/^\d{8}$/', $dob)) {
+            // YYYYMMDD → YYYY-MM-DD
+            $dob = substr($dob, 0, 4) . '-' . substr($dob, 4, 2) . '-' . substr($dob, 6, 2);
+        }
+
+        $dobDate = new DateTime($dob);
+        $reportDate = new DateTime($reportDate);
+
+        // Get age based on report date
+        return $dobDate->diff($reportDate)->y;
+    }
+}
