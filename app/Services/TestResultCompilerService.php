@@ -49,11 +49,6 @@ class TestResultCompilerService
         $tr = TestResult::with($this->getEagerLoadRelations())
             ->where('is_reviewed', false)
             ->where('is_completed', true)
-            ->whereNotNull('collected_date')
-            ->whereBetween('collected_date', [
-                Carbon::create($currentYear, 1, 1)->startOfYear(),
-                Carbon::create($currentYear, 12, 31)->endOfYear()
-            ])
             ->where('id', $testResultId)
             ->first();
 
@@ -78,8 +73,6 @@ class TestResultCompilerService
         $tr = TestResult::with($this->getEagerLoadRelations())
             ->where('is_reviewed', false)
             ->where('is_completed', true)
-            ->whereNotNull('collected_date')
-            ->whereBetween('collected_date', $yearRange)
             ->whereHas('patient', function ($query) use ($icno) {
                 $query->where('icno', $icno);
             })
@@ -92,8 +85,6 @@ class TestResultCompilerService
                 ->where('ref_id', $refid)
                 ->where('is_reviewed', false)
                 ->where('is_completed', true)
-                ->whereNotNull('collected_date')
-                ->whereBetween('collected_date', $yearRange)
                 ->latest()
                 ->first();
         }

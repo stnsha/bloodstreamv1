@@ -7,7 +7,6 @@ use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Tymon\JWTAuth\Facades\JWTAuth;
 use Tymon\JWTAuth\Exceptions\JWTException;
 use Tymon\JWTAuth\Exceptions\TokenExpiredException;
 use Tymon\JWTAuth\Exceptions\TokenInvalidException;
@@ -16,6 +15,15 @@ class APIAuthMiddleware
 {
     public function handle(Request $request, Closure $next)
     {
+        Log::channel('auth')->info('RAW AUTH HEADER', [
+            'authorization' => $request->header('Authorization'),
+            'bearer_token'  => $request->bearerToken(),
+            'ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'endpoint' => $request->fullUrl(),
+            'method' => $request->method(),
+        ]);
+
         $logContext = [
             'ip' => $request->ip(),
             'user_agent' => $request->userAgent(),

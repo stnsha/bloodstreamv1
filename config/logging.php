@@ -96,7 +96,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/odb.log'),
             // 'level' => env('LOG_LEVEL', 'error'),
-            'level' => 'error',
+            'level' => 'debug',
             'days' => 3,
         ],
 
@@ -124,16 +124,16 @@ return [
         'auth' => [
             'driver' => 'daily',
             'path' => storage_path('logs/auth.log'),
-            'level' => env('LOG_LEVEL', 'warning'),
-            // 'level' => 'debug',
+            // 'level' => env('LOG_LEVEL', 'warning'),
+            'level' => 'debug',
             'days' => 3,
         ],
 
         'performance' => [
             'driver' => 'daily',
             'path' => storage_path('logs/performance.log'),
-            'level' => 'info',
-            'days' => 14,
+            'level' => env('LOG_LEVEL', 'warning'),
+            'days' => 3,
         ],
 
         'slack' => [

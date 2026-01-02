@@ -16,6 +16,11 @@ use Mpdf\Mpdf;
 
 class PDFController extends Controller
 {
+    private function getLogChannel()
+    {
+        return 'odb-log';
+    }
+
     /**
      * API for PDF generation from ODB
      * Flow: ODB > export > processTestResult > export
@@ -627,10 +632,30 @@ class PDFController extends Controller
         $year  = $year  ?: date('Y');
         $month = $month ?: date('m');
 
+        Log::channel($this->getLogChannel())->debug('processTestResult: Starting search', [
+            'icno' => $icno,
+            'refid' => $refid,
+            'month' => $month,
+            'year' => $year,
+            'date_range_start' => Carbon::create($year, $month, 1)->startOfMonth()->format('Y-m-d H:i:s'),
+            'date_range_end' => Carbon::create($year, $month, 1)->endOfMonth()->format('Y-m-d H:i:s'),
+            'current_month' => date('m'),
+            'step4_eligible' => ($month != date('m')) ? 'yes' : 'no'
+        ]);
+
         $testResult = null;
+        $dateRangeStart = Carbon::create($year, $month, 1)->startOfMonth();
+        $dateRangeEnd = Carbon::create($year, $month, 1)->endOfMonth();
 
         // Step 1: If refid provided, try searching by BOTH IC number AND refid
         if ($refid) {
+            Log::channel($this->getLogChannel())->debug('processTestResult [STEP 1]: Searching by IC + ref_id', [
+                'step' => 1,
+                'icno' => $icno,
+                'ref_id' => $refid,
+                'date_range' => [$dateRangeStart->format('Y-m-d H:i:s'), $dateRangeEnd->format('Y-m-d H:i:s')]
+            ]);
+
             $testResult = TestResult::with([
                 'doctor',
                 'patient',
@@ -646,16 +671,36 @@ class PDFController extends Controller
                 ->where('is_reviewed', true)
                 ->whereNotNull('collected_date')
                 ->whereBetween('collected_date', [
-                    Carbon::create($year, $month, 1)->startOfMonth(),
-                    Carbon::create($year, $month, 1)->endOfMonth()
+                    $dateRangeStart,
+                    $dateRangeEnd
                 ])
                 ->latest()
                 ->first();
+
+            if ($testResult) {
+                Log::channel($this->getLogChannel())->debug('processTestResult [STEP 1]: SUCCESS', [
+                    'step' => 1,
+                    'test_result_id' => $testResult->id,
+                    'collected_date' => $testResult->collected_date,
+                    'is_completed' => $testResult->is_completed,
+                    'is_reviewed' => $testResult->is_reviewed,
+                    'patient_icno' => $testResult->patient->icno
+                ]);
+            } else {
+                Log::channel($this->getLogChannel())->debug('processTestResult [STEP 1]: Not found - proceeding to Step 2', ['step' => 1]);
+            }
         }
 
 
         // Step 2: Search by IC number only
         if (!$testResult) {
+            Log::channel($this->getLogChannel())->debug('processTestResult [STEP 2]: Searching by IC only', [
+                'step' => 2,
+                'icno' => $icno,
+                'ref_id_filter' => ($refid ? 'WHERE ref_id IS NULL' : 'no filter'),
+                'date_range' => [$dateRangeStart->format('Y-m-d H:i:s'), $dateRangeEnd->format('Y-m-d H:i:s')]
+            ]);
+
             $query = TestResult::with([
                 'doctor',
                 'patient',
@@ -674,23 +719,46 @@ class PDFController extends Controller
 
             $testResult = $query
                 ->where('is_completed', true)
+                ->where('is_reviewed', true)
                 ->whereNotNull('collected_date')
                 ->whereBetween('collected_date', [
-                    Carbon::create($year, $month, 1)->startOfMonth(),
-                    Carbon::create($year, $month, 1)->endOfMonth()
+                    $dateRangeStart,
+                    $dateRangeEnd
                 ])
                 ->latest()
                 ->first();
 
             // Update ref_id if it's null and we have a refid to set
             if ($testResult && $refid && is_null($testResult->ref_id)) {
+                Log::channel($this->getLogChannel())->debug('processTestResult [STEP 2]: Updating ref_id', [
+                    'test_result_id' => $testResult->id,
+                    'new_ref_id' => $refid
+                ]);
                 $testResult->ref_id = $refid;
                 $testResult->save();
+            }
+
+            if ($testResult) {
+                Log::channel($this->getLogChannel())->debug('processTestResult [STEP 2]: SUCCESS', [
+                    'step' => 2,
+                    'test_result_id' => $testResult->id,
+                    'collected_date' => $testResult->collected_date,
+                    'is_completed' => $testResult->is_completed,
+                    'is_reviewed' => $testResult->is_reviewed
+                ]);
+            } else {
+                Log::channel($this->getLogChannel())->debug('processTestResult [STEP 2]: Not found - proceeding to Step 3', ['step' => 2]);
             }
         }
 
         // Step 3: Fallback to search by refid if provided
         if (!$testResult && $refid) {
+            Log::channel($this->getLogChannel())->debug('processTestResult [STEP 3]: Searching by ref_id only', [
+                'step' => 3,
+                'ref_id' => $refid,
+                'date_range' => [$dateRangeStart->format('Y-m-d H:i:s'), $dateRangeEnd->format('Y-m-d H:i:s')]
+            ]);
+
             $testResult = TestResult::with([
                 'doctor',
                 'patient',
@@ -700,10 +768,11 @@ class PDFController extends Controller
             ])
                 ->where('ref_id', $refid)
                 ->where('is_completed', true)
+                ->where('is_reviewed', true)
                 ->whereNotNull('collected_date')
                 ->whereBetween('collected_date', [
-                    Carbon::create($year, $month, 1)->startOfMonth(),
-                    Carbon::create($year, $month, 1)->endOfMonth()
+                    $dateRangeStart,
+                    $dateRangeEnd
                 ])
                 ->latest()
                 ->first();
@@ -712,25 +781,120 @@ class PDFController extends Controller
             if ($testResult) {
                 $foundIcno = $testResult->patient->icno ?? null;
 
+                Log::channel($this->getLogChannel())->debug('processTestResult [STEP 3]: Found record - verifying IC match', [
+                    'step' => 3,
+                    'found_icno' => $foundIcno,
+                    'provided_icno' => $icno,
+                    'ic_matches' => ($foundIcno === $icno) ? 'yes' : 'no'
+                ]);
+
                 if ($foundIcno === $icno) {
+                    Log::channel($this->getLogChannel())->debug('processTestResult [STEP 3]: REJECTING - IC matches (Step 3 is for IC mismatch only)', [
+                        'step' => 3,
+                        'action' => 'rejected',
+                        'reason' => 'IC matches provided IC',
+                        'test_result_id' => $testResult->id
+                    ]);
                     // IC matches - reject to avoid returning mismatched record
                     $testResult = null;
                 }
             }
+
+            if (!$testResult) {
+                Log::channel($this->getLogChannel())->debug('processTestResult [STEP 3]: Not found (or rejected) - proceeding to Step 4', ['step' => 3]);
+            } else {
+                Log::channel($this->getLogChannel())->debug('processTestResult [STEP 3]: SUCCESS - Found with IC mismatch', [
+                    'step' => 3,
+                    'test_result_id' => $testResult->id
+                ]);
+            }
         }
 
         //Step 4: Check with manual sync for unmatch date
-        if ($month != date('m')) {
+        Log::channel($this->getLogChannel())->debug('processTestResult [STEP 4]: Manual sync eligibility check', [
+            'step' => 4,
+            'provided_month' => $month,
+            'current_month' => date('m'),
+            'eligible' => ($month != date('m')),
+            'has_refid' => !empty($refid)
+        ]);
+
+        if (!$testResult && $month != date('m') && $refid) {
+            Log::channel($this->getLogChannel())->debug('processTestResult [STEP 4]: Searching by manual_sync_date', [
+                'step' => 4,
+                'icno' => $icno,
+                'ref_id' => $refid
+            ]);
+
             $testResult = TestResult::whereHas('patient', function ($p) use ($icno) {
                 $p->where('icno', $icno);
             })
                 ->where('ref_id', $refid)
                 ->where('is_completed', true)
+                ->where('is_reviewed', true)
                 ->whereNotNull('manual_sync_date')
                 ->latest()->first();
+
+            if ($testResult) {
+                Log::channel($this->getLogChannel())->debug('processTestResult [STEP 4]: SUCCESS', [
+                    'step' => 4,
+                    'test_result_id' => $testResult->id,
+                    'manual_sync_date' => $testResult->manual_sync_date
+                ]);
+            } else {
+                Log::channel($this->getLogChannel())->debug('processTestResult [STEP 4]: Not found', ['step' => 4]);
+            }
         }
 
         if (!$testResult) {
+            // Diagnostic queries
+            $icOnlyCount = TestResult::whereHas('patient', function ($p) use ($icno) {
+                $p->where('icno', $icno);
+            })->count();
+
+            $completedCount = TestResult::whereHas('patient', function ($p) use ($icno) {
+                $p->where('icno', $icno);
+            })->where('is_completed', true)->count();
+
+            $reviewedCount = TestResult::whereHas('patient', function ($p) use ($icno) {
+                $p->where('icno', $icno);
+            })->where('is_reviewed', true)->count();
+
+            $collectedCount = TestResult::whereHas('patient', function ($p) use ($icno) {
+                $p->where('icno', $icno);
+            })->whereNotNull('collected_date')->count();
+
+            $recentSample = TestResult::whereHas('patient', function ($p) use ($icno) {
+                $p->where('icno', $icno);
+            })
+            ->select('id', 'ref_id', 'collected_date', 'is_completed', 'is_reviewed')
+            ->latest('created_at')
+            ->first();
+
+            Log::channel($this->getLogChannel())->error('processTestResult [FINAL]: ALL STEPS FAILED', [
+                'success' => false,
+                'input' => [
+                    'icno' => $icno,
+                    'refid' => $refid,
+                    'month' => $month,
+                    'year' => $year,
+                    'date_range' => [$dateRangeStart->format('Y-m-d H:i:s'), $dateRangeEnd->format('Y-m-d H:i:s')]
+                ],
+                'diagnostics' => [
+                    'total_records_for_patient' => $icOnlyCount,
+                    'completed_records' => $completedCount,
+                    'reviewed_records' => $reviewedCount,
+                    'records_with_collected_date' => $collectedCount,
+                    'most_recent_record' => $recentSample ? [
+                        'id' => $recentSample->id,
+                        'ref_id' => $recentSample->ref_id,
+                        'collected_date' => $recentSample->collected_date,
+                        'is_completed' => $recentSample->is_completed,
+                        'is_reviewed' => $recentSample->is_reviewed
+                    ] : null
+                ]
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Test result not found or not completed yet',

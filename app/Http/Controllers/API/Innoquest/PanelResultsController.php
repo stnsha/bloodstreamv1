@@ -26,6 +26,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Jobs\Innoquest\ProcessPanelResults;
 use Throwable;
+use App\Jobs\SendToAIServer;
 
 class PanelResultsController extends BaseResultsController
 {

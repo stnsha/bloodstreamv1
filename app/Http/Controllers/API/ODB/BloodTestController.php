@@ -80,7 +80,10 @@ class BloodTestController extends Controller
                     Log::channel($this->getLogChannel())->info('getReportId: Processing item', [
                         'item_number' => $itemNumber,
                         'icno' => $icno,
-                        'refid' => $refid
+                        'refid' => $refid,
+                        'month' => $month,
+                        'year' => $year,
+                        'labId' => $labId,
                     ]);
 
                     $testResult = null;
@@ -106,7 +109,10 @@ class BloodTestController extends Controller
                     if ($refid) {
                         Log::channel($this->getLogChannel())->debug('getReportId: Searching by IC AND refid', [
                             'icno' => $icno,
-                            'refid' => $refid
+                            'refid' => $refid,
+                            'month' => $month,
+                            'year' => $year,
+                            'labId' => $labId,
                         ]);
 
                         $testResult = $buildBaseQuery()
@@ -136,7 +142,10 @@ class BloodTestController extends Controller
                     // Condition: ref_id IS NULL
                     if (!$testResult) {
                         Log::channel($this->getLogChannel())->debug('getReportId: Searching by IC number', [
-                            'icno' => $icno
+                            'icno' => $icno,
+                            'month' => $month,
+                            'year' => $year,
+                            'labId' => $labId,
                         ]);
 
                         $query = $buildBaseQuery();
@@ -187,7 +196,10 @@ class BloodTestController extends Controller
                     if (!$testResult && $refid) {
                         Log::channel($this->getLogChannel())->debug('getReportId: IC search failed, falling back to refid search', [
                             'icno' => $icno,
-                            'refid' => $refid
+                            'refid' => $refid,
+                            'month' => $month,
+                            'year' => $year,
+                            'labId' => $labId,
                         ]);
 
                         $testResult = TestResult::whereNotNull('ref_id')
@@ -343,6 +355,9 @@ class BloodTestController extends Controller
         Log::channel($this->getLogChannel())->info('getReviewById: Processing started', [
             'icno' => $icno,
             'refid' => $refid,
+            'month' => $month,
+            'year' => $year,
+            'labId' => $labId,
             'timestamp' => $processingStartTime
         ]);
 
@@ -402,7 +417,10 @@ class BloodTestController extends Controller
             // Condition: ref_id IS NULL
             if (!$testResult) {
                 Log::channel($this->getLogChannel())->debug('getReviewById: Searching by IC number', [
-                    'icno' => $icno
+                    'icno' => $icno,
+                    'month' => $month,
+                    'year' => $year,
+                    'labId' => $labId,
                 ]);
 
                 $query = $buildBaseQuery();
@@ -455,7 +473,10 @@ class BloodTestController extends Controller
             if (!$testResult && $refid) {
                 Log::channel($this->getLogChannel())->debug('getReviewById: IC search failed, falling back to refid search', [
                     'icno' => $icno,
-                    'refid' => $refid
+                    'refid' => $refid,
+                    'month' => $month,
+                    'year' => $year,
+                    'labId' => $labId,
                 ]);
 
                 $testResult = TestResult::with('aiReview')->whereNotNull('ref_id')
@@ -500,7 +521,7 @@ class BloodTestController extends Controller
 
             //Step 6: Check with manual sync for unmatch date - already updated
             //Condition: Earlier invoice date due to postpone/etc
-            if ($month != date('m')) {
+            if (!$testResult && $month != date('m')) {
                 $testResult = TestResult::with('aiReview')->whereHas('patient', function ($p) use ($icno) {
                     $p->where('icno', $icno);
                 })
@@ -833,7 +854,7 @@ class BloodTestController extends Controller
 
             //Step 6: Check with manual sync for unmatch date - already updated
             //Condition: Earlier invoice date due to postpone/etc
-            if ($month != date('m')) {
+            if (!$testResult && $month != date('m')) {
                 $testResult = TestResult::with('aiReview')->whereHas('patient', function ($p) use ($icno) {
                     $p->where('icno', $icno);
                 })

@@ -151,13 +151,8 @@ class DispatchUnreviewedResultsAsync extends Command
     protected function fetchUnreviewedIds(): array
     {
         return DB::transaction(function () {
-            $currentYear = date('Y');
             return TestResult::where('is_completed', true)
                 ->where('is_reviewed', false)
-                ->whereBetween('collected_date', [
-                    Carbon::create($currentYear, 1, 1)->startOfYear(),
-                    Carbon::create($currentYear, 12, 31)->endOfYear()
-                ])
                 ->whereNotExists(function ($query) {
                     $query->select(DB::raw(1))
                         ->from('ai_reviews')
