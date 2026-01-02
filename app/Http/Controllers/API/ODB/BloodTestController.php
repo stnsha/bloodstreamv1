@@ -265,7 +265,11 @@ class BloodTestController extends Controller
         $item = $validated[0] ?? null;
 
         if (!$item) {
-            Log::channel($this->getLogChannel())->warning('getReviewById: No item provided in request',['payload' => $validated]);
+            Log::channel($this->getLogChannel())->warning('getReviewById [FINAL]: NO_ITEM_PROVIDED', [
+                'success' => false,
+                'outcome' => 'NO_ITEM_PROVIDED',
+                'input' => ['payload' => $validated],
+            ]);
 
             return response()->json([
                 'ai_response' => null,
@@ -287,14 +291,46 @@ class BloodTestController extends Controller
         $year  = $year  ?: date('Y');
         $month = $month ?: date('m');
 
-        Log::channel($this->getLogChannel())->info('getReviewById: Processing started', [
-            'icno' => $icno,
-            'refid' => $refid,
-            'month' => $month,
-            'year' => $year,
-            'labId' => $labId,
-            'timestamp' => $processingStartTime
-        ]);
+        // Tracking variables for comprehensive logging
+        $searchAttempts = [
+            'step3_ic_and_refid' => ['attempted' => false, 'found' => false],
+            'step4_ic_only' => ['attempted' => false, 'found' => false],
+            'step5_refid_only' => ['attempted' => false, 'found' => false, 'rejected_ic_match' => false],
+            'step6_manual_sync' => ['attempted' => false, 'found' => false],
+        ];
+        $refIdUpdated = false;
+        $foundByStep = null;
+
+        // Summary log closure
+        $logSummary = function ($level, $outcome, $extraData = []) use (
+            $icno, $refid, $month, $year, $labId,
+            $processingStartTime, &$searchAttempts, &$foundByStep, &$refIdUpdated, &$testResult
+        ) {
+            $processingTime = now()->diffInSeconds($processingStartTime);
+
+            Log::channel($this->getLogChannel())->$level("getReviewById [FINAL]: {$outcome}", array_merge([
+                'success' => in_array($outcome, ['COMPLETED', 'UNREVIEWED']),
+                'outcome' => $outcome,
+                'input' => [
+                    'icno' => $icno,
+                    'refid' => $refid,
+                    'month' => $month,
+                    'year' => $year,
+                    'labId' => $labId,
+                ],
+                'search_steps' => $searchAttempts,
+                'found_by_step' => $foundByStep,
+                'ref_id_updated' => $refIdUpdated,
+                'result' => isset($testResult) && $testResult ? [
+                    'test_result_id' => $testResult->id,
+                    'ref_id' => $testResult->ref_id,
+                    'is_completed' => $testResult->is_completed,
+                    'is_reviewed' => $testResult->is_reviewed,
+                    'collected_date' => $testResult->collected_date,
+                ] : null,
+                'processing_time_seconds' => $processingTime,
+            ], $extraData));
+        };
 
         try {
             $testResult = null;
@@ -305,7 +341,7 @@ class BloodTestController extends Controller
                     $p->where('icno', $icno);
                 });
 
-                //Step 2: Search by lab_id if provided
+                // Step 2: Search by lab_id if provided
                 if ($labId) {
                     $query->whereHas('doctor', function ($d) use ($labId) {
                         $d->where('lab_id', $labId);
@@ -318,10 +354,7 @@ class BloodTestController extends Controller
             // Step 3: If refid provided, try searching by BOTH IC number AND refid
             // Condition: ref_id IS NOT NULL
             if ($refid) {
-                Log::channel($this->getLogChannel())->debug('getReviewById: Searching by IC AND refid', [
-                    'icno' => $icno,
-                    'refid' => $refid
-                ]);
+                $searchAttempts['step3_ic_and_refid']['attempted'] = true;
 
                 $testResult = $buildBaseQuery()
                     ->whereNotNull('ref_id')
@@ -336,27 +369,15 @@ class BloodTestController extends Controller
                     ->latest()->first();
 
                 if ($testResult) {
-                    Log::channel($this->getLogChannel())->info('getReviewById: Test result found by IC AND refid', [
-                        'icno' => $icno,
-                        'refid' => $refid,
-                        'test_result_id' => $testResult->id,
-                        'is_completed' => $testResult->is_completed,
-                        'is_completed_raw' => $testResult->getRawOriginal('is_completed'),
-                        'is_reviewed' => $testResult->is_reviewed,
-                        'is_reviewed_raw' => $testResult->getRawOriginal('is_reviewed')
-                    ]);
+                    $searchAttempts['step3_ic_and_refid']['found'] = true;
+                    $foundByStep = 'step3_ic_and_refid';
                 }
             }
 
             // Step 4: Search by IC number only
             // Condition: ref_id IS NULL
             if (!$testResult) {
-                Log::channel($this->getLogChannel())->debug('getReviewById: Searching by IC number', [
-                    'icno' => $icno,
-                    'month' => $month,
-                    'year' => $year,
-                    'labId' => $labId,
-                ]);
+                $searchAttempts['step4_ic_only']['attempted'] = true;
 
                 $query = $buildBaseQuery();
 
@@ -376,29 +397,14 @@ class BloodTestController extends Controller
                     ->latest()->first();
 
                 if ($testResult) {
-                    $logMessage = $refid
-                        ? 'getReviewById: Test result found by IC with NULL ref_id'
-                        : 'getReviewById: Test result found by IC number';
-
-                    Log::channel($this->getLogChannel())->info($logMessage, [
-                        'icno' => $icno,
-                        'test_result_id' => $testResult->id,
-                        'is_completed' => $testResult->is_completed,
-                        'is_completed_raw' => $testResult->getRawOriginal('is_completed'),
-                        'is_reviewed' => $testResult->is_reviewed,
-                        'is_reviewed_raw' => $testResult->getRawOriginal('is_reviewed'),
-                        'database_ref_id' => $testResult->ref_id
-                    ]);
+                    $searchAttempts['step4_ic_only']['found'] = true;
+                    $foundByStep = 'step4_ic_only';
 
                     // Update ref_id if it's null and we have a refid to set
                     if ($refid && is_null($testResult->ref_id)) {
                         $testResult->ref_id = $refid;
                         $testResult->save();
-
-                        Log::channel($this->getLogChannel())->info('getReviewById: Updated ref_id from null', [
-                            'test_result_id' => $testResult->id,
-                            'new_ref_id' => $refid
-                        ]);
+                        $refIdUpdated = true;
                     }
                 }
             }
@@ -406,13 +412,7 @@ class BloodTestController extends Controller
             // Step 5: Fallback to search by refid ONLY if provided
             // Condition: Possible mismatch IC
             if (!$testResult && $refid) {
-                Log::channel($this->getLogChannel())->debug('getReviewById: IC search failed, falling back to refid search', [
-                    'icno' => $icno,
-                    'refid' => $refid,
-                    'month' => $month,
-                    'year' => $year,
-                    'labId' => $labId,
-                ]);
+                $searchAttempts['step5_refid_only']['attempted'] = true;
 
                 $testResult = TestResult::with('aiReview')->whereNotNull('ref_id')
                     ->where('ref_id', $refid)
@@ -430,33 +430,22 @@ class BloodTestController extends Controller
                     $foundIcno = $testResult->patient->icno ?? null;
 
                     if ($foundIcno !== $icno) {
-                        Log::channel($this->getLogChannel())->info('getReviewById: Test result found by refid with different IC', [
-                            'refid' => $refid,
-                            'provided_icno' => $icno,
-                            'found_icno' => $foundIcno,
-                            'test_result_id' => $testResult->id,
-                            'is_completed' => $testResult->is_completed,
-                            'is_completed_raw' => $testResult->getRawOriginal('is_completed'),
-                            'is_reviewed' => $testResult->is_reviewed,
-                            'is_reviewed_raw' => $testResult->getRawOriginal('is_reviewed')
-                        ]);
+                        $searchAttempts['step5_refid_only']['found'] = true;
+                        $searchAttempts['step5_refid_only']['found_icno'] = $foundIcno;
+                        $foundByStep = 'step5_refid_only';
                     } else {
                         // IC matches - reject to avoid returning mismatched record
-                        Log::channel($this->getLogChannel())->warning('getReviewById: Found by refid but IC matches - rejecting', [
-                            'refid' => $refid,
-                            'icno' => $icno,
-                            'test_result_id' => $testResult->id,
-                            'database_ref_id' => $testResult->ref_id
-                        ]);
+                        $searchAttempts['step5_refid_only']['rejected_ic_match'] = true;
                         $testResult = null;
                     }
                 }
             }
 
-
-            //Step 6: Check with manual sync for unmatch date - already updated
-            //Condition: Earlier invoice date due to postpone/etc
+            // Step 6: Check with manual sync for unmatch date - already updated
+            // Condition: Earlier invoice date due to postpone/etc
             if (!$testResult && $month != date('m')) {
+                $searchAttempts['step6_manual_sync']['attempted'] = true;
+
                 $testResult = TestResult::with('aiReview')->whereHas('patient', function ($p) use ($icno) {
                     $p->where('icno', $icno);
                 })
@@ -468,20 +457,13 @@ class BloodTestController extends Controller
                     ->latest()->first();
 
                 if ($testResult) {
-                    Log::channel($this->getLogChannel())->info('getReviewById: Test result found by manual_sync_date', [
-                        'icno' => $icno,
-                        'refid' => $refid,
-                        'test_result_id' => $testResult->id
-                    ]);
+                    $searchAttempts['step6_manual_sync']['found'] = true;
+                    $foundByStep = 'step6_manual_sync';
                 }
             }
 
             if (!$testResult) {
-                // Return status if test result not found
-                Log::channel($this->getLogChannel())->warning('getReviewById: Test result not found', [
-                    'icno' => $icno,
-                    'refid' => $refid
-                ]);
+                $logSummary('warning', 'NOT_FOUND');
 
                 return response()->json([
                     'ai_response' => null,
@@ -494,33 +476,16 @@ class BloodTestController extends Controller
                 ->header('Expires', '0');
             }
 
-            // Update ref_id if request has refid but DB has null
+            // Update ref_id if request has refid but DB has null (fallback check)
             if ($refid && $testResult->ref_id === null) {
-                Log::channel($this->getLogChannel())->debug('getReviewById: Updating null ref_id in database', [
-                    'test_result_id' => $testResult->id,
-                    'old_ref_id' => null,
-                    'new_ref_id' => $refid
-                ]);
-
                 $testResult->ref_id = $refid;
                 $testResult->save();
-
-                Log::channel($this->getLogChannel())->info('getReviewById: ref_id updated successfully', [
-                    'test_result_id' => $testResult->id,
-                    'ref_id' => $refid
-                ]);
+                $refIdUpdated = true;
             }
 
             // Check if test result is completed but not reviewed
             if ($testResult->is_completed && !$testResult->is_reviewed) {
-                $processingTime = now()->diffInSeconds($processingStartTime);
-
-                Log::channel($this->getLogChannel())->info('getReviewById: Test result completed but not reviewed', [
-                    'test_result_id' => $testResult->id,
-                    'is_completed' => $testResult->is_completed,
-                    'is_reviewed' => $testResult->is_reviewed,
-                    'processing_time_seconds' => $processingTime
-                ]);
+                $logSummary('info', 'UNREVIEWED');
 
                 return response()->json([
                     'ai_response' => null,
@@ -537,9 +502,7 @@ class BloodTestController extends Controller
             $aiReview = $testResult->aiReview;
 
             if (!$aiReview) {
-                Log::channel($this->getLogChannel())->warning('getReviewById: AIReview not found for reviewed test result', [
-                    'test_result_id' => $testResult->id
-                ]);
+                $logSummary('warning', 'NO_AI_REVIEW');
 
                 return response()->json([
                     'ai_response' => null,
@@ -552,13 +515,6 @@ class BloodTestController extends Controller
                 ->header('Expires', '0');
             }
 
-            Log::channel($this->getLogChannel())->info('getReviewById: AIReview found', [
-                'test_result_id' => $testResult->id,
-                'ai_review_id' => $aiReview->id
-            ]);
-
-            $processingTime = now()->diffInSeconds($processingStartTime);
-
             // Determine status based on is_completed value
             $status = $testResult->is_completed ? self::complete : self::processing;
 
@@ -569,13 +525,9 @@ class BloodTestController extends Controller
                 'status' => $status
             ];
 
-            Log::channel($this->getLogChannel())->info('getReviewById: Processing completed', [
-                'test_result_id' => $testResult->id,
-                'is_completed' => $testResult->is_completed,
-                'is_completed_raw' => $testResult->getRawOriginal('is_completed'),
-                'is_reviewed' => $testResult->is_reviewed,
-                'is_reviewed_raw' => $testResult->getRawOriginal('is_reviewed'),
-                'processing_time_seconds' => $processingTime
+            $logSummary('info', 'COMPLETED', [
+                'ai_review_id' => $aiReview->id,
+                'status' => $status,
             ]);
 
             return response()->json($responseData)
@@ -583,13 +535,23 @@ class BloodTestController extends Controller
                 ->header('Pragma', 'no-cache')
                 ->header('Expires', '0');
         } catch (Throwable $e) {
-            Log::channel($this->getLogChannel())->error('getReviewById: Critical error occurred', [
-                'error_message' => $e->getMessage(),
-                'error_file' => $e->getFile(),
-                'error_line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-                'icno' => $icno,
-                'refid' => $refid
+            Log::channel($this->getLogChannel())->error('getReviewById [FINAL]: EXCEPTION', [
+                'success' => false,
+                'outcome' => 'EXCEPTION',
+                'input' => [
+                    'icno' => $icno ?? null,
+                    'refid' => $refid ?? null,
+                    'month' => $month ?? null,
+                    'year' => $year ?? null,
+                    'labId' => $labId ?? null,
+                ],
+                'search_steps' => $searchAttempts ?? [],
+                'found_by_step' => $foundByStep ?? null,
+                'exception' => [
+                    'message' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ],
             ]);
 
             return response()->json([
