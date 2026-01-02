@@ -521,7 +521,7 @@ class BloodTestController extends Controller
 
             //Step 6: Check with manual sync for unmatch date - already updated
             //Condition: Earlier invoice date due to postpone/etc
-            if ($month != date('m')) {
+            if (!$testResult && $month != date('m')) {
                 $testResult = TestResult::with('aiReview')->whereHas('patient', function ($p) use ($icno) {
                     $p->where('icno', $icno);
                 })
@@ -854,7 +854,7 @@ class BloodTestController extends Controller
 
             //Step 6: Check with manual sync for unmatch date - already updated
             //Condition: Earlier invoice date due to postpone/etc
-            if ($month != date('m')) {
+            if (!$testResult && $month != date('m')) {
                 $testResult = TestResult::with('aiReview')->whereHas('patient', function ($p) use ($icno) {
                     $p->where('icno', $icno);
                 })
