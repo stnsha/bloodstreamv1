@@ -96,7 +96,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/odb.log'),
             // 'level' => env('LOG_LEVEL', 'error'),
-            'level' => 'error',
+            'level' => 'debug',
             'days' => 3,
         ],
 
