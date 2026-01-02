@@ -13,17 +13,30 @@ use Tymon\JWTAuth\Exceptions\TokenInvalidException;
 
 class APIAuthMiddleware
 {
-    public function handle(Request $request, Closure $next)
+    /**
+     * Log raw authentication data for debugging failures.
+     * TEMPORARY: Remove after resolving TokenInvalidException issue.
+     *
+     * @param Request $request
+     * @param array $context Additional context to merge
+     * @return void
+     */
+    private function logRawAuthForDebug(Request $request, array $context = []): void
     {
-        Log::channel('auth')->info('RAW AUTH HEADER', [
-            'authorization' => $request->header('Authorization'),
-            'bearer_token'  => $request->bearerToken(),
+        Log::channel('auth')->warning('DEBUG_RAW_AUTH_FAILURE', array_merge([
+            'raw_authorization_header' => $request->header('Authorization'),
+            'raw_bearer_token' => $request->bearerToken(),
+            'raw_cookie_token' => $request->cookie('jwt_token'),
+            'content_type' => $request->header('Content-Type'),
             'ip' => $request->ip(),
             'user_agent' => $request->userAgent(),
             'endpoint' => $request->fullUrl(),
             'method' => $request->method(),
-        ]);
+        ], $context));
+    }
 
+    public function handle(Request $request, Closure $next)
+    {
         $logContext = [
             'ip' => $request->ip(),
             'user_agent' => $request->userAgent(),
@@ -37,6 +50,7 @@ class APIAuthMiddleware
             $tokenSource = $request->bearerToken() ? 'bearer' : ($request->cookie('jwt_token') ? 'cookie' : 'none');
 
             if (!$token) {
+                $this->logRawAuthForDebug($request, ['failure_reason' => 'no_token_provided']);
                 Log::channel('auth')->warning('Authentication failed: No token provided', $logContext);
                 return response()->json(['error' => 'Unauthorized. Token is required.'], 401);
             }
@@ -56,6 +70,7 @@ class APIAuthMiddleware
             $user = Auth::guard('lab')->setToken($token)->user();
 
             if (!$user) {
+                $this->logRawAuthForDebug($request, ['failure_reason' => 'user_not_found']);
                 Log::channel('auth')->error('Authentication failed: User not found after token validation', array_merge($logContext, [
                     'token_preview' => $tokenPreview,
                     'reason' => 'User returned null from guard',
@@ -74,12 +89,22 @@ class APIAuthMiddleware
             // Just proceed to the next middleware/controller
             return $next($request);
         } catch (TokenExpiredException $e) {
+            $this->logRawAuthForDebug($request, [
+                'failure_reason' => 'token_expired',
+                'exception_message' => $e->getMessage(),
+            ]);
             Log::channel('auth')->error('Authentication failed: Token expired', array_merge($logContext, [
                 'exception' => get_class($e),
                 'message' => $e->getMessage(),
             ]));
             return response()->json(['error' => 'Token has expired'], 401);
         } catch (TokenInvalidException $e) {
+            $this->logRawAuthForDebug($request, [
+                'failure_reason' => 'token_invalid',
+                'exception_message' => $e->getMessage(),
+                'exception_file' => $e->getFile(),
+                'exception_line' => $e->getLine(),
+            ]);
             Log::channel('auth')->error('Authentication failed: Token invalid', array_merge($logContext, [
                 'exception' => get_class($e),
                 'message' => $e->getMessage(),
@@ -88,6 +113,10 @@ class APIAuthMiddleware
             ]));
             return response()->json(['error' => 'Token is invalid'], 401);
         } catch (JWTException $e) {
+            $this->logRawAuthForDebug($request, [
+                'failure_reason' => 'jwt_exception',
+                'exception_message' => $e->getMessage(),
+            ]);
             Log::channel('auth')->error('Authentication failed: JWT exception', array_merge($logContext, [
                 'exception' => get_class($e),
                 'message' => $e->getMessage(),
@@ -96,6 +125,10 @@ class APIAuthMiddleware
             ]));
             return response()->json(['error' => 'Token error'], 401);
         } catch (Exception $e) {
+            $this->logRawAuthForDebug($request, [
+                'failure_reason' => 'general_exception',
+                'exception_message' => $e->getMessage(),
+            ]);
             Log::channel('auth')->error('Authentication failed: General exception', array_merge($logContext, [
                 'exception' => get_class($e),
                 'message' => $e->getMessage(),

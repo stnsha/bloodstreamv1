@@ -53,17 +53,30 @@ class BloodTestController extends Controller
     {
         $validated = $request->all();
         $totalItems = count($validated);
-        $successCount = 0;
-        $notFoundCount = 0;
         $processingStartTime = now();
 
-        Log::channel($this->getLogChannel())->info('getReportId: Processing started', [
-            'total_items' => $totalItems,
-            'timestamp' => $processingStartTime
-        ]);
+        // Tracking variables for summary
+        $successCount = 0;
+        $notFoundCount = 0;
+        $foundByIcAndRefid = 0;
+        $foundByIcOnly = 0;
+        $foundByRefidFallback = 0;
+        $refIdUpdatedCount = 0;
+        $icMismatchRejected = 0;
+        $notFoundItems = [];
 
         try {
-            $results = DB::transaction(function () use ($validated, &$successCount, &$notFoundCount) {
+            $results = DB::transaction(function () use (
+                $validated,
+                &$successCount,
+                &$notFoundCount,
+                &$foundByIcAndRefid,
+                &$foundByIcOnly,
+                &$foundByRefidFallback,
+                &$refIdUpdatedCount,
+                &$icMismatchRejected,
+                &$notFoundItems
+            ) {
                 $results = [];
 
                 foreach ($validated as $index => $item) {
@@ -75,18 +88,9 @@ class BloodTestController extends Controller
 
                     $year  = $year  ?: date('Y');
                     $month = $month ?: date('m');
-                    $itemNumber = $index + 1;
-
-                    Log::channel($this->getLogChannel())->info('getReportId: Processing item', [
-                        'item_number' => $itemNumber,
-                        'icno' => $icno,
-                        'refid' => $refid,
-                        'month' => $month,
-                        'year' => $year,
-                        'labId' => $labId,
-                    ]);
 
                     $testResult = null;
+                    $foundStep = null;
 
                     // Step 1: Create closure to build fresh base query
                     $buildBaseQuery = function () use ($icno, $labId) {
@@ -94,7 +98,7 @@ class BloodTestController extends Controller
                             $p->where('icno', $icno);
                         });
 
-                        //Step 2: Search by lab_id if provided
+                        // Step 2: Search by lab_id if provided
                         if ($labId) {
                             $query->whereHas('doctor', function ($d) use ($labId) {
                                 $d->where('lab_id', $labId);
@@ -105,16 +109,7 @@ class BloodTestController extends Controller
                     };
 
                     // Step 3: If refid provided, try searching by BOTH IC number AND refid
-                    // Condition: ref_id IS NOT NULL
                     if ($refid) {
-                        Log::channel($this->getLogChannel())->debug('getReportId: Searching by IC AND refid', [
-                            'icno' => $icno,
-                            'refid' => $refid,
-                            'month' => $month,
-                            'year' => $year,
-                            'labId' => $labId,
-                        ]);
-
                         $testResult = $buildBaseQuery()
                             ->whereNotNull('ref_id')
                             ->where('ref_id', $refid)
@@ -128,29 +123,15 @@ class BloodTestController extends Controller
                             ->latest()->first();
 
                         if ($testResult) {
-                            Log::channel($this->getLogChannel())->info('getReportId: Test result found by IC AND refid', [
-                                'icno' => $icno,
-                                'refid' => $refid,
-                                'test_result_id' => $testResult->id,
-                                'is_completed' => $testResult->is_completed,
-                                'is_completed_raw' => $testResult->getRawOriginal('is_completed')
-                            ]);
+                            $foundStep = 'ic_and_refid';
+                            $foundByIcAndRefid++;
                         }
                     }
 
                     // Step 4: Search by IC number only
-                    // Condition: ref_id IS NULL
                     if (!$testResult) {
-                        Log::channel($this->getLogChannel())->debug('getReportId: Searching by IC number', [
-                            'icno' => $icno,
-                            'month' => $month,
-                            'year' => $year,
-                            'labId' => $labId,
-                        ]);
-
                         $query = $buildBaseQuery();
 
-                        // Only require NULL ref_id if user provided a refid
                         if ($refid) {
                             $query->whereNull('ref_id');
                         }
@@ -166,42 +147,20 @@ class BloodTestController extends Controller
                             ->latest()->first();
 
                         if ($testResult) {
-                            $logMessage = $refid
-                                ? 'getReportId: Test result found by IC with NULL ref_id'
-                                : 'getReportId: Test result found by IC number';
-
-                            Log::channel($this->getLogChannel())->info($logMessage, [
-                                'icno' => $icno,
-                                'test_result_id' => $testResult->id,
-                                'is_completed' => $testResult->is_completed,
-                                'is_completed_raw' => $testResult->getRawOriginal('is_completed'),
-                                'database_ref_id' => $testResult->ref_id
-                            ]);
+                            $foundStep = 'ic_only';
+                            $foundByIcOnly++;
 
                             // Update ref_id if it's null and we have a refid to set
                             if ($refid && is_null($testResult->ref_id)) {
                                 $testResult->ref_id = $refid;
                                 $testResult->save();
-
-                                Log::channel($this->getLogChannel())->info('getReportId: Updated ref_id from null', [
-                                    'test_result_id' => $testResult->id,
-                                    'new_ref_id' => $refid
-                                ]);
+                                $refIdUpdatedCount++;
                             }
                         }
                     }
 
                     // Step 5: Fallback to search by refid ONLY if provided
-                    // Condition: Possible mismatch IC
                     if (!$testResult && $refid) {
-                        Log::channel($this->getLogChannel())->debug('getReportId: IC search failed, falling back to refid search', [
-                            'icno' => $icno,
-                            'refid' => $refid,
-                            'month' => $month,
-                            'year' => $year,
-                            'labId' => $labId,
-                        ]);
-
                         $testResult = TestResult::whereNotNull('ref_id')
                             ->where('ref_id', $refid)
                             ->where('is_completed', true)
@@ -214,32 +173,19 @@ class BloodTestController extends Controller
                             ->latest()->first();
 
                         if ($testResult) {
-                            // Verify IC mismatch - only return if IC is different
                             $foundIcno = $testResult->patient->icno ?? null;
 
                             if ($foundIcno !== $icno) {
-                                Log::channel($this->getLogChannel())->info('getReportId: Test result found by refid with different IC', [
-                                    'refid' => $refid,
-                                    'provided_icno' => $icno,
-                                    'found_icno' => $foundIcno,
-                                    'test_result_id' => $testResult->id,
-                                    'is_completed' => $testResult->is_completed,
-                                    'is_completed_raw' => $testResult->getRawOriginal('is_completed')
-                                ]);
+                                $foundStep = 'refid_fallback';
+                                $foundByRefidFallback++;
                             } else {
-                                // IC matches - reject to avoid returning mismatched record
-                                Log::channel($this->getLogChannel())->warning('getReportId: Found by refid but IC matches - rejecting', [
-                                    'refid' => $refid,
-                                    'icno' => $icno,
-                                    'test_result_id' => $testResult->id,
-                                    'database_ref_id' => $testResult->ref_id
-                                ]);
                                 $testResult = null;
+                                $icMismatchRejected++;
                             }
                         }
                     }
 
-                    // Always add to results - with report_id=0 if not found
+                    // Build result
                     if ($testResult) {
                         $resultData = [
                             'icno' => $icno,
@@ -247,13 +193,6 @@ class BloodTestController extends Controller
                             'report_id' => $testResult->id
                         ];
                         $successCount++;
-
-                        Log::channel($this->getLogChannel())->info('getReportId: Item processed successfully', [
-                            'item_number' => $itemNumber,
-                            'icno' => $icno,
-                            'refid' => $refid,
-                            'report_id' => $testResult->id
-                        ]);
                     } else {
                         $resultData = [
                             'icno' => $icno,
@@ -261,22 +200,10 @@ class BloodTestController extends Controller
                             'report_id' => 0
                         ];
                         $notFoundCount++;
-
-                        Log::channel($this->getLogChannel())->warning('getReportId: Test result not found', [
-                            'item_number' => $itemNumber,
-                            'icno' => $icno,
-                            'refid' => $refid
-                        ]);
+                        $notFoundItems[] = ['icno' => $icno, 'refid' => $refid];
                     }
 
-                    // Add to results in both cases
                     $results[] = $resultData;
-                    Log::channel($this->getLogChannel())->info('getReportId: Item added to results', [
-                        'item_number' => $itemNumber,
-                        'icno' => $icno,
-                        'refid' => $refid,
-                        'report_id' => $resultData['report_id']
-                    ]);
                 }
 
                 return $results;
@@ -284,11 +211,19 @@ class BloodTestController extends Controller
 
             $processingTime = now()->diffInSeconds($processingStartTime);
 
-            Log::channel($this->getLogChannel())->info('getReportId: Processing completed', [
+            Log::channel($this->getLogChannel())->info('getReportId: Summary', [
                 'total_items' => $totalItems,
-                'success_count' => $successCount,
-                'not_found_count' => $notFoundCount,
-                'processing_time_seconds' => $processingTime
+                'found' => $successCount,
+                'not_found' => $notFoundCount,
+                'breakdown' => [
+                    'by_ic_and_refid' => $foundByIcAndRefid,
+                    'by_ic_only' => $foundByIcOnly,
+                    'by_refid_fallback' => $foundByRefidFallback,
+                ],
+                'ref_id_updated' => $refIdUpdatedCount,
+                'ic_mismatch_rejected' => $icMismatchRejected,
+                'not_found_items' => $notFoundItems,
+                'processing_time_seconds' => $processingTime,
             ]);
 
             return response()->json($results)
@@ -296,14 +231,14 @@ class BloodTestController extends Controller
                 ->header('Pragma', 'no-cache')
                 ->header('Expires', '0');
         } catch (Throwable $e) {
-            Log::channel($this->getLogChannel())->error('getReportId: Critical error occurred', [
+            Log::channel($this->getLogChannel())->error('getReportId: Critical error', [
                 'error_message' => $e->getMessage(),
                 'error_file' => $e->getFile(),
                 'error_line' => $e->getLine(),
                 'trace' => $e->getTraceAsString(),
                 'total_items' => $totalItems,
-                'success_count' => $successCount,
-                'not_found_count' => $notFoundCount
+                'found' => $successCount,
+                'not_found' => $notFoundCount
             ]);
 
             return response()->json([
@@ -978,10 +913,11 @@ class BloodTestController extends Controller
         $validated = $request->all();
         $processingStartTime = now();
 
-        Log::channel($this->getLogChannel())->info('checkVitals: Processing started', [
-            'total_items' => count($validated),
-            'timestamp' => $processingStartTime
-        ]);
+        // Tracking variables for summary
+        $reportIdFound = 0;
+        $reportIdNotFound = 0;
+        $vitalsFilledCount = 0;
+        $notFoundItems = [];
 
         $report = $this->getReportId($request);
         $data = $report->getData();
@@ -991,34 +927,17 @@ class BloodTestController extends Controller
         if (is_array($data)) {
             foreach ($data as $item) {
                 if (isset($item->icno) && isset($item->report_id)) {
-                    // Create composite key using icno and refid (refid may be null)
                     $key = $item->icno . ':' . ($item->refid ?? '');
                     $reportIdMap[$key] = $item->report_id;
-
-                    Log::channel($this->getLogChannel())->debug('checkVitals: Mapped report_id', [
-                        'icno' => $item->icno,
-                        'refid' => $item->refid,
-                        'report_id' => $item->report_id,
-                        'map_key' => $key
-                    ]);
                 }
             }
         }
-
-        Log::channel($this->getLogChannel())->debug('checkVitals: Report ID map built', [
-            'map_size' => count($reportIdMap),
-            'total_validated_items' => count($validated)
-        ]);
 
         try {
             // Extract ICs from the request
             $ics = array_map(function ($item) {
                 return $item['icno'];
             }, $validated);
-
-            Log::channel($this->getLogChannel())->debug('checkVitals: Extracted ICs', [
-                'ics' => $ics
-            ]);
 
             // Check if vitals are filled for these ICs
             $results = $this->myHealthService->isFilledVitals($ics);
@@ -1033,32 +952,41 @@ class BloodTestController extends Controller
                 $key = $icno . ':' . ($refid ?? '');
                 $reportId = $reportIdMap[$key] ?? 0;
 
-                if ($reportId === 0) {
-                    Log::channel($this->getLogChannel())->debug('checkVitals: No report_id found for item', [
-                        'icno' => $icno,
-                        'refid' => $refid,
-                        'map_key' => $key
-                    ]);
+                // Track statistics
+                if ($reportId > 0) {
+                    $reportIdFound++;
+                } else {
+                    $reportIdNotFound++;
+                    $notFoundItems[] = ['icno' => $icno, 'refid' => $refid];
+                }
+
+                $isFilled = $results[$icno] ?? false;
+                if ($isFilled) {
+                    $vitalsFilledCount++;
                 }
 
                 $response[] = [
                     'icno' => $icno,
                     'refid' => $refid,
-                    'is_filled' => $results[$icno] ?? false,
+                    'is_filled' => $isFilled,
                     'report_id' => $reportId
                 ];
             }
 
             $processingTime = now()->diffInSeconds($processingStartTime);
 
-            Log::channel($this->getLogChannel())->info('checkVitals: Processing completed', [
+            Log::channel($this->getLogChannel())->info('checkVitals: Summary', [
                 'total_items' => count($validated),
-                'processing_time_seconds' => $processingTime
+                'report_id_found' => $reportIdFound,
+                'report_id_not_found' => $reportIdNotFound,
+                'vitals_filled' => $vitalsFilledCount,
+                'not_found_items' => $notFoundItems,
+                'processing_time_seconds' => $processingTime,
             ]);
 
             return response()->json($response);
         } catch (Throwable $e) {
-            Log::channel($this->getLogChannel())->error('checkVitals: Critical error occurred', [
+            Log::channel($this->getLogChannel())->error('checkVitals: Critical error', [
                 'error_message' => $e->getMessage(),
                 'error_file' => $e->getFile(),
                 'error_line' => $e->getLine(),
