@@ -2,6 +2,7 @@
 
 namespace App\Jobs\Innoquest;
 
+use App\Jobs\SendToAIServer;
 use App\Models\DeliveryFile;
 use App\Models\Doctor;
 use App\Models\MasterPanel;
@@ -333,7 +334,7 @@ class ProcessPanelResults implements ShouldQueue
             }
 
             if ($test_result) {
-                $deliveryFile = DeliveryFile::firstOrCreate(
+                 DeliveryFile::firstOrCreate(
                     [
                         'lab_id' => $lab_id,
                         'sending_facility' => $sending_facility,
@@ -347,6 +348,22 @@ class ProcessPanelResults implements ShouldQueue
             }
 
             DB::commit();
+
+            // Dispatch to AI server queue if PDF was received
+            if (isset($validated['EncodedBase64pdf']) && filled($validated['EncodedBase64pdf']) && $test_result && $test_result->id) {
+                try {
+                    SendToAIServer::dispatch($test_result->id);
+                    Log::info('Dispatched test result to AI server queue', [
+                        'test_result_id' => $test_result->id,
+                        'lab_no' => $test_result->lab_no ?? null,
+                    ]);
+                } catch (Throwable $e) {
+                     Log::error('Failed to dispatch test result to AI server queue', [
+                        'test_result_id' => $test_result->id,
+                        'error' => $e->getMessage(),
+                     ]);
+                }
+            }
 
             return [
                 'test_result_id' => $test_result->id ?? null,
