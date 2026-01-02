@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
+use App\Jobs\SendToAIServer;
 
 class PanelResultsController extends BaseResultsController
 {
@@ -452,6 +453,23 @@ class PanelResultsController extends BaseResultsController
                         );
                     }
                 });
+
+                // Dispatch to AI server queue if PDF was received
+                if (isset($validated['EncodedBase64pdf']) && filled($validated['EncodedBase64pdf']) && $test_result && $test_result->id) {
+                    try {
+                        SendToAIServer::dispatch($test_result->id);
+                        Log::info('Dispatched test result to AI server queue', [
+                            'test_result_id' => $test_result->id,
+                            'lab_no' => $test_result->lab_no ?? null,
+                        ]);
+                    } catch (Throwable $e) {
+                        Log::error('Failed to dispatch test result to AI server queue', [
+                            'test_result_id' => $test_result->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                        // Continue - don't fail the entire request for queue dispatch failure
+                    }
+                }
 
                 Log::info('Panel results processed successfully', [
                     'test_result_id' => $test_result->id ?? null,
