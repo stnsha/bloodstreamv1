@@ -119,9 +119,9 @@ return [
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
-                PDO::ATTR_TIMEOUT => 3,  // Short timeout for queue operations
+                PDO::ATTR_TIMEOUT => 30,  // Increased from 3 to 30 seconds for concurrent operations
             ]) : [
-                PDO::ATTR_TIMEOUT => 3,  // Short timeout for queue operations
+                PDO::ATTR_TIMEOUT => 30,  // Increased from 3 to 30 seconds for concurrent operations
             ],
             // Use READ COMMITTED isolation level to reduce lock hold times
             'isolation_level' => 'READ COMMITTED',

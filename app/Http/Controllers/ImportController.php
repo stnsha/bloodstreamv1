@@ -14,6 +14,8 @@ use App\Imports\Innoquest\PanelSequenceImport;
 use App\Exports\LabNumberMatchExport;
 use App\Models\DeliveryFile;
 use App\Models\Lab;
+use App\Models\TestResult;
+use App\Services\QueueJobTrackerService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
@@ -27,11 +29,13 @@ class ImportController extends Controller
 {
     protected $labId;
     protected $disk;
+    protected $queueJobTracker;
 
-    public function __construct()
+    public function __construct(?QueueJobTrackerService $queueJobTracker = null)
     {
         $this->disk = Storage::disk('sftp');
         $this->labId = 2;
+        $this->queueJobTracker = $queueJobTracker;
     }
 
     public static function innoquestCodeMapping()
@@ -427,47 +431,32 @@ class ImportController extends Controller
         $processedFiles = [];
 
         try {
-            $path = Lab::find($this->labId)->path;
-            $is_exist = $this->disk->exists('/' . $path);
-
-            if (!$is_exist) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'SFTP path not found',
-                ], 404);
-            }
-
-            // Ensure json directory exists
+            // Use local json directory instead of SFTP
             $jsonDir = storage_path('app/public/json');
             if (!File::exists($jsonDir)) {
                 File::makeDirectory($jsonDir, 0755, true);
                 Log::info('Created json directory: ' . $jsonDir);
             }
 
-            $files = $this->disk->allFiles($path);
+            // Get all files from local json directory
+            $files = File::files($jsonDir);
 
-            // Filter JSON files first to avoid processing non-JSON files
+            // Filter JSON files only
             $jsonFiles = array_filter($files, function ($file) {
-                return pathinfo($file, PATHINFO_EXTENSION) === 'json';
+                return $file->getExtension() === 'json';
             });
 
-            Log::info('Found JSON files', ['count' => count($jsonFiles), 'files' => $jsonFiles]);
+            Log::info('Found JSON files', ['count' => count($jsonFiles), 'directory' => $jsonDir]);
 
             foreach ($jsonFiles as $file) {
                 $startTime = microtime(true);
-                Log::info('Processing JSON file', ['file' => $file, 'start_time' => date('Y-m-d H:i:s')]);
+                $file_name = $file->getFilename();
+
+                Log::info('Processing JSON file', ['file' => $file_name, 'start_time' => date('Y-m-d H:i:s')]);
 
                 try {
-                    $content = $this->disk->get($file);
-
-                    // Get file base name
-                    $file_name = basename($this->disk->path($file));
-
-                    // Move to json storage
-                    Storage::disk('public')->put("json/{$file_name}", $content);
-
-                    // Get new json path
-                    $temp_path = storage_path("app/public/json/{$file_name}");
+                    // Read content from local file
+                    $content = File::get($file->getPathname());
 
                     // Validate JSON content
                     $jsonData = json_decode($content, true);
@@ -501,7 +490,7 @@ class ImportController extends Controller
                         $innoquestRequest->setValidator($validator);
 
                         // Call panelResults method from ResultController
-                        $resultController = new PanelResultsController();
+                        $resultController = app(PanelResultsController::class);
                         $response = $resultController->panelResults($innoquestRequest);
 
                         if ($response) {
@@ -509,22 +498,25 @@ class ImportController extends Controller
                             $responseData = json_decode($response->getContent(), true);
                             $statusCode = $response->getStatusCode();
 
-                            if ($statusCode === 200 && $responseData['success']) {
+                            // Handle async response (202 Accepted) - return immediately without waiting
+                            if ($statusCode === 202 && $responseData['success']) {
+                                $requestId = $responseData['request_id'];
+
                                 $processedFiles[] = [
                                     'file_name' => $file_name,
-                                    'status' => 'processed',
-                                    'test_result_id' => $responseData['data']['test_result_id'] ?? null,
-                                    'panel' => $responseData['data']['panel'] ?? null,
+                                    'status' => 'queued',
+                                    'request_id' => $requestId,
+                                    'message' => 'Job dispatched to queue, processing in background',
                                     'processing_time' => round(microtime(true) - $startTime, 2) . 's'
                                 ];
 
-                                Log::info('JSON file processed successfully', [
+                                Log::info('JSON file queued for processing', [
                                     'file' => $file_name,
-                                    'test_result_id' => $responseData['data']['test_result_id'] ?? null,
+                                    'request_id' => $requestId,
                                     'processing_time' => round(microtime(true) - $startTime, 2) . 's'
                                 ]);
                             } else {
-                                throw new Exception('Panel results processing failed: ' . ($responseData['message'] ?? 'Unknown error'));
+                                throw new Exception('Unexpected response status ' . $statusCode . ': ' . ($responseData['message'] ?? 'Unknown error'));
                             }
                         }
                     } catch (Exception $e) {
@@ -537,19 +529,24 @@ class ImportController extends Controller
 
                         Log::error('Error processing JSON data', [
                             'file' => $file_name,
-                            'error' => $e->getMessage()
+                            'error' => $e->getMessage(),
+                            'diagnostics' => isset($requestId) ? $this->queueJobTracker->getJobDiagnostics(
+                                $requestId,
+                                $jsonData['MessageControlID'] ?? null,
+                                $jsonData['Orders'][0]['Observations'][0]['FillerOrderNumber'] ?? null
+                            ) : []
                         ]);
                     }
                 } catch (Exception $fileException) {
                     $processedFiles[] = [
-                        'file_name' => basename($file),
+                        'file_name' => $file_name ?? 'unknown',
                         'error' => $fileException->getMessage(),
                         'status' => 'error',
                         'processing_time' => round(microtime(true) - $startTime, 2) . 's'
                     ];
 
                     Log::error('Error processing file', [
-                        'file' => $file,
+                        'file' => $file_name ?? 'unknown',
                         'error' => $fileException->getMessage()
                     ]);
                 }
@@ -557,7 +554,7 @@ class ImportController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'JSON files processed successfully',
+                'message' => 'JSON files processed successfully from local storage',
                 'files' => $processedFiles,
                 'total_json_files' => count($processedFiles)
             ]);

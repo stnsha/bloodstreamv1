@@ -22,8 +22,8 @@ class SendToAIServer implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public $timeout = 60;  // HTTP send only, not processing
-    public $tries = 1;     // Can retry failed sends
+    public $timeout = 120;  // Increased from 60 to 120 for better headroom under load
+    public $tries = 1;      // Can retry failed sends
     public $testResultId;
 
     /**

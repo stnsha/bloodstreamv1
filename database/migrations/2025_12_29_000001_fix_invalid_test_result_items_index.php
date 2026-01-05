@@ -16,7 +16,7 @@ return new class extends Migration
                 $table->dropIndex('test_result_items_upsert_idx');
             });
         } catch (\Exception $e) {
-            // Index may not exist if the previous migration failed, continue
+            // Index doesn't exist, skip
         }
     }
 

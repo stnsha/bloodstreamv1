@@ -14,6 +14,7 @@ use Illuminate\Queue\Middleware\ThrottlesExceptions;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Exception;
 use Throwable;
 
 class ProcessMigrationReport implements ShouldQueue
@@ -44,6 +45,8 @@ class ProcessMigrationReport implements ShouldQueue
             new WithoutOverlapping($this->itemId),
 
             // Rate limit: max 10 jobs per minute per partition (Laravel 10 syntax)
+            // Combined with reduced scheduler frequency (60% to 20% uptime),
+            // this naturally limits concurrent jobs from ~20-30 to ~5-10 jobs
             new RateLimited('migration-processing'),
 
             // Throttle exceptions: max 3 exceptions per 5 minutes
@@ -293,7 +296,7 @@ class ProcessMigrationReport implements ShouldQueue
                 ]);
             }
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Error updating batch counters', [
                 'batch_id' => $batchId,
                 'error' => $e->getMessage(),
