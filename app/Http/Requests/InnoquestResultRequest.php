@@ -68,7 +68,7 @@ class InnoquestResultRequest extends FormRequest
             'patient.PatientLastName' => 'required|string', // Always Expected (Full Name)
             'patient.PatientFirstName' => 'nullable|string', // Present in JSON
             // 'patient.PatientMiddleName' => 'nullable|string', // not used - COMMENTED OUT (not in JSON)
-            'patient.PatientDOB' => 'required|string', // Always Expected (YYYYMMDD)
+            'patient.PatientDOB' => 'nullable|string', // Always Expected (YYYYMMDD)
             'patient.PatientGender' => 'required|string|in:M,F', // Always Expected (M/F)
             'patient.PatientAddress' => 'nullable|string', // Optional
             // 'patient.PatientNationality' => 'nullable|string', // Optional - COMMENTED OUT (not in JSON)
@@ -123,7 +123,7 @@ class InnoquestResultRequest extends FormRequest
             'Orders.*.Observations.*.Results.*.ReferenceRange' => 'nullable|string', // Optional
             'Orders.*.Observations.*.Results.*.Flags' => 'nullable|string', // Optional
             'Orders.*.Observations.*.Results.*.Status' => 'required|string', // Always Expected
-            'Orders.*.Observations.*.Results.*.ObservationDateTime' => 'required|string', // Always Expected
+            'Orders.*.Observations.*.Results.*.ObservationDateTime' => 'nullable|string', // Always Expected
 
             // Additional field
             'EncodedBase64pdf' => 'nullable|string'
