@@ -207,7 +207,7 @@ class DispatchUnreviewedResultsAsync extends Command
      */
     protected function acquireLock(): bool
     {
-        return Cache::lock($this->lockKey, 1800)->get();
+        return Cache::lock($this->lockKey, 900)->get();
     }
 
     /**
