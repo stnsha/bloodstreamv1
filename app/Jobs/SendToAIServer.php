@@ -9,6 +9,7 @@ use App\Services\ApiTokenService;
 use App\Services\TestResultCompilerService;
 use Exception;
 use Illuminate\Bus\Queueable;
+use Throwable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -57,15 +58,17 @@ class SendToAIServer implements ShouldQueue
             $testResult = $compiler->fetchTestResult($this->testResultId);
             $compiledData = $compiler->compileTestResultData($testResult, 'MHJOB');
 
-            // Create ai_reviews record with pending status
+            // Create or update ai_reviews record with pending status
             $aiReview = DB::transaction(function () use ($compiledData) {
-                return AIReview::create([
-                    'test_result_id' => $this->testResultId,
-                    'processing_status' => 'PENDING',
-                    'compiled_results' => $compiledData,
-                    'ai_response' => null,
-                    'raw_response' => null,
-                ]);
+                return AIReview::updateOrCreate(
+                    ['test_result_id' => $this->testResultId],
+                    [
+                        'processing_status' => 'PENDING',
+                        'compiled_results' => $compiledData,
+                        'ai_response' => null,
+                        'raw_response' => null,
+                    ]
+                );
             });
 
             // Build payload with callback URL
@@ -128,7 +131,7 @@ class SendToAIServer implements ShouldQueue
     /**
      * Handle job failure
      */
-    public function failed(Exception $exception): void
+    public function failed(Throwable $exception): void
     {
         // Hard delete AIReview record and create error record
         DB::transaction(function () use ($exception) {
@@ -148,7 +151,7 @@ class SendToAIServer implements ShouldQueue
     /**
      * Handle error during processing
      */
-    protected function handleError(Exception $e): void
+    protected function handleError(Throwable $e): void
     {
         try {
             DB::transaction(function () use ($e) {
@@ -172,7 +175,7 @@ class SendToAIServer implements ShouldQueue
     /**
      * Store error to ai_errors table
      */
-    protected function storeError(Exception $e): void
+    protected function storeError(Throwable $e): void
     {
         try {
             // Get compiled_data from ai_reviews if exists
