@@ -1,6 +1,6 @@
 {
     "info": {
-        "name": "Laravel",
+        "name": "BloodStreamv1",
         "description": "API Documentation",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
@@ -292,7 +292,7 @@
                                         },
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "{\n    \"success\": 0,\n    \"status\": \"sample_text\",\n    \"test_result_id\": 1,\n    \"data\": {\n        \"ai_analysis\": {\n            \"success\": 1,\n            \"status\": 7,\n            \"answer\": {\n                \"section_a1\": [],\n                \"section_a2\": [],\n                \"section_b\": [],\n                \"section_c\": \"sample_text\"\n            }\n        }\n    },\n    \"data.ai_analysis.answer.section_a1\": [\n        {\n            \"health_area\": \"sample_text\",\n            \"status\": \"sample_text\",\n            \"notes\": \"sample_text\"\n        }\n    ],\n    \"data.ai_analysis.answer.section_a2\": [\n        []\n    ],\n    \"data.ai_analysis.answer.section_b\": [\n        {\n            \"timeline\": \"sample_text\",\n            \"action\": \"sample_text\",\n            \"goals\": \"sample_text\",\n            \"alpro_care\": \"sample_text\",\n            \"appointment\": \"sample_text\"\n        }\n    ]\n}",
+                                            "raw": "{\n    \"success\": 0,\n    \"status\": \"sample_text\",\n    \"test_result_id\": 6,\n    \"data\": {\n        \"ai_analysis\": {\n            \"success\": 1,\n            \"status\": 2,\n            \"answer\": {\n                \"section_a1\": [],\n                \"section_a2\": [],\n                \"section_b\": [],\n                \"section_c\": \"sample_text\"\n            }\n        }\n    },\n    \"data.ai_analysis.answer.section_a1\": [\n        {\n            \"health_area\": \"sample_text\",\n            \"status\": \"sample_text\",\n            \"notes\": \"sample_text\"\n        }\n    ],\n    \"data.ai_analysis.answer.section_a2\": [\n        []\n    ],\n    \"data.ai_analysis.answer.section_b\": [\n        {\n            \"timeline\": \"sample_text\",\n            \"action\": \"sample_text\",\n            \"goals\": \"sample_text\",\n            \"alpro_care\": \"sample_text\",\n            \"appointment\": \"sample_text\"\n        }\n    ]\n}",
                                             "options": []
                                         }
                                     }
@@ -337,8 +337,17 @@
                                         },
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "{\n    \"sending_facility\": \"sample_text\",\n    \"batch_id\": \"sample_text\",\n    \"reference_id\": \"sample_text\",\n    \"lab_no\": \"sample_text\",\n    \"bill_code\": \"sample_text\",\n    \"doctor\": {\n        \"code\": \"sample_text\",\n        \"name\": \"sample_text\",\n        \"address\": \"sample_text\",\n        \"phone\": \"sample_text\",\n        \"type\": \"sample_text\"\n    },\n    \"received_date\": \"sample_text\",\n    \"reported_date\": \"sample_text\",\n    \"collected_date\": \"sample_text\",\n    \"validated_by\": \"sample_text\",\n    \"package_name\": \"sample_text\",\n    \"patient\": {\n        \"icno\": \"sample_text\",\n        \"gender\": \"sample_text\",\n        \"age\": \"sample_text\",\n        \"name\": \"sample_text\",\n        \"tel\": \"sample_text\",\n        \"ic_type\": \"sample_text\"\n    },\n    \"results\": [\n        {\n            \"panel_code\": \"sample_text\",\n            \"panel_sequence\": 1,\n            \"panel_remarks\": \"sample_text\",\n            \"result_status\": 2,\n            \"tests\": [\n                {\n                    \"test_name\": \"sample_text\",\n                    \"test_code\": \"sample_text\",\n                    \"result_value\": \"sample_text\",\n                    \"decimal_point\": \"sample_text\",\n                    \"result_flag\": \"sample_text\",\n                    \"unit\": \"sample_text\",\n                    \"ref_range\": \"sample_text\",\n                    \"test_note\": \"sample_text\",\n                    \"report_sequence\": 2\n                }\n            ]\n        }\n    ]\n}",
+                                            "raw": "{\n    \"sending_facility\": \"sample_text\",\n    \"batch_id\": \"sample_text\",\n    \"reference_id\": \"sample_text\",\n    \"lab_no\": \"sample_text\",\n    \"bill_code\": \"sample_text\",\n    \"doctor\": {\n        \"code\": \"sample_text\",\n        \"name\": \"sample_text\",\n        \"address\": \"sample_text\",\n        \"phone\": \"sample_text\",\n        \"type\": \"sample_text\"\n    },\n    \"received_date\": \"sample_text\",\n    \"reported_date\": \"sample_text\",\n    \"collected_date\": \"sample_text\",\n    \"validated_by\": \"sample_text\",\n    \"package_name\": \"sample_text\",\n    \"patient\": {\n        \"icno\": \"sample_text\",\n        \"gender\": \"sample_text\",\n        \"age\": \"sample_text\",\n        \"name\": \"sample_text\",\n        \"tel\": \"sample_text\",\n        \"ic_type\": \"sample_text\"\n    },\n    \"results\": [\n        {\n            \"panel_code\": \"sample_text\",\n            \"panel_sequence\": 10,\n            \"panel_remarks\": \"sample_text\",\n            \"result_status\": 6,\n            \"tests\": [\n                {\n                    \"test_name\": \"sample_text\",\n                    \"test_code\": \"sample_text\",\n                    \"result_value\": \"sample_text\",\n                    \"decimal_point\": \"sample_text\",\n                    \"result_flag\": \"sample_text\",\n                    \"unit\": \"sample_text\",\n                    \"ref_range\": \"sample_text\",\n                    \"test_note\": \"sample_text\",\n                    \"report_sequence\": 1\n                }\n            ]\n        }\n    ]\n}",
                                             "options": []
+                                        },
+                                        "auth": {
+                                            "type": "bearer",
+                                            "bearer": [
+                                                {
+                                                    "key": "token",
+                                                    "value": "{{auth_token}}"
+                                                }
+                                            ]
                                         }
                                     }
                                 }
@@ -372,6 +381,15 @@
                                         ":id"
                                     ],
                                     "variable": []
+                                },
+                                "auth": {
+                                    "type": "bearer",
+                                    "bearer": [
+                                        {
+                                            "key": "token",
+                                            "value": "{{auth_token}}"
+                                        }
+                                    ]
                                 }
                             }
                         },
@@ -410,6 +428,15 @@
                                             "mode": "raw",
                                             "raw": "{\n    \"SendingFacility\": \"sample_text\",\n    \"MessageControlID\": \"sample_text\",\n    \"patient\": {\n        \"PatientID\": \"sample_text\",\n        \"PatientExternalID\": \"sample_text\",\n        \"AlternatePatientID\": \"sample_text\",\n        \"PatientLastName\": \"sample_text\",\n        \"PatientFirstName\": \"sample_text\",\n        \"PatientDOB\": \"sample_text\",\n        \"PatientGender\": \"sample_text\",\n        \"PatientAddress\": \"sample_text\"\n    },\n    \"Orders\": [\n        {\n            \"PlacerOrderNumber\": \"sample_text\",\n            \"FillerOrderNumber\": \"sample_text\",\n            \"OrderingProvider\": {\n                \"Code\": \"sample_text\",\n                \"Name\": \"sample_text\"\n            },\n            \"Observations\": [\n                {\n                    \"FillerOrderNumber\": \"sample_text\",\n                    \"ProcedureCode\": \"sample_text\",\n                    \"ProcedureDescription\": \"sample_text\",\n                    \"PackageCode\": \"sample_text\",\n                    \"RequestedDateTime\": \"sample_text\",\n                    \"ClinicalInformation\": \"sample_text\",\n                    \"SpecimenDateTime\": \"sample_text\",\n                    \"ResultStatus\": \"sample_text\",\n                    \"ServiceDateTime\": \"sample_text\",\n                    \"ResultPriority\": \"sample_text\",\n                    \"Results\": [\n                        {\n                            \"ID\": \"sample_text\",\n                            \"Type\": \"sample_text\",\n                            \"Identifier\": \"sample_text\",\n                            \"Text\": \"sample_text\",\n                            \"CodingSystem\": \"sample_text\",\n                            \"Value\": \"sample_text\",\n                            \"Units\": \"sample_text\",\n                            \"ReferenceRange\": \"sample_text\",\n                            \"Flags\": \"sample_text\",\n                            \"Status\": \"sample_text\",\n                            \"ObservationDateTime\": \"sample_text\"\n                        }\n                    ]\n                }\n            ]\n        }\n    ],\n    \"EncodedBase64pdf\": \"sample_text\"\n}",
                                             "options": []
+                                        },
+                                        "auth": {
+                                            "type": "bearer",
+                                            "bearer": [
+                                                {
+                                                    "key": "token",
+                                                    "value": "{{auth_token}}"
+                                                }
+                                            ]
                                         }
                                     }
                                 }
@@ -450,6 +477,15 @@
                                                 "import",
                                                 "innoquestCodeMapping"
                                             ]
+                                        },
+                                        "auth": {
+                                            "type": "bearer",
+                                            "bearer": [
+                                                {
+                                                    "key": "token",
+                                                    "value": "{{auth_token}}"
+                                                }
+                                            ]
                                         }
                                     }
                                 }
@@ -484,6 +520,15 @@
                                                 "v1",
                                                 "import",
                                                 "json"
+                                            ]
+                                        },
+                                        "auth": {
+                                            "type": "bearer",
+                                            "bearer": [
+                                                {
+                                                    "key": "token",
+                                                    "value": "{{auth_token}}"
+                                                }
                                             ]
                                         }
                                     }
@@ -528,8 +573,17 @@
                                         },
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 8,\n        \"year\": 4,\n        \"labid\": 9,\n        \"labno\": \"sample_text\"\n    }\n}",
+                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 1,\n        \"year\": 9,\n        \"labid\": 6,\n        \"labno\": \"sample_text\"\n    }\n}",
                                             "options": []
+                                        },
+                                        "auth": {
+                                            "type": "bearer",
+                                            "bearer": [
+                                                {
+                                                    "key": "token",
+                                                    "value": "{{auth_token}}"
+                                                }
+                                            ]
                                         }
                                     }
                                 }
@@ -569,6 +623,15 @@
                                                 "v1",
                                                 "comment",
                                                 "update"
+                                            ]
+                                        },
+                                        "auth": {
+                                            "type": "bearer",
+                                            "bearer": [
+                                                {
+                                                    "key": "token",
+                                                    "value": "{{auth_token}}"
+                                                }
                                             ]
                                         }
                                     }
@@ -610,6 +673,15 @@
                                                 "export",
                                                 "age"
                                             ]
+                                        },
+                                        "auth": {
+                                            "type": "bearer",
+                                            "bearer": [
+                                                {
+                                                    "key": "token",
+                                                    "value": "{{auth_token}}"
+                                                }
+                                            ]
                                         }
                                     }
                                 }
@@ -648,6 +720,15 @@
                                                         "export",
                                                         "bt",
                                                         "age"
+                                                    ]
+                                                },
+                                                "auth": {
+                                                    "type": "bearer",
+                                                    "bearer": [
+                                                        {
+                                                            "key": "token",
+                                                            "value": "{{auth_token}}"
+                                                        }
                                                     ]
                                                 }
                                             }
@@ -694,8 +775,17 @@
                                         },
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 6,\n        \"year\": 10,\n        \"labid\": 3,\n        \"labno\": \"sample_text\"\n    }\n}",
+                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 4,\n        \"year\": 4,\n        \"labid\": 0,\n        \"labno\": \"sample_text\"\n    }\n}",
                                             "options": []
+                                        },
+                                        "auth": {
+                                            "type": "bearer",
+                                            "bearer": [
+                                                {
+                                                    "key": "token",
+                                                    "value": "{{auth_token}}"
+                                                }
+                                            ]
                                         }
                                     }
                                 }
@@ -734,8 +824,17 @@
                                         },
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 1,\n        \"year\": 5,\n        \"labid\": 5,\n        \"labno\": \"sample_text\"\n    }\n}",
+                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 7,\n        \"year\": 5,\n        \"labid\": 10,\n        \"labno\": \"sample_text\"\n    }\n}",
                                             "options": []
+                                        },
+                                        "auth": {
+                                            "type": "bearer",
+                                            "bearer": [
+                                                {
+                                                    "key": "token",
+                                                    "value": "{{auth_token}}"
+                                                }
+                                            ]
                                         }
                                     }
                                 }
@@ -774,8 +873,17 @@
                                         },
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 9,\n        \"year\": 7,\n        \"labid\": 0,\n        \"labno\": \"sample_text\"\n    }\n}",
+                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 8,\n        \"year\": 1,\n        \"labid\": 7,\n        \"labno\": \"sample_text\"\n    }\n}",
                                             "options": []
+                                        },
+                                        "auth": {
+                                            "type": "bearer",
+                                            "bearer": [
+                                                {
+                                                    "key": "token",
+                                                    "value": "{{auth_token}}"
+                                                }
+                                            ]
                                         }
                                     }
                                 }
@@ -816,8 +924,17 @@
                                         },
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 2,\n        \"year\": 0,\n        \"labid\": 9,\n        \"labno\": \"sample_text\"\n    }\n}",
+                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 3,\n        \"year\": 6,\n        \"labid\": 9,\n        \"labno\": \"sample_text\"\n    }\n}",
                                             "options": []
+                                        },
+                                        "auth": {
+                                            "type": "bearer",
+                                            "bearer": [
+                                                {
+                                                    "key": "token",
+                                                    "value": "{{auth_token}}"
+                                                }
+                                            ]
                                         }
                                     }
                                 }
@@ -856,8 +973,17 @@
                                         },
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 5,\n        \"year\": 10,\n        \"labid\": 2,\n        \"labno\": \"sample_text\"\n    }\n}",
+                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 10,\n        \"year\": 7,\n        \"labid\": 10,\n        \"labno\": \"sample_text\"\n    }\n}",
                                             "options": []
+                                        },
+                                        "auth": {
+                                            "type": "bearer",
+                                            "bearer": [
+                                                {
+                                                    "key": "token",
+                                                    "value": "{{auth_token}}"
+                                                }
+                                            ]
                                         }
                                     }
                                 }
@@ -896,8 +1022,17 @@
                                         },
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 0,\n        \"year\": 3,\n        \"labid\": 7,\n        \"labno\": \"sample_text\"\n    }\n}",
+                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 3,\n        \"year\": 4,\n        \"labid\": 4,\n        \"labno\": \"sample_text\"\n    }\n}",
                                             "options": []
+                                        },
+                                        "auth": {
+                                            "type": "bearer",
+                                            "bearer": [
+                                                {
+                                                    "key": "token",
+                                                    "value": "{{auth_token}}"
+                                                }
+                                            ]
                                         }
                                     }
                                 }
@@ -932,6 +1067,15 @@
                                                 "v1",
                                                 "odb",
                                                 "searchLabNo"
+                                            ]
+                                        },
+                                        "auth": {
+                                            "type": "bearer",
+                                            "bearer": [
+                                                {
+                                                    "key": "token",
+                                                    "value": "{{auth_token}}"
+                                                }
                                             ]
                                         }
                                     }
@@ -971,8 +1115,17 @@
                                         },
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 0,\n        \"year\": 9,\n        \"labid\": 2,\n        \"labno\": \"sample_text\"\n    }\n}",
+                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 5,\n        \"year\": 5,\n        \"labid\": 2,\n        \"labno\": \"sample_text\"\n    }\n}",
                                             "options": []
+                                        },
+                                        "auth": {
+                                            "type": "bearer",
+                                            "bearer": [
+                                                {
+                                                    "key": "token",
+                                                    "value": "{{auth_token}}"
+                                                }
+                                            ]
                                         }
                                     }
                                 }
@@ -1013,6 +1166,15 @@
                                             "mode": "raw",
                                             "raw": "{\n    \"reports\": [\n        {\n            \"ref_id\": \"sample_text\",\n            \"report\": [],\n            \"parameter\": []\n        }\n    ]\n}",
                                             "options": []
+                                        },
+                                        "auth": {
+                                            "type": "bearer",
+                                            "bearer": [
+                                                {
+                                                    "key": "token",
+                                                    "value": "{{auth_token}}"
+                                                }
+                                            ]
                                         }
                                     }
                                 }
@@ -1053,6 +1215,15 @@
                                             "mode": "raw",
                                             "raw": "{\n    \"reports\": [\n        {\n            \"ref_id\": \"sample_text\",\n            \"report\": [],\n            \"parameter\": []\n        }\n    ]\n}",
                                             "options": []
+                                        },
+                                        "auth": {
+                                            "type": "bearer",
+                                            "bearer": [
+                                                {
+                                                    "key": "token",
+                                                    "value": "{{auth_token}}"
+                                                }
+                                            ]
                                         }
                                     }
                                 }
@@ -1090,6 +1261,15 @@
                                                 ":uuid"
                                             ],
                                             "variable": []
+                                        },
+                                        "auth": {
+                                            "type": "bearer",
+                                            "bearer": [
+                                                {
+                                                    "key": "token",
+                                                    "value": "{{auth_token}}"
+                                                }
+                                            ]
                                         }
                                     }
                                 }
@@ -1130,6 +1310,15 @@
                                                 "fixes",
                                                 "normalize-refid"
                                             ]
+                                        },
+                                        "auth": {
+                                            "type": "bearer",
+                                            "bearer": [
+                                                {
+                                                    "key": "token",
+                                                    "value": "{{auth_token}}"
+                                                }
+                                            ]
                                         }
                                     }
                                 }
@@ -1144,6 +1333,14 @@
         {
             "key": "base_url",
             "value": "http://127.0.0.1:8000"
+        },
+        {
+            "key": "token",
+            "value": "{{token}}"
+        },
+        {
+            "key": "gptoken",
+            "value": "{{gptoken}}"
         }
     ]
 }

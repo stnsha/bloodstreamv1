@@ -106,7 +106,7 @@ return [
     */
     'auth' => [
         // Enable authentication documentation
-        'enabled' => false,
+        'enabled' => true,
 
         // Supported: 'bearer', 'basic', 'api_key'
         'type' => 'bearer',
@@ -116,7 +116,7 @@ return [
 
         // Default values (use env vars for real values)
         'default' => [
-            'token' => 'your-access-token',       // For bearer auth
+            'token' => '{{token}}',                // For bearer auth - uses Postman variable
             'username' => 'user@example.com',      // For basic auth
             'password' => 'password',              // For basic auth
             'key_name' => 'X-API-KEY',             // For api_key auth
@@ -124,7 +124,7 @@ return [
         ],
 
         // Middleware that indicate protected routes
-        'protected_middleware' => ['auth:api'],
+        'protected_middleware' => ['api.auth', 'auth:sanctum'],
     ],
 
     /*

@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\TokenValidationRateLimiter;
+use App\Services\TokenValidationService;
 use Closure;
 use Exception;
 use Illuminate\Http\Request;
@@ -53,6 +55,63 @@ class APIAuthMiddleware
                 $this->logRawAuthForDebug($request, ['failure_reason' => 'no_token_provided']);
                 Log::channel('auth')->warning('Authentication failed: No token provided', $logContext);
                 return response()->json(['error' => 'Unauthorized. Token is required.'], 401);
+            }
+
+            // Validate token format before attempting expensive JWT parsing
+            $validationService = new TokenValidationService();
+            $validation = $validationService->validateTokenFormat($token);
+
+            if (!$validation['valid']) {
+                // Check rate limiting for this error pattern
+                $rateLimiter = new TokenValidationRateLimiter();
+                $clientIp = $request->ip();
+                $errorType = $validation['error_type'];
+                $rateLimitCheck = $rateLimiter->checkRateLimit($clientIp, $errorType);
+
+                // Log validation failure
+                $this->logRawAuthForDebug($request, [
+                    'failure_reason' => 'invalid_token_format',
+                    'error_type' => $errorType,
+                    'pattern_matched' => $validation['pattern_matched'],
+                    'token_value' => $validation['should_log_full_token'] ? $token : 'REDACTED',
+                    'token_length' => strlen($token),
+                    'segment_count' => substr_count($token, '.') + 1,
+                ]);
+
+                // If rate limited, return 429
+                if (!$rateLimitCheck['allowed']) {
+                    Log::channel('auth')->warning('Authentication failed: Rate limit exceeded', array_merge($logContext, [
+                        'error_type' => $errorType,
+                        'attempts' => $rateLimitCheck['attempts'],
+                        'retry_after' => $rateLimitCheck['retry_after'],
+                    ]));
+
+                    return response()->json([
+                        'error' => 'Too many invalid token attempts',
+                        'error_type' => 'rate_limit_exceeded',
+                        'attempts' => $rateLimitCheck['attempts'],
+                        'max_attempts' => $rateLimitCheck['max_attempts'],
+                        'retry_after' => $rateLimitCheck['retry_after'],
+                        'hint' => 'Too many authentication failures. Please fix your token configuration and try again after ' . $rateLimitCheck['retry_after'] . ' seconds.',
+                    ], 429);
+                }
+
+                // Record this failure for rate limiting
+                $rateLimiter->recordFailure($clientIp, $errorType);
+
+                // Log error with context
+                Log::channel('auth')->error('Authentication failed: Invalid token format', array_merge($logContext, [
+                    'error_type' => $errorType,
+                    'error_message' => $validation['error_message'],
+                    'pattern_matched' => $validation['pattern_matched'],
+                    'token_length' => strlen($token),
+                ]));
+
+                return response()->json([
+                    'error' => $validation['error_message'],
+                    'error_type' => $errorType,
+                    'hint' => $this->getClientHint($errorType),
+                ], 401);
             }
 
             // Log token metadata (never log full token for security)
@@ -136,5 +195,24 @@ class APIAuthMiddleware
             ]));
             return response()->json(['error' => 'Authentication failed'], 401);
         }
+    }
+
+    /**
+     * Get client-friendly hint for token validation error.
+     *
+     * @param string $errorType
+     * @return string
+     */
+    private function getClientHint(string $errorType): string
+    {
+        $hints = [
+            'placeholder' => 'Check your client configuration - token variable not replaced with actual JWT',
+            'invalid_format' => 'Token format is incorrect - ensure proper JWT structure',
+            'too_short' => 'Token appears truncated or malformed',
+            'invalid_chars' => 'Token contains invalid characters',
+            'suspicious_pattern' => 'Check your authentication header format',
+        ];
+
+        return $hints[$errorType] ?? 'Please verify your authentication token format';
     }
 }
