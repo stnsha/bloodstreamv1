@@ -95,8 +95,8 @@ return [
         'odb-log' => [
             'driver' => 'daily',
             'path' => storage_path('logs/odb.log'),
-            // 'level' => env('LOG_LEVEL', 'error'),
-            'level' => 'debug',
+            'level' => env('LOG_LEVEL', 'warning'),
+            // 'level' => 'debug',
             'days' => 3,
         ],
 
@@ -132,7 +132,7 @@ return [
         'performance' => [
             'driver' => 'daily',
             'path' => storage_path('logs/performance.log'),
-            'level' => env('LOG_LEVEL', 'warning'),
+            'level' => env('LOG_LEVEL', 'error'), //warning
             'days' => 3,
         ],
 
