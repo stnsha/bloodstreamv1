@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\API\AuthController;
-use App\Http\Controllers\API\DoctorReviewController;
 use App\Http\Controllers\API\Fixes\HotFixController;
 use App\Http\Controllers\API\Webhook\AIResultController;
 use App\Http\Controllers\ExportController;
@@ -10,7 +9,6 @@ use App\Http\Controllers\API\General\LabResultsController;
 use App\Http\Controllers\API\Innoquest\PanelResultsController;
 use App\Http\Controllers\API\ODB\BloodTestController;
 use App\Http\Controllers\API\PDFController;
-use App\Http\Controllers\MasterPanelItemController;
 use App\Http\Controllers\PanelCommentController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
@@ -58,18 +56,13 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
 
         // Panel Results Controller routes (Innoquest)
         Route::post('/panel', [PanelResultsController::class, 'panelResults'])->name('panelResults');
-        // Route::post('/testPanel', [PanelResultsController::class, 'testPanel'])->name('testPanel');
     });
 
     Route::prefix('import')->controller(ImportController::class)->group(function () {
         Route::get('/innoquestCodeMapping', 'innoquestCodeMapping')->name('innoquestCodeMapping');
-        Route::get('/panels', 'panels')->name('panels');
-        Route::get('/results', 'results')->name('results');
-        Route::get('/files', 'files')->name('files');
         Route::get('/json', 'json')->name('json');
-        Route::get('/deliveryFiles', 'deliveryFiles')->name('deliveryFiles');
-        Route::get('/innoquestPanelSequence', 'innoquestPanelSequence')->name('innoquestPanelSequence');
-        Route::get('/labNumber', 'labNumber')->name('labNumber');
+        // Route::get('/innoquestPanelSequence', 'innoquestPanelSequence')->name('innoquestPanelSequence');
+        // Route::get('/labNumber', 'labNumber')->name('labNumber');
     });
 
     Route::prefix('pdf')->controller(PDFController::class)->group(function () {
@@ -89,7 +82,6 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
         Route::post('/getReviewById', 'getReviewById')->name('odb.getReviewById');
         Route::post('/regenerateReviewById', 'regenerateReviewById')->name('odb.regenerateReviewById');
         Route::post('/updateReportId/{reportId}', 'updateReportId')->name('odb.updateReportId');
-        Route::post('/review', 'review')->name('review');
         Route::post('/checkVitals', 'checkVitals')->name('checkVitals');
         Route::post('/searchReportId', 'searchReportId')->name('searchReportId');
         Route::post('/searchLabNo', 'searchLabNo')->name('searchLabNo');
