@@ -40,6 +40,8 @@ class AddMigrationPerformanceIndexes extends Migration
      */
     public function down()
     {
+        Schema::disableForeignKeyConstraints();
+
         Schema::table('migration_batches', function (Blueprint $table) {
             $table->dropIndex('migration_batches_created_at_idx');
             $table->dropIndex('migration_batches_status_created_idx');
@@ -58,5 +60,7 @@ class AddMigrationPerformanceIndexes extends Migration
         Schema::table('doctors', function (Blueprint $table) {
             $table->dropIndex('doctors_lab_name_idx');
         });
+
+        Schema::enableForeignKeyConstraints();
     }
 }

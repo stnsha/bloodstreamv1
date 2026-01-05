@@ -50,6 +50,7 @@ return new class extends Migration
         // Drop the trigger first
         DB::unprepared('DROP TRIGGER IF EXISTS jobs_set_partition_before_insert');
 
+        Schema::disableForeignKeyConstraints();
         Schema::table('jobs', function (Blueprint $table) {
             // Drop the partition index
             $table->dropIndex('jobs_queue_partition_available_id_idx');
@@ -57,5 +58,6 @@ return new class extends Migration
             // Drop the partition column
             $table->dropColumn('partition');
         });
+        Schema::enableForeignKeyConstraints();
     }
 };

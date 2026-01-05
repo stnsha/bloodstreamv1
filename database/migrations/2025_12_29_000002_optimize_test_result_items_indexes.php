@@ -27,8 +27,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::disableForeignKeyConstraints();
         Schema::table('test_result_items', function (Blueprint $table) {
             $table->dropIndex('test_result_items_updateorcreate_idx');
         });
+        Schema::enableForeignKeyConstraints();
     }
 };

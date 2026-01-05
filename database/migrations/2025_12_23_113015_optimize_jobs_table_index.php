@@ -24,9 +24,11 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::disableForeignKeyConstraints();
         Schema::table('jobs', function (Blueprint $table) {
             // Drop the optimized index
             $table->dropIndex('jobs_queue_available_id_index');
         });
+        Schema::enableForeignKeyConstraints();
     }
 };

@@ -29,8 +29,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::disableForeignKeyConstraints();
         Schema::table('delivery_files', function (Blueprint $table) {
             $table->dropIndex('idx_delivery_files_lookup');
         });
+        Schema::enableForeignKeyConstraints();
     }
 };

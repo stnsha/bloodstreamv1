@@ -29,6 +29,8 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::disableForeignKeyConstraints();
+
         Schema::table('patients', function (Blueprint $table) {
             $table->dropIndex(['icno']);
         });
@@ -36,5 +38,7 @@ return new class extends Migration
         Schema::table('lab_credentials', function (Blueprint $table) {
             $table->dropIndex(['deleted_at']);
         });
+
+        Schema::enableForeignKeyConstraints();
     }
 };

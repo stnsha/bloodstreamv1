@@ -24,9 +24,11 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::disableForeignKeyConstraints();
         Schema::table('ai_reviews', function (Blueprint $table) {
             $table->dropIndex('idx_ai_reviews_processing_status');
             $table->dropColumn('processing_status');
         });
+        Schema::enableForeignKeyConstraints();
     }
 };

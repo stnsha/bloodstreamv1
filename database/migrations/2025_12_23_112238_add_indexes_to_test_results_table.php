@@ -33,10 +33,12 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::disableForeignKeyConstraints();
         Schema::table('test_results', function (Blueprint $table) {
             // Drop the indexes
             $table->dropIndex('test_results_ref_lookup_idx');
             $table->dropIndex('test_results_unreviewed_idx');
         });
+        Schema::enableForeignKeyConstraints();
     }
 };

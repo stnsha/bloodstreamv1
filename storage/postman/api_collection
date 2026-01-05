@@ -1,0 +1,1149 @@
+{
+    "info": {
+        "name": "Laravel",
+        "description": "API Documentation",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "documentation",
+            "item": [
+                {
+                    "name": "[GET] api/documentation",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/documentation",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "documentation"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "oauth2-callback",
+            "item": [
+                {
+                    "name": "[GET] api/oauth2-callback",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/oauth2-callback",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "oauth2-callback"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "v1",
+            "item": [
+                {
+                    "name": "register",
+                    "item": [
+                        {
+                            "name": "[POST] api/v1/register",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Accept",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/register",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "register"
+                                    ]
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "login",
+                    "item": [
+                        {
+                            "name": "[POST] api/v1/login",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Accept",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/login",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "login"
+                                    ]
+                                },
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"username\": \"sample_text\",\n    \"password\": \"sample_text\"\n}",
+                                    "options": []
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "logout",
+                    "item": [
+                        {
+                            "name": "[POST] api/v1/logout",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Accept",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/logout",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "logout"
+                                    ]
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "test",
+                    "item": [
+                        {
+                            "name": "export-age",
+                            "item": [
+                                {
+                                    "name": "[GET] api/v1/test/export-age",
+                                    "request": {
+                                        "method": "GET",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/test/export-age",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "test",
+                                                "export-age"
+                                            ]
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "export-bt-age",
+                            "item": [
+                                {
+                                    "name": "[GET] api/v1/test/export-bt-age",
+                                    "request": {
+                                        "method": "GET",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/test/export-bt-age",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "test",
+                                                "export-bt-age"
+                                            ]
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "webhook",
+                    "item": [
+                        {
+                            "name": "ai-result",
+                            "item": [
+                                {
+                                    "name": "[POST] api/v1/webhook/ai-result",
+                                    "request": {
+                                        "method": "POST",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/webhook/ai-result",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "webhook",
+                                                "ai-result"
+                                            ]
+                                        },
+                                        "body": {
+                                            "mode": "raw",
+                                            "raw": "{\n    \"success\": 0,\n    \"status\": \"sample_text\",\n    \"test_result_id\": 1,\n    \"data\": {\n        \"ai_analysis\": {\n            \"success\": 1,\n            \"status\": 7,\n            \"answer\": {\n                \"section_a1\": [],\n                \"section_a2\": [],\n                \"section_b\": [],\n                \"section_c\": \"sample_text\"\n            }\n        }\n    },\n    \"data.ai_analysis.answer.section_a1\": [\n        {\n            \"health_area\": \"sample_text\",\n            \"status\": \"sample_text\",\n            \"notes\": \"sample_text\"\n        }\n    ],\n    \"data.ai_analysis.answer.section_a2\": [\n        []\n    ],\n    \"data.ai_analysis.answer.section_b\": [\n        {\n            \"timeline\": \"sample_text\",\n            \"action\": \"sample_text\",\n            \"goals\": \"sample_text\",\n            \"alpro_care\": \"sample_text\",\n            \"appointment\": \"sample_text\"\n        }\n    ]\n}",
+                                            "options": []
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "result",
+                    "item": [
+                        {
+                            "name": "patient",
+                            "item": [
+                                {
+                                    "name": "[POST] api/v1/result/patient",
+                                    "request": {
+                                        "method": "POST",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/result/patient",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "result",
+                                                "patient"
+                                            ]
+                                        },
+                                        "body": {
+                                            "mode": "raw",
+                                            "raw": "{\n    \"sending_facility\": \"sample_text\",\n    \"batch_id\": \"sample_text\",\n    \"reference_id\": \"sample_text\",\n    \"lab_no\": \"sample_text\",\n    \"bill_code\": \"sample_text\",\n    \"doctor\": {\n        \"code\": \"sample_text\",\n        \"name\": \"sample_text\",\n        \"address\": \"sample_text\",\n        \"phone\": \"sample_text\",\n        \"type\": \"sample_text\"\n    },\n    \"received_date\": \"sample_text\",\n    \"reported_date\": \"sample_text\",\n    \"collected_date\": \"sample_text\",\n    \"validated_by\": \"sample_text\",\n    \"package_name\": \"sample_text\",\n    \"patient\": {\n        \"icno\": \"sample_text\",\n        \"gender\": \"sample_text\",\n        \"age\": \"sample_text\",\n        \"name\": \"sample_text\",\n        \"tel\": \"sample_text\",\n        \"ic_type\": \"sample_text\"\n    },\n    \"results\": [\n        {\n            \"panel_code\": \"sample_text\",\n            \"panel_sequence\": 1,\n            \"panel_remarks\": \"sample_text\",\n            \"result_status\": 2,\n            \"tests\": [\n                {\n                    \"test_name\": \"sample_text\",\n                    \"test_code\": \"sample_text\",\n                    \"result_value\": \"sample_text\",\n                    \"decimal_point\": \"sample_text\",\n                    \"result_flag\": \"sample_text\",\n                    \"unit\": \"sample_text\",\n                    \"ref_range\": \"sample_text\",\n                    \"test_note\": \"sample_text\",\n                    \"report_sequence\": 2\n                }\n            ]\n        }\n    ]\n}",
+                                            "options": []
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "[GET] api/v1/result/{id}",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Accept",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/result/:id",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "result",
+                                        ":id"
+                                    ],
+                                    "variable": []
+                                }
+                            }
+                        },
+                        {
+                            "name": "panel",
+                            "item": [
+                                {
+                                    "name": "[POST] api/v1/result/panel",
+                                    "request": {
+                                        "method": "POST",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/result/panel",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "result",
+                                                "panel"
+                                            ]
+                                        },
+                                        "body": {
+                                            "mode": "raw",
+                                            "raw": "{\n    \"SendingFacility\": \"sample_text\",\n    \"MessageControlID\": \"sample_text\",\n    \"patient\": {\n        \"PatientID\": \"sample_text\",\n        \"PatientExternalID\": \"sample_text\",\n        \"AlternatePatientID\": \"sample_text\",\n        \"PatientLastName\": \"sample_text\",\n        \"PatientFirstName\": \"sample_text\",\n        \"PatientDOB\": \"sample_text\",\n        \"PatientGender\": \"sample_text\",\n        \"PatientAddress\": \"sample_text\"\n    },\n    \"Orders\": [\n        {\n            \"PlacerOrderNumber\": \"sample_text\",\n            \"FillerOrderNumber\": \"sample_text\",\n            \"OrderingProvider\": {\n                \"Code\": \"sample_text\",\n                \"Name\": \"sample_text\"\n            },\n            \"Observations\": [\n                {\n                    \"FillerOrderNumber\": \"sample_text\",\n                    \"ProcedureCode\": \"sample_text\",\n                    \"ProcedureDescription\": \"sample_text\",\n                    \"PackageCode\": \"sample_text\",\n                    \"RequestedDateTime\": \"sample_text\",\n                    \"ClinicalInformation\": \"sample_text\",\n                    \"SpecimenDateTime\": \"sample_text\",\n                    \"ResultStatus\": \"sample_text\",\n                    \"ServiceDateTime\": \"sample_text\",\n                    \"ResultPriority\": \"sample_text\",\n                    \"Results\": [\n                        {\n                            \"ID\": \"sample_text\",\n                            \"Type\": \"sample_text\",\n                            \"Identifier\": \"sample_text\",\n                            \"Text\": \"sample_text\",\n                            \"CodingSystem\": \"sample_text\",\n                            \"Value\": \"sample_text\",\n                            \"Units\": \"sample_text\",\n                            \"ReferenceRange\": \"sample_text\",\n                            \"Flags\": \"sample_text\",\n                            \"Status\": \"sample_text\",\n                            \"ObservationDateTime\": \"sample_text\"\n                        }\n                    ]\n                }\n            ]\n        }\n    ],\n    \"EncodedBase64pdf\": \"sample_text\"\n}",
+                                            "options": []
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "import",
+                    "item": [
+                        {
+                            "name": "innoquestCodeMapping",
+                            "item": [
+                                {
+                                    "name": "[GET] api/v1/import/innoquestCodeMapping",
+                                    "request": {
+                                        "method": "GET",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/import/innoquestCodeMapping",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "import",
+                                                "innoquestCodeMapping"
+                                            ]
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "json",
+                            "item": [
+                                {
+                                    "name": "[GET] api/v1/import/json",
+                                    "request": {
+                                        "method": "GET",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/import/json",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "import",
+                                                "json"
+                                            ]
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "pdf",
+                    "item": [
+                        {
+                            "name": "export",
+                            "item": [
+                                {
+                                    "name": "[POST] api/v1/pdf/export",
+                                    "request": {
+                                        "method": "POST",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/pdf/export",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "pdf",
+                                                "export"
+                                            ]
+                                        },
+                                        "body": {
+                                            "mode": "raw",
+                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 8,\n        \"year\": 4,\n        \"labid\": 9,\n        \"labno\": \"sample_text\"\n    }\n}",
+                                            "options": []
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "comment",
+                    "item": [
+                        {
+                            "name": "update",
+                            "item": [
+                                {
+                                    "name": "[GET] api/v1/comment/update",
+                                    "request": {
+                                        "method": "GET",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/comment/update",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "comment",
+                                                "update"
+                                            ]
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "export",
+                    "item": [
+                        {
+                            "name": "age",
+                            "item": [
+                                {
+                                    "name": "[GET] api/v1/export/age",
+                                    "request": {
+                                        "method": "GET",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/export/age",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "export",
+                                                "age"
+                                            ]
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "bt",
+                            "item": [
+                                {
+                                    "name": "age",
+                                    "item": [
+                                        {
+                                            "name": "[GET] api/v1/export/bt/age",
+                                            "request": {
+                                                "method": "GET",
+                                                "header": [
+                                                    {
+                                                        "key": "Accept",
+                                                        "value": "application/json",
+                                                        "type": "text"
+                                                    },
+                                                    {
+                                                        "key": "Content-Type",
+                                                        "value": "application/json",
+                                                        "type": "text"
+                                                    }
+                                                ],
+                                                "url": {
+                                                    "raw": "{{base_url}}/api/v1/export/bt/age",
+                                                    "host": [
+                                                        "{{base_url}}"
+                                                    ],
+                                                    "path": [
+                                                        "api",
+                                                        "v1",
+                                                        "export",
+                                                        "bt",
+                                                        "age"
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "odb",
+                    "item": [
+                        {
+                            "name": "getReportId",
+                            "item": [
+                                {
+                                    "name": "[POST] api/v1/odb/getReportId",
+                                    "request": {
+                                        "method": "POST",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/odb/getReportId",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "odb",
+                                                "getReportId"
+                                            ]
+                                        },
+                                        "body": {
+                                            "mode": "raw",
+                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 6,\n        \"year\": 10,\n        \"labid\": 3,\n        \"labno\": \"sample_text\"\n    }\n}",
+                                            "options": []
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "getReviewById",
+                            "item": [
+                                {
+                                    "name": "[POST] api/v1/odb/getReviewById",
+                                    "request": {
+                                        "method": "POST",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/odb/getReviewById",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "odb",
+                                                "getReviewById"
+                                            ]
+                                        },
+                                        "body": {
+                                            "mode": "raw",
+                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 1,\n        \"year\": 5,\n        \"labid\": 5,\n        \"labno\": \"sample_text\"\n    }\n}",
+                                            "options": []
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "regenerateReviewById",
+                            "item": [
+                                {
+                                    "name": "[POST] api/v1/odb/regenerateReviewById",
+                                    "request": {
+                                        "method": "POST",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/odb/regenerateReviewById",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "odb",
+                                                "regenerateReviewById"
+                                            ]
+                                        },
+                                        "body": {
+                                            "mode": "raw",
+                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 9,\n        \"year\": 7,\n        \"labid\": 0,\n        \"labno\": \"sample_text\"\n    }\n}",
+                                            "options": []
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "updateReportId",
+                            "item": [
+                                {
+                                    "name": "[POST] api/v1/odb/updateReportId/{reportId}",
+                                    "request": {
+                                        "method": "POST",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/odb/updateReportId/:reportId",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "odb",
+                                                "updateReportId",
+                                                ":reportId"
+                                            ],
+                                            "variable": []
+                                        },
+                                        "body": {
+                                            "mode": "raw",
+                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 2,\n        \"year\": 0,\n        \"labid\": 9,\n        \"labno\": \"sample_text\"\n    }\n}",
+                                            "options": []
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "checkVitals",
+                            "item": [
+                                {
+                                    "name": "[POST] api/v1/odb/checkVitals",
+                                    "request": {
+                                        "method": "POST",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/odb/checkVitals",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "odb",
+                                                "checkVitals"
+                                            ]
+                                        },
+                                        "body": {
+                                            "mode": "raw",
+                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 5,\n        \"year\": 10,\n        \"labid\": 2,\n        \"labno\": \"sample_text\"\n    }\n}",
+                                            "options": []
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "searchReportId",
+                            "item": [
+                                {
+                                    "name": "[POST] api/v1/odb/searchReportId",
+                                    "request": {
+                                        "method": "POST",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/odb/searchReportId",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "odb",
+                                                "searchReportId"
+                                            ]
+                                        },
+                                        "body": {
+                                            "mode": "raw",
+                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 0,\n        \"year\": 3,\n        \"labid\": 7,\n        \"labno\": \"sample_text\"\n    }\n}",
+                                            "options": []
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "searchLabNo",
+                            "item": [
+                                {
+                                    "name": "[POST] api/v1/odb/searchLabNo",
+                                    "request": {
+                                        "method": "POST",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/odb/searchLabNo",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "odb",
+                                                "searchLabNo"
+                                            ]
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "updateLabNo",
+                            "item": [
+                                {
+                                    "name": "[POST] api/v1/odb/updateLabNo",
+                                    "request": {
+                                        "method": "POST",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/odb/updateLabNo",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "odb",
+                                                "updateLabNo"
+                                            ]
+                                        },
+                                        "body": {
+                                            "mode": "raw",
+                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 0,\n        \"year\": 9,\n        \"labid\": 2,\n        \"labno\": \"sample_text\"\n    }\n}",
+                                            "options": []
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "migrate",
+                            "item": [
+                                {
+                                    "name": "[POST] api/v1/odb/migrate",
+                                    "request": {
+                                        "method": "POST",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/odb/migrate",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "odb",
+                                                "migrate"
+                                            ]
+                                        },
+                                        "body": {
+                                            "mode": "raw",
+                                            "raw": "{\n    \"reports\": [\n        {\n            \"ref_id\": \"sample_text\",\n            \"report\": [],\n            \"parameter\": []\n        }\n    ]\n}",
+                                            "options": []
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "migrate-test",
+                            "item": [
+                                {
+                                    "name": "[POST] api/v1/odb/migrate-test",
+                                    "request": {
+                                        "method": "POST",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/odb/migrate-test",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "odb",
+                                                "migrate-test"
+                                            ]
+                                        },
+                                        "body": {
+                                            "mode": "raw",
+                                            "raw": "{\n    \"reports\": [\n        {\n            \"ref_id\": \"sample_text\",\n            \"report\": [],\n            \"parameter\": []\n        }\n    ]\n}",
+                                            "options": []
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "migration-status",
+                            "item": [
+                                {
+                                    "name": "[GET] api/v1/odb/migration-status/{uuid}",
+                                    "request": {
+                                        "method": "GET",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/odb/migration-status/:uuid",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "odb",
+                                                "migration-status",
+                                                ":uuid"
+                                            ],
+                                            "variable": []
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "fixes",
+                    "item": [
+                        {
+                            "name": "normalize-refid",
+                            "item": [
+                                {
+                                    "name": "[POST] api/v1/fixes/normalize-refid",
+                                    "request": {
+                                        "method": "POST",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/fixes/normalize-refid",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "fixes",
+                                                "normalize-refid"
+                                            ]
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://127.0.0.1:8000"
+        }
+    ]
+}
