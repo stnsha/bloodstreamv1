@@ -498,45 +498,23 @@ class ImportController extends Controller
                             $responseData = json_decode($response->getContent(), true);
                             $statusCode = $response->getStatusCode();
 
-                            // Handle async response (202 Accepted)
+                            // Handle async response (202 Accepted) - return immediately without waiting
                             if ($statusCode === 202 && $responseData['success']) {
                                 $requestId = $responseData['request_id'];
 
-                                Log::info('Job queued, waiting for completion', [
+                                $processedFiles[] = [
+                                    'file_name' => $file_name,
+                                    'status' => 'queued',
+                                    'request_id' => $requestId,
+                                    'message' => 'Job dispatched to queue, processing in background',
+                                    'processing_time' => round(microtime(true) - $startTime, 2) . 's'
+                                ];
+
+                                Log::info('JSON file queued for processing', [
                                     'file' => $file_name,
-                                    'request_id' => $requestId
+                                    'request_id' => $requestId,
+                                    'processing_time' => round(microtime(true) - $startTime, 2) . 's'
                                 ]);
-
-                                if (!$this->queueJobTracker) {
-                                    throw new Exception('QueueJobTrackerService not initialized. Use dependency injection.');
-                                }
-
-                                // Wait for job completion (always async polling)
-                                try {
-                                    $jobResult = $this->queueJobTracker->waitForJobCompletion(
-                                        $requestId,
-                                        $jsonData,
-                                        $this->labId,
-                                        300 // 5 minutes timeout
-                                    );
-
-                                    $processedFiles[] = [
-                                        'file_name' => $file_name,
-                                        'status' => 'processed',
-                                        'test_result_id' => $jobResult['test_result_id'],
-                                        'lab_no' => $jobResult['lab_no'],
-                                        'panel' => $jobResult['panel'],
-                                        'processing_time' => round(microtime(true) - $startTime, 2) . 's'
-                                    ];
-
-                                    Log::info('JSON file processed successfully', [
-                                        'file' => $file_name,
-                                        'test_result_id' => $jobResult['test_result_id'],
-                                        'processing_time' => round(microtime(true) - $startTime, 2) . 's'
-                                    ]);
-                                } catch (Exception $jobException) {
-                                    throw new Exception('Job processing failed: ' . $jobException->getMessage());
-                                }
                             } else {
                                 throw new Exception('Unexpected response status ' . $statusCode . ': ' . ($responseData['message'] ?? 'Unknown error'));
                             }

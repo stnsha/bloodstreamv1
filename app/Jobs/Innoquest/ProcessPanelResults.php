@@ -26,6 +26,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 use Exception;
 use Throwable;
 use DateTime;
@@ -34,9 +35,9 @@ class ProcessPanelResults implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public $timeout = 180;
+    public $timeout = 300;
     public $tries = 3;
-    public $backoff = 30;
+    public $backoff = [30, 60, 120];
 
     protected $validatedData;
     protected $requestId;
@@ -51,6 +52,18 @@ class ProcessPanelResults implements ShouldQueue
         $this->labId = $labId;
 
         $this->onQueue('panel');
+    }
+
+    /**
+     * Helper method to cache firstOrCreate operations
+     * Prevents concurrent jobs from hitting database for same lookups
+     * TTL set to 5 minutes (300s) to align with auto-cache release configuration
+     */
+    protected function cachedFirstOrCreate($model, array $attributes, array $values = [], $cacheKey, $ttl = 300)
+    {
+        return Cache::remember($cacheKey, $ttl, function() use ($model, $attributes, $values) {
+            return $model::firstOrCreate($attributes, $values);
+        });
     }
 
     public function handle()
@@ -140,19 +153,22 @@ class ProcessPanelResults implements ShouldQueue
                 if (is_null($reference_id) && filled($od['PlacerOrderNumber'])) $reference_id = strtoupper($od['PlacerOrderNumber']);
 
                 $doctor_name = $od['OrderingProvider']['Name'];
-                $doctor_id = $od['OrderingProvider']['Code'];
+                $doctor_code = $od['OrderingProvider']['Code'];
 
-                $doctor_id = Doctor::firstOrCreate(
+                $cacheKey = "doctor_{$lab_id}_{$doctor_code}";
+                $doctor = $this->cachedFirstOrCreate(
+                    Doctor::class,
                     [
                         'lab_id' => $lab_id,
-                        'code' => $doctor_id
+                        'code' => $doctor_code
                     ],
                     [
                         'name' => $doctor_name,
-                    ]
+                    ],
+                    $cacheKey
                 );
 
-                $doctor_id = $doctor_id->id;
+                $doctor_id = $doctor->id;
 
                 if (filled($od['Observations'])) {
                     foreach ($od['Observations'] as $key => $obv) {
@@ -228,24 +244,33 @@ class ProcessPanelResults implements ShouldQueue
                                 $identifier = $res['Identifier'];
 
                                 if (filled($res['Text']) && ($res['Text'] != 'COMMENT' && $res['Text'] != 'NOTE')) {
-                                    $masterPanelItem = MasterPanelItem::updateOrCreate(
+                                    $masterPanelItemCacheKey = "master_panel_item_" . md5($res['Text'] . $unit);
+                                    $masterPanelItem = $this->cachedFirstOrCreate(
+                                        MasterPanelItem::class,
                                         [
                                             'name' => $res['Text'],
                                             'unit' => $unit,
                                         ],
                                         [
                                             'chi_character' => null,
-                                        ]
+                                        ],
+                                        $masterPanelItemCacheKey
                                     );
 
-                                    $panel_item = PanelItem::updateOrCreate([
-                                        'lab_id' => $lab_id,
-                                        'master_panel_item_id' => $masterPanelItem->id,
-                                        'identifier' => $identifier
-                                    ], [
-                                        'name' => $res['Text'],
-                                        'unit' => $masterPanelItem->unit,
-                                    ]);
+                                    $panelItemCacheKey = "panel_item_{$lab_id}_{$masterPanelItem->id}_{$identifier}";
+                                    $panel_item = $this->cachedFirstOrCreate(
+                                        PanelItem::class,
+                                        [
+                                            'lab_id' => $lab_id,
+                                            'master_panel_item_id' => $masterPanelItem->id,
+                                            'identifier' => $identifier
+                                        ],
+                                        [
+                                            'name' => $res['Text'],
+                                            'unit' => $masterPanelItem->unit,
+                                        ],
+                                        $panelItemCacheKey
+                                    );
 
                                     $panel_item_id = $panel_item->id;
 
@@ -349,7 +374,7 @@ class ProcessPanelResults implements ShouldQueue
 
             DB::commit();
 
-            // Dispatch to AI server queue if PDF was received
+            //Dispatch to AI server queue if PDF was received
             if (isset($validated['EncodedBase64pdf']) && filled($validated['EncodedBase64pdf']) && $test_result && $test_result->id) {
                 try {
                     SendToAIServer::dispatch($test_result->id);
@@ -419,7 +444,9 @@ class ProcessPanelResults implements ShouldQueue
         $patient_dob = filled($patient['PatientDOB']) ? $patient['PatientDOB'] : null;
         $gender = $patient['PatientGender'];
 
-        $patient = Patient::firstOrCreate(
+        $cacheKey = "patient_{$icno}";
+        $patient = $this->cachedFirstOrCreate(
+            Patient::class,
             [
                 'icno' => $icno,
             ],
@@ -429,7 +456,8 @@ class ProcessPanelResults implements ShouldQueue
                 'dob' => $patient_dob,
                 'age' => $age,
                 'gender' => $gender ?? $patient_gender
-            ]
+            ],
+            $cacheKey
         );
 
         return $patient->id;
@@ -437,17 +465,27 @@ class ProcessPanelResults implements ShouldQueue
 
     private function findOrCreatePanel($lab_id, $panel_code, $panel_name)
     {
-        $masterPanel = MasterPanel::firstOrCreate([
-            'name' => $panel_name
-        ]);
+        $masterPanelCacheKey = "master_panel_" . md5($panel_name);
+        $masterPanel = $this->cachedFirstOrCreate(
+            MasterPanel::class,
+            ['name' => $panel_name],
+            [],
+            $masterPanelCacheKey
+        );
 
-        $panel = Panel::firstOrCreate([
-            'lab_id' => $lab_id,
-            'master_panel_id' => $masterPanel->id,
-            'code' => $panel_code,
-        ], [
-            'name' => $panel_name
-        ]);
+        $panelCacheKey = "panel_{$lab_id}_{$panel_code}";
+        $panel = $this->cachedFirstOrCreate(
+            Panel::class,
+            [
+                'lab_id' => $lab_id,
+                'master_panel_id' => $masterPanel->id,
+                'code' => $panel_code,
+            ],
+            [
+                'name' => $panel_name
+            ],
+            $panelCacheKey
+        );
 
         return $panel;
     }
@@ -455,14 +493,17 @@ class ProcessPanelResults implements ShouldQueue
     private function findOrCreateProfile($lab_id, $profile_code = null)
     {
         if (filled($profile_code)) {
-            $panel_profile = PanelProfile::firstOrCreate(
+            $panelProfileCacheKey = "panel_profile_{$lab_id}_{$profile_code}";
+            $panel_profile = $this->cachedFirstOrCreate(
+                PanelProfile::class,
                 [
                     'lab_id' => $lab_id,
                     'code' => $profile_code,
                 ],
                 [
                     'name' => $profile_code,
-                ]
+                ],
+                $panelProfileCacheKey
             );
 
             return $panel_profile->id;
