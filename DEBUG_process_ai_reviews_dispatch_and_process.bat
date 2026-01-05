@@ -54,7 +54,19 @@ if %DISPATCH_EXIT_CODE% EQU 0 (
 
 REM Check if jobs were queued
 echo [%DATE% %TIME%] Checking jobs table... >> %LOG_FILE%
-php -d memory_limit=%PHP_MEMORY_LIMIT% artisan tinker --execute="echo App\Models\Job::where('created_at', '>=', now()->subHour())->count() . ' jobs in last hour';" 2>&1 >> %LOG_FILE%
+php -d memory_limit=%PHP_MEMORY_LIMIT% artisan tinker --execute="$count = DB::table('jobs')->where('created_at', '>=', now()->subHour())->count(); echo $count . ' jobs queued in last hour';" 2>&1 >> %LOG_FILE%
+
+REM Check ai_reviews created by dispatch
+echo [%DATE% %TIME%] Checking ai_reviews created... >> %LOG_FILE%
+php -d memory_limit=%PHP_MEMORY_LIMIT% artisan tinker --execute="$count = DB::table('ai_reviews')->where('created_at', '>=', now()->subHour())->count(); echo $count . ' ai_reviews created in last hour';" 2>&1 >> %LOG_FILE%
+
+REM Check unreviewed test results still waiting
+echo [%DATE% %TIME%] Checking unreviewed test results... >> %LOG_FILE%
+php -d memory_limit=%PHP_MEMORY_LIMIT% artisan tinker --execute="$count = DB::table('test_results')->where('is_completed', 1)->where('is_reviewed', 0)->count(); echo $count . ' unreviewed test results waiting';" 2>&1 >> %LOG_FILE%
+
+REM Check SendToAIServer job status
+echo [%DATE% %TIME%] Checking SendToAIServer jobs in queue... >> %LOG_FILE%
+php -d memory_limit=%PHP_MEMORY_LIMIT% artisan tinker --execute="$count = DB::table('jobs')->where('queue', 'ai-reviews')->where('payload', 'like', '%SendToAIServer%')->count(); echo $count . ' SendToAIServer jobs in ai-reviews queue';" 2>&1 >> %LOG_FILE%
 
 REM Log end
 echo [%DATE% %TIME%] DISPATCH COMMAND ENDED >> %LOG_FILE%

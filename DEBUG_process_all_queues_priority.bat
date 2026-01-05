@@ -66,11 +66,15 @@ echo [%DATE% %TIME%] Queue worker stopped with exit code: %WORKER_EXIT_CODE% >> 
 
 REM Check remaining jobs
 echo [%DATE% %TIME%] Checking remaining jobs after worker stopped... >> %LOG_FILE%
-php -d memory_limit=%PHP_MEMORY_LIMIT% artisan tinker --execute="$count = DB::table('jobs')->count(); echo 'Remaining jobs: ' . $count;" 2>&1 >> %LOG_FILE%
+php -d memory_limit=%PHP_MEMORY_LIMIT% artisan tinker --execute="$count = DB::table('jobs')->count(); $aiCount = DB::table('jobs')->where('queue', 'ai-reviews')->count(); echo 'Total remaining: ' . $count . ', AI reviews queue: ' . $aiCount;" 2>&1 >> %LOG_FILE%
 
 REM Check failed jobs
 echo [%DATE% %TIME%] Checking failed jobs... >> %LOG_FILE%
 php -d memory_limit=%PHP_MEMORY_LIMIT% artisan tinker --execute="$count = DB::table('failed_jobs')->where('failed_at', '>=', now()->subHour())->count(); echo 'Failed jobs in last hour: ' . $count;" 2>&1 >> %LOG_FILE%
+
+REM Check ai_reviews table status
+echo [%DATE% %TIME%] Checking ai_reviews processing status... >> %LOG_FILE%
+php -d memory_limit=%PHP_MEMORY_LIMIT% artisan tinker --execute="$statuses = DB::table('ai_reviews')->where('created_at', '>=', now()->subHour())->selectRaw('processing_status, count(*) as cnt')->groupBy('processing_status')->get(); foreach($statuses as $s) { echo $s->processing_status . ': ' . $s->cnt . ' | '; }" 2>&1 >> %LOG_FILE%
 
 echo [%DATE% %TIME%] QUEUE WORKER SESSION ENDED >> %LOG_FILE%
 echo ============================================ >> %LOG_FILE%
