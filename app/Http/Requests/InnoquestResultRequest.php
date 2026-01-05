@@ -75,8 +75,8 @@ class InnoquestResultRequest extends FormRequest
 
             // Orders
             'Orders' => 'required|array|min:1',
-            'Orders.*.PlacerOrderNumber' => 'nullable|string', // Optional (Client Order Number)
-            'Orders.*.FillerOrderNumber' => 'required|string', // Always Expected (IQMY Request Number)
+            'Orders.*.PlacerOrderNumber' => 'nullable|string', // Optional (Client Order Number) // ref_id
+            'Orders.*.FillerOrderNumber' => 'required|string', // Always Expected (IQMY Request Number) // lab_no
             // 'Orders.*.PlacerGroupNumber' => 'nullable|string', // not used - COMMENTED OUT (not in JSON)
             // 'Orders.*.Status' => 'nullable|string', // COMMENTED OUT (not in JSON)
             // 'Orders.*.Quantity' => 'nullable|string', // not used - COMMENTED OUT (not in JSON)
