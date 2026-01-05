@@ -62,8 +62,9 @@ class ProcessAIWebhookResult implements ShouldQueue
 
             // Update ai_reviews and test_result in transaction
             DB::transaction(function () use ($testResultId, $aiAnalysis, $htmlReview) {
-                // Get most recent AIReview record for this test result
+                // Get most recent AIReview record for this test result (including soft-deleted)
                 $aiReview = AIReview::where('test_result_id', $testResultId)
+                    ->withTrashed()
                     ->orderBy('id', 'desc')
                     ->first();
 
@@ -159,8 +160,9 @@ class ProcessAIWebhookResult implements ShouldQueue
     {
         try {
             DB::transaction(function () use ($testResultId, $e) {
-                // Hard delete AIReview record if exists
+                // Hard delete AIReview record if exists (including soft-deleted)
                 $aiReview = AIReview::where('test_result_id', $testResultId)
+                    ->withTrashed()
                     ->orderBy('id', 'desc')
                     ->first();
 
