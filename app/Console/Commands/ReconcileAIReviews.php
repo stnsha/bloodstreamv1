@@ -41,7 +41,6 @@ class ReconcileAIReviews extends Command
             // These are candidates for AI review dispatch if they're recent enough
             $orphanedResults = TestResult::where('is_completed', true)
                 ->where('is_reviewed', false)
-                ->whereNotNull('pdf_file_path')
                 ->where('created_at', '>=', now()->subHours($hours))
                 ->doesntHave('aiReview')  // No AI review record at all
                 ->limit($limit)
@@ -68,11 +67,11 @@ class ReconcileAIReviews extends Command
                     SendToAIServer::dispatch($result->id);
                     $dispatchedCount++;
 
-                    $this->line("  ✓ Dispatched AI review for test_result_id: {$result->id} (ref_id: {$result->ref_id})");
+                    $this->line("  [OK] Dispatched AI review for test_result_id: {$result->id} (ref_id: {$result->ref_id})");
 
                 } catch (\Exception $e) {
                     $errorCount++;
-                    $this->error("  ✗ Failed to dispatch for test_result_id {$result->id}: {$e->getMessage()}");
+                    $this->error("  [ERROR] Failed to dispatch for test_result_id {$result->id}: {$e->getMessage()}");
                     Log::error('ReconcileAIReviews: Failed to dispatch job', [
                         'test_result_id' => $result->id,
                         'ref_id' => $result->ref_id,

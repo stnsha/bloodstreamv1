@@ -58,11 +58,11 @@ class RetryFailedAIReviews extends Command
                     SendToAIServer::dispatch($error->test_result_id);
                     $retryCount++;
 
-                    $this->line("  ✓ Queued retry for test_result_id: {$error->test_result_id} (attempt {$error->attempt_count})");
+                    $this->line("  [OK] Queued retry for test_result_id: {$error->test_result_id} (attempt {$error->attempt_count})");
 
                 } catch (\Exception $e) {
                     $skipCount++;
-                    $this->error("  ✗ Failed to queue retry for test_result_id {$error->test_result_id}: {$e->getMessage()}");
+                    $this->error("  [ERROR] Failed to queue retry for test_result_id {$error->test_result_id}: {$e->getMessage()}");
                     Log::error('RetryFailedAIReviews: Failed to dispatch job', [
                         'test_result_id' => $error->test_result_id,
                         'error' => $e->getMessage(),
