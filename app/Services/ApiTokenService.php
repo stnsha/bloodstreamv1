@@ -31,46 +31,97 @@ class ApiTokenService
     
     /**
      * Force refresh the API token
+     * Retries up to 3 times with exponential backoff on connection failures
      */
     public function refreshToken(): ?string
     {
-        try {
-            Log::info('ApiTokenService: Attempting to refresh AI API token');
+        $maxRetries = 3;
+        $attempt = 0;
+        $lastException = null;
 
-            $response = Http::timeout(60)->post(config('credentials.ai_review.login'), [
-                "username" => config('credentials.odb.username'),
-                "password" => config('credentials.odb.password')
-            ]);
-            
-            if ($response->failed()) {
-                Log::error('ApiTokenService: API token refresh failed', [
-                    'status' => $response->status(),
-                    'response' => $response->body()
+        while ($attempt < $maxRetries) {
+            try {
+                $attempt++;
+                Log::info('ApiTokenService: Attempting to refresh AI API token', ['attempt' => $attempt]);
+
+                $response = Http::timeout(60)
+                    ->retry(2, 1000, function ($exception) {
+                        return $exception instanceof \Illuminate\Http\Client\ConnectionException;
+                    })
+                    ->post(config('credentials.ai_review.login'), [
+                        "username" => config('credentials.odb.username'),
+                        "password" => config('credentials.odb.password')
+                    ]);
+
+                if ($response->failed()) {
+                    $attempt++;
+                    Log::warning('ApiTokenService: API token refresh failed', [
+                        'attempt' => $attempt,
+                        'status' => $response->status(),
+                        'will_retry' => $attempt < $maxRetries
+                    ]);
+
+                    if ($attempt < $maxRetries) {
+                        $backoffSeconds = (2 ** ($attempt - 2));
+                        sleep($backoffSeconds);
+                        continue;
+                    }
+
+                    return $this->getBackupToken();
+                }
+
+                $responseData = $response->json();
+                $token = $responseData['token'] ?? null;
+
+                if (!$token) {
+                    Log::error('ApiTokenService: No token in API response', ['response' => $responseData]);
+                    return $this->getBackupToken();
+                }
+
+                // Cache the new token and also store as backup
+                Cache::put(self::TOKEN_CACHE_KEY, $token, now()->addDays(self::TOKEN_EXPIRY_DAYS));
+                Cache::put('ai_token_backup', $token, now()->addDays(1)); // Backup for 1 day
+
+                Log::info('ApiTokenService: API token refreshed and cached successfully');
+                return $token;
+
+            } catch (Exception $e) {
+                $lastException = $e;
+                $attempt++;
+
+                Log::warning('ApiTokenService: Exception during API token refresh', [
+                    'attempt' => $attempt,
+                    'error' => $e->getMessage(),
+                    'will_retry' => $attempt < $maxRetries
                 ]);
-                return null;
+
+                if ($attempt < $maxRetries) {
+                    $backoffSeconds = (2 ** ($attempt - 2));
+                    sleep($backoffSeconds);
+                    continue;
+                }
+
+                return $this->getBackupToken();
             }
-            
-            $responseData = $response->json();
-            $token = $responseData['token'] ?? null;
-            
-            if (!$token) {
-                Log::error('ApiTokenService: No token in API response', ['response' => $responseData]);
-                return null;
-            }
-            
-            // Cache the new token for 30 days
-            Cache::put(self::TOKEN_CACHE_KEY, $token, now()->addDays(self::TOKEN_EXPIRY_DAYS));
-            
-            Log::info('ApiTokenService: API token refreshed and cached successfully');
-            return $token;
-            
-        } catch (Exception $e) {
-            Log::error('ApiTokenService: Exception during API token refresh', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            return null;
         }
+
+        // Final fallback
+        return $this->getBackupToken();
+    }
+
+    /**
+     * Get backup token from cache (used when token service is unavailable)
+     */
+    private function getBackupToken(): ?string
+    {
+        $backup = Cache::get('ai_token_backup');
+        if ($backup) {
+            Log::warning('ApiTokenService: Using backup token due to refresh failure');
+            return $backup;
+        }
+
+        Log::error('ApiTokenService: Unable to refresh token and no backup available');
+        return null;
     }
     
     /**

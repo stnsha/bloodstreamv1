@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\TokenCacheService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -103,20 +104,26 @@ class AuthController extends Controller
 
             $plainPassword = Str::random(15);
 
-            $user = User::create([
-                'name' => $username,
-                'email' => $request->email,
-                'password' => bcrypt($plainPassword),
-            ]);
+            // Wrap User and LabCredential creation in transaction for data consistency
+            // Prevents orphaned User records if LabCredential creation fails
+            $user = DB::transaction(function () use ($username, $plainPassword, $request, $lab) {
+                $user = User::create([
+                    'name' => $username,
+                    'email' => $request->email,
+                    'password' => bcrypt($plainPassword),
+                ]);
 
-            LabCredential::create([
-                'user_id' => $user->id,
-                'lab_id' => $lab->id,
-                'username' => $username,
-                'password' => bcrypt($plainPassword),
-                'role' => 'lab',
-                'is_active' => true,
-            ]);
+                LabCredential::create([
+                    'user_id' => $user->id,
+                    'lab_id' => $lab->id,
+                    'username' => $username,
+                    'password' => bcrypt($plainPassword),
+                    'role' => 'lab',
+                    'is_active' => true,
+                ]);
+
+                return $user;
+            });
 
             Log::info('User registered successfully', [
                 'user_id' => $user->id,

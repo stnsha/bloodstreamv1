@@ -40,7 +40,7 @@ return [
             'table' => 'jobs',
             'queue' => 'default',
             'retry_after' => 90,
-            'after_commit' => false,
+            'after_commit' => true,  // Jobs only queued AFTER transaction commits (prevents orphaned jobs)
             'block_for' => null,  // Don't block waiting for jobs (reduces lock contention)
             'force' => false,
         ],

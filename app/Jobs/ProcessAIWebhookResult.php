@@ -9,18 +9,21 @@ use App\Services\ReviewHtmlGenerator;
 use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-class ProcessAIWebhookResult implements ShouldQueue
+class ProcessAIWebhookResult implements ShouldQueue, ShouldBeUnique
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $timeout = 60;  // Fast DB operation
-    public $tries = 1;     // Webhook already acknowledged, don't retry
+    public $tries = 3;     // Allow retries - webhook acknowledgment is separate from processing
+    public $backoff = [60, 300, 900];  // Exponential backoff: 1 min, 5 min, 15 min
+    public $uniqueFor = 3600;  // Lock for 1 hour
     protected $webhookData;
 
     /**
@@ -33,7 +36,20 @@ class ProcessAIWebhookResult implements ShouldQueue
     }
 
     /**
+     * Get unique ID for this webhook
+     * Generates idempotency key from webhook payload hash (system-generated, not from webhook data)
+     */
+    public function uniqueId(): string
+    {
+        // Generate deterministic hash from webhook payload
+        // Same webhook payload will always produce same hash
+        $idempotencyKey = hash('sha256', json_encode($this->webhookData));
+        return "process_ai_webhook_{$idempotencyKey}";
+    }
+
+    /**
      * Execute the job.
+     * Safe to retry - includes idempotency checks and non-destructive error handling
      */
     public function handle(ReviewHtmlGenerator $htmlGenerator): void
     {
@@ -42,8 +58,14 @@ class ProcessAIWebhookResult implements ShouldQueue
 
         $testResultId = $this->webhookData['test_result_id'];
 
+        // Generate deterministic idempotency key from webhook payload
+        // Our system generates this (not from webhook data), so identical webhook payloads
+        // will always produce the same key, preventing duplicate processing
+        $idempotencyKey = hash('sha256', json_encode($this->webhookData));
+
         Log::channel('webhook')->info('ProcessAIWebhookResult job started', [
             'test_result_id' => $testResultId,
+            'idempotency_key' => $idempotencyKey,
             'success' => $this->webhookData['success'],
             'status' => $this->webhookData['status']
         ]);
@@ -61,7 +83,7 @@ class ProcessAIWebhookResult implements ShouldQueue
             $htmlReview = $htmlGenerator->convertToHtml($aiAnalysis['answer']);
 
             // Update ai_reviews and test_result in transaction
-            DB::transaction(function () use ($testResultId, $aiAnalysis, $htmlReview) {
+            DB::transaction(function () use ($testResultId, $aiAnalysis, $htmlReview, $idempotencyKey) {
                 // Get most recent AIReview record for this test result (including soft-deleted)
                 $aiReview = AIReview::where('test_result_id', $testResultId)
                     ->withTrashed()
@@ -87,17 +109,27 @@ class ProcessAIWebhookResult implements ShouldQueue
                     return;
                 }
 
+                // IDEMPOTENCY CHECK: Skip if already processed with same webhook
+                if ($aiReview->webhook_idempotency_key === $idempotencyKey && $aiReview->processing_status === 'COMPLETED') {
+                    Log::channel('webhook')->info('Webhook already processed, skipping', [
+                        'test_result_id' => $testResultId,
+                        'idempotency_key' => $idempotencyKey,
+                    ]);
+                    return;
+                }
+
                 // Update record using model (respects casts and preserves compiled_results)
                 $aiReview->processing_status = 'COMPLETED';
                 $aiReview->http_status = $aiAnalysis['status'];
                 $aiReview->ai_response = $htmlReview;
                 $aiReview->raw_response = $aiAnalysis;
+                $aiReview->webhook_idempotency_key = $idempotencyKey;
                 // Preserve existing compiled_results
                 $aiReview->save();
 
-                // Update test_result.is_reviewed flag
+                // Update test_result.is_reviewed flag (only on first successful webhook)
                 $testResult = TestResult::find($testResultId);
-                if ($testResult) {
+                if ($testResult && !$testResult->is_reviewed) {
                     $testResult->is_reviewed = true;
                     $testResult->save();
 
@@ -132,18 +164,19 @@ class ProcessAIWebhookResult implements ShouldQueue
             // Update ai_reviews status to failed and store error
             $this->handleError($testResultId, $e);
 
-            // Don't rethrow - webhook already acknowledged
+            // Re-throw to allow retries with backoff
+            throw $e;
         }
     }
 
     /**
-     * Handle job failure
+     * Handle permanent job failure after all retries exhausted
      */
     public function failed(Exception $exception): void
     {
         $testResultId = $this->webhookData['test_result_id'] ?? null;
 
-        Log::channel('webhook')->error('ProcessAIWebhookResult job failed permanently', [
+        Log::channel('webhook')->error('ProcessAIWebhookResult job failed permanently after all retries', [
             'test_result_id' => $testResultId,
             'error' => $exception->getMessage()
         ]);
@@ -155,25 +188,34 @@ class ProcessAIWebhookResult implements ShouldQueue
 
     /**
      * Handle error by updating ai_reviews and creating error record
+     * Does not delete - preserves audit trail for manual recovery
      */
     protected function handleError(int $testResultId, Exception $e): void
     {
         try {
             DB::transaction(function () use ($testResultId, $e) {
-                // Hard delete AIReview record if exists (including soft-deleted)
+                // Update AIReview status to FAILED instead of deleting (preserves audit trail)
                 $aiReview = AIReview::where('test_result_id', $testResultId)
                     ->withTrashed()
                     ->orderBy('id', 'desc')
                     ->first();
 
-                if ($aiReview) {
-                    $aiReview->forceDelete();
+                if ($aiReview && $aiReview->processing_status !== 'COMPLETED') {
+                    $aiReview->update([
+                        'processing_status' => 'FAILED',
+                        'raw_response' => json_encode([
+                            'error' => $e->getMessage(),
+                            'error_class' => get_class($e),
+                        ]),
+                    ]);
                 }
 
-                // Create error record
+                // Create error record for recovery
                 AIError::create([
                     'test_result_id' => $testResultId,
+                    'processing_status' => 'FAILED',
                     'error_message' => $e->getMessage(),
+                    'error_trace' => $e->getTraceAsString(),
                     'compiled_data' => $this->webhookData,
                     'attempt_count' => 1
                 ]);
@@ -181,7 +223,8 @@ class ProcessAIWebhookResult implements ShouldQueue
         } catch (Exception $dbError) {
             Log::channel('webhook')->error('Failed to handle webhook error', [
                 'test_result_id' => $testResultId,
-                'error' => $dbError->getMessage()
+                'original_error' => $e->getMessage(),
+                'storage_error' => $dbError->getMessage()
             ]);
         }
     }

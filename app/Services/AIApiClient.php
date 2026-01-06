@@ -36,6 +36,7 @@ class AIApiClient
 
     /**
      * Analyze compiled test result data via AI API
+     * Automatically retries on connection failures (3 attempts with exponential backoff)
      *
      * @param array $compiledData The compiled test result data
      * @param string $token The authentication token
@@ -49,6 +50,10 @@ class AIApiClient
         ]);
 
         $response = Http::timeout(120)
+            ->retry(3, 1000, function ($exception) {
+                // Retry only on connection exceptions, not on HTTP 4xx/5xx responses
+                return $exception instanceof \Illuminate\Http\Client\ConnectionException;
+            })
             ->withToken($token)
             ->post(config('credentials.ai_review.analysis'), $compiledData);
 
@@ -96,28 +101,74 @@ class AIApiClient
 
     /**
      * Send test result data to AI server asynchronously (webhook-based)
+     * Retries up to 3 times with exponential backoff on connection failures
      *
      * @param array $payload The payload to send (includes test_result_id, source, and compiled data)
      * @param string $token The authentication token
      * @return array The AI server response data (status)
-     * @throws RuntimeException If the API call fails
+     * @throws RuntimeException If the API call fails after all retries
      */
     public function sendAsync(array $payload, string $token): array
     {
-        $response = Http::timeout(30)
-            ->withToken($token)
-            ->post(config('credentials.ai_review.analysis'), $payload); //change to analysis after done testing
+        $maxRetries = 3;
+        $attempt = 0;
+        $lastException = null;
 
-        if ($response->failed()) {
-            $responseBody = $response->body();
+        while ($attempt < $maxRetries) {
+            try {
+                $response = Http::timeout(30)
+                    ->withToken($token)
+                    ->post(config('credentials.ai_review.analysis'), $payload);
 
-            // throw new RuntimeException(
-            //     "Failed to send data to AI server - status {$response->status()}. Response: " . $responseBody
-            // );
+                if ($response->failed()) {
+                    $responseBody = $response->body();
+                    $attempt++;
+
+                    Log::channel($this->logChannel)->warning('AI async send failed, may retry', [
+                        'attempt' => $attempt,
+                        'status' => $response->status(),
+                        'will_retry' => $attempt < $maxRetries
+                    ]);
+
+                    if ($attempt < $maxRetries) {
+                        // Exponential backoff: 1s, 2s, 4s
+                        $backoffSeconds = (2 ** ($attempt - 1));
+                        sleep($backoffSeconds);
+                        continue;
+                    }
+
+                    throw new RuntimeException(
+                        "Failed to send data to AI server after {$maxRetries} attempts - status {$response->status()}. Response: " . $responseBody
+                    );
+                }
+
+                // Success
+                return $response->json();
+
+            } catch (Exception $e) {
+                $attempt++;
+                $lastException = $e;
+
+                if ($attempt < $maxRetries) {
+                    Log::channel($this->logChannel)->warning('AI async send exception, retrying', [
+                        'attempt' => $attempt,
+                        'error' => $e->getMessage()
+                    ]);
+                    // Exponential backoff
+                    $backoffSeconds = (2 ** ($attempt - 1));
+                    sleep($backoffSeconds);
+                    continue;
+                }
+
+                throw new RuntimeException(
+                    "Failed to send data to AI server after {$maxRetries} attempts: " . $e->getMessage(),
+                    0,
+                    $e
+                );
+            }
         }
 
-        $responseData = $response->json();
-
-        return $responseData;
+        // Should never reach here, but safety fallback
+        throw $lastException ?? new RuntimeException("AI async send failed unexpectedly");
     }
 }

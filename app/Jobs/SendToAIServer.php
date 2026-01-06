@@ -11,6 +11,7 @@ use Exception;
 use Illuminate\Bus\Queueable;
 use Throwable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
@@ -18,13 +19,15 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
-class SendToAIServer implements ShouldQueue
+class SendToAIServer implements ShouldQueue, ShouldBeUnique
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public $timeout = 120;  // Increased from 60 to 120 for better headroom under load
-    public $tries = 1;      // Can retry failed sends
+    public $timeout = 120;  // 120 seconds for AI service communication
+    public $tries = 3;      // Retry up to 3 times on failure
+    public $backoff = [60, 300, 900];  // Exponential backoff: 1 min, 5 min, 15 min
     public $testResultId;
+    public $uniqueFor = 3600;  // Lock job uniqueness for 1 hour
 
     /**
      * Create a new job instance.
@@ -36,7 +39,17 @@ class SendToAIServer implements ShouldQueue
     }
 
     /**
+     * Get the unique ID for the job
+     * Prevents duplicate jobs for the same test result within 1 hour
+     */
+    public function uniqueId(): string
+    {
+        return "send_to_ai_server_{$this->testResultId}";
+    }
+
+    /**
      * Execute the job.
+     * Safe to retry - includes idempotency checks and non-destructive error handling
      */
     public function handle(
         TestResultCompilerService $compiler,
@@ -47,6 +60,19 @@ class SendToAIServer implements ShouldQueue
         $startMemory = memory_get_usage();
 
         try {
+            // IDEMPOTENCY CHECK: Don't process if already in progress or completed
+            $existingReview = AIReview::where('test_result_id', $this->testResultId)
+                ->whereIn('processing_status', ['QUEUED', 'PROCESSING', 'COMPLETED'])
+                ->first();
+
+            if ($existingReview) {
+                Log::channel('performance')->info('AI review already in progress, skipping', [
+                    'test_result_id' => $this->testResultId,
+                    'current_status' => $existingReview->processing_status,
+                ]);
+                return;
+            }
+
             // Get authentication token
             $token = $apiTokenService->getValidToken();
 
@@ -58,7 +84,7 @@ class SendToAIServer implements ShouldQueue
             $testResult = $compiler->fetchTestResult($this->testResultId);
             $compiledData = $compiler->compileTestResultData($testResult, 'MHJOB');
 
-            // Create or update ai_reviews record with pending status
+            // Create or update ai_reviews record with pending status (idempotent)
             $aiReview = DB::transaction(function () use ($compiledData) {
                 return AIReview::updateOrCreate(
                     ['test_result_id' => $this->testResultId],
@@ -79,16 +105,16 @@ class SendToAIServer implements ShouldQueue
 
             // Send to AI server asynchronously and capture response
             $responseData = $apiClient->sendAsync($payload, $token);
-            // Log::info('responseData from sendAsync', [
-            //     'responseData' => $responseData
-            // ]);
 
             // Check AI server response
             if (isset($responseData)) {
                 // Check if AI server returned failure
                 if (isset($responseData['success']) && $responseData['success'] === false) {
-                    // Hard delete AIReview and create AIError
-                    $aiReview->forceDelete();
+                    // Update status to FAILED instead of deleting (preserves audit trail)
+                    $aiReview->update([
+                        'processing_status' => 'FAILED',
+                        'raw_response' => json_encode($responseData),
+                    ]);
 
                     AIError::create([
                         'test_result_id' => $this->testResultId,
@@ -99,13 +125,14 @@ class SendToAIServer implements ShouldQueue
                         'attempt_count' => $this->attempts()
                     ]);
 
-                    // Don't throw exception - no retry needed for queue full, etc.
+                    // Don't throw exception - server explicitly rejected, no retry needed
                     return;
                 }
 
                 // Success - update AIReview with status from server (QUEUED, PROCESSING, etc.)
-                $aiReview->processing_status = $responseData['status'];
-                $aiReview->save();
+                $aiReview->update([
+                    'processing_status' => $responseData['status'] ?? 'QUEUED'
+                ]);
 
                 // Log performance metrics
                 $duration = round((microtime(true) - $startTime) * 1000, 2);
@@ -119,61 +146,82 @@ class SendToAIServer implements ShouldQueue
                 ]);
             }
         } catch (Exception $e) {
-
-            // Update ai_reviews status to failed or create error record
+            // Update ai_reviews status or create error record
             $this->handleError($e);
 
-            // Re-throw to allow job retry
+            // Re-throw to allow job retry (with exponential backoff)
             throw $e;
         }
     }
 
     /**
-     * Handle job failure
+     * Handle permanent job failure after all retries exhausted
+     * Updates AI review status and logs error for manual recovery
      */
     public function failed(Throwable $exception): void
     {
-        // Hard delete AIReview record and create error record
-        DB::transaction(function () use ($exception) {
-            $aiReview = AIReview::where('test_result_id', $this->testResultId)
-                ->orderBy('id', 'desc')
-                ->first();
+        try {
+            DB::transaction(function () use ($exception) {
+                $aiReview = AIReview::where('test_result_id', $this->testResultId)
+                    ->orderBy('id', 'desc')
+                    ->first();
 
-            if ($aiReview) {
-                $aiReview->forceDelete();
-            }
+                // Update status to FAILED instead of deleting (preserves audit trail)
+                if ($aiReview) {
+                    $aiReview->update([
+                        'processing_status' => 'FAILED',
+                        'raw_response' => json_encode([
+                            'error' => $exception->getMessage(),
+                            'all_retries_exhausted' => true
+                        ]),
+                    ]);
+                }
 
-            // Create error record
-            $this->storeError($exception);
-        });
+                // Store error record for recovery
+                $this->storeError($exception);
+            });
+        } catch (Exception $dbError) {
+            // Log but don't fail - error storage is best effort
+            Log::error('SendToAIServer: Failed to record job failure', [
+                'test_result_id' => $this->testResultId,
+                'error' => $dbError->getMessage(),
+            ]);
+        }
     }
 
     /**
      * Handle error during processing
+     * Updates AI review status and creates error record without deleting data
      */
     protected function handleError(Throwable $e): void
     {
         try {
             DB::transaction(function () use ($e) {
-                // Hard delete AIReview record if exists
                 $aiReview = AIReview::where('test_result_id', $this->testResultId)
                     ->orderBy('id', 'desc')
                     ->first();
 
+                // Update status to FAILED instead of deleting
                 if ($aiReview) {
-                    $aiReview->forceDelete();
+                    $aiReview->update([
+                        'processing_status' => 'FAILED',
+                    ]);
                 }
 
-                // ALWAYS store error to ai_errors table
+                // Store error to ai_errors table for recovery
                 $this->storeError($e);
             });
         } catch (Exception $dbError) {
-            // Silently fail - error storage is best effort
+            // Log but don't fail - error storage is best effort
+            Log::error('SendToAIServer: handleError failed to update records', [
+                'test_result_id' => $this->testResultId,
+                'error' => $dbError->getMessage(),
+            ]);
         }
     }
 
     /**
-     * Store error to ai_errors table
+     * Store error to ai_errors table for manual recovery
      */
     protected function storeError(Throwable $e): void
     {
@@ -193,11 +241,23 @@ class SendToAIServer implements ShouldQueue
                 'processing_status' => 'FAILED',
                 'http_status' => 500,
                 'error_message' => $e->getMessage(),
+                'error_trace' => $e->getTraceAsString(),
                 'compiled_data' => $compiledData,
                 'attempt_count' => $this->attempts()
             ]);
+
+            Log::channel('job')->warning('SendToAIServer: Error recorded', [
+                'test_result_id' => $this->testResultId,
+                'attempt' => $this->attempts(),
+                'error' => $e->getMessage(),
+            ]);
         } catch (Exception $dbError) {
             // Silently fail - error storage is best effort
+            Log::error('SendToAIServer: Failed to store error record', [
+                'test_result_id' => $this->testResultId,
+                'original_error' => $e->getMessage(),
+                'storage_error' => $dbError->getMessage(),
+            ]);
         }
     }
 }
