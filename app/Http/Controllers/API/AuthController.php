@@ -7,6 +7,7 @@ use App\Http\Requests\APIAuthRequest;
 use App\Models\Lab;
 use App\Models\LabCredential;
 use App\Models\User;
+use App\Services\TokenCacheService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -223,11 +224,42 @@ class AuthController extends Controller
     {
         try {
             $credentials = $request->only($this->username(), 'password');
+            $clientIp = $request->ip();
+            $username = $credentials[$this->username()];
+            $tokenCacheService = new TokenCacheService();
 
+            // Step 1: Check if cached token exists and is still valid
+            $cachedToken = $tokenCacheService->getCachedToken($clientIp, $username);
+
+            if ($cachedToken && $tokenCacheService->validateCachedToken($cachedToken)) {
+                Log::channel('auth')->info('Login: Using cached token', [
+                    'username' => $username,
+                    'ip' => $clientIp,
+                    'reason' => 'cached_token_valid',
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'access_token' => $cachedToken['token'],
+                        'token_type' => 'bearer',
+                        'expires_in' => $cachedToken['expires_at']
+                    ],
+                    'message' => 'Login successful (cached)',
+                    'cached' => true
+                ], 200);
+            }
+
+            // Step 2: Attempt fresh authentication if no valid cache
             // Set JWT TTL to 30 days (43,200 minutes) before attempting login
             //Auth::guard('lab')->factory()->setTTL(43200);
 
             if (!$token = Auth::guard('lab')->attempt($credentials)) {
+                Log::channel('auth')->warning('Login failed: Invalid credentials', [
+                    'username' => $username,
+                    'ip' => $clientIp,
+                ]);
+
                 return response()->json([
                     'success' => false,
                     'message' => 'Invalid credentials',
@@ -240,7 +272,27 @@ class AuthController extends Controller
 
             $labCredential = LabCredential::where('username', $credentials['username'])->first();
 
-           if ($labCredential) { $labCredential->expires_at = $expiresIn; $labCredential->save(); }
+            if ($labCredential) {
+                $labCredential->expires_at = $expiresIn;
+                $labCredential->save();
+
+                // Step 3: Cache the token for timeout mitigation
+                $tokenCacheService->cacheToken(
+                    $clientIp,
+                    $username,
+                    $token,
+                    $expiresIn,
+                    $labCredential->id,
+                    $labCredential->lab_id
+                );
+
+                Log::channel('auth')->info('Login: Fresh authentication successful and token cached', [
+                    'username' => $username,
+                    'ip' => $clientIp,
+                    'lab_credential_id' => $labCredential->id,
+                    'lab_id' => $labCredential->lab_id,
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
@@ -249,7 +301,8 @@ class AuthController extends Controller
                     'token_type' => 'bearer',
                     'expires_in' => $expiresIn
                 ],
-                'message' => 'Login successful'
+                'message' => 'Login successful',
+                'cached' => false
             ], 200);
         } catch (Throwable $e) {
             Log::error('Login error', [
@@ -297,10 +350,23 @@ class AuthController extends Controller
      *     )
      * )
      */
-    public function logout()
+    public function logout(Request $request)
     {
         try {
+            $user = Auth::guard('lab')->user();
             Auth::guard('lab')->logout();
+
+            // Invalidate cached token on logout
+            if ($user) {
+                $tokenCacheService = new TokenCacheService();
+                $tokenCacheService->invalidateCache($request->ip(), $user->username);
+
+                Log::channel('auth')->info('Logout: Cache invalidated', [
+                    'username' => $user->username,
+                    'ip' => $request->ip(),
+                    'lab_credential_id' => $user->id,
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
