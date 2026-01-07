@@ -25,5 +25,4 @@ server.php
 .DS_STORE
 .claude
 /docs
-CLAUDE.md
 process_all_operations_local.bat
