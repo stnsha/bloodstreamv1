@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\AIError;
 use App\Models\AIReview;
+use App\Models\TestResult;
 use App\Services\AIApiClient;
 use App\Services\ApiTokenService;
 use App\Services\TestResultCompilerService;
@@ -66,6 +67,19 @@ class SendToAIServer implements ShouldQueue, ShouldBeUnique
                 ->first();
 
             if ($existingReview) {
+                // If review is COMPLETED, ensure is_reviewed flag is set
+                if ($existingReview->processing_status === 'COMPLETED') {
+                    $testResult = TestResult::find($this->testResultId);
+                    if ($testResult && !$testResult->is_reviewed) {
+                        $testResult->is_reviewed = true;
+                        $testResult->save();
+
+                        Log::channel('performance')->info('Fixed is_reviewed flag for completed review', [
+                            'test_result_id' => $this->testResultId,
+                        ]);
+                    }
+                }
+
                 Log::channel('performance')->info('AI review already in progress, skipping', [
                     'test_result_id' => $this->testResultId,
                     'current_status' => $existingReview->processing_status,
