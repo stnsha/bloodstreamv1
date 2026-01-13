@@ -78,6 +78,19 @@ if !MINUTE_NUM! LEQ 4 (
         echo [%DATE% %TIME%] PHASE 2B: Retry completed successfully >> storage\logs\operations_master.log
     )
 
+    REM ============================================
+    REM PHASE 2C: Dispatch unreviewed results to AI
+    REM ============================================
+    echo [%DATE% %TIME%] PHASE 2C: Starting dispatch of unreviewed results to AI... >> storage\logs\operations_master.log
+
+    php -d memory_limit=%PHP_MEMORY_LIMIT% artisan ai:dispatch-unreviewed-async 2>&1 | findstr /C:"error" /C:"Error" /C:"ERROR" /C:"warning" /C:"Warning" /C:"WARNING" /C:"exception" /C:"Exception" /C:"failed" /C:"Failed" >> storage\logs\operations_master.log
+
+    if %ERRORLEVEL% GTR 1 (
+        echo [%DATE% %TIME%] ERROR: Dispatch unreviewed async failed - Exit code: %ERRORLEVEL% >> storage\logs\operations_master.log
+    ) else (
+        echo [%DATE% %TIME%] PHASE 2C: Dispatch unreviewed async completed successfully >> storage\logs\operations_master.log
+    )
+
     echo [%DATE% %TIME%] PHASE 2: All hourly operations completed >> storage\logs\operations_master.log
 ) else (
     echo [%DATE% %TIME%] Skipping hourly operations (next window at :00-:04) >> storage\logs\operations_master.log
