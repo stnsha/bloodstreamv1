@@ -133,6 +133,7 @@ class TestResultCompilerService
     {
         $patientInfo = $this->gatherPatientHealthHistory($testResult);
         $categorizedItems = $this->categorizeTestResultItems($testResult);
+        $this->appendSpecialTests($testResult, $categorizedItems);
         $reportDate = Carbon::parse($testResult->reported_date)->format('Y-m-d');
 
         // Log::channel($this->logChannel)->info('Report and Source AI API call', [
@@ -388,6 +389,39 @@ class TestResultCompilerService
     }
 
     /**
+     * Append special tests to categorized items
+     */
+    protected function appendSpecialTests(TestResult $testResult, array &$categorizedItems): void
+    {
+        if ($testResult->testResultSpecialTests->isEmpty()) {
+            return;
+        }
+
+        $specialTests = [];
+        foreach ($testResult->testResultSpecialTests as $specialTest) {
+            $panelItem = $specialTest->panelPanelItem?->panelItem;
+            $itemName = $panelItem?->name ?? 'Unknown';
+            $itemCode = $panelItem?->code ?? null;
+            $interpretation = $specialTest->panelInterpretation?->interpretation ?? null;
+
+            // Append code to name if available: "Name (CODE)"
+            if ($itemCode) {
+                $itemName = "{$itemName} ({$itemCode})";
+            }
+
+            $specialTests[] = [
+                'panel_item_name' => $itemName,
+                'result_value' => $specialTest->value,
+                'interpretation' => $interpretation,
+            ];
+        }
+
+        if (!empty($specialTests)) {
+            $categorizedItems['SPECIAL TESTS'] = $specialTests;
+        }
+    }
+
+    /**
      * Get relationships to eager load
      */
     protected function getEagerLoadRelations(): array
@@ -398,6 +432,8 @@ class TestResultCompilerService
             'testResultItems.referenceRange',
             'testResultItems.panelPanelItem.panelItem',
             'testResultItems.panelComments.masterPanelComment',
+            'testResultSpecialTests.panelPanelItem.panelItem',
+            'testResultSpecialTests.panelInterpretation',
         ];
     }
 }

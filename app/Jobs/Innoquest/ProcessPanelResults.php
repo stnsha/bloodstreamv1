@@ -2,6 +2,7 @@
 
 namespace App\Jobs\Innoquest;
 
+use App\Constants\Innoquest\PanelPanelItem as PanelPanelItemConstants;
 use App\Jobs\SendToAIServer;
 use App\Models\DeliveryFile;
 use App\Models\Doctor;
@@ -19,6 +20,8 @@ use App\Models\TestResult;
 use App\Models\TestResultComment;
 use App\Models\TestResultItem;
 use App\Models\TestResultProfile;
+use App\Services\MyHealthService;
+use App\Services\PanelInterpretationService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -356,6 +359,28 @@ class ProcessPanelResults implements ShouldQueue
                 $test_result->is_completed = true;
                 $test_result->is_reviewed = false;
                 $test_result->save();
+
+                // Calculate special tests when completed - isolated from main job
+                try {
+                    Log::info('Starting special test calculation', [
+                        'test_result_id' => $test_result->id,
+                        'lab_no' => $test_result->lab_no,
+                    ]);
+
+                    $this->calculateSpecialTests($test_result);
+
+                    Log::info('Special test calculation completed', [
+                        'test_result_id' => $test_result->id,
+                    ]);
+                } catch (Throwable $e) {
+                    // Log error but DO NOT rethrow - allow main job to complete
+                    Log::error('Special test calculation failed', [
+                        'test_result_id' => $test_result->id,
+                        'error' => $e->getMessage(),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine(),
+                    ]);
+                }
             }
 
             if ($test_result) {
@@ -549,5 +574,136 @@ class ProcessPanelResults implements ShouldQueue
         }
 
         return false;
+    }
+
+    /**
+     * Calculate special tests and interpretations for a completed test result.
+     * Calculates: CRI-I, CRI-II, AIP, AC, FIB-4, APRI, NFS
+     *
+     * @param TestResult $testResult
+     * @return void
+     */
+    protected function calculateSpecialTests(TestResult $testResult): void
+    {
+        $panelInterpretationService = app(PanelInterpretationService::class);
+        $myHealthService = app(MyHealthService::class);
+
+        // Load patient relationship
+        $testResult->load('patient');
+
+        // Get relevant test result items
+        $testResultItems = $testResult->testResultItems()
+            ->whereIn('panel_panel_item_id', PanelPanelItemConstants::PANEL_PANEL_ITEM_IDS)
+            ->get()
+            ->keyBy('panel_panel_item_id');
+
+        // 1. Lipid Interpretation (CRI-I, CRI-II, AIP)
+        $lr = $panelInterpretationService->lipidInterpretation(
+            cri_i: $testResultItems[PanelPanelItemConstants::CRI_I]->value ?? null,
+            cri_ii: $testResultItems[PanelPanelItemConstants::CRI_II]->value ?? null,
+            aip: $testResultItems[PanelPanelItemConstants::AIP]->value ?? null,
+        );
+
+        // 2. Atherogenic Coefficient
+        $ac = $panelInterpretationService->calculateAC(
+            totalCholesterol: $testResultItems[PanelPanelItemConstants::TOTAL_CHOLESTEROL]->value ?? null,
+            hdlCholesterol: $testResultItems[PanelPanelItemConstants::HDL]->value ?? null,
+        );
+
+        // 3. FIB-4 Index
+        $age = $testResult->patient->age;
+        $fib = $panelInterpretationService->calculateFIB(
+            age: $age,
+            ast: $testResultItems[PanelPanelItemConstants::AST]->value ?? null,
+            alt: $testResultItems[PanelPanelItemConstants::ALT]->value ?? null,
+            plateletCount: $testResultItems[PanelPanelItemConstants::PLATELETS]->value ?? null,
+        );
+
+        // 4. APRI - requires AST upper limit from reference range
+        $astUpperLimit = null;
+        $astItem = $testResultItems[PanelPanelItemConstants::AST] ?? null;
+
+        if ($astItem && $astItem->reference_range_id) {
+            $referenceRange = $astItem->referenceRange;
+            if ($referenceRange) {
+                $astUpperLimit = extractUpperLimit($referenceRange->value);
+            }
+        }
+
+        $ap = $panelInterpretationService->calculateAPRI(
+            ast: $testResultItems[PanelPanelItemConstants::AST]->value ?? null,
+            astRef: $astUpperLimit,
+            plateletCount: $testResultItems[PanelPanelItemConstants::PLATELETS]->value ?? null,
+        );
+
+        // 5. NFS - requires BMI from MyHealth
+        $glucoseFastingItem = $testResultItems[PanelPanelItemConstants::GLUCOSE_FASTING_TYPE] ?? null;
+        $fasting = $glucoseFastingItem && $glucoseFastingItem->value == 'Fasting';
+        $bmi = $myHealthService->getPatientBMI($testResult->patient->icno);
+
+        $nfs = $panelInterpretationService->calculateNFS(
+            age: $age,
+            bmi: $bmi,
+            fasting: $fasting,
+            ast: $testResultItems[PanelPanelItemConstants::AST]->value ?? null,
+            alt: $testResultItems[PanelPanelItemConstants::ALT]->value ?? null,
+            plateletCount: $testResultItems[PanelPanelItemConstants::PLATELETS]->value ?? null,
+            albumin: $testResultItems[PanelPanelItemConstants::ALBUMIN]->value ?? null,
+        );
+
+        // Compile data for saving
+        $data = [
+            'cri_i' => [
+                'panel_panel_item_id' => $lr['cri_i_panel_panel_item_id'],
+                'value' => $testResultItems[PanelPanelItemConstants::CRI_I]->value ?? null,
+                'panel_interpretation_id' => $lr['cri_i_interpretation'],
+            ],
+            'cri_ii' => [
+                'panel_panel_item_id' => $lr['cri_ii_panel_panel_item_id'],
+                'value' => $testResultItems[PanelPanelItemConstants::CRI_II]->value ?? null,
+                'panel_interpretation_id' => $lr['cri_ii_interpretation'],
+            ],
+            'aip' => [
+                'panel_panel_item_id' => $lr['aip_panel_panel_item_id'],
+                'value' => $testResultItems[PanelPanelItemConstants::AIP]->value ?? null,
+                'panel_interpretation_id' => $lr['aip_interpretation'],
+            ],
+            'ac' => [
+                'panel_panel_item_id' => $ac['panel_panel_item_id'],
+                'value' => $ac['value'],
+                'panel_interpretation_id' => $ac['ac_interpretation'],
+            ],
+            'fib' => [
+                'panel_panel_item_id' => $fib['panel_panel_item_id'],
+                'value' => $fib['value'],
+                'panel_interpretation_id' => $fib['fib_interpretation'],
+            ],
+            'apri' => [
+                'panel_panel_item_id' => $ap['panel_panel_item_id'],
+                'value' => $ap['value'],
+                'panel_interpretation_id' => $ap['apri_interpretation'],
+            ],
+            'nfs' => [
+                'panel_panel_item_id' => $nfs['panel_panel_item_id'],
+                'value' => $nfs['value'],
+                'panel_interpretation_id' => $nfs['nfs_interpretation'],
+            ],
+        ];
+
+        // Save special tests
+        foreach ($data as $key => $item) {
+            if ($item['panel_panel_item_id']) {
+                $testResult->testResultSpecialTests()->updateOrCreate(
+                    [
+                        'test_result_id' => $testResult->id,
+                        'panel_panel_item_id' => $item['panel_panel_item_id']
+                    ],
+                    [
+                        'value' => $item['value'],
+                        'panel_interpretation_id' => $item['panel_interpretation_id']
+                    ]
+                );
+            }
+        }
     }
 }

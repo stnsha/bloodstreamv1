@@ -44,4 +44,9 @@ class PanelPanelItem extends Model
     {
         return $this->hasMany(TestResultItem::class, 'panel_panel_item_id', 'id');
     }
+
+    public function interpretations(): HasMany
+    {
+        return $this->hasMany(PanelInterpretation::class, 'panel_panel_item_id', 'id');
+    }
 }

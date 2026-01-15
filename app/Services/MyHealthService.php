@@ -117,4 +117,26 @@ class MyHealthService
 
         return $result;
     }
+
+    /**
+     * Get patient BMI by IC number
+     *
+     * @param string $ic Patient IC number
+     * @return float|null BMI value or null if not found
+     */
+    public function getPatientBMI(string $ic)
+    {
+        $fourteenDaysAgo = now()->subDays(14)->format('Y-m-d H:i:s');
+
+        $record = $this->connection->table('check_record as c')
+            ->join('check_record_details as d', 'c.id', '=', 'd.record_id')
+            ->where('c.ic', $ic)
+            ->where('c.date_time', '>=', $fourteenDaysAgo)
+            ->where('d.parameter', 55)
+            ->select('d.value')
+            ->orderBy('c.date_time', 'desc')
+            ->first();
+
+        return $record ? (float) $record->value : null;
+    }
 }

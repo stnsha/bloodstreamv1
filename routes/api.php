@@ -9,6 +9,7 @@ use App\Http\Controllers\API\General\LabResultsController;
 use App\Http\Controllers\API\Innoquest\PanelResultsController;
 use App\Http\Controllers\API\ODB\BloodTestController;
 use App\Http\Controllers\API\PDFController;
+use App\Http\Controllers\API\Testing\SpecialTestController;
 use App\Http\Controllers\PanelCommentController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
@@ -94,5 +95,9 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
 
     Route::prefix('fixes')->controller(HotFixController::class)->group(function () {
         Route::post('/normalize-refid', 'normalizeRefId')->name('fixes.normalizeRefId');
+    });
+
+    Route::prefix('special-test')->controller(SpecialTestController::class)->group(function () {
+        Route::get('/', 'index')->name('special-test.index');
     });
 });

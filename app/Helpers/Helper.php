@@ -127,3 +127,39 @@ if (!function_exists('calculatePatientAge')) {
         return $dobDate->diff($reportDate)->y;
     }
 }
+
+if (!function_exists('extractUpperLimit')) {
+    /**
+     * Extract upper limit from reference range string
+     * Examples:
+     * "< 41" -> 41
+     * "12-36" -> 36
+     * "40" -> 40
+     */
+    function extractUpperLimit(?string $rangeValue): ?float
+    {
+        if (is_null($rangeValue)) {
+            return null;
+        }
+
+        $range = trim($rangeValue);
+
+        // Case: "< 41" -> extract 41
+        if (str_starts_with($range, '<')) {
+            return (float) trim(str_replace('<', '', $range));
+        }
+
+        // Case: "12-36" -> extract 36 (highest)
+        if (str_contains($range, '-')) {
+            $parts = explode('-', $range);
+            return (float) trim(end($parts));
+        }
+
+        // Case: single numeric value
+        if (is_numeric($range)) {
+            return (float) $range;
+        }
+
+        return null;
+    }
+}
