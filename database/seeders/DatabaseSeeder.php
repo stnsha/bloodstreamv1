@@ -16,7 +16,8 @@ class DatabaseSeeder extends Seeder
             LabCredentialSeeder::class,
             InnoquestCodeMappingSeeder::class,
             TranslationSeeder::class,
-            EurofinsLabSeeder::class
+            EurofinsLabSeeder::class,
+            PanelInterpretationSeeder::class,
         ]);
     }
 }

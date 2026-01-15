@@ -73,6 +73,11 @@ class TestResult extends Model
         return $this->hasMany(TestResultProfile::class, 'test_result_id', 'id');
     }
 
+    public function testResultSpecialTests(): HasMany
+    {
+        return $this->hasMany(TestResultSpecialTest::class, 'test_result_id', 'id');
+    }
+
     public function profiles()
     {
         return $this->hasManyThrough(
