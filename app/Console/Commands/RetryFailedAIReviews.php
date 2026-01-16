@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Jobs\SendToAIServer;
 use App\Models\AIError;
+use App\Models\TestResult;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -51,6 +52,21 @@ class RetryFailedAIReviews extends Command
 
             foreach ($failedErrors as $error) {
                 try {
+                    // Check if test result exists and is not already reviewed
+                    $testResult = TestResult::find($error->test_result_id);
+
+                    if (!$testResult) {
+                        $skipCount++;
+                        $this->line("  [SKIP] test_result_id: {$error->test_result_id} - test result not found");
+                        continue;
+                    }
+
+                    if ($testResult->is_reviewed) {
+                        $skipCount++;
+                        $this->line("  [SKIP] test_result_id: {$error->test_result_id} - already reviewed");
+                        continue;
+                    }
+
                     // Increment attempt counter
                     $error->increment('attempt_count');
 

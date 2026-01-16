@@ -61,6 +61,23 @@ class SendToAIServer implements ShouldQueue, ShouldBeUnique
         $startMemory = memory_get_usage();
 
         try {
+            // Early check: Verify test result exists and is not already reviewed
+            $testResultCheck = TestResult::find($this->testResultId);
+
+            if (!$testResultCheck) {
+                Log::channel('performance')->info('SendToAIServer: Test result not found, skipping', [
+                    'test_result_id' => $this->testResultId,
+                ]);
+                return;
+            }
+
+            if ($testResultCheck->is_reviewed) {
+                Log::channel('performance')->info('SendToAIServer: Test result already reviewed, skipping', [
+                    'test_result_id' => $this->testResultId,
+                ]);
+                return;
+            }
+
             // IDEMPOTENCY CHECK: Don't process if already in progress or completed
             $existingReview = AIReview::where('test_result_id', $this->testResultId)
                 ->whereIn('processing_status', ['QUEUED', 'PROCESSING', 'COMPLETED'])
