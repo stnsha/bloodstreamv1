@@ -49,30 +49,42 @@ class PanelInterpretationService
 
         foreach ($criInterpretations as $criInt) {
             $range = trim($criInt->range);
-            // Case 1: "< 3.5"
-            if (str_starts_with($range, '<')) {
-                $value = (float) trim(str_replace('<', '', $range));
 
+            if (str_starts_with($range, '>=')) {
+                $value = (float) trim(str_replace('>=', '', $range));
+                if ($cri_i >= $value) {
+                    $cri_i_interpretation = $criInt->id;
+                    break;
+                }
+            } elseif (str_starts_with($range, '<=')) {
+                $value = (float) trim(str_replace('<=', '', $range));
+                if ($cri_i <= $value) {
+                    $cri_i_interpretation = $criInt->id;
+                    break;
+                }
+            } elseif (str_starts_with($range, '<')) {
+                $value = (float) trim(str_replace('<', '', $range));
                 if ($cri_i < $value) {
                     $cri_i_interpretation = $criInt->id;
+                    break;
                 }
-            }
-
-            // Case 2: "> 5.0"
-            elseif (str_starts_with($range, '>')) {
+            } elseif (str_starts_with($range, '>')) {
                 $value = (float) trim(str_replace('>', '', $range));
-
                 if ($cri_i > $value) {
                     $cri_i_interpretation = $criInt->id;
+                    break;
                 }
-            }
-
-            // Case 3: "3.5 - 5.0"
-            elseif (str_contains($range, '-')) {
-                [$min, $max] = array_map('floatval', explode('-', $range));
-
+            } elseif (str_contains($range, ' to ')) {
+                [$min, $max] = array_map('floatval', explode(' to ', $range));
                 if ($cri_i >= $min && $cri_i <= $max) {
                     $cri_i_interpretation = $criInt->id;
+                    break;
+                }
+            } elseif (str_contains($range, ' - ')) {
+                [$min, $max] = array_map('floatval', explode(' - ', $range));
+                if ($cri_i >= $min && $cri_i <= $max) {
+                    $cri_i_interpretation = $criInt->id;
+                    break;
                 }
             }
         }
@@ -88,30 +100,42 @@ class PanelInterpretationService
 
         foreach ($criInterpretations as $criInt) {
             $range = trim($criInt->range);
-            // Case 1: "< 3.5"
-            if (str_starts_with($range, '<')) {
-                $value = (float) trim(str_replace('<', '', $range));
 
+            if (str_starts_with($range, '>=')) {
+                $value = (float) trim(str_replace('>=', '', $range));
+                if ($cri_ii >= $value) {
+                    $cri_ii_interpretation = $criInt->id;
+                    break;
+                }
+            } elseif (str_starts_with($range, '<=')) {
+                $value = (float) trim(str_replace('<=', '', $range));
+                if ($cri_ii <= $value) {
+                    $cri_ii_interpretation = $criInt->id;
+                    break;
+                }
+            } elseif (str_starts_with($range, '<')) {
+                $value = (float) trim(str_replace('<', '', $range));
                 if ($cri_ii < $value) {
                     $cri_ii_interpretation = $criInt->id;
+                    break;
                 }
-            }
-
-            // Case 2: "> 5.0"
-            elseif (str_starts_with($range, '>')) {
+            } elseif (str_starts_with($range, '>')) {
                 $value = (float) trim(str_replace('>', '', $range));
-
                 if ($cri_ii > $value) {
                     $cri_ii_interpretation = $criInt->id;
+                    break;
                 }
-            }
-
-            // Case 3: "3.5 - 5.0"
-            elseif (str_contains($range, '-')) {
-                [$min, $max] = array_map('floatval', explode('-', $range));
-
+            } elseif (str_contains($range, ' to ')) {
+                [$min, $max] = array_map('floatval', explode(' to ', $range));
                 if ($cri_ii >= $min && $cri_ii <= $max) {
                     $cri_ii_interpretation = $criInt->id;
+                    break;
+                }
+            } elseif (str_contains($range, ' - ')) {
+                [$min, $max] = array_map('floatval', explode(' - ', $range));
+                if ($cri_ii >= $min && $cri_ii <= $max) {
+                    $cri_ii_interpretation = $criInt->id;
+                    break;
                 }
             }
         }
@@ -127,30 +151,42 @@ class PanelInterpretationService
 
         foreach ($aipInterpretations as $aipInt) {
             $range = trim($aipInt->range);
-            // Case 1: "< 3.5"
-            if (str_starts_with($range, '<')) {
-                $value = (float) trim(str_replace('<', '', $range));
 
+            if (str_starts_with($range, '>=')) {
+                $value = (float) trim(str_replace('>=', '', $range));
+                if ($aip >= $value) {
+                    $aip_interpretation = $aipInt->id;
+                    break;
+                }
+            } elseif (str_starts_with($range, '<=')) {
+                $value = (float) trim(str_replace('<=', '', $range));
+                if ($aip <= $value) {
+                    $aip_interpretation = $aipInt->id;
+                    break;
+                }
+            } elseif (str_starts_with($range, '<')) {
+                $value = (float) trim(str_replace('<', '', $range));
                 if ($aip < $value) {
                     $aip_interpretation = $aipInt->id;
+                    break;
                 }
-            }
-
-            // Case 2: "> 5.0"
-            elseif (str_starts_with($range, '>')) {
+            } elseif (str_starts_with($range, '>')) {
                 $value = (float) trim(str_replace('>', '', $range));
-
                 if ($aip > $value) {
                     $aip_interpretation = $aipInt->id;
+                    break;
                 }
-            }
-
-            // Case 3: "3.5 - 5.0"
-            elseif (str_contains($range, '-')) {
-                [$min, $max] = array_map('floatval', explode('-', $range));
-
+            } elseif (str_contains($range, ' to ')) {
+                [$min, $max] = array_map('floatval', explode(' to ', $range));
                 if ($aip >= $min && $aip <= $max) {
                     $aip_interpretation = $aipInt->id;
+                    break;
+                }
+            } elseif (str_contains($range, ' - ')) {
+                [$min, $max] = array_map('floatval', explode(' - ', $range));
+                if ($aip >= $min && $aip <= $max) {
+                    $aip_interpretation = $aipInt->id;
+                    break;
                 }
             }
         }
@@ -208,30 +244,42 @@ class PanelInterpretationService
 
         foreach ($acInterpretations as $acInt) {
             $range = trim($acInt->range);
-            // Case 1: "< 3.5"
-            if (str_starts_with($range, '<')) {
-                $value = (float) trim(str_replace('<', '', $range));
 
+            if (str_starts_with($range, '>=')) {
+                $value = (float) trim(str_replace('>=', '', $range));
+                if ($total >= $value) {
+                    $ac_interpretation = $acInt->id;
+                    break;
+                }
+            } elseif (str_starts_with($range, '<=')) {
+                $value = (float) trim(str_replace('<=', '', $range));
+                if ($total <= $value) {
+                    $ac_interpretation = $acInt->id;
+                    break;
+                }
+            } elseif (str_starts_with($range, '<')) {
+                $value = (float) trim(str_replace('<', '', $range));
                 if ($total < $value) {
                     $ac_interpretation = $acInt->id;
+                    break;
                 }
-            }
-
-            // Case 2: "> 5.0"
-            elseif (str_starts_with($range, '>')) {
+            } elseif (str_starts_with($range, '>')) {
                 $value = (float) trim(str_replace('>', '', $range));
-
                 if ($total > $value) {
                     $ac_interpretation = $acInt->id;
+                    break;
                 }
-            }
-
-            // Case 3: "3.5 - 5.0"
-            elseif (str_contains($range, '-')) {
-                [$min, $max] = array_map('floatval', explode('-', $range));
-
+            } elseif (str_contains($range, ' to ')) {
+                [$min, $max] = array_map('floatval', explode(' to ', $range));
                 if ($total >= $min && $total <= $max) {
                     $ac_interpretation = $acInt->id;
+                    break;
+                }
+            } elseif (str_contains($range, ' - ')) {
+                [$min, $max] = array_map('floatval', explode(' - ', $range));
+                if ($total >= $min && $total <= $max) {
+                    $ac_interpretation = $acInt->id;
+                    break;
                 }
             }
         }
@@ -279,30 +327,50 @@ class PanelInterpretationService
 
         foreach ($fibInterpretations as $fibInt) {
             $range = trim($fibInt->range);
-            // Case 1: "< 1.45"
-            if (str_starts_with($range, '<')) {
-                $value = (float) trim(str_replace('<', '', $range));
 
+            // Case 1: ">=" (must check before ">")
+            if (str_starts_with($range, '>=')) {
+                $value = (float) trim(str_replace('>=', '', $range));
+                if ($fibValue >= $value) {
+                    $fibInterpretation = $fibInt->id;
+                    break;
+                }
+            }
+            // Case 2: "<=" (must check before "<")
+            elseif (str_starts_with($range, '<=')) {
+                $value = (float) trim(str_replace('<=', '', $range));
+                if ($fibValue <= $value) {
+                    $fibInterpretation = $fibInt->id;
+                    break;
+                }
+            }
+            // Case 3: "<"
+            elseif (str_starts_with($range, '<')) {
+                $value = (float) trim(str_replace('<', '', $range));
                 if ($fibValue < $value) {
                     $fibInterpretation = $fibInt->id;
+                    break;
                 }
             }
-
-            // Case 2: "> 3.25"
+            // Case 4: ">"
             elseif (str_starts_with($range, '>')) {
                 $value = (float) trim(str_replace('>', '', $range));
-
                 if ($fibValue > $value) {
                     $fibInterpretation = $fibInt->id;
+                    break;
                 }
-            }
-
-            // Case 3: "1.45 - 3.25"
-            elseif (str_contains($range, '-')) {
-                [$min, $max] = array_map('floatval', explode('-', $range));
-
+            // Case 5: "1.30 to 2.67" or "1.30 - 2.67" (range)
+            } elseif (str_contains($range, ' to ')) {
+                [$min, $max] = array_map('floatval', explode(' to ', $range));
                 if ($fibValue >= $min && $fibValue <= $max) {
                     $fibInterpretation = $fibInt->id;
+                    break;
+                }
+            } elseif (str_contains($range, ' - ')) {
+                [$min, $max] = array_map('floatval', explode(' - ', $range));
+                if ($fibValue >= $min && $fibValue <= $max) {
+                    $fibInterpretation = $fibInt->id;
+                    break;
                 }
             }
         }
@@ -351,30 +419,50 @@ class PanelInterpretationService
 
         foreach ($apriInterpretations as $apriInt) {
             $range = trim($apriInt->range);
-            // Case 1: "< 0.5"
-            if (str_starts_with($range, '<')) {
-                $value = (float) trim(str_replace('<', '', $range));
 
+            // Case 1: ">=" (must check before ">")
+            if (str_starts_with($range, '>=')) {
+                $value = (float) trim(str_replace('>=', '', $range));
+                if ($apriValue >= $value) {
+                    $apriInterpretation = $apriInt->id;
+                    break;
+                }
+            }
+            // Case 2: "<=" (must check before "<")
+            elseif (str_starts_with($range, '<=')) {
+                $value = (float) trim(str_replace('<=', '', $range));
+                if ($apriValue <= $value) {
+                    $apriInterpretation = $apriInt->id;
+                    break;
+                }
+            }
+            // Case 3: "<"
+            elseif (str_starts_with($range, '<')) {
+                $value = (float) trim(str_replace('<', '', $range));
                 if ($apriValue < $value) {
                     $apriInterpretation = $apriInt->id;
+                    break;
                 }
             }
-
-            // Case 2: "> 1.5"
+            // Case 4: ">"
             elseif (str_starts_with($range, '>')) {
                 $value = (float) trim(str_replace('>', '', $range));
-
                 if ($apriValue > $value) {
                     $apriInterpretation = $apriInt->id;
+                    break;
                 }
-            }
-
-            // Case 3: "0.5 - 1.5"
-            elseif (str_contains($range, '-')) {
-                [$min, $max] = array_map('floatval', explode('-', $range));
-
+            // Case 5: "0.5 to 1.9" or "0.5 - 1.9" (range)
+            } elseif (str_contains($range, ' to ')) {
+                [$min, $max] = array_map('floatval', explode(' to ', $range));
                 if ($apriValue >= $min && $apriValue <= $max) {
                     $apriInterpretation = $apriInt->id;
+                    break;
+                }
+            } elseif (str_contains($range, ' - ')) {
+                [$min, $max] = array_map('floatval', explode(' - ', $range));
+                if ($apriValue >= $min && $apriValue <= $max) {
+                    $apriInterpretation = $apriInt->id;
+                    break;
                 }
             }
         }
@@ -434,30 +522,44 @@ class PanelInterpretationService
 
         foreach ($nfsInterpretations as $nfsInt) {
             $range = trim($nfsInt->range);
-            // Case 1: "< -1.455"
-            if (str_starts_with($range, '<')) {
-                $value = (float) trim(str_replace('<', '', $range));
 
+            if (str_starts_with($range, '>=')) {
+                $value = (float) trim(str_replace('>=', '', $range));
+                if ($nfsValue >= $value) {
+                    $nfsInterpretation = $nfsInt->id;
+                    break;
+                }
+            } elseif (str_starts_with($range, '<=')) {
+                $value = (float) trim(str_replace('<=', '', $range));
+                if ($nfsValue <= $value) {
+                    $nfsInterpretation = $nfsInt->id;
+                    break;
+                }
+            } elseif (str_starts_with($range, '<')) {
+                $value = (float) trim(str_replace('<', '', $range));
                 if ($nfsValue < $value) {
                     $nfsInterpretation = $nfsInt->id;
+                    break;
                 }
-            }
-
-            // Case 2: "> 0.675"
-            elseif (str_starts_with($range, '>')) {
+            } elseif (str_starts_with($range, '>')) {
                 $value = (float) trim(str_replace('>', '', $range));
-
                 if ($nfsValue > $value) {
                     $nfsInterpretation = $nfsInt->id;
+                    break;
                 }
-            }
-
-            // Case 3: "-1.455 - 0.675"
-            elseif (str_contains($range, '-')) {
-                [$min, $max] = array_map('floatval', explode('-', $range));
-
+            } elseif (str_contains($range, ' to ')) {
+                // Handle "min to max" format (e.g., "-1.455 to 0.675")
+                [$min, $max] = array_map('floatval', explode(' to ', $range));
                 if ($nfsValue >= $min && $nfsValue <= $max) {
                     $nfsInterpretation = $nfsInt->id;
+                    break;
+                }
+            } elseif (str_contains($range, ' - ')) {
+                // Handle "min - max" format with spaces (e.g., "1.30 - 2.67")
+                [$min, $max] = array_map('floatval', explode(' - ', $range));
+                if ($nfsValue >= $min && $nfsValue <= $max) {
+                    $nfsInterpretation = $nfsInt->id;
+                    break;
                 }
             }
         }

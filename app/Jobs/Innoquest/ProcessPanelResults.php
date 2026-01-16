@@ -22,6 +22,7 @@ use App\Models\TestResultItem;
 use App\Models\TestResultProfile;
 use App\Services\MyHealthService;
 use App\Services\PanelInterpretationService;
+use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -360,27 +361,27 @@ class ProcessPanelResults implements ShouldQueue
                 $test_result->is_reviewed = false;
                 $test_result->save();
 
-                // Calculate special tests when completed - isolated from main job
-                // try {
-                //     Log::info('Starting special test calculation', [
-                //         'test_result_id' => $test_result->id,
-                //         'lab_no' => $test_result->lab_no,
-                //     ]);
+                //Calculate special tests when completed - isolated from main job
+                try {
+                    Log::info('Starting special test calculation', [
+                        'test_result_id' => $test_result->id,
+                        'lab_no' => $test_result->lab_no,
+                    ]);
 
-                //     $this->calculateSpecialTests($test_result);
+                    $this->calculateSpecialTests($test_result);
 
-                //     Log::info('Special test calculation completed', [
-                //         'test_result_id' => $test_result->id,
-                //     ]);
-                // } catch (Throwable $e) {
-                //     // Log error but DO NOT rethrow - allow main job to complete
-                //     Log::error('Special test calculation failed', [
-                //         'test_result_id' => $test_result->id,
-                //         'error' => $e->getMessage(),
-                //         'file' => $e->getFile(),
-                //         'line' => $e->getLine(),
-                //     ]);
-                // }
+                    Log::info('Special test calculation completed', [
+                        'test_result_id' => $test_result->id,
+                    ]);
+                } catch (Throwable $e) {
+                    // Log error but DO NOT rethrow - allow main job to complete
+                    Log::error('Special test calculation failed', [
+                        'test_result_id' => $test_result->id,
+                        'error' => $e->getMessage(),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine(),
+                    ]);
+                }
             }
 
             if ($test_result) {
@@ -456,7 +457,7 @@ class ProcessPanelResults implements ShouldQueue
         $age = null;
 
         if (filled($patient['AlternatePatientID'])) {
-            $icInfo = checkIcno($patient['AlternatePatientID']);
+            $icInfo = checkIcno($patient['AlternatePatientID'], $patient['PatientDOB'] ?? null);
             $icno = $icInfo['icno'];
             $ic_type = $icInfo['type'];
             $patient_gender = $icInfo['gender'];
@@ -611,7 +612,7 @@ class ProcessPanelResults implements ShouldQueue
         );
 
         // 3. FIB-4 Index
-        $age = $testResult->patient->age;
+        $age = $testResult->patient->age ?? ($testResult->patient->dob ? Carbon::parse($testResult->patient->dob)->age : null);
         $fib = $panelInterpretationService->calculateFIB(
             age: $age,
             ast: $testResultItems[PanelPanelItemConstants::AST]->value ?? null,

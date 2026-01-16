@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Patient;
+use Carbon\Carbon;
 
 if (!function_exists('generate_lab_code')) {
     function generate_lab_code($labName)
@@ -25,12 +26,11 @@ if (!function_exists('get_email_abbrv')) {
     }
 }
 if (!function_exists('checkIcno')) {
-    function checkIcno($icno): array
+    function checkIcno($icno, $dob = null): array
     {
         $type = Patient::IC_TYPE_OTHERS;
         $gender = null;
         $age = null;
-        // $nationality = Patient::non;
 
         if (strlen($icno) === 12) {
             $year = (int) substr($icno, 0, 2);
@@ -45,7 +45,15 @@ if (!function_exists('checkIcno')) {
                 $type = Patient::IC_TYPE_NRIC;
                 $gender = $lastDigit % 2 === 0 ? Patient::GENDER_FEMALE : Patient::GENDER_MALE;
                 $age = $currentYear - $fullYear;
-                // $nationality = Patient::my;
+            }
+        }
+
+        // Fallback: calculate age from DOB if age is still null
+        if ($age === null && filled($dob)) {
+            try {
+                $age = Carbon::parse($dob)->age;
+            } catch (\Exception $e) {
+                $age = null;
             }
         }
 
@@ -54,7 +62,6 @@ if (!function_exists('checkIcno')) {
             'type' => $type,
             'gender' => $gender,
             'age' => $age,
-            // 'nationality' => $nationality
         ];
     }
 }

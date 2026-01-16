@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\TestResult;
 use App\Services\MyHealthService;
 use App\Services\PanelInterpretationService;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Exception;
@@ -75,7 +76,7 @@ class SpecialTestController extends Controller
         );
 
         // 2.3 FIB-4 Index
-        $age = $testResult->patient->age;
+        $age = $testResult->patient->age ?? ($testResult->patient->dob ? Carbon::parse($testResult->patient->dob)->age : null);
         $fib = $this->panelInterpretationService->calculateFIB(
             age: $age,
             ast: $testResultItems[PanelPanelItem::AST]->value ?? null,
@@ -240,7 +241,7 @@ class SpecialTestController extends Controller
         );
 
         // 3. FIB-4 Index
-        $age = $testResult->patient->age;
+        $age = $testResult->patient->age ?? ($testResult->patient->dob ? Carbon::parse($testResult->patient->dob)->age : null);
         $fib = $this->panelInterpretationService->calculateFIB(
             age: $age,
             ast: $testResultItems[PanelPanelItem::AST]->value ?? null,

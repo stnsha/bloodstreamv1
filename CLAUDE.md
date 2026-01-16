@@ -318,12 +318,15 @@ Run tests with context available. The test environment uses:
 - Use **PHP 8.1**
 
 ### 2. Imports
-- Always use proper import statements.
+- Always use proper `use` import statements.
 - Never use inline or fully qualified class paths inside logic.
+- This rule also applies to PHP core exception types such as `Exception` and `Throwable`.
 
 Example:
 ```php
 use App\Models\User;
+use Exception;
+use Throwable;
 ```
 
 ### 3. Database Write Safety
