@@ -45,7 +45,7 @@ class PanelInterpretationService
          * panel_panel_item_id = 32
          */
         $cri_i = (float) $cri_i;
-        $criInterpretations = PanelInterpretation::where('panel_panel_item_id', 32)->get();
+        $criInterpretations = PanelInterpretation::where('panel_panel_item_id', $criIId)->get();
 
         foreach ($criInterpretations as $criInt) {
             $range = trim($criInt->range);
@@ -84,7 +84,7 @@ class PanelInterpretationService
          * panel_panel_item_id = 34
          */
         $cri_ii = (float) $cri_ii;
-        $criInterpretations = PanelInterpretation::where('panel_panel_item_id', 34)->get();
+        $criInterpretations = PanelInterpretation::where('panel_panel_item_id', $criIIId)->get();
 
         foreach ($criInterpretations as $criInt) {
             $range = trim($criInt->range);
@@ -123,7 +123,7 @@ class PanelInterpretationService
          * panel_panel_item_id = 33
          */
         $aip = (float) $aip;
-        $aipInterpretations = PanelInterpretation::where('panel_panel_item_id', 33)->get();
+        $aipInterpretations = PanelInterpretation::where('panel_panel_item_id', $aipId)->get();
 
         foreach ($aipInterpretations as $aipInt) {
             $range = trim($aipInt->range);

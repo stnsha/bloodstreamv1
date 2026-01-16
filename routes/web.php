@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\API\Fixes\HotFixController;
 use App\Http\Controllers\API\PDFController;
+use App\Http\Controllers\API\Testing\SpecialTestController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\ImportController;
@@ -35,6 +36,8 @@ Route::controller(LoginController::class)->group(function () {
 
 // Export routes
 Route::get('/export/bp', [ExportController::class, 'exportBp'])->name('export.bp');
+
+Route::get('/special-test', [SpecialTestController::class, 'rerunTestResults'])->name('special-test.rerunTestResults');
 
 Route::prefix('pdf')->controller(PDFController::class)->group(function () {
     Route::get('/export', 'export')->name('export'); ///{id}generateDummyPDF
