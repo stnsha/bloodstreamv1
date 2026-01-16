@@ -583,6 +583,27 @@ class ProcessPanelResults implements ShouldQueue
     }
 
     /**
+     * Get platelets value with fallback from primary (61) to alternate (166).
+     *
+     * @param \Illuminate\Support\Collection $testResultItems
+     * @return string|null
+     */
+    private function getPlateletsValue($testResultItems): ?string
+    {
+        $item = $testResultItems[PanelPanelItemConstants::PLATELETS] ?? null;
+        if ($item !== null && $item->value !== null && $item->value !== '') {
+            return $item->value;
+        }
+
+        $altItem = $testResultItems[PanelPanelItemConstants::PLATELETS_ALT] ?? null;
+        if ($altItem !== null && $altItem->value !== null && $altItem->value !== '') {
+            return $altItem->value;
+        }
+
+        return null;
+    }
+
+    /**
      * Calculate special tests and interpretations for a completed test result.
      * Calculates: CRI-I, CRI-II, AIP, AC, FIB-4, APRI, NFS
      *
@@ -622,7 +643,7 @@ class ProcessPanelResults implements ShouldQueue
             age: $age,
             ast: $testResultItems[PanelPanelItemConstants::AST]->value ?? null,
             alt: $testResultItems[PanelPanelItemConstants::ALT]->value ?? null,
-            plateletCount: $testResultItems[PanelPanelItemConstants::PLATELETS]->value ?? null,
+            plateletCount: $this->getPlateletsValue($testResultItems),
         );
 
         // 4. APRI - requires AST upper limit from reference range
@@ -639,7 +660,7 @@ class ProcessPanelResults implements ShouldQueue
         $ap = $panelInterpretationService->calculateAPRI(
             ast: $testResultItems[PanelPanelItemConstants::AST]->value ?? null,
             astRef: $astUpperLimit,
-            plateletCount: $testResultItems[PanelPanelItemConstants::PLATELETS]->value ?? null,
+            plateletCount: $this->getPlateletsValue($testResultItems),
         );
 
         // 5. NFS - requires BMI from MyHealth
@@ -653,7 +674,7 @@ class ProcessPanelResults implements ShouldQueue
             fasting: $fasting,
             ast: $testResultItems[PanelPanelItemConstants::AST]->value ?? null,
             alt: $testResultItems[PanelPanelItemConstants::ALT]->value ?? null,
-            plateletCount: $testResultItems[PanelPanelItemConstants::PLATELETS]->value ?? null,
+            plateletCount: $this->getPlateletsValue($testResultItems),
             albumin: $testResultItems[PanelPanelItemConstants::ALBUMIN]->value ?? null,
         );
 

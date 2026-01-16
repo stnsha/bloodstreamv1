@@ -26,7 +26,7 @@ class PanelPanelItem
      * panel_panel_item_id = 8
      *
      * Platelets
-     * panel_panel_item_id = 61
+     * panel_panel_item_id = 61/166
      *
      * ALT
      * panel_panel_item_id = 9
@@ -51,6 +51,8 @@ class PanelPanelItem
 
     public const PLATELETS = 61;
 
+    public const PLATELETS_ALT = 166;
+
     public const ALT = 9;
 
     public const ALBUMIN = 2;
@@ -65,6 +67,7 @@ class PanelPanelItem
         self::HDL,
         self::AST,
         self::PLATELETS,
+        self::PLATELETS_ALT,
         self::ALT,
         self::ALBUMIN,
         self::GLUCOSE_FASTING_TYPE,

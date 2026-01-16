@@ -81,7 +81,7 @@ class SpecialTestController extends Controller
             age: $age,
             ast: $testResultItems[PanelPanelItem::AST]->value ?? null,
             alt: $testResultItems[PanelPanelItem::ALT]->value ?? null,
-            plateletCount: $testResultItems[PanelPanelItem::PLATELETS]->value ?? null,
+            plateletCount: $this->getPlateletsValue($testResultItems),
         );
 
         // 2.4 APRI
@@ -100,7 +100,7 @@ class SpecialTestController extends Controller
         $ap = $this->panelInterpretationService->calculateAPRI(
             ast: $testResultItems[PanelPanelItem::AST]->value ?? null,
             astRef: $astUpperLimit,
-            plateletCount: $testResultItems[PanelPanelItem::PLATELETS]->value ?? null,
+            plateletCount: $this->getPlateletsValue($testResultItems),
         );
 
         // 2.5 NFS
@@ -113,7 +113,7 @@ class SpecialTestController extends Controller
             fasting: $fasting,
             ast: $testResultItems[PanelPanelItem::AST]->value ?? null,
             alt: $testResultItems[PanelPanelItem::ALT]->value ?? null,
-            plateletCount: $testResultItems[PanelPanelItem::PLATELETS]->value ?? null,
+            plateletCount: $this->getPlateletsValue($testResultItems),
             albumin: $testResultItems[PanelPanelItem::ALBUMIN]->value ?? null,
         );
 
@@ -171,7 +171,8 @@ class SpecialTestController extends Controller
 
     public function rerunTestResults()
     {
-        $testResultIds = [25473, 25501, 25502, 25504, 25505, 25506, 25507, 25508, 25509, 25510, 25511, 25512, 25513, 25514, 25515, 25516, 25517, 25518];
+        // $testResultIds = [25473, 25501, 25502, 25504, 25505, 25506, 25507, 25508, 25509, 25510, 25511, 25512, 25513, 25514, 25515, 25516, 25517, 25518];
+        $testResultIds = [25522];
 
         Log::info('Starting rerunTestResults for special test calculation', [
             'test_result_ids' => $testResultIds,
@@ -278,7 +279,7 @@ class SpecialTestController extends Controller
             'hdl' => $this->getParameterStatus($testResultItems, PanelPanelItem::HDL),
             'ast' => $this->getParameterStatus($testResultItems, PanelPanelItem::AST),
             'alt' => $this->getParameterStatus($testResultItems, PanelPanelItem::ALT),
-            'platelets' => $this->getParameterStatus($testResultItems, PanelPanelItem::PLATELETS),
+            'platelets' => $this->getPlateletsParameterStatus($testResultItems),
             'albumin' => $this->getParameterStatus($testResultItems, PanelPanelItem::ALBUMIN),
             'glucose_fasting_type' => $this->getParameterStatus($testResultItems, PanelPanelItem::GLUCOSE_FASTING_TYPE),
 
@@ -333,6 +334,43 @@ class SpecialTestController extends Controller
         return 'exist';
     }
 
+    /**
+     * Get platelets value with fallback from primary (61) to alternate (166).
+     *
+     * @param \Illuminate\Support\Collection $testResultItems
+     * @return string|null
+     */
+    private function getPlateletsValue($testResultItems): ?string
+    {
+        $item = $testResultItems[PanelPanelItem::PLATELETS] ?? null;
+        if ($item !== null && $item->value !== null && $item->value !== '') {
+            return $item->value;
+        }
+
+        $altItem = $testResultItems[PanelPanelItem::PLATELETS_ALT] ?? null;
+        if ($altItem !== null && $altItem->value !== null && $altItem->value !== '') {
+            return $altItem->value;
+        }
+
+        return null;
+    }
+
+    /**
+     * Get platelets parameter status checking both primary (61) and alternate (166) IDs.
+     *
+     * @param \Illuminate\Support\Collection $testResultItems
+     * @return string
+     */
+    private function getPlateletsParameterStatus($testResultItems): string
+    {
+        $primaryStatus = $this->getParameterStatus($testResultItems, PanelPanelItem::PLATELETS);
+        if ($primaryStatus === 'exist') {
+            return 'exist';
+        }
+
+        return $this->getParameterStatus($testResultItems, PanelPanelItem::PLATELETS_ALT);
+    }
+
     protected function calculateSpecialTests(TestResult $testResult): void
     {
         $testResult->load('patient');
@@ -361,7 +399,7 @@ class SpecialTestController extends Controller
             age: $age,
             ast: $testResultItems[PanelPanelItem::AST]->value ?? null,
             alt: $testResultItems[PanelPanelItem::ALT]->value ?? null,
-            plateletCount: $testResultItems[PanelPanelItem::PLATELETS]->value ?? null,
+            plateletCount: $this->getPlateletsValue($testResultItems),
         );
 
         // 4. APRI - requires AST upper limit from reference range
@@ -378,7 +416,7 @@ class SpecialTestController extends Controller
         $ap = $this->panelInterpretationService->calculateAPRI(
             ast: $testResultItems[PanelPanelItem::AST]->value ?? null,
             astRef: $astUpperLimit,
-            plateletCount: $testResultItems[PanelPanelItem::PLATELETS]->value ?? null,
+            plateletCount: $this->getPlateletsValue($testResultItems),
         );
 
         // 5. NFS - requires BMI from MyHealth
@@ -392,7 +430,7 @@ class SpecialTestController extends Controller
             fasting: $fasting,
             ast: $testResultItems[PanelPanelItem::AST]->value ?? null,
             alt: $testResultItems[PanelPanelItem::ALT]->value ?? null,
-            plateletCount: $testResultItems[PanelPanelItem::PLATELETS]->value ?? null,
+            plateletCount: $this->getPlateletsValue($testResultItems),
             albumin: $testResultItems[PanelPanelItem::ALBUMIN]->value ?? null,
         );
 
