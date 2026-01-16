@@ -218,6 +218,121 @@ class SpecialTestController extends Controller
         ]);
     }
 
+    /**
+     * Check if all parameters required for special tests exist for a given test result.
+     *
+     * @param int $testResultId
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function checkParameter(int $testResultId)
+    {
+        Log::info('Starting checkParameter for special tests', [
+            'test_result_id' => $testResultId
+        ]);
+
+        $testResult = TestResult::with(['patient'])->find($testResultId);
+
+        if (!$testResult) {
+            Log::warning('TestResult not found for checkParameter', [
+                'test_result_id' => $testResultId
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'TestResult not found',
+                'test_result_id' => $testResultId
+            ], 404);
+        }
+
+        $testResultItems = $testResult->testResultItems()
+            ->whereIn('panel_panel_item_id', PanelPanelItem::PANEL_PANEL_ITEM_IDS)
+            ->get()
+            ->keyBy('panel_panel_item_id');
+
+        // Check age
+        $age = $testResult->patient->age ?? ($testResult->patient->dob ? Carbon::parse($testResult->patient->dob)->age : null);
+
+        // Check BMI from MyHealth
+        $bmi = null;
+        if ($testResult->patient && $testResult->patient->icno) {
+            $bmi = $this->myHealthService->getPatientBMI($testResult->patient->icno);
+        }
+
+        // Check AST reference range (upper limit)
+        $astUpperLimit = null;
+        $astItem = $testResultItems[PanelPanelItem::AST] ?? null;
+        if ($astItem && $astItem->reference_range_id) {
+            $referenceRange = $astItem->referenceRange;
+            if ($referenceRange) {
+                $astUpperLimit = $this->extractUpperLimit($referenceRange->value);
+            }
+        }
+
+        // Build parameter status array
+        $parameters = [
+            // Test result item parameters
+            'cri_i' => $this->getParameterStatus($testResultItems, PanelPanelItem::CRI_I),
+            'cri_ii' => $this->getParameterStatus($testResultItems, PanelPanelItem::CRI_II),
+            'aip' => $this->getParameterStatus($testResultItems, PanelPanelItem::AIP),
+            'total_cholesterol' => $this->getParameterStatus($testResultItems, PanelPanelItem::TOTAL_CHOLESTEROL),
+            'hdl' => $this->getParameterStatus($testResultItems, PanelPanelItem::HDL),
+            'ast' => $this->getParameterStatus($testResultItems, PanelPanelItem::AST),
+            'alt' => $this->getParameterStatus($testResultItems, PanelPanelItem::ALT),
+            'platelets' => $this->getParameterStatus($testResultItems, PanelPanelItem::PLATELETS),
+            'albumin' => $this->getParameterStatus($testResultItems, PanelPanelItem::ALBUMIN),
+            'glucose_fasting_type' => $this->getParameterStatus($testResultItems, PanelPanelItem::GLUCOSE_FASTING_TYPE),
+
+            // External parameters
+            'age' => $age !== null ? 'exist' : 'null',
+            'bmi' => $bmi !== null ? 'exist' : 'null',
+            'ast_upper_limit' => $astUpperLimit !== null ? 'exist' : 'null',
+        ];
+
+        // Calculate which special tests can be computed
+        $canCompute = [
+            'lipid_interpretation' => $parameters['cri_i'] === 'exist' || $parameters['cri_ii'] === 'exist' || $parameters['aip'] === 'exist',
+            'atherogenic_coefficient' => $parameters['total_cholesterol'] === 'exist' && $parameters['hdl'] === 'exist',
+            'fib4_index' => $parameters['age'] === 'exist' && $parameters['ast'] === 'exist' && $parameters['alt'] === 'exist' && $parameters['platelets'] === 'exist',
+            'apri' => $parameters['ast'] === 'exist' && $parameters['ast_upper_limit'] === 'exist' && $parameters['platelets'] === 'exist',
+            'nfs' => $parameters['age'] === 'exist' && $parameters['bmi'] === 'exist' && $parameters['ast'] === 'exist' && $parameters['alt'] === 'exist' && $parameters['platelets'] === 'exist' && $parameters['albumin'] === 'exist',
+        ];
+
+        Log::info('Completed checkParameter for special tests', [
+            'test_result_id' => $testResultId,
+            'parameters' => $parameters,
+            'can_compute' => $canCompute
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'test_result_id' => $testResultId,
+            'parameters' => $parameters,
+            'can_compute' => $canCompute,
+        ]);
+    }
+
+    /**
+     * Get the status of a parameter from test result items.
+     *
+     * @param \Illuminate\Support\Collection $testResultItems
+     * @param int $panelPanelItemId
+     * @return string
+     */
+    private function getParameterStatus($testResultItems, int $panelPanelItemId): string
+    {
+        $item = $testResultItems[$panelPanelItemId] ?? null;
+
+        if ($item === null) {
+            return 'null';
+        }
+
+        if ($item->value === null || $item->value === '') {
+            return 'null';
+        }
+
+        return 'exist';
+    }
+
     protected function calculateSpecialTests(TestResult $testResult): void
     {
         $testResult->load('patient');

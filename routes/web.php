@@ -1,16 +1,9 @@
 <?php
 
-use App\Http\Controllers\API\Fixes\HotFixController;
 use App\Http\Controllers\API\PDFController;
 use App\Http\Controllers\API\Testing\SpecialTestController;
-use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExportController;
-use App\Http\Controllers\ImportController;
-use App\Http\Controllers\LabController;
 use App\Http\Controllers\LoginController;
-use App\Http\Controllers\PanelController;
-use App\Http\Controllers\TestResultController;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -38,17 +31,18 @@ Route::controller(LoginController::class)->group(function () {
 Route::get('/export/bp', [ExportController::class, 'exportBp'])->name('export.bp');
 
 Route::get('/special-test', [SpecialTestController::class, 'rerunTestResults'])->name('special-test.rerunTestResults');
+Route::get('/special-test-parameter/{testResultId}', [SpecialTestController::class, 'checkParameter'])->name('special-test.checkParameter');
 
 Route::prefix('pdf')->controller(PDFController::class)->group(function () {
-    Route::get('/export', 'export')->name('export'); ///{id}generateDummyPDF
+    Route::get('/export', 'export')->name('export'); // /{id}generateDummyPDF
     Route::get('/generateDummyPDF/{id}', 'getResultById')->name('generateDummyPDF'); //
     Route::get('/getReviewById/{id}', 'getReviewById')->name('getReviewById');
 });
 
-
 Route::middleware(['auth'])->group(function () {
     Route::get('api', function () {
         $lab_id = session()->get('lab_id');
+
         return view('apis.index', compact('lab_id'));
     })->name('apis.index');
 });
