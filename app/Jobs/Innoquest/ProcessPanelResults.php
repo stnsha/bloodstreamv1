@@ -361,26 +361,26 @@ class ProcessPanelResults implements ShouldQueue
                 $test_result->save();
 
                 // Calculate special tests when completed - isolated from main job
-                try {
-                    Log::info('Starting special test calculation', [
-                        'test_result_id' => $test_result->id,
-                        'lab_no' => $test_result->lab_no,
-                    ]);
+                // try {
+                //     Log::info('Starting special test calculation', [
+                //         'test_result_id' => $test_result->id,
+                //         'lab_no' => $test_result->lab_no,
+                //     ]);
 
-                    $this->calculateSpecialTests($test_result);
+                //     $this->calculateSpecialTests($test_result);
 
-                    Log::info('Special test calculation completed', [
-                        'test_result_id' => $test_result->id,
-                    ]);
-                } catch (Throwable $e) {
-                    // Log error but DO NOT rethrow - allow main job to complete
-                    Log::error('Special test calculation failed', [
-                        'test_result_id' => $test_result->id,
-                        'error' => $e->getMessage(),
-                        'file' => $e->getFile(),
-                        'line' => $e->getLine(),
-                    ]);
-                }
+                //     Log::info('Special test calculation completed', [
+                //         'test_result_id' => $test_result->id,
+                //     ]);
+                // } catch (Throwable $e) {
+                //     // Log error but DO NOT rethrow - allow main job to complete
+                //     Log::error('Special test calculation failed', [
+                //         'test_result_id' => $test_result->id,
+                //         'error' => $e->getMessage(),
+                //         'file' => $e->getFile(),
+                //         'line' => $e->getLine(),
+                //     ]);
+                // }
             }
 
             if ($test_result) {
