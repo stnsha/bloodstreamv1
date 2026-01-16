@@ -204,12 +204,6 @@ class ProcessPanelResults implements ShouldQueue
                                 'reported_date' => $reported_date,
                             ]);
                             $test_result = $existingTestResult;
-
-                            Log::info('Test result updated - completion status preserved', [
-                                'lab_no' => $lab_no,
-                                'test_result_id' => $test_result->id,
-                                'is_completed' => $test_result->is_completed
-                            ]);
                         } else {
                             $test_result = TestResult::create([
                                 'lab_no' => $lab_no,
@@ -219,11 +213,6 @@ class ProcessPanelResults implements ShouldQueue
                                 'collected_date' => $collected_date,
                                 'reported_date' => $reported_date,
                                 'is_completed' => false
-                            ]);
-
-                            Log::info('New test result created', [
-                                'lab_no' => $lab_no,
-                                'test_result_id' => $test_result->id
                             ]);
                         }
 
@@ -356,12 +345,21 @@ class ProcessPanelResults implements ShouldQueue
                 }
             }
 
-            if (isset($validated['EncodedBase64pdf']) && filled($validated['EncodedBase64pdf']) && $test_result) {
+            // Mark as completed if PDF received (inside transaction)
+            $hasPdf = isset($validated['EncodedBase64pdf']) && filled($validated['EncodedBase64pdf']);
+            if ($hasPdf && $test_result) {
                 $test_result->is_completed = true;
                 $test_result->is_reviewed = false;
                 $test_result->save();
+            }
 
-                //Calculate special tests when completed - isolated from main job
+            DB::commit();
+
+            // AFTER TRANSACTION: Non-critical operations that don't need atomicity
+            // These are moved outside to reduce transaction lock hold time
+
+            // Calculate special tests OUTSIDE transaction (queries external DB)
+            if ($hasPdf && $test_result) {
                 try {
                     Log::info('Starting special test calculation', [
                         'test_result_id' => $test_result->id,
@@ -384,21 +382,28 @@ class ProcessPanelResults implements ShouldQueue
                 }
             }
 
+            // DeliveryFile tracking OUTSIDE main transaction (non-critical)
             if ($test_result) {
-                 DeliveryFile::firstOrCreate(
-                    [
-                        'lab_id' => $lab_id,
-                        'sending_facility' => $sending_facility,
+                try {
+                    DeliveryFile::firstOrCreate(
+                        [
+                            'lab_id' => $lab_id,
+                            'sending_facility' => $sending_facility,
+                            'batch_id' => $batch_id,
+                        ],
+                        [
+                            'json_content' => json_encode($validated),
+                            'status' => DeliveryFile::compl,
+                        ]
+                    );
+                } catch (Throwable $e) {
+                    // Non-critical - log but don't fail the job
+                    Log::warning('Failed to create DeliveryFile record', [
+                        'error' => $e->getMessage(),
                         'batch_id' => $batch_id,
-                    ],
-                    [
-                        'json_content' => json_encode($validated),
-                        'status' => DeliveryFile::compl,
-                    ]
-                );
+                    ]);
+                }
             }
-
-            DB::commit();
 
             //Dispatch to AI server queue if PDF was received
             if (isset($validated['EncodedBase64pdf']) && filled($validated['EncodedBase64pdf']) && $test_result && $test_result->id) {

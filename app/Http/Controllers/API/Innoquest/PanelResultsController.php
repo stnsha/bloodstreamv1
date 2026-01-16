@@ -164,36 +164,28 @@ class PanelResultsController extends BaseResultsController
     {
         set_time_limit(300);
         ini_set('max_execution_time', 300);
-        $requestStartTime = microtime(true);
+
+        // Generate request ID early for tracking
         $requestId = uniqid('panel_', true);
 
+        // Get validated data and user info (minimal processing)
         $validated = $request->validated();
-
         $user = Auth::guard('lab')->user();
         $lab_id = $user->lab_id;
 
-        Log::channel('performance')->info('Panel request received (async)', [
-            'request_id' => $requestId,
-            'orders_count' => count($request->input('Orders', [])),
-            'has_patient' => $request->has('patient'),
-            'has_pdf' => $request->has('EncodedBase64pdf'),
-            'payload_size_kb' => round(strlen(json_encode($request->all())) / 1024, 2),
-        ]);
-
+        // Dispatch to queue immediately - this is the fastest path
         ProcessPanelResults::dispatch($validated, $requestId, $lab_id);
 
-        $duration = round((microtime(true) - $requestStartTime) * 1000, 2);
-
+        // Minimal logging - only essential info
         Log::channel('performance')->info('Panel request queued', [
             'request_id' => $requestId,
-            'duration_ms' => $duration,
+            'orders_count' => count($validated['Orders'] ?? []),
         ]);
 
         return response()->json([
             'success' => true,
             'message' => 'Panel results received and queued for processing',
             'request_id' => $requestId,
-            'received_at' => now()->toIso8601String(),
         ], 202);
     }
 
