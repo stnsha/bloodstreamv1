@@ -491,6 +491,28 @@ class ProcessPanelResults implements ShouldQueue
             $cacheKey
         );
 
+        // Update age if it was null and we now have a calculated age
+        if ($patient->age === null && $age !== null) {
+            $patient->update(['age' => $age]);
+            Cache::forget($cacheKey);
+            Log::info('Updated patient age from null', [
+                'patient_id' => $patient->id,
+                'icno' => $icno,
+                'new_age' => $age,
+            ]);
+        }
+
+        // Update dob if patient has null dob but we have one
+        if ($patient->dob === null && $patient_dob !== null) {
+            $patient->update(['dob' => $patient_dob]);
+            Cache::forget($cacheKey);
+            Log::info('Updated patient dob from null', [
+                'patient_id' => $patient->id,
+                'icno' => $icno,
+                'new_dob' => $patient_dob,
+            ]);
+        }
+
         return $patient->id;
     }
 
