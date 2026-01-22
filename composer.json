@@ -16,6 +16,7 @@
         "maatwebsite/excel": "^3.1",
         "maennchen/zipstream-php": "^3.1",
         "mpdf/mpdf": "^8.2",
+        "predis/predis": "^3.3",
         "stichoza/google-translate-php": "^5.3",
         "swagger-api/swagger-ui": "^5.27",
         "tymon/jwt-auth": "^2.2"
