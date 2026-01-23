@@ -40,7 +40,7 @@ class Kernel extends HttpKernel
 
         'api' => [
             // \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
-            \Illuminate\Routing\Middleware\ThrottleRequests::class . ':api',
+            // Removed global throttle to avoid double throttling with route-specific limits
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
             \App\Http\Middleware\LogRequestDuration::class,
         ],
@@ -67,5 +67,6 @@ class Kernel extends HttpKernel
         'api.auth' => \App\Http\Middleware\APIAuthMiddleware::class,
         'swagger.auth' => \App\Http\Middleware\SwaggerAuth::class,
         'webhook.auth' => \App\Http\Middleware\ValidateWebhookToken::class,
+        'single.flight' => \App\Http\Middleware\SingleFlight::class,
     ];
 }

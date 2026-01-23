@@ -46,9 +46,42 @@ class RouteServiceProvider extends ServiceProvider
         // });
 
         RateLimiter::for('api', function (Request $request) {
-            return Limit::perMinute(1000)->by(
+            return Limit::perMinute(60)->by(
                 optional($request->user())->id ?: $request->ip()
             );
         });
+
+        RateLimiter::for('lab-results', function (Request $request) {
+            return Limit::perMinute(30)
+                ->by($request->user()?->id ?: $request->ip())
+                ->response(function (Request $request, array $headers) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Too many lab result submissions. Please wait before retrying.',
+                        'error' => 'RATE_LIMIT_EXCEEDED',
+                        'retry_after' => $headers['Retry-After'] ?? 60,
+                    ], 429, $headers);
+                });
+        });
+
+        RateLimiter::for('general-api', function (Request $request) {
+            return Limit::perMinute(1000)
+                ->by($request->user()?->id ?: $request->ip())
+                ->response(function (Request $request, array $headers) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Too many API requests. Please wait before retrying.',
+                        'error' => 'RATE_LIMIT_EXCEEDED',
+                        'retry_after' => $headers['Retry-After'] ?? 60,
+                    ], 429, $headers);
+                });
+        });
+
+        RateLimiter::for('login', function (Request $request) {
+            return Limit::perMinute(5)->by(
+                $request->ip().'|'.$request->input('username')
+            );
+        });
+
     }
 }
