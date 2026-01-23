@@ -52,7 +52,7 @@ class RouteServiceProvider extends ServiceProvider
         });
 
         RateLimiter::for('lab-results', function (Request $request) {
-            return Limit::perMinute(30)
+            return Limit::perMinute(300)
                 ->by($request->user()?->id ?: $request->ip())
                 ->response(function (Request $request, array $headers) {
                     return response()->json([
@@ -78,7 +78,7 @@ class RouteServiceProvider extends ServiceProvider
         });
 
         RateLimiter::for('login', function (Request $request) {
-            return Limit::perMinute(5)->by(
+            return Limit::perMinute(300)->by(
                 $request->ip().'|'.$request->input('username')
             );
         });
