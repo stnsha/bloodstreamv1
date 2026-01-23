@@ -2,14 +2,14 @@
 
 use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\Fixes\HotFixController;
+use App\Http\Controllers\API\Webhook\AIResultController;
+use App\Http\Controllers\ExportController;
+use App\Http\Controllers\ImportController;
 use App\Http\Controllers\API\General\LabResultsController;
 use App\Http\Controllers\API\Innoquest\PanelResultsController;
 use App\Http\Controllers\API\ODB\BloodTestController;
 use App\Http\Controllers\API\PDFController;
 use App\Http\Controllers\API\Testing\SpecialTestController;
-use App\Http\Controllers\API\Webhook\AIResultController;
-use App\Http\Controllers\ExportController;
-use App\Http\Controllers\ImportController;
 use App\Http\Controllers\PanelCommentController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
@@ -31,7 +31,7 @@ use Illuminate\Support\Facades\URL;
 
 Route::controller(AuthController::class)->group(function () {
     Route::post('/register', 'register')->name('register');
-    Route::post('/login', 'login')->middleware('throttle:login')->name('login');
+    Route::post('/login', 'login')->name('login');
     Route::post('/logout', 'logout')->name('logout');
 });
 
@@ -46,29 +46,19 @@ Route::prefix('webhook')->group(function () {
         ->name('webhook.ai-result');
 });
 
-// Panel endpoint - ASYNC (highest priority, no SingleFlight needed)
-// Dispatches to ProcessPanelResults job immediately and returns 202 Accepted
-Route::middleware(['api.auth', 'throttle:lab-results'])->group(function () {
+Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
     Route::prefix('result')->group(function () {
         if (app()->environment('production')) {
             URL::forceScheme('https');
         }
-        Route::post('/panel', [PanelResultsController::class, 'panelResults'])->name('panelResults');
-    });
-});
-
-// Patient endpoint - SYNC (needs SingleFlight for long DB transactions)
-Route::middleware(['api.auth', 'throttle:lab-results', 'single.flight'])->group(function () {
-    Route::prefix('result')->group(function () {
-        if (app()->environment('production')) {
-            URL::forceScheme('https');
-        }
+        // Lab Results Controller routes (General)
         Route::post('/patient', [LabResultsController::class, 'labResults'])->name('labResults');
         Route::get('/{id}', [LabResultsController::class, 'show'])->name('show');
-    });
-});
 
-Route::middleware(['api.auth', 'throttle:general-api'])->group(function () {
+        // Panel Results Controller routes (Innoquest)
+        Route::post('/panel', [PanelResultsController::class, 'panelResults'])->name('panelResults');
+    });
+
     Route::prefix('import')->controller(ImportController::class)->group(function () {
         Route::get('/innoquestCodeMapping', 'innoquestCodeMapping')->name('innoquestCodeMapping');
         Route::get('/json', 'json')->name('json');

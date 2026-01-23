@@ -23,11 +23,14 @@ class TokenValidationRateLimiter
         $attempts = (int) Cache::get($cacheKey, 0);
 
         if ($attempts >= self::MAX_ATTEMPTS) {
+            $ttl = Cache::getStore()->connection()->ttl($cacheKey) ?? self::WINDOW_SECONDS;
+            $retryAfter = max(1, $ttl);
+
             return [
                 'allowed' => false,
                 'attempts' => $attempts,
                 'max_attempts' => self::MAX_ATTEMPTS,
-                'retry_after' => self::WINDOW_SECONDS,
+                'retry_after' => $retryAfter,
             ];
         }
 
