@@ -41,14 +41,24 @@ class RouteServiceProvider extends ServiceProvider
      */
     protected function configureRateLimiting(): void
     {
-        // RateLimiter::for('api', function (Request $request) {
-        //     return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
-        // });
+        // High-volume lab result endpoints: 500/minute per user
+        // Allows for batch processing of lab results (e.g., 450 concurrent requests)
+        RateLimiter::for('lab-results', function (Request $request) {
+            return Limit::perMinute(500)->by(
+                optional($request->user())->id ?: $request->ip()
+            );
+        });
 
+        // General API: 1000/minute per user (default for most endpoints)
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(1000)->by(
                 optional($request->user())->id ?: $request->ip()
             );
+        });
+
+        // Authentication endpoints: 60/minute per IP (stricter to prevent brute force)
+        RateLimiter::for('auth', function (Request $request) {
+            return Limit::perMinute(60)->by($request->ip());
         });
     }
 }

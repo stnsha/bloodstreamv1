@@ -2,14 +2,14 @@
 
 use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\Fixes\HotFixController;
-use App\Http\Controllers\API\Webhook\AIResultController;
-use App\Http\Controllers\ExportController;
-use App\Http\Controllers\ImportController;
 use App\Http\Controllers\API\General\LabResultsController;
 use App\Http\Controllers\API\Innoquest\PanelResultsController;
 use App\Http\Controllers\API\ODB\BloodTestController;
 use App\Http\Controllers\API\PDFController;
 use App\Http\Controllers\API\Testing\SpecialTestController;
+use App\Http\Controllers\API\Webhook\AIResultController;
+use App\Http\Controllers\ExportController;
+use App\Http\Controllers\ImportController;
 use App\Http\Controllers\PanelCommentController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
@@ -29,7 +29,8 @@ use Illuminate\Support\Facades\URL;
 //     return $request->user();
 // });
 
-Route::controller(AuthController::class)->group(function () {
+// Authentication routes - stricter rate limiting (60/min) to prevent brute force
+Route::middleware(['throttle:auth'])->controller(AuthController::class)->group(function () {
     Route::post('/register', 'register')->name('register');
     Route::post('/login', 'login')->name('login');
     Route::post('/logout', 'logout')->name('logout');
@@ -46,7 +47,8 @@ Route::prefix('webhook')->group(function () {
         ->name('webhook.ai-result');
 });
 
-Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
+// High-volume lab result endpoints - 500/minute to handle batch processing
+Route::middleware(['api.auth', 'throttle:lab-results'])->group(function () {
     Route::prefix('result')->group(function () {
         if (app()->environment('production')) {
             URL::forceScheme('https');
@@ -58,7 +60,10 @@ Route::middleware(['api.auth', 'throttle:1000,1'])->group(function () {
         // Panel Results Controller routes (Innoquest)
         Route::post('/panel', [PanelResultsController::class, 'panelResults'])->name('panelResults');
     });
+});
 
+// General API endpoints - 1000/minute
+Route::middleware(['api.auth', 'throttle:api'])->group(function () {
     Route::prefix('import')->controller(ImportController::class)->group(function () {
         Route::get('/innoquestCodeMapping', 'innoquestCodeMapping')->name('innoquestCodeMapping');
         Route::get('/json', 'json')->name('json');
