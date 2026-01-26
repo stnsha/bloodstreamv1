@@ -23,29 +23,34 @@ use App\Models\TestResultProfile;
 use App\Services\MyHealthService;
 use App\Services\PanelInterpretationService;
 use Carbon\Carbon;
+use DateTime;
+use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache;
-use Exception;
 use Throwable;
-use DateTime;
 
 class ProcessPanelResults implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $timeout = 300;
+
     public $tries = 3;
+
     public $backoff = [30, 60, 120];
 
     protected $validatedData;
+
     protected $requestId;
+
     protected $receivedAt;
+
     protected $labId;
 
     public function __construct(array $validatedData, string $requestId, int $labId)
@@ -63,9 +68,9 @@ class ProcessPanelResults implements ShouldQueue
      * Prevents concurrent jobs from hitting database for same lookups
      * TTL set to 5 minutes (300s) to align with auto-cache release configuration
      */
-    protected function cachedFirstOrCreate($model, array $attributes, array $values = [], $cacheKey, $ttl = 300)
+    protected function cachedFirstOrCreate($model, array $attributes, array $values, $cacheKey, $ttl = 300)
     {
-        return Cache::remember($cacheKey, $ttl, function() use ($model, $attributes, $values) {
+        return Cache::remember($cacheKey, $ttl, function () use ($model, $attributes, $values) {
             return $model::firstOrCreate($attributes, $values);
         });
     }
@@ -99,7 +104,7 @@ class ProcessPanelResults implements ShouldQueue
                 'has_pdf' => $result['has_pdf'] ?? false,
                 'orders_count' => $result['orders_count'] ?? 0,
                 'observations_count' => $result['observations_count'] ?? 0,
-                'data_stored' => true
+                'data_stored' => true,
             ]);
 
         } catch (Exception $e) {
@@ -118,7 +123,7 @@ class ProcessPanelResults implements ShouldQueue
                 'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString(),
                 'has_pdf' => isset($this->validatedData['EncodedBase64pdf']) && filled($this->validatedData['EncodedBase64pdf']),
-                'data_stored' => false
+                'data_stored' => false,
             ]);
 
             throw $e;
@@ -154,7 +159,9 @@ class ProcessPanelResults implements ShouldQueue
 
             foreach ($validated['Orders'] as $key => $od) {
                 $orders_count++;
-                if (is_null($reference_id) && filled($od['PlacerOrderNumber'])) $reference_id = strtoupper($od['PlacerOrderNumber']);
+                if (is_null($reference_id) && filled($od['PlacerOrderNumber'])) {
+                    $reference_id = strtoupper($od['PlacerOrderNumber']);
+                }
 
                 $doctor_name = $od['OrderingProvider']['Name'];
                 $doctor_code = $od['OrderingProvider']['Code'];
@@ -164,7 +171,7 @@ class ProcessPanelResults implements ShouldQueue
                     Doctor::class,
                     [
                         'lab_id' => $lab_id,
-                        'code' => $doctor_code
+                        'code' => $doctor_code,
                     ],
                     [
                         'name' => $doctor_name,
@@ -193,28 +200,37 @@ class ProcessPanelResults implements ShouldQueue
 
                         $panel_profile_id = $this->findOrCreateProfile($lab_id, $obv['PackageCode']);
 
-                        $existingTestResult = TestResult::where('lab_no', $lab_no)->first();
+                        // Phase 2 & 5: Cache TestResult lookup and use updateOrCreate
+                        $testResultCacheKey = "test_result_lab_no_{$lab_no}";
+                        $cachedTestResult = Cache::get($testResultCacheKey);
 
-                        if ($existingTestResult) {
-                            $existingTestResult->update([
+                        if ($cachedTestResult) {
+                            // Update the cached record with fresh data
+                            $cachedTestResult->update([
                                 'ref_id' => $reference_id,
                                 'doctor_id' => $doctor_id,
                                 'patient_id' => $patient_id,
                                 'collected_date' => $collected_date,
                                 'reported_date' => $reported_date,
                             ]);
-                            $test_result = $existingTestResult;
+                            $test_result = $cachedTestResult;
                         } else {
-                            $test_result = TestResult::create([
-                                'lab_no' => $lab_no,
-                                'ref_id' => $reference_id,
-                                'doctor_id' => $doctor_id,
-                                'patient_id' => $patient_id,
-                                'collected_date' => $collected_date,
-                                'reported_date' => $reported_date,
-                                'is_completed' => false
-                            ]);
+                            // Use updateOrCreate for atomic operation
+                            $test_result = TestResult::updateOrCreate(
+                                ['lab_no' => $lab_no],
+                                [
+                                    'ref_id' => $reference_id,
+                                    'doctor_id' => $doctor_id,
+                                    'patient_id' => $patient_id,
+                                    'collected_date' => $collected_date,
+                                    'reported_date' => $reported_date,
+                                    'is_completed' => false,
+                                ]
+                            );
                         }
+
+                        // Update cache with fresh data (5-minute TTL)
+                        Cache::put($testResultCacheKey, $test_result, 300);
 
                         $test_result_id = $test_result->id;
 
@@ -229,6 +245,15 @@ class ProcessPanelResults implements ShouldQueue
 
                         $results = $obv['Results'];
                         if (filled($results)) {
+                            // Phase 4: Pre-fetch all existing items for this test_result_id for amendment detection
+                            $existingItems = TestResultItem::where('test_result_id', $test_result_id)
+                                ->pluck('value', 'panel_panel_item_id')
+                                ->toArray();
+
+                            // Phase 3: Collect items for batch upsert
+                            $itemsToUpsert = [];
+                            $commentItems = [];
+
                             foreach ($results as $key => $res) {
                                 $result_value = filled($res['Value']) ? $res['Value'] : null;
                                 $unit = filled($res['Units']) ? $res['Units'] : null;
@@ -237,7 +262,7 @@ class ProcessPanelResults implements ShouldQueue
                                 $identifier = $res['Identifier'];
 
                                 if (filled($res['Text']) && ($res['Text'] != 'COMMENT' && $res['Text'] != 'NOTE')) {
-                                    $masterPanelItemCacheKey = "master_panel_item_" . md5($res['Text'] . $unit);
+                                    $masterPanelItemCacheKey = 'master_panel_item_'.md5($res['Text'].$unit);
                                     $masterPanelItem = $this->cachedFirstOrCreate(
                                         MasterPanelItem::class,
                                         [
@@ -256,7 +281,7 @@ class ProcessPanelResults implements ShouldQueue
                                         [
                                             'lab_id' => $lab_id,
                                             'master_panel_item_id' => $masterPanelItem->id,
-                                            'identifier' => $identifier
+                                            'identifier' => $identifier,
                                         ],
                                         [
                                             'name' => $res['Text'],
@@ -282,62 +307,82 @@ class ProcessPanelResults implements ShouldQueue
                                         $ref_range_id = $ref_range->id;
                                     }
 
-                                    $existing_test_result_item = TestResultItem::where('test_result_id', $test_result_id)
-                                        ->where('panel_panel_item_id', $panel_panel_item_id)
-                                        ->first();
-
+                                    // Phase 4: Check amendment using pre-fetched data
                                     $hasAmended = false;
-
-                                    if ($existing_test_result_item) {
-                                        $existing_value = $existing_test_result_item->value;
-
-                                        $normalized_existing = $existing_value === '' ? null : $existing_value;
+                                    $existingValue = $existingItems[$panel_panel_item_id] ?? null;
+                                    if ($existingValue !== null) {
+                                        $normalized_existing = $existingValue === '' ? null : $existingValue;
                                         $normalized_new = $result_value === '' ? null : $result_value;
-
                                         $hasAmended = $normalized_existing !== $normalized_new;
                                     }
 
-                                    $testResultItem = TestResultItem::updateOrCreate(
-                                        [
-                                            'test_result_id' => $test_result_id,
-                                            'panel_panel_item_id' => $panel_panel_item_id,
-                                        ],
-                                        [
-                                            'reference_range_id' => $ref_range_id,
-                                            'value' => $result_value,
-                                            'flag' => $result_flag,
-                                            'sequence' => $key,
-                                            'is_tagon' => $isTagOn,
-                                            'has_amended' => $hasAmended
-                                        ]
-                                    );
+                                    // Collect for batch upsert
+                                    $itemsToUpsert[] = [
+                                        'test_result_id' => $test_result_id,
+                                        'panel_panel_item_id' => $panel_panel_item_id,
+                                        'reference_range_id' => $ref_range_id,
+                                        'value' => $result_value,
+                                        'flag' => $result_flag,
+                                        'sequence' => $key,
+                                        'is_tagon' => $isTagOn,
+                                        'has_amended' => $hasAmended,
+                                        'created_at' => now(),
+                                        'updated_at' => now(),
+                                    ];
                                 }
 
                                 if (($res['Text'] == 'NOTE' || $res['Text'] == 'COMMENT') && isset($panel_id)) {
-                                    $masterPanelComment = MasterPanelComment::firstOrCreate(
-                                        [
-                                            'comment' => $result_value
-                                        ]
-                                    );
+                                    // Store comment data for processing after upsert
+                                    $commentItems[] = [
+                                        'result_value' => $result_value,
+                                        'panel_panel_item_id' => $panel_panel_item_id ?? null,
+                                    ];
+                                }
+                            }
 
-                                    $existingPanelComment = PanelComment::where([
+                            // Phase 3: Batch upsert all TestResultItems at once
+                            if (! empty($itemsToUpsert)) {
+                                TestResultItem::upsert(
+                                    $itemsToUpsert,
+                                    ['test_result_id', 'panel_panel_item_id'],
+                                    ['reference_range_id', 'value', 'flag', 'sequence', 'is_tagon', 'has_amended', 'updated_at']
+                                );
+                            }
+
+                            // Process comments after upsert (need TestResultItem IDs)
+                            foreach ($commentItems as $commentData) {
+                                $masterPanelComment = MasterPanelComment::firstOrCreate(
+                                    [
+                                        'comment' => $commentData['result_value'],
+                                    ]
+                                );
+
+                                $existingPanelComment = PanelComment::where([
+                                    'panel_id' => $panel_id,
+                                    'master_panel_comment_id' => $masterPanelComment->id,
+                                ])->first();
+
+                                if (! $existingPanelComment) {
+                                    $panelComment = PanelComment::create([
                                         'panel_id' => $panel_id,
                                         'master_panel_comment_id' => $masterPanelComment->id,
-                                    ])->first();
+                                    ]);
+                                }
 
-                                    if (!$existingPanelComment) {
-                                        $panelComment = PanelComment::create([
-                                            'panel_id' => $panel_id,
-                                            'master_panel_comment_id' => $masterPanelComment->id,
+                                $panel_comment_id = $existingPanelComment->id ?? $panelComment->id;
+
+                                // Get the TestResultItem for this comment
+                                if ($commentData['panel_panel_item_id']) {
+                                    $testResultItem = TestResultItem::where('test_result_id', $test_result_id)
+                                        ->where('panel_panel_item_id', $commentData['panel_panel_item_id'])
+                                        ->first();
+
+                                    if ($testResultItem) {
+                                        TestResultComment::firstOrCreate([
+                                            'test_result_item_id' => $testResultItem->id,
+                                            'panel_comment_id' => $panel_comment_id,
                                         ]);
                                     }
-
-                                    $panel_comment_id = $existingPanelComment->id ?? $panelComment->id;
-
-                                    TestResultComment::firstOrCreate([
-                                        'test_result_item_id' => $testResultItem->id,
-                                        'panel_comment_id' => $panel_comment_id,
-                                    ]);
                                 }
                             }
                         }
@@ -405,7 +450,7 @@ class ProcessPanelResults implements ShouldQueue
                 }
             }
 
-            //Dispatch to AI server queue if PDF was received
+            // Dispatch to AI server queue if PDF was received
             if (isset($validated['EncodedBase64pdf']) && filled($validated['EncodedBase64pdf']) && $test_result && $test_result->id) {
                 try {
                     SendToAIServer::dispatch($test_result->id);
@@ -414,10 +459,10 @@ class ProcessPanelResults implements ShouldQueue
                         'lab_no' => $test_result->lab_no ?? null,
                     ]);
                 } catch (Throwable $e) {
-                     Log::error('Failed to dispatch test result to AI server queue', [
+                    Log::error('Failed to dispatch test result to AI server queue', [
                         'test_result_id' => $test_result->id,
                         'error' => $e->getMessage(),
-                     ]);
+                    ]);
                 }
             }
 
@@ -468,7 +513,7 @@ class ProcessPanelResults implements ShouldQueue
             $patient_gender = $icInfo['gender'];
             $age = $icInfo['age'];
         } else {
-            $icno = $patient['PatientID'] ?? 'N/A_' . $batch_id;
+            $icno = $patient['PatientID'] ?? 'N/A_'.$batch_id;
         }
 
         $patient_name = $patient['PatientLastName'];
@@ -486,7 +531,7 @@ class ProcessPanelResults implements ShouldQueue
                 'name' => $patient_name,
                 'dob' => $patient_dob,
                 'age' => $age,
-                'gender' => $gender ?? $patient_gender
+                'gender' => $gender ?? $patient_gender,
             ],
             $cacheKey
         );
@@ -518,7 +563,7 @@ class ProcessPanelResults implements ShouldQueue
 
     private function findOrCreatePanel($lab_id, $panel_code, $panel_name)
     {
-        $masterPanelCacheKey = "master_panel_" . md5($panel_name);
+        $masterPanelCacheKey = 'master_panel_'.md5($panel_name);
         $masterPanel = $this->cachedFirstOrCreate(
             MasterPanel::class,
             ['name' => $panel_name],
@@ -535,7 +580,7 @@ class ProcessPanelResults implements ShouldQueue
                 'code' => $panel_code,
             ],
             [
-                'name' => $panel_name
+                'name' => $panel_name,
             ],
             $panelCacheKey
         );
@@ -592,7 +637,7 @@ class ProcessPanelResults implements ShouldQueue
             'TAGON',
             'ADD ON',
             'ADDON',
-            'ADDITIONAL'
+            'ADDITIONAL',
         ];
 
         foreach ($tagOnKeywords as $keyword) {
@@ -607,8 +652,7 @@ class ProcessPanelResults implements ShouldQueue
     /**
      * Get platelets value with fallback from primary (61) to alternate (166).
      *
-     * @param \Illuminate\Support\Collection $testResultItems
-     * @return string|null
+     * @param  \Illuminate\Support\Collection  $testResultItems
      */
     private function getPlateletsValue($testResultItems): ?string
     {
@@ -628,9 +672,6 @@ class ProcessPanelResults implements ShouldQueue
     /**
      * Calculate special tests and interpretations for a completed test result.
      * Calculates: CRI-I, CRI-II, AIP, AC, FIB-4, APRI, NFS
-     *
-     * @param TestResult $testResult
-     * @return void
      */
     protected function calculateSpecialTests(TestResult $testResult): void
     {
@@ -745,11 +786,11 @@ class ProcessPanelResults implements ShouldQueue
                 $testResult->testResultSpecialTests()->updateOrCreate(
                     [
                         'test_result_id' => $testResult->id,
-                        'panel_panel_item_id' => $item['panel_panel_item_id']
+                        'panel_panel_item_id' => $item['panel_panel_item_id'],
                     ],
                     [
                         'value' => $item['value'],
-                        'panel_interpretation_id' => $item['panel_interpretation_id']
+                        'panel_interpretation_id' => $item['panel_interpretation_id'],
                     ]
                 );
             }
