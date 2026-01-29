@@ -60,14 +60,16 @@ class PanelMergeDetail extends Model
     public function getSummaryAttribute(): string
     {
         $unit = $this->entity_unit ? " ({$this->entity_unit})" : '';
+        $oldReference = $this->old_values['old_reference'] ?? '?';
+        $defaultDescription = $this->description ?? "{$this->action} {$this->entity_type} #{$this->entity_id}";
 
         return match ($this->action) {
             'created' => "Created {$this->entity_type} #{$this->entity_id}: \"{$this->entity_name}\"{$unit}",
             'deleted' => "Deleted {$this->entity_type} #{$this->entity_id}: \"{$this->entity_name}\"{$unit}",
             'updated' => "Updated {$this->entity_type} #{$this->entity_id}: \"{$this->entity_name}\"{$unit}",
             'merged' => "Merged {$this->entity_type} #{$this->entity_id} into #{$this->target_id}: \"{$this->target_name}\"",
-            'repointed' => "Repointed {$this->entity_type} #{$this->entity_id} from #{$this->old_values['old_reference'] ?? '?'} to #{$this->target_id}",
-            default => $this->description ?? "{$this->action} {$this->entity_type} #{$this->entity_id}",
+            'repointed' => "Repointed {$this->entity_type} #{$this->entity_id} from #{$oldReference} to #{$this->target_id}",
+            default => $defaultDescription,
         };
     }
 }
