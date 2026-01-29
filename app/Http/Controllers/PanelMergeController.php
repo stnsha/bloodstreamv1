@@ -98,6 +98,9 @@ class PanelMergeController extends Controller
                 $artisanOptions["--{$option}"] = true;
             }
 
+            // Pass the log ID so the command can record detailed changes
+            $artisanOptions['--log-id'] = $log->id;
+
             // Run the command
             $exitCode = Artisan::call($command, $artisanOptions);
             $output = Artisan::output();
@@ -155,6 +158,44 @@ class PanelMergeController extends Controller
             'log' => $log,
             'command_name' => $log->command_display_name,
             'duration' => $log->duration,
+            'details_count' => $log->details()->count(),
+        ]);
+    }
+
+    /**
+     * Get detailed changes for a log.
+     */
+    public function details(PanelMergeLog $log, Request $request): JsonResponse
+    {
+        $perPage = $request->input('per_page', 50);
+        $action = $request->input('action');
+        $entityType = $request->input('entity_type');
+
+        $query = $log->details()->orderBy('id', 'asc');
+
+        if ($action) {
+            $query->where('action', $action);
+        }
+
+        if ($entityType) {
+            $query->where('entity_type', $entityType);
+        }
+
+        $details = $query->paginate($perPage);
+
+        // Get summary counts by action
+        $summaryCounts = $log->details()
+            ->selectRaw('action, entity_type, COUNT(*) as count')
+            ->groupBy('action', 'entity_type')
+            ->get()
+            ->groupBy('action')
+            ->map(function ($items) {
+                return $items->pluck('count', 'entity_type');
+            });
+
+        return response()->json([
+            'details' => $details,
+            'summary' => $summaryCounts,
         ]);
     }
 

@@ -21,7 +21,7 @@
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
-    <div class="container mx-auto px-4 py-8 max-w-6xl">
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
         <h1 class="text-3xl font-bold text-gray-800 mb-8">Panel Merge Management</h1>
 
         <!-- Commands Section -->
@@ -93,6 +93,68 @@
             </div>
         </div>
 
+        <!-- Details Section -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8" id="details-section" style="display: none;">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold text-gray-700">Change Details</h2>
+                <button type="button"
+                        class="text-gray-500 hover:text-gray-700"
+                        onclick="document.getElementById('details-section').style.display='none'">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Summary -->
+            <div class="mb-4" id="details-summary"></div>
+
+            <!-- Filters -->
+            <div class="flex gap-4 mb-4">
+                <select id="filter-action" class="rounded border-gray-300 text-sm">
+                    <option value="">All Actions</option>
+                    <option value="created">Created</option>
+                    <option value="updated">Updated</option>
+                    <option value="deleted">Deleted</option>
+                    <option value="merged">Merged</option>
+                    <option value="repointed">Repointed</option>
+                </select>
+                <select id="filter-entity" class="rounded border-gray-300 text-sm">
+                    <option value="">All Entity Types</option>
+                    <option value="MasterPanel">MasterPanel</option>
+                    <option value="MasterPanelItem">MasterPanelItem</option>
+                    <option value="Panel">Panel</option>
+                    <option value="PanelItem">PanelItem</option>
+                </select>
+                <button type="button" id="apply-filters" class="px-3 py-1 bg-blue-500 text-white rounded text-sm">
+                    Apply Filters
+                </button>
+            </div>
+
+            <!-- Details Table -->
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Entity Type</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Entity ID</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Unit</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Target</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200" id="details-body">
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="flex justify-between items-center mt-4" id="details-pagination">
+            </div>
+        </div>
+
         <!-- History Section -->
         <div class="bg-white rounded-lg shadow-md p-6">
             <div class="flex justify-between items-center mb-4">
@@ -155,12 +217,19 @@
                             <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
                                 {{ $log->duration ?? '-' }}
                             </td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm">
+                            <td class="px-4 py-3 whitespace-nowrap text-sm space-x-2">
                                 <button type="button"
                                         class="view-log-btn text-blue-600 hover:text-blue-800"
                                         data-log-id="{{ $log->id }}">
-                                    View Output
+                                    Output
                                 </button>
+                                @if(!$log->is_dry_run)
+                                <button type="button"
+                                        class="view-details-btn text-purple-600 hover:text-purple-800"
+                                        data-log-id="{{ $log->id }}">
+                                    Details
+                                </button>
+                                @endif
                             </td>
                         </tr>
                         @empty
@@ -178,6 +247,16 @@
 
     <script>
         const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+        let currentDetailsLogId = null;
+
+        // Action badge classes
+        const actionBadgeClasses = {
+            'created': 'bg-green-100 text-green-800',
+            'updated': 'bg-blue-100 text-blue-800',
+            'deleted': 'bg-red-100 text-red-800',
+            'merged': 'bg-purple-100 text-purple-800',
+            'repointed': 'bg-yellow-100 text-yellow-800',
+        };
 
         // Convert ANSI color codes to HTML
         function convertAnsiToHtml(text) {
@@ -223,6 +302,85 @@
 
             section.scrollIntoView({ behavior: 'smooth' });
         }
+
+        // Show details section
+        async function showDetails(logId, page = 1) {
+            currentDetailsLogId = logId;
+            const action = document.getElementById('filter-action').value;
+            const entityType = document.getElementById('filter-entity').value;
+
+            let url = `{{ url('panel-merge') }}/${logId}/details?page=${page}`;
+            if (action) url += `&action=${action}`;
+            if (entityType) url += `&entity_type=${entityType}`;
+
+            try {
+                const response = await fetch(url, {
+                    headers: { 'Accept': 'application/json' }
+                });
+
+                const data = await response.json();
+
+                // Show summary
+                const summaryHtml = Object.entries(data.summary || {}).map(([action, entities]) => {
+                    const entityCounts = Object.entries(entities).map(([entity, count]) =>
+                        `<span class="text-gray-600">${entity}: ${count}</span>`
+                    ).join(', ');
+                    return `<span class="inline-block mr-4 px-2 py-1 text-xs font-medium rounded ${actionBadgeClasses[action] || 'bg-gray-100 text-gray-800'}">${action.charAt(0).toUpperCase() + action.slice(1)}</span> ${entityCounts}`;
+                }).join('<br>');
+
+                document.getElementById('details-summary').innerHTML = summaryHtml || '<span class="text-gray-500">No changes recorded</span>';
+
+                // Show table
+                const tbody = document.getElementById('details-body');
+                const details = data.details.data || [];
+
+                if (details.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">No detailed changes recorded for this execution.</td></tr>';
+                } else {
+                    tbody.innerHTML = details.map(d => `
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-3 py-2 text-sm">
+                                <span class="px-2 py-1 text-xs font-medium rounded ${actionBadgeClasses[d.action] || 'bg-gray-100 text-gray-800'}">
+                                    ${d.action}
+                                </span>
+                            </td>
+                            <td class="px-3 py-2 text-sm text-gray-900">${d.entity_type}</td>
+                            <td class="px-3 py-2 text-sm text-gray-600">#${d.entity_id}</td>
+                            <td class="px-3 py-2 text-sm text-gray-900">${d.entity_name || '-'}</td>
+                            <td class="px-3 py-2 text-sm text-gray-600">${d.entity_unit || '-'}</td>
+                            <td class="px-3 py-2 text-sm text-gray-600">${d.target_id ? '#' + d.target_id + (d.target_name ? ': ' + d.target_name : '') : '-'}</td>
+                            <td class="px-3 py-2 text-sm text-gray-600 max-w-xs truncate" title="${d.description || ''}">${d.description || '-'}</td>
+                        </tr>
+                    `).join('');
+                }
+
+                // Show pagination
+                const pagination = data.details;
+                const paginationHtml = `
+                    <span class="text-sm text-gray-600">
+                        Showing ${pagination.from || 0} to ${pagination.to || 0} of ${pagination.total} entries
+                    </span>
+                    <div class="flex gap-2">
+                        ${pagination.current_page > 1 ? `<button onclick="showDetails(${logId}, ${pagination.current_page - 1})" class="px-3 py-1 bg-gray-200 rounded text-sm">Previous</button>` : ''}
+                        ${pagination.current_page < pagination.last_page ? `<button onclick="showDetails(${logId}, ${pagination.current_page + 1})" class="px-3 py-1 bg-gray-200 rounded text-sm">Next</button>` : ''}
+                    </div>
+                `;
+                document.getElementById('details-pagination').innerHTML = paginationHtml;
+
+                document.getElementById('details-section').style.display = 'block';
+                document.getElementById('details-section').scrollIntoView({ behavior: 'smooth' });
+
+            } catch (error) {
+                alert('Failed to load details: ' + error.message);
+            }
+        }
+
+        // Apply filters
+        document.getElementById('apply-filters').addEventListener('click', function() {
+            if (currentDetailsLogId) {
+                showDetails(currentDetailsLogId, 1);
+            }
+        });
 
         // Run command
         document.querySelectorAll('.run-command-btn').forEach(btn => {
@@ -315,6 +473,12 @@
                     alert('Failed to load log: ' + error.message);
                 }
             }
+
+            // View details
+            if (e.target.classList.contains('view-details-btn')) {
+                const logId = e.target.dataset.logId;
+                showDetails(logId);
+            }
         });
 
         // Load history
@@ -369,12 +533,19 @@
                         <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
                             ${log.duration || '-'}
                         </td>
-                        <td class="px-4 py-3 whitespace-nowrap text-sm">
+                        <td class="px-4 py-3 whitespace-nowrap text-sm space-x-2">
                             <button type="button"
                                     class="view-log-btn text-blue-600 hover:text-blue-800"
                                     data-log-id="${log.id}">
-                                View Output
+                                Output
                             </button>
+                            ${!log.is_dry_run ? `
+                            <button type="button"
+                                    class="view-details-btn text-purple-600 hover:text-purple-800"
+                                    data-log-id="${log.id}">
+                                Details
+                            </button>
+                            ` : ''}
                         </td>
                     </tr>
                 `).join('');

@@ -4,6 +4,8 @@ namespace App\Console\Commands;
 
 use App\Models\MasterPanelItem;
 use App\Models\PanelItem;
+use App\Models\PanelMergeLog;
+use App\Services\PanelMergeLogService;
 use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -19,7 +21,8 @@ class FixMismatchedPanelItemReferences extends Command
     protected $signature = 'panel:fix-mismatched-references
         {--dry-run : Preview changes without executing}
         {--fix : Actually fix the mismatched references}
-        {--detailed : Show detailed progress}';
+        {--detailed : Show detailed progress}
+        {--log-id= : PanelMergeLog ID for tracking changes}';
 
     /**
      * The console command description.
@@ -57,13 +60,28 @@ class FixMismatchedPanelItemReferences extends Command
     protected bool $detailedOutput = false;
 
     /**
+     * Log service for tracking changes.
+     */
+    protected PanelMergeLogService $logService;
+
+    /**
      * Execute the console command.
      */
-    public function handle(): int
+    public function handle(PanelMergeLogService $logService): int
     {
+        $this->logService = $logService;
         $this->dryRun = $this->option('dry-run');
         $this->shouldFix = $this->option('fix');
         $this->detailedOutput = $this->option('detailed');
+
+        // Set up log service if log-id provided
+        $logId = $this->option('log-id');
+        if ($logId) {
+            $log = PanelMergeLog::find($logId);
+            if ($log) {
+                $this->logService->setCurrentLog($log)->setDryRun($this->dryRun);
+            }
+        }
 
         if (!$this->dryRun && !$this->shouldFix) {
             $this->info('Running in report-only mode. Use --dry-run to preview fixes, or --fix to apply them.');
@@ -252,6 +270,10 @@ class FixMismatchedPanelItemReferences extends Command
         try {
             DB::beginTransaction();
 
+            $panelItem = PanelItem::find($panelItemId);
+            $oldMasterPanelItemId = $panelItem->master_panel_item_id;
+            $newMasterPanelItem = MasterPanelItem::find($newMasterPanelItemId);
+
             PanelItem::where('id', $panelItemId)
                 ->update(['master_panel_item_id' => $newMasterPanelItemId]);
 
@@ -259,6 +281,16 @@ class FixMismatchedPanelItemReferences extends Command
 
             $this->stats['fixed']++;
             $this->line("      [FIXED] Updated PanelItem #{$panelItemId} -> MasterPanelItem #{$newMasterPanelItemId}");
+
+            // Log the change
+            $this->logService->logRepointed(
+                'PanelItem',
+                $panelItemId,
+                $panelItem->name,
+                $oldMasterPanelItemId,
+                $newMasterPanelItemId,
+                "Fixed unit mismatch: now points to MasterPanelItem #{$newMasterPanelItemId}: \"{$newMasterPanelItem->name}\" (unit: " . ($newMasterPanelItem->unit ?? 'NULL') . ")"
+            );
 
             Log::info('FixMismatchedPanelItemReferences: Fixed reference', [
                 'panel_item_id' => $panelItemId,

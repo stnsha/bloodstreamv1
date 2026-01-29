@@ -4,10 +4,19 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PanelMergeLog extends Model
 {
     use HasFactory;
+
+    /**
+     * Get the detail records for this log.
+     */
+    public function details(): HasMany
+    {
+        return $this->hasMany(PanelMergeDetail::class);
+    }
 
     protected $fillable = [
         'command',

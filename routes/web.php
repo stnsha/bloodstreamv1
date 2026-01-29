@@ -57,5 +57,6 @@ Route::prefix('panel-merge')->controller(PanelMergeController::class)->group(fun
     Route::post('/run', 'run')->name('panel-merge.run');
     Route::get('/history', 'history')->name('panel-merge.history');
     Route::get('/{log}', 'show')->name('panel-merge.show');
+    Route::get('/{log}/details', 'details')->name('panel-merge.details');
 });
 

@@ -7,10 +7,12 @@ use App\Models\MasterPanelItem;
 use App\Models\Panel;
 use App\Models\PanelInterpretation;
 use App\Models\PanelItem;
+use App\Models\PanelMergeLog;
 use App\Models\PanelPanelItem;
 use App\Models\ReferenceRange;
 use App\Models\TestResultItem;
 use App\Models\TestResultSpecialTest;
+use App\Services\PanelMergeLogService;
 use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
@@ -29,7 +31,8 @@ class MergeDuplicateMasterPanelData extends Command
         {--items-only : Only merge MasterPanelItems, skip MasterPanels}
         {--panels-only : Only merge MasterPanels, skip MasterPanelItems}
         {--limit=0 : Limit number of duplicate groups to process (0 = unlimited)}
-        {--detailed : Show detailed progress}';
+        {--detailed : Show detailed progress}
+        {--log-id= : PanelMergeLog ID for tracking changes}';
 
     /**
      * The console command description.
@@ -76,15 +79,30 @@ class MergeDuplicateMasterPanelData extends Command
     protected bool $verboseOutput = false;
 
     /**
+     * Log service for tracking changes.
+     */
+    protected PanelMergeLogService $logService;
+
+    /**
      * Execute the console command.
      */
-    public function handle(): int
+    public function handle(PanelMergeLogService $logService): int
     {
+        $this->logService = $logService;
         $this->dryRun = $this->option('dry-run');
         $this->verboseOutput = $this->option('detailed');
         $itemsOnly = $this->option('items-only');
         $panelsOnly = $this->option('panels-only');
         $limit = (int) $this->option('limit');
+
+        // Set up log service if log-id provided
+        $logId = $this->option('log-id');
+        if ($logId) {
+            $log = PanelMergeLog::find($logId);
+            if ($log) {
+                $this->logService->setCurrentLog($log)->setDryRun($this->dryRun);
+            }
+        }
 
         $mode = $this->dryRun ? '[DRY-RUN]' : '[EXECUTE]';
         $this->info("{$mode} Starting duplicate merge process...");
@@ -233,6 +251,9 @@ class MergeDuplicateMasterPanelData extends Command
      */
     protected function mergeMasterPanelItem(int $canonicalId, int $duplicateId): void
     {
+        $duplicate = MasterPanelItem::find($duplicateId);
+        $canonical = MasterPanelItem::find($canonicalId);
+
         $this->verboseLine("  Merging MasterPanelItem {$duplicateId} -> {$canonicalId}");
 
         // Find PanelItems pointing to the duplicate
@@ -254,6 +275,14 @@ class MergeDuplicateMasterPanelData extends Command
                 if (!$this->dryRun) {
                     $duplicatePanelItem->update(['master_panel_item_id' => $canonicalId]);
                 }
+                $this->logService->logRepointed(
+                    'PanelItem',
+                    $duplicatePanelItem->id,
+                    $duplicatePanelItem->name,
+                    $duplicateId,
+                    $canonicalId,
+                    "Repointed to MasterPanelItem #{$canonicalId}: {$canonical->name}"
+                );
                 $this->stats['panel_items_repointed']++;
             }
         }
@@ -263,6 +292,14 @@ class MergeDuplicateMasterPanelData extends Command
         if (!$this->dryRun) {
             MasterPanelItem::where('id', $duplicateId)->delete();
         }
+        $this->logService->logMerged(
+            'MasterPanelItem',
+            $duplicateId,
+            $duplicate->name ?? null,
+            $canonicalId,
+            $canonical->name ?? null,
+            "Merged into #{$canonicalId} (unit: " . ($canonical->unit ?? 'NULL') . ")"
+        );
         $this->stats['master_panel_items_deleted']++;
     }
 
@@ -271,6 +308,9 @@ class MergeDuplicateMasterPanelData extends Command
      */
     protected function mergePanelItems(int $canonicalPanelItemId, int $duplicatePanelItemId): void
     {
+        $duplicate = PanelItem::find($duplicatePanelItemId);
+        $canonical = PanelItem::find($canonicalPanelItemId);
+
         $this->verboseLine("    Merging PanelItem {$duplicatePanelItemId} -> {$canonicalPanelItemId}");
 
         // Find PanelPanelItems for the duplicate PanelItem
@@ -301,6 +341,14 @@ class MergeDuplicateMasterPanelData extends Command
         if (!$this->dryRun) {
             PanelItem::where('id', $duplicatePanelItemId)->delete();
         }
+        $this->logService->logMerged(
+            'PanelItem',
+            $duplicatePanelItemId,
+            $duplicate->name ?? null,
+            $canonicalPanelItemId,
+            $canonical->name ?? null,
+            "Merged into PanelItem #{$canonicalPanelItemId}"
+        );
     }
 
     /**
@@ -565,6 +613,9 @@ class MergeDuplicateMasterPanelData extends Command
      */
     protected function mergeMasterPanel(int $canonicalId, int $duplicateId): void
     {
+        $duplicate = MasterPanel::find($duplicateId);
+        $canonical = MasterPanel::find($canonicalId);
+
         $this->verboseLine("  Merging MasterPanel {$duplicateId} -> {$canonicalId}");
 
         // Find Panels pointing to the duplicate MasterPanel
@@ -587,6 +638,14 @@ class MergeDuplicateMasterPanelData extends Command
                 if (!$this->dryRun) {
                     $duplicatePanel->update(['master_panel_id' => $canonicalId]);
                 }
+                $this->logService->logRepointed(
+                    'Panel',
+                    $duplicatePanel->id,
+                    $duplicatePanel->name,
+                    $duplicateId,
+                    $canonicalId,
+                    "Repointed to MasterPanel #{$canonicalId}: {$canonical->name}"
+                );
                 $this->stats['panels_repointed']++;
             }
         }
@@ -596,6 +655,14 @@ class MergeDuplicateMasterPanelData extends Command
         if (!$this->dryRun) {
             MasterPanel::where('id', $duplicateId)->delete();
         }
+        $this->logService->logMerged(
+            'MasterPanel',
+            $duplicateId,
+            $duplicate->name ?? null,
+            $canonicalId,
+            $canonical->name ?? null,
+            "Merged into MasterPanel #{$canonicalId}"
+        );
         $this->stats['master_panels_deleted']++;
     }
 
@@ -604,6 +671,9 @@ class MergeDuplicateMasterPanelData extends Command
      */
     protected function mergePanels(int $canonicalPanelId, int $duplicatePanelId): void
     {
+        $duplicate = Panel::find($duplicatePanelId);
+        $canonical = Panel::find($canonicalPanelId);
+
         $this->verboseLine("    Merging Panel {$duplicatePanelId} -> {$canonicalPanelId}");
 
         // Find PanelPanelItems for the duplicate Panel
@@ -634,6 +704,14 @@ class MergeDuplicateMasterPanelData extends Command
         if (!$this->dryRun) {
             Panel::where('id', $duplicatePanelId)->delete();
         }
+        $this->logService->logMerged(
+            'Panel',
+            $duplicatePanelId,
+            $duplicate->name ?? null,
+            $canonicalPanelId,
+            $canonical->name ?? null,
+            "Merged into Panel #{$canonicalPanelId}"
+        );
     }
 
     /**

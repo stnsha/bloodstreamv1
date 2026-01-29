@@ -4,6 +4,8 @@ namespace App\Console\Commands;
 
 use App\Models\MasterPanelItem;
 use App\Models\PanelItem;
+use App\Models\PanelMergeLog;
+use App\Services\PanelMergeLogService;
 use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -17,7 +19,8 @@ class CreateMissingMasterPanelItems extends Command
      * @var string
      */
     protected $signature = 'panel:create-missing-master-items
-        {--dry-run : Preview changes without executing}';
+        {--dry-run : Preview changes without executing}
+        {--log-id= : PanelMergeLog ID for tracking changes}';
 
     /**
      * The console command description.
@@ -38,16 +41,36 @@ class CreateMissingMasterPanelItems extends Command
     ];
 
     /**
+     * Log service for tracking changes.
+     */
+    protected PanelMergeLogService $logService;
+
+    /**
+     * Whether we're in dry-run mode.
+     */
+    protected bool $dryRun = false;
+
+    /**
      * Execute the console command.
      */
-    public function handle(): int
+    public function handle(PanelMergeLogService $logService): int
     {
-        $dryRun = $this->option('dry-run');
-        $mode = $dryRun ? '[DRY-RUN]' : '[EXECUTE]';
+        $this->logService = $logService;
+        $this->dryRun = $this->option('dry-run');
+        $mode = $this->dryRun ? '[DRY-RUN]' : '[EXECUTE]';
+
+        // Set up log service if log-id provided
+        $logId = $this->option('log-id');
+        if ($logId) {
+            $log = PanelMergeLog::find($logId);
+            if ($log) {
+                $this->logService->setCurrentLog($log)->setDryRun($this->dryRun);
+            }
+        }
 
         $this->info("{$mode} Creating missing MasterPanelItems and reassigning PanelItems...\n");
 
-        Log::info('CreateMissingMasterPanelItems: Starting', ['dry_run' => $dryRun]);
+        Log::info('CreateMissingMasterPanelItems: Starting', ['dry_run' => $this->dryRun]);
 
         // Find all mismatched PanelItems
         $mismatches = $this->findMismatchedPanelItems();
@@ -63,10 +86,10 @@ class CreateMissingMasterPanelItems extends Command
             DB::beginTransaction();
 
             foreach ($mismatches as $mismatch) {
-                $this->processMismatch($mismatch, $dryRun);
+                $this->processMismatch($mismatch, $this->dryRun);
             }
 
-            if ($dryRun) {
+            if ($this->dryRun) {
                 DB::rollBack();
                 $this->info("\n[DRY-RUN] No changes were made.");
             } else {
@@ -143,6 +166,15 @@ class CreateMissingMasterPanelItems extends Command
             if (!$dryRun) {
                 PanelItem::where('id', $panelItemId)
                     ->update(['master_panel_item_id' => $existingMaster->id]);
+
+                $this->logService->logRepointed(
+                    'PanelItem',
+                    $panelItemId,
+                    $panelItemName,
+                    $currentMasterItemId,
+                    $existingMaster->id,
+                    "Repointed to existing MasterPanelItem #{$existingMaster->id}: \"{$existingMaster->name}\" (unit: " . ($existingMaster->unit ?? 'NULL') . ")"
+                );
             }
 
             $this->info("  -> " . ($dryRun ? 'Would update' : 'Updated') . " PanelItem #{$panelItemId} to MasterPanelItem #{$existingMaster->id}");
@@ -159,8 +191,25 @@ class CreateMissingMasterPanelItems extends Command
                 ]);
                 $newMasterId = $newMaster->id;
 
+                $this->logService->logCreated(
+                    'MasterPanelItem',
+                    $newMasterId,
+                    $panelItemName,
+                    $panelItemUnit,
+                    "Created new MasterPanelItem for unit mismatch"
+                );
+
                 PanelItem::where('id', $panelItemId)
                     ->update(['master_panel_item_id' => $newMasterId]);
+
+                $this->logService->logRepointed(
+                    'PanelItem',
+                    $panelItemId,
+                    $panelItemName,
+                    $currentMasterItemId,
+                    $newMasterId,
+                    "Repointed to new MasterPanelItem #{$newMasterId}"
+                );
             }
 
             $idDisplay = $dryRun ? '(new)' : "#{$newMasterId}";
