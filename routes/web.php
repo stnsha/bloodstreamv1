@@ -5,6 +5,7 @@ use App\Http\Controllers\API\PDFController;
 use App\Http\Controllers\API\Testing\SpecialTestController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\LoginController;
+use App\Http\Controllers\PanelMergeController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -48,5 +49,13 @@ Route::middleware(['auth'])->group(function () {
 
         return view('apis.index', compact('lab_id'));
     })->name('apis.index');
+});
+
+// Panel Merge Management
+Route::prefix('panel-merge')->controller(PanelMergeController::class)->group(function () {
+    Route::get('/', 'index')->name('panel-merge.index');
+    Route::post('/run', 'run')->name('panel-merge.run');
+    Route::get('/history', 'history')->name('panel-merge.history');
+    Route::get('/{log}', 'show')->name('panel-merge.show');
 });
 
