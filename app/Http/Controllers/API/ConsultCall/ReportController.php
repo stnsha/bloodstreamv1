@@ -578,7 +578,21 @@ class ReportController extends Controller
         array $conditionStatistics
     ): string {
         $tableRows = '';
+        $sumTotalMet = 0;
+        $sumPercentageFiltered = 0.00;
+        $sumPercentageTotal = 0.00;
+        $healthyData = null;
+
         foreach ($conditionStatistics as $condition) {
+            $conditionId = $condition['condition_id'];
+
+            // Extract healthy data for summary box, skip adding to table
+            if ($conditionId === 0) {
+                $healthyData = $condition;
+
+                continue;
+            }
+
             $tableRows .= sprintf(
                 '<tr>
                     <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">%d</td>
@@ -587,11 +601,40 @@ class ReportController extends Controller
                     <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">%s%%</td>
                     <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">%s%%</td>
                 </tr>',
-                $condition['condition_id'],
+                $conditionId,
                 htmlspecialchars($condition['condition_description']),
                 number_format($condition['total_met']),
                 number_format($condition['percentage_of_filtered'], 2),
                 number_format($condition['percentage_of_total'], 2)
+            );
+
+            // Accumulate totals (excluding healthy)
+            $sumTotalMet += $condition['total_met'];
+            $sumPercentageFiltered += $condition['percentage_of_filtered'];
+            $sumPercentageTotal += $condition['percentage_of_total'];
+        }
+
+        // Add totals row
+        $tableRows .= sprintf(
+            '<tr style="background-color: #f5f5f5; font-weight: bold; border-top: 2px solid #333;">
+                <td style="padding: 8px; border: 1px solid #ddd; text-align: center;"></td>
+                <td style="padding: 8px; border: 1px solid #ddd;">TOTAL</td>
+                <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">%s</td>
+                <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">%s%%</td>
+                <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">%s%%</td>
+            </tr>',
+            number_format($sumTotalMet),
+            number_format($sumPercentageFiltered, 2),
+            number_format($sumPercentageTotal, 2)
+        );
+
+        // Build healthy summary line
+        $healthySummary = '';
+        if ($healthyData) {
+            $healthySummary = sprintf(
+                '<p style="color: #28a745;"><strong>Healthy (No Conditions Met):</strong> %s (%s%% of filtered)</p>',
+                number_format($healthyData['total_met']),
+                number_format($healthyData['percentage_of_filtered'], 2)
             );
         }
 
@@ -674,6 +717,7 @@ class ReportController extends Controller
     <div class="summary-box">
         <p><strong>Total All Results:</strong> '.number_format($totalAllResults).'</p>
         <p><strong>Total Filtered Results:</strong> '.number_format($totalFilteredResults).'</p>
+        '.$healthySummary.'
     </div>
 
     <table>

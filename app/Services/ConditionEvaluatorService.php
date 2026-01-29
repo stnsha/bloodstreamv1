@@ -11,6 +11,10 @@ class ConditionEvaluatorService
     /**
      * Evaluate all conditions against a collection of patient data.
      *
+     * Each patient is assigned to exactly ONE condition (the most specific one they match).
+     * Patients matching no conditions are counted as "Healthy".
+     * This ensures percentages sum to 100%.
+     *
      * @param  Collection  $evaluatableData  Collection of patient data arrays
      * @param  int  $totalAllResults  Total count of all results before filtering
      * @param  int  $totalFilteredResults  Total count of filtered results
@@ -18,43 +22,71 @@ class ConditionEvaluatorService
      */
     public function evaluateAll(Collection $evaluatableData, int $totalAllResults, int $totalFilteredResults): array
     {
-        Log::info('Starting condition evaluation', [
+        Log::info('Starting condition evaluation (exclusive assignment)', [
             'evaluatable_count' => $evaluatableData->count(),
             'total_all_results' => $totalAllResults,
             'total_filtered_results' => $totalFilteredResults,
         ]);
 
         $conditions = ClinicalCondition::getAll();
-        $statistics = [];
 
-        foreach ($conditions as $conditionId => $conditionConfig) {
-            $totalMet = 0;
+        // Get conditions sorted by criteria_count DESC (most specific first)
+        $sortedConditionIds = ClinicalCondition::getIdsSortedByPriority();
 
-            foreach ($evaluatableData as $patientData) {
+        // Initialize counts: index 0 = healthy, indices 1-25 = conditions
+        $conditionCounts = array_fill(0, 26, 0);
+
+        // Assign each patient to exactly ONE condition (first match wins)
+        foreach ($evaluatableData as $patientData) {
+            $assignedCondition = 0; // Default to healthy (no condition matched)
+
+            // Check conditions from highest criteria count to lowest
+            // First match wins - patient is assigned to this condition only
+            foreach ($sortedConditionIds as $conditionId) {
                 if ($this->evaluateCondition($conditionId, $patientData)) {
-                    $totalMet++;
+                    $assignedCondition = $conditionId;
+                    break;
                 }
             }
 
-            $percentageOfFiltered = $totalFilteredResults > 0
-                ? round(($totalMet / $totalFilteredResults) * 100, 2)
-                : 0.00;
+            $conditionCounts[$assignedCondition]++;
+        }
 
-            $percentageOfTotal = $totalAllResults > 0
-                ? round(($totalMet / $totalAllResults) * 100, 2)
-                : 0.00;
+        // Build statistics array in original order (1-25)
+        $statistics = [];
+        foreach ($conditions as $conditionId => $conditionConfig) {
+            $totalMet = $conditionCounts[$conditionId];
 
             $statistics[] = [
                 'condition_id' => $conditionId,
                 'condition_description' => $conditionConfig['description'],
                 'total_met' => $totalMet,
-                'percentage_of_filtered' => $percentageOfFiltered,
-                'percentage_of_total' => $percentageOfTotal,
+                'percentage_of_filtered' => $totalFilteredResults > 0
+                    ? round(($totalMet / $totalFilteredResults) * 100, 2)
+                    : 0.00,
+                'percentage_of_total' => $totalAllResults > 0
+                    ? round(($totalMet / $totalAllResults) * 100, 2)
+                    : 0.00,
             ];
         }
 
-        Log::info('Condition evaluation completed', [
+        // Add "Healthy" category at the end (condition_id = 0)
+        $healthyCount = $conditionCounts[0];
+        $statistics[] = [
+            'condition_id' => 0,
+            'condition_description' => 'Healthy (no conditions met)',
+            'total_met' => $healthyCount,
+            'percentage_of_filtered' => $totalFilteredResults > 0
+                ? round(($healthyCount / $totalFilteredResults) * 100, 2)
+                : 0.00,
+            'percentage_of_total' => $totalAllResults > 0
+                ? round(($healthyCount / $totalAllResults) * 100, 2)
+                : 0.00,
+        ];
+
+        Log::info('Condition evaluation completed (exclusive assignment)', [
             'conditions_evaluated' => count($statistics),
+            'healthy_count' => $healthyCount,
         ]);
 
         return $statistics;
