@@ -65,6 +65,11 @@ class FixMismatchedPanelItemReferences extends Command
     protected PanelMergeLogService $logService;
 
     /**
+     * The current log entry.
+     */
+    protected ?PanelMergeLog $log = null;
+
+    /**
      * Execute the console command.
      */
     public function handle(PanelMergeLogService $logService): int
@@ -74,13 +79,26 @@ class FixMismatchedPanelItemReferences extends Command
         $this->shouldFix = $this->option('fix');
         $this->detailedOutput = $this->option('detailed');
 
-        // Set up log service if log-id provided
+        // Set up log - use provided log-id or create new one
         $logId = $this->option('log-id');
         if ($logId) {
-            $log = PanelMergeLog::find($logId);
-            if ($log) {
-                $this->logService->setCurrentLog($log)->setDryRun($this->dryRun);
-            }
+            $this->log = PanelMergeLog::find($logId);
+        } else {
+            // Create log entry for CLI execution
+            $this->log = PanelMergeLog::create([
+                'command' => 'panel:fix-mismatched-references',
+                'status' => 'running',
+                'is_dry_run' => $this->dryRun || !$this->shouldFix,
+                'options' => array_filter([
+                    'fix' => $this->shouldFix,
+                    'detailed' => $this->detailedOutput,
+                ]),
+                'started_at' => now(),
+            ]);
+        }
+
+        if ($this->log) {
+            $this->logService->setCurrentLog($this->log)->setDryRun($this->dryRun || !$this->shouldFix);
         }
 
         if (!$this->dryRun && !$this->shouldFix) {
@@ -144,11 +162,30 @@ class FixMismatchedPanelItemReferences extends Command
 
             $this->displaySummary();
 
+            // Update log with success
+            if ($this->log) {
+                $this->log->update([
+                    'status' => 'completed',
+                    'stats' => $this->stats,
+                    'completed_at' => now(),
+                ]);
+            }
+
             Log::info('FixMismatchedPanelItemReferences: Completed', $this->stats);
 
             return self::SUCCESS;
 
         } catch (Exception $e) {
+            // Update log with failure
+            if ($this->log) {
+                $this->log->update([
+                    'status' => 'failed',
+                    'error' => $e->getMessage(),
+                    'stats' => $this->stats,
+                    'completed_at' => now(),
+                ]);
+            }
+
             $this->error("Command failed: {$e->getMessage()}");
             Log::error('FixMismatchedPanelItemReferences: Command failed', [
                 'error' => $e->getMessage(),

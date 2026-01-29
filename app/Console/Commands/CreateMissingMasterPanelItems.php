@@ -51,6 +51,11 @@ class CreateMissingMasterPanelItems extends Command
     protected bool $dryRun = false;
 
     /**
+     * The current log entry.
+     */
+    protected ?PanelMergeLog $log = null;
+
+    /**
      * Execute the console command.
      */
     public function handle(PanelMergeLogService $logService): int
@@ -59,30 +64,52 @@ class CreateMissingMasterPanelItems extends Command
         $this->dryRun = $this->option('dry-run');
         $mode = $this->dryRun ? '[DRY-RUN]' : '[EXECUTE]';
 
-        // Set up log service if log-id provided
+        // Set up log - use provided log-id or create new one
         $logId = $this->option('log-id');
         if ($logId) {
-            $log = PanelMergeLog::find($logId);
-            if ($log) {
-                $this->logService->setCurrentLog($log)->setDryRun($this->dryRun);
-            }
+            $this->log = PanelMergeLog::find($logId);
+        } else {
+            // Create log entry for CLI execution
+            $this->log = PanelMergeLog::create([
+                'command' => 'panel:create-missing-master-items',
+                'status' => 'running',
+                'is_dry_run' => $this->dryRun,
+                'options' => array_filter([
+                    'dry_run' => $this->dryRun,
+                ]),
+                'started_at' => now(),
+            ]);
+        }
+
+        if ($this->log) {
+            $this->logService->setCurrentLog($this->log)->setDryRun($this->dryRun);
         }
 
         $this->info("{$mode} Creating missing MasterPanelItems and reassigning PanelItems...\n");
 
         Log::info('CreateMissingMasterPanelItems: Starting', ['dry_run' => $this->dryRun]);
 
-        // Find all mismatched PanelItems
-        $mismatches = $this->findMismatchedPanelItems();
-
-        if ($mismatches->isEmpty()) {
-            $this->info('No mismatched PanelItems found.');
-            return self::SUCCESS;
-        }
-
-        $this->info("Found {$mismatches->count()} PanelItems with mismatched units:\n");
-
         try {
+            // Find all mismatched PanelItems
+            $mismatches = $this->findMismatchedPanelItems();
+
+            if ($mismatches->isEmpty()) {
+                $this->info('No mismatched PanelItems found.');
+
+                // Update log with completion
+                if ($this->log) {
+                    $this->log->update([
+                        'status' => 'completed',
+                        'stats' => $this->stats,
+                        'completed_at' => now(),
+                    ]);
+                }
+
+                return self::SUCCESS;
+            }
+
+            $this->info("Found {$mismatches->count()} PanelItems with mismatched units:\n");
+
             DB::beginTransaction();
 
             foreach ($mismatches as $mismatch) {
@@ -99,12 +126,32 @@ class CreateMissingMasterPanelItems extends Command
 
             $this->displaySummary();
 
+            // Update log with success
+            if ($this->log) {
+                $this->log->update([
+                    'status' => 'completed',
+                    'stats' => $this->stats,
+                    'completed_at' => now(),
+                ]);
+            }
+
             Log::info('CreateMissingMasterPanelItems: Completed', $this->stats);
 
             return self::SUCCESS;
 
         } catch (Exception $e) {
             DB::rollBack();
+
+            // Update log with failure
+            if ($this->log) {
+                $this->log->update([
+                    'status' => 'failed',
+                    'error' => $e->getMessage(),
+                    'stats' => $this->stats,
+                    'completed_at' => now(),
+                ]);
+            }
+
             $this->error("Command failed: {$e->getMessage()}");
             Log::error('CreateMissingMasterPanelItems: Failed', [
                 'error' => $e->getMessage(),

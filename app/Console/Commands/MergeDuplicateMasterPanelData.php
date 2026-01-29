@@ -84,6 +84,11 @@ class MergeDuplicateMasterPanelData extends Command
     protected PanelMergeLogService $logService;
 
     /**
+     * The current log entry.
+     */
+    protected ?PanelMergeLog $log = null;
+
+    /**
      * Execute the console command.
      */
     public function handle(PanelMergeLogService $logService): int
@@ -95,13 +100,28 @@ class MergeDuplicateMasterPanelData extends Command
         $panelsOnly = $this->option('panels-only');
         $limit = (int) $this->option('limit');
 
-        // Set up log service if log-id provided
+        // Set up log - use provided log-id or create new one
         $logId = $this->option('log-id');
         if ($logId) {
-            $log = PanelMergeLog::find($logId);
-            if ($log) {
-                $this->logService->setCurrentLog($log)->setDryRun($this->dryRun);
-            }
+            $this->log = PanelMergeLog::find($logId);
+        } else {
+            // Create log entry for CLI execution
+            $this->log = PanelMergeLog::create([
+                'command' => 'panel:merge-duplicates',
+                'status' => 'running',
+                'is_dry_run' => $this->dryRun,
+                'options' => array_filter([
+                    'items-only' => $itemsOnly,
+                    'panels-only' => $panelsOnly,
+                    'limit' => $limit,
+                    'detailed' => $this->verboseOutput,
+                ]),
+                'started_at' => now(),
+            ]);
+        }
+
+        if ($this->log) {
+            $this->logService->setCurrentLog($this->log)->setDryRun($this->dryRun);
         }
 
         $mode = $this->dryRun ? '[DRY-RUN]' : '[EXECUTE]';
@@ -136,11 +156,30 @@ class MergeDuplicateMasterPanelData extends Command
                 $this->runVerification();
             }
 
+            // Update log with success
+            if ($this->log) {
+                $this->log->update([
+                    'status' => 'completed',
+                    'stats' => $this->stats,
+                    'completed_at' => now(),
+                ]);
+            }
+
             Log::info('MergeDuplicateMasterPanelData: Completed successfully', $this->stats);
 
             return self::SUCCESS;
 
         } catch (Exception $e) {
+            // Update log with failure
+            if ($this->log) {
+                $this->log->update([
+                    'status' => 'failed',
+                    'error' => $e->getMessage(),
+                    'stats' => $this->stats,
+                    'completed_at' => now(),
+                ]);
+            }
+
             $this->error("Command failed: {$e->getMessage()}");
             Log::error('MergeDuplicateMasterPanelData: Command failed', [
                 'error' => $e->getMessage(),
