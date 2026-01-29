@@ -332,7 +332,8 @@
 
                 // Show table
                 const tbody = document.getElementById('details-body');
-                const details = data.details.data || [];
+                const pagination = data.details || {};
+                const details = pagination.data || [];
 
                 if (details.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">No detailed changes recorded for this execution.</td></tr>';
@@ -355,16 +356,15 @@
                 }
 
                 // Show pagination
-                const pagination = data.details;
-                const paginationHtml = `
+                const paginationHtml = pagination.total > 0 ? `
                     <span class="text-sm text-gray-600">
-                        Showing ${pagination.from || 0} to ${pagination.to || 0} of ${pagination.total} entries
+                        Showing ${pagination.from || 0} to ${pagination.to || 0} of ${pagination.total || 0} entries
                     </span>
                     <div class="flex gap-2">
                         ${pagination.current_page > 1 ? `<button onclick="showDetails(${logId}, ${pagination.current_page - 1})" class="px-3 py-1 bg-gray-200 rounded text-sm">Previous</button>` : ''}
                         ${pagination.current_page < pagination.last_page ? `<button onclick="showDetails(${logId}, ${pagination.current_page + 1})" class="px-3 py-1 bg-gray-200 rounded text-sm">Next</button>` : ''}
                     </div>
-                `;
+                ` : '<span class="text-sm text-gray-500">No entries</span>';
                 document.getElementById('details-pagination').innerHTML = paginationHtml;
 
                 document.getElementById('details-section').style.display = 'block';
@@ -427,18 +427,27 @@
                         body: JSON.stringify({ command, options })
                     });
 
+                    // Check if response is OK
+                    if (!response.ok) {
+                        const text = await response.text();
+                        console.error('Server error:', response.status, text);
+                        showOutput('Failed', command, `Server error (${response.status}): ${text.substring(0, 500)}`, true);
+                        return;
+                    }
+
                     const data = await response.json();
 
                     if (data.success) {
-                        showOutput('Completed', command, data.output);
+                        showOutput('Completed', command, data.output || 'Command completed successfully.');
                     } else {
-                        showOutput('Failed', command, data.error || data.output, !data.output);
+                        showOutput('Failed', command, data.error || data.output || 'Command failed with no output.', true);
                     }
 
                     // Reload history
                     loadHistory();
 
                 } catch (error) {
+                    console.error('Fetch error:', error);
                     showOutput('Failed', command, 'Request failed: ' + error.message, true);
                 } finally {
                     document.querySelectorAll('.run-command-btn').forEach(b => b.disabled = false);

@@ -64,10 +64,21 @@ class PanelMergeController extends Controller
      */
     public function run(Request $request): JsonResponse
     {
-        $request->validate([
-            'command' => 'required|string|in:' . implode(',', array_keys($this->commands)),
-            'options' => 'nullable|array',
-        ]);
+        try {
+            $request->validate([
+                'command' => 'required|string|in:' . implode(',', array_keys($this->commands)),
+                'options' => 'nullable|array',
+            ]);
+        } catch (Exception $e) {
+            Log::error('PanelMergeController: Validation failed', [
+                'error' => $e->getMessage(),
+                'request' => $request->all(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'error' => 'Validation failed: ' . $e->getMessage(),
+            ], 422);
+        }
 
         $command = $request->input('command');
         $options = $request->input('options', []);
