@@ -247,6 +247,7 @@
 
     <script>
         const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+        const baseUrl = '{{ url("panel-merge") }}';
         let currentDetailsLogId = null;
 
         // Action badge classes
@@ -309,7 +310,7 @@
             const action = document.getElementById('filter-action').value;
             const entityType = document.getElementById('filter-entity').value;
 
-            let url = `{{ url('panel-merge') }}/${logId}/details?page=${page}`;
+            let url = `${baseUrl}/${logId}/details?page=${page}`;
             if (action) url += `&action=${action}`;
             if (entityType) url += `&entity_type=${entityType}`;
 
@@ -417,15 +418,21 @@
                 showOutput('Running', command, 'Executing command, please wait...');
 
                 try {
-                    const response = await fetch('{{ route("panel-merge.run") }}', {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
+
+                    const response = await fetch(`${baseUrl}/run`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             'X-CSRF-TOKEN': csrfToken,
                             'Accept': 'application/json',
                         },
-                        body: JSON.stringify({ command, options })
+                        body: JSON.stringify({ command, options }),
+                        signal: controller.signal
                     });
+
+                    clearTimeout(timeoutId);
 
                     // Check if response is OK
                     if (!response.ok) {
@@ -461,7 +468,7 @@
                 const logId = e.target.dataset.logId;
 
                 try {
-                    const response = await fetch(`{{ url('panel-merge') }}/${logId}`, {
+                    const response = await fetch(`${baseUrl}/${logId}`, {
                         headers: {
                             'Accept': 'application/json',
                         }
@@ -493,7 +500,7 @@
         // Load history
         async function loadHistory() {
             try {
-                const response = await fetch('{{ route("panel-merge.history") }}', {
+                const response = await fetch(`${baseUrl}/history`, {
                     headers: {
                         'Accept': 'application/json',
                     }
