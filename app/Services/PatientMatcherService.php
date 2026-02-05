@@ -108,16 +108,25 @@ class PatientMatcherService
             ]);
 
             if ($response['exact_match']) {
+                // Enrich exact match with refid from blood_test_sales
+                $exactMatch = $this->enrichCandidateWithRefId($response['exact_match'], $labCode);
+
                 // Exact match found - still needs review but high confidence
-                $exactCandidate = $this->scoreCandidate($patient, $response['exact_match'], $labCode, true);
+                $exactCandidate = $this->scoreCandidate($patient, $exactMatch, $labCode, true);
 
                 $this->logMatchAttempt($patient, collect([$exactCandidate]), 'candidates_found');
 
                 return collect([$exactCandidate]);
             }
 
+            // Enrich candidates with refid from blood_test_sales
+            $enrichedCandidates = array_map(
+                fn($candidate) => $this->enrichCandidateWithRefId($candidate, $labCode),
+                $response['candidates']
+            );
+
             // Score each candidate (filter out nulls from rejected candidates)
-            $scoredCandidates = collect($response['candidates'])
+            $scoredCandidates = collect($enrichedCandidates)
                 ->map(fn($candidate) => $this->scoreCandidate($patient, $candidate, $labCode, false))
                 ->filter(fn($candidate) => $candidate !== null && $candidate['confidence_score'] >= self::THRESHOLD_MINIMUM)
                 ->sortByDesc('confidence_score')
@@ -498,6 +507,60 @@ class PatientMatcherService
         }
 
         return false;
+    }
+
+    /**
+     * Enrich a candidate with refid from blood_test_sales.
+     *
+     * Fetches the most recent blood_test_sales record for the candidate's
+     * customer_id and sets the refid field.
+     *
+     * @param array $candidate The candidate data from fuzzy search
+     * @param string|null $labCode The lab code prefix (e.g., 'INN')
+     * @return array The enriched candidate data
+     */
+    protected function enrichCandidateWithRefId(array $candidate, ?string $labCode): array
+    {
+        // Skip if refid already present
+        if (!empty($candidate['refid'])) {
+            return $candidate;
+        }
+
+        $customerId = $candidate['customer_id'] ?? null;
+        if (!$customerId) {
+            return $candidate;
+        }
+
+        try {
+            $sales = $this->octopusApi->getBloodTestSalesByCustomerId($customerId);
+
+            if (empty($sales)) {
+                Log::debug('PatientMatcherService: No blood_test_sales for candidate', [
+                    'customer_id' => $customerId,
+                ]);
+                return $candidate;
+            }
+
+            // Get the most recent sale (assuming sales are sorted by date desc, or pick first)
+            // The sales array contains ['id' => int, 'date' => string]
+            $latestSale = $sales[0];
+            $prefix = $labCode ?? '';
+            $candidate['refid'] = $prefix . $latestSale['id'];
+
+            Log::debug('PatientMatcherService: Enriched candidate with refid', [
+                'customer_id' => $customerId,
+                'refid' => $candidate['refid'],
+                'sales_count' => count($sales),
+            ]);
+
+        } catch (Throwable $e) {
+            Log::warning('PatientMatcherService: Failed to fetch refid for candidate', [
+                'customer_id' => $customerId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $candidate;
     }
 
     /**
