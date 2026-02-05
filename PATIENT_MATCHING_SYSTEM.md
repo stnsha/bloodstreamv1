@@ -126,9 +126,13 @@ Name normalization: Uppercased, titles removed (MR, MRS, DR, DATO, etc.), punctu
 ### Candidate Rejection Rules
 Candidates are **rejected** (not saved) when:
 1. **DOB prefix match with low name similarity** -- IC matched via DOB prefix but name score < 0.60
-2. **Weak IC match with no blood_test_sales** -- IC levenshtein score < 0.5 AND candidate has no refid (never had tests at this lab) AND name score < 0.60
+2. **Passport holder with weak IC match** -- Source IC is a passport AND IC levenshtein score < 0.5 AND name score < 0.60
 
-These rules prevent false positives like matching "MOE KYAW" (passport holder) with "Derek Wong" just because they share the same birthday.
+These rules prevent false positives like:
+- `SAMUEL LEE` (passport `M12345`, DOB `1997-12-02`) incorrectly matched to
+- `LEE KIAN TIN` (IC `971202XXXXXX`, DOB `1997-12-02`)
+
+They share the same DOB but are different people. The name check (SAMUEL LEE vs LEE KIAN TIN = low similarity) catches this.
 
 ### Auto-Approval
 Candidates with confidence = 1.0 (exact IC match from Octopus API) are automatically approved without admin review.
