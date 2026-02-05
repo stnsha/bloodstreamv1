@@ -22,12 +22,19 @@ class PatientMatcherService
     const THRESHOLD_MINIMUM = 0.50;
 
     /**
+     * Minimum name similarity required when IC match is by DOB prefix only.
+     * This prevents matching people with same birthday but completely different names.
+     */
+    const MIN_NAME_SCORE_FOR_DOB_PREFIX = 0.60;
+
+    /**
      * Weight configuration for scoring.
      */
     const WEIGHTS = [
-        'ic' => 0.45,
-        'refid' => 0.25,
-        'dob' => 0.20,
+        'ic' => 0.35,
+        'name' => 0.25,
+        'refid' => 0.15,
+        'dob' => 0.15,
         'gender' => 0.10,
     ];
 
@@ -35,16 +42,17 @@ class PatientMatcherService
      * Adjusted weights when DOB is invalid (0000-00-00).
      */
     const WEIGHTS_NO_DOB = [
-        'ic' => 0.50,
-        'refid' => 0.35,
+        'ic' => 0.40,
+        'name' => 0.30,
+        'refid' => 0.20,
         'dob' => 0.00,
-        'gender' => 0.15,
+        'gender' => 0.10,
     ];
 
     /**
      * Current algorithm version.
      */
-    const ALGORITHM_VERSION = '1.0';
+    const ALGORITHM_VERSION = '1.1';
 
     protected IcNormalizerService $icNormalizer;
     protected RefIdNormalizerService $refIdNormalizer;
@@ -108,10 +116,10 @@ class PatientMatcherService
                 return collect([$exactCandidate]);
             }
 
-            // Score each candidate
+            // Score each candidate (filter out nulls from rejected candidates)
             $scoredCandidates = collect($response['candidates'])
                 ->map(fn($candidate) => $this->scoreCandidate($patient, $candidate, $labCode, false))
-                ->filter(fn($candidate) => $candidate['confidence_score'] >= self::THRESHOLD_MINIMUM)
+                ->filter(fn($candidate) => $candidate !== null && $candidate['confidence_score'] >= self::THRESHOLD_MINIMUM)
                 ->sortByDesc('confidence_score')
                 ->values();
 
@@ -141,9 +149,9 @@ class PatientMatcherService
      * @param array $candidate The candidate data from Octopus
      * @param string|null $labCode The lab code
      * @param bool $isExact Whether this is an exact IC match
-     * @return array Scored candidate data
+     * @return array|null Scored candidate data, or null if rejected
      */
-    protected function scoreCandidate(Patient $patient, array $candidate, ?string $labCode, bool $isExact): array
+    protected function scoreCandidate(Patient $patient, array $candidate, ?string $labCode, bool $isExact): ?array
     {
         $scores = [];
         $methods = [];
@@ -152,14 +160,40 @@ class PatientMatcherService
         $dobValid = $this->isDobValid($patient->dob);
         $weights = $dobValid ? self::WEIGHTS : self::WEIGHTS_NO_DOB;
 
-        // IC Score
+        // Check if source IC is a passport (starts with letter)
+        $sourceIsPassport = $this->isPassportNumber($patient->icno);
+
+        // IC Score - skip DOB prefix matching for passport numbers
         $icResult = $this->calculateIcScore(
             $patient->icno,
             $candidate['ic'],
-            $dobValid ? $patient->dob : null
+            ($dobValid && !$sourceIsPassport) ? $patient->dob : null
         );
         $scores['ic'] = $icResult['score'];
         $methods['ic'] = $icResult['method'];
+
+        // Name Score - critical for preventing false matches
+        $nameResult = $this->calculateNameScore(
+            $patient->name,
+            $candidate['customer_name'] ?? null
+        );
+        $scores['name'] = $nameResult['score'];
+        $methods['name'] = $nameResult['method'];
+
+        // If IC match is by DOB prefix only, require minimum name similarity
+        // This prevents matching MOE KYAW with Derek Wong just because they share a birthday
+        if ($methods['ic'] === 'dob_prefix_match' && $scores['name'] < self::MIN_NAME_SCORE_FOR_DOB_PREFIX) {
+            Log::info('PatientMatcherService: Rejecting candidate - DOB prefix match with low name similarity', [
+                'patient_id' => $patient->id,
+                'patient_name' => $patient->name,
+                'candidate_name' => $candidate['customer_name'] ?? null,
+                'ic_method' => $methods['ic'],
+                'name_score' => $scores['name'],
+                'min_required' => self::MIN_NAME_SCORE_FOR_DOB_PREFIX,
+            ]);
+
+            return null;
+        }
 
         // RefID Score
         $patientRefId = $patient->testResults()->whereNotNull('ref_id')->value('ref_id');
@@ -207,6 +241,8 @@ class PatientMatcherService
             'ic_match_method' => $methods['ic'],
             'refid_score' => round($scores['refid'], 4),
             'refid_match_method' => $methods['refid'] ?? null,
+            'name_score' => round($scores['name'], 4),
+            'name_match_method' => $methods['name'],
             'dob_score' => round($scores['dob'], 4),
             'gender_score' => round($scores['gender'], 4),
             'confidence_score' => round($confidence, 4),
@@ -322,7 +358,146 @@ class PatientMatcherService
             return 0.5; // Neutral
         }
 
-        return strtoupper($sourceGender) === strtoupper($targetGender) ? 1.0 : 0.0;
+        // Normalize gender values (M/Male, F/Female)
+        $sourceNorm = $this->normalizeGender($sourceGender);
+        $targetNorm = $this->normalizeGender($targetGender);
+
+        return $sourceNorm === $targetNorm ? 1.0 : 0.0;
+    }
+
+    /**
+     * Normalize gender value to single character (M/F).
+     *
+     * @param string $gender The gender value
+     * @return string Normalized gender (M, F, or original)
+     */
+    protected function normalizeGender(string $gender): string
+    {
+        $gender = strtoupper(trim($gender));
+
+        if (in_array($gender, ['M', 'MALE', 'L', 'LELAKI'])) {
+            return 'M';
+        }
+
+        if (in_array($gender, ['F', 'FEMALE', 'P', 'PEREMPUAN'])) {
+            return 'F';
+        }
+
+        return $gender;
+    }
+
+    /**
+     * Calculate name similarity score using multiple strategies.
+     *
+     * @param string|null $sourceName Source name from MyHealth
+     * @param string|null $targetName Target name from Octopus
+     * @return array Score and method
+     */
+    protected function calculateNameScore(?string $sourceName, ?string $targetName): array
+    {
+        if (!$sourceName || !$targetName) {
+            return ['score' => 0.5, 'method' => 'not_available'];
+        }
+
+        // Normalize names: uppercase, remove extra spaces, punctuation
+        $sourceNorm = $this->normalizeName($sourceName);
+        $targetNorm = $this->normalizeName($targetName);
+
+        // Exact match
+        if ($sourceNorm === $targetNorm) {
+            return ['score' => 1.0, 'method' => 'exact'];
+        }
+
+        // Check if one name contains the other (partial match)
+        if (str_contains($sourceNorm, $targetNorm) || str_contains($targetNorm, $sourceNorm)) {
+            return ['score' => 0.85, 'method' => 'partial_contains'];
+        }
+
+        // Token-based comparison (name parts)
+        $sourceTokens = array_filter(explode(' ', $sourceNorm));
+        $targetTokens = array_filter(explode(' ', $targetNorm));
+
+        // Check if all tokens from one are in the other (different order)
+        $sourceInTarget = count(array_intersect($sourceTokens, $targetTokens));
+        $tokenOverlap = $sourceInTarget / max(count($sourceTokens), count($targetTokens));
+
+        if ($tokenOverlap >= 0.8) {
+            return ['score' => 0.90, 'method' => 'token_match'];
+        }
+
+        if ($tokenOverlap >= 0.5) {
+            return ['score' => 0.70, 'method' => 'partial_token'];
+        }
+
+        // Levenshtein similarity for fuzzy matching
+        $distance = levenshtein($sourceNorm, $targetNorm);
+        $maxLen = max(strlen($sourceNorm), strlen($targetNorm));
+        $similarity = $maxLen > 0 ? 1 - ($distance / $maxLen) : 0;
+
+        return ['score' => $similarity, 'method' => 'levenshtein'];
+    }
+
+    /**
+     * Normalize a name for comparison.
+     *
+     * @param string $name The name to normalize
+     * @return string Normalized name
+     */
+    protected function normalizeName(string $name): string
+    {
+        // Uppercase
+        $name = strtoupper($name);
+
+        // Remove common prefixes/titles
+        $prefixes = ['MR', 'MRS', 'MS', 'MISS', 'DR', 'DATO', 'DATIN', 'TAN SRI', 'PUAN SRI', 'TUN', 'ENCIK', 'PUAN', 'CIK'];
+        foreach ($prefixes as $prefix) {
+            $name = preg_replace('/^' . preg_quote($prefix, '/') . '\s+/i', '', $name);
+        }
+
+        // Remove punctuation and extra whitespace
+        $name = preg_replace('/[^\w\s]/', '', $name);
+        $name = preg_replace('/\s+/', ' ', $name);
+
+        return trim($name);
+    }
+
+    /**
+     * Check if an IC number is likely a passport (starts with letters).
+     * Malaysian NRICs are 12 digits starting with DOB (YYMMDD).
+     *
+     * @param string $ic The IC number to check
+     * @return bool True if likely a passport
+     */
+    protected function isPassportNumber(string $ic): bool
+    {
+        $ic = trim($ic);
+
+        if (empty($ic)) {
+            return false;
+        }
+
+        // Malaysian NRIC: exactly 12 digits, starts with 6 digits (DOB)
+        if (preg_match('/^\d{12}$/', $ic)) {
+            return false;
+        }
+
+        // Malaysian NRIC with dashes: 6 digits - 2 digits - 4 digits
+        if (preg_match('/^\d{6}-\d{2}-\d{4}$/', $ic)) {
+            return false;
+        }
+
+        // If starts with a letter, it's likely a passport
+        if (preg_match('/^[A-Za-z]/', $ic)) {
+            return true;
+        }
+
+        // If it's not 12 digits, likely a foreign document
+        $digitsOnly = preg_replace('/[^0-9]/', '', $ic);
+        if (strlen($digitsOnly) !== 12) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -409,6 +584,8 @@ class PatientMatcherService
                 'ic_match_method' => $candidateData['ic_match_method'],
                 'refid_score' => $candidateData['refid_score'],
                 'refid_match_method' => $candidateData['refid_match_method'],
+                'name_score' => $candidateData['name_score'],
+                'name_match_method' => $candidateData['name_match_method'],
                 'dob_score' => $candidateData['dob_score'],
                 'gender_score' => $candidateData['gender_score'],
                 'confidence_score' => $candidateData['confidence_score'],

@@ -34,6 +34,8 @@ class PatientMatchCandidate extends Model
         'ic_match_method',
         'refid_score',
         'refid_match_method',
+        'name_score',
+        'name_match_method',
         'dob_score',
         'gender_score',
         'confidence_score',
@@ -47,6 +49,7 @@ class PatientMatchCandidate extends Model
     protected $casts = [
         'ic_score' => 'decimal:4',
         'refid_score' => 'decimal:4',
+        'name_score' => 'decimal:4',
         'dob_score' => 'decimal:4',
         'gender_score' => 'decimal:4',
         'confidence_score' => 'decimal:4',
@@ -57,7 +60,7 @@ class PatientMatchCandidate extends Model
 
     protected $attributes = [
         'status' => self::STATUS_PENDING_REVIEW,
-        'match_algorithm_version' => '1.0',
+        'match_algorithm_version' => '1.1',
     ];
 
     /**
