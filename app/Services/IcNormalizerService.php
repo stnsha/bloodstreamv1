@@ -4,31 +4,18 @@ namespace App\Services;
 
 class IcNormalizerService
 {
-    /**
-     * Visual similarity character substitutions.
-     * Maps commonly mistyped characters to their intended digit.
-     */
+    // Visual similarity substitutions
     const CHAR_MAP = [
-        'O' => '0',
-        'o' => '0',
-        'I' => '1',
-        'l' => '1',
-        'S' => '5',
-        's' => '5',
-        'B' => '8',
-        'Z' => '2',
-        'G' => '6',
-        'g' => '6',
+        'O' => '0', 'o' => '0',  // Letter O to zero
+        'I' => '1', 'l' => '1',  // Letter I/l to one
+        'S' => '5', 's' => '5',  // Letter S to five
+        'B' => '8',              // Letter B to eight
+        'Z' => '2',              // Letter Z to two
+        'G' => '6', 'g' => '6',  // Letter G to six
     ];
 
     /**
-     * Normalize an IC number for comparison.
-     *
-     * Removes separators, applies character substitutions for common
-     * OCR/typing errors, and standardizes the format.
-     *
-     * @param string $ic The IC number to normalize
-     * @return string The normalized IC number
+     * Normalize an IC number for comparison
      */
     public function normalize(string $ic): string
     {
@@ -40,8 +27,7 @@ class IcNormalizerService
 
         // Apply character substitutions
         $normalized = '';
-        $length = strlen($ic);
-        for ($i = 0; $i < $length; $i++) {
+        for ($i = 0; $i < strlen($ic); $i++) {
             $char = $ic[$i];
             if (isset(self::CHAR_MAP[$char])) {
                 $normalized .= self::CHAR_MAP[$char];
@@ -54,13 +40,7 @@ class IcNormalizerService
     }
 
     /**
-     * Extract DOB prefix from Malaysian NRIC.
-     *
-     * Malaysian NRIC format: YYMMDD-SS-NNNN
-     * First 6 digits represent date of birth (YYMMDD).
-     *
-     * @param string $ic The IC number
-     * @return string|null The DOB prefix (6 digits) or null if invalid
+     * Extract DOB prefix from Malaysian NRIC (first 6 digits = YYMMDD)
      */
     public function extractDobPrefix(string $ic): ?string
     {
@@ -74,15 +54,11 @@ class IcNormalizerService
     }
 
     /**
-     * Validate that IC DOB prefix matches the given DOB.
-     *
-     * @param string $ic The IC number to validate
-     * @param string|null $dob The date of birth to validate against
-     * @return bool True if DOB prefix matches
+     * Validate that IC DOB prefix matches the given DOB
      */
     public function validateDobPrefix(string $ic, ?string $dob): bool
     {
-        if (!$dob || in_array($dob, ['0000-00-00', '00000000', ''], true)) {
+        if (!$dob || in_array($dob, ['0000-00-00', '00000000', ''])) {
             return false;
         }
 
@@ -103,12 +79,7 @@ class IcNormalizerService
     }
 
     /**
-     * Extract state code from Malaysian NRIC.
-     *
-     * State code is digits 7-8 (positions 6-7 in zero-indexed).
-     *
-     * @param string $ic The IC number
-     * @return string|null The state code (2 digits) or null if invalid
+     * Extract state code from Malaysian NRIC (digits 7-8)
      */
     public function extractStateCode(string $ic): ?string
     {
@@ -122,10 +93,7 @@ class IcNormalizerService
     }
 
     /**
-     * Extract last 4 digits (sequence number) from Malaysian NRIC.
-     *
-     * @param string $ic The IC number
-     * @return string|null The sequence number (4 digits) or null if invalid
+     * Extract last 4 digits (sequence number)
      */
     public function extractSequence(string $ic): ?string
     {
@@ -136,67 +104,5 @@ class IcNormalizerService
         }
 
         return null;
-    }
-
-    /**
-     * Check if the IC appears to be a valid Malaysian NRIC format.
-     *
-     * @param string $ic The IC number to check
-     * @return bool True if appears to be valid NRIC format
-     */
-    public function isValidNricFormat(string $ic): bool
-    {
-        $normalized = $this->normalize($ic);
-
-        // Malaysian NRIC is 12 digits
-        if (strlen($normalized) !== 12) {
-            return false;
-        }
-
-        // All characters should be digits
-        if (!ctype_digit($normalized)) {
-            return false;
-        }
-
-        // Basic DOB validation (first 6 digits should form valid date)
-        $year = (int) substr($normalized, 0, 2);
-        $month = (int) substr($normalized, 2, 2);
-        $day = (int) substr($normalized, 4, 2);
-
-        if ($month < 1 || $month > 12) {
-            return false;
-        }
-
-        if ($day < 1 || $day > 31) {
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * Calculate similarity score between two IC numbers using Levenshtein distance.
-     *
-     * @param string $ic1 First IC number
-     * @param string $ic2 Second IC number
-     * @return float Similarity score between 0 and 1
-     */
-    public function calculateSimilarity(string $ic1, string $ic2): float
-    {
-        $normalized1 = $this->normalize($ic1);
-        $normalized2 = $this->normalize($ic2);
-
-        if ($normalized1 === $normalized2) {
-            return 1.0;
-        }
-
-        $distance = levenshtein($normalized1, $normalized2);
-        $maxLen = max(strlen($normalized1), strlen($normalized2));
-
-        if ($maxLen === 0) {
-            return 0.0;
-        }
-
-        return 1 - ($distance / $maxLen);
     }
 }

@@ -115,6 +115,11 @@ class TestResult extends Model
         return $this->hasOne(ReportRecord::class, 'test_result_id', 'id');
     }
 
+    public function consultCallFlag(): HasOne
+    {
+        return $this->hasOne(ConsultCallFlag::class, 'test_result_id', 'id');
+    }
+
     /**
      * Set the ref_id attribute.
      * Automatically converts ref_id to uppercase.
