@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\ClinicalCondition;
+use App\Constants\ConsultCall\ClinicalCondition;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 

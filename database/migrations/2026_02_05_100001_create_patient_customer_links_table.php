@@ -14,46 +14,32 @@ return new class extends Migration
         Schema::create('patient_customer_links', function (Blueprint $table) {
             $table->id();
 
-            // Link identifiers
+            // Link
             $table->unsignedBigInteger('patient_id');
             $table->unsignedInteger('customer_id');
 
             // Link metadata
             $table->enum('link_type', ['exact_match', 'fuzzy_match', 'manual_link']);
-            $table->decimal('confidence_score', 5, 4)->nullable();
-            $table->unsignedBigInteger('match_candidate_id')->nullable();
+            $table->decimal('confidence_score', 5, 4)->nullable()->comment('Score at time of approval');
+            $table->unsignedBigInteger('match_candidate_id')->nullable()->comment('Reference to patient_match_candidates');
 
-            // Audit fields
-            $table->unsignedBigInteger('linked_by')->nullable();
+            // Audit (Admin only)
+            $table->unsignedBigInteger('linked_by')->nullable()->comment('Admin user who approved/created link');
             $table->timestamp('linked_at')->useCurrent();
             $table->text('notes')->nullable();
 
+            // Timestamps
             $table->timestamps();
 
-            // Unique constraint to prevent duplicate links
+            // Constraints
             $table->unique(['patient_id', 'customer_id'], 'uk_patient_customer');
-
-            // Indexes
-            $table->index('patient_id', 'idx_pcl_patient_id');
-            $table->index('customer_id', 'idx_pcl_customer_id');
-            $table->index('link_type', 'idx_pcl_link_type');
-            $table->index('match_candidate_id', 'idx_pcl_match_candidate_id');
+            $table->index('customer_id');
+            $table->index('link_type');
 
             // Foreign keys
-            $table->foreign('patient_id')
-                ->references('id')
-                ->on('patients')
-                ->onDelete('cascade');
-
-            $table->foreign('match_candidate_id')
-                ->references('id')
-                ->on('patient_match_candidates')
-                ->onDelete('set null');
-
-            $table->foreign('linked_by')
-                ->references('id')
-                ->on('users')
-                ->onDelete('set null');
+            $table->foreign('patient_id')->references('id')->on('patients')->onDelete('cascade');
+            $table->foreign('match_candidate_id')->references('id')->on('patient_match_candidates')->onDelete('set null');
+            $table->foreign('linked_by')->references('id')->on('users')->onDelete('set null');
         });
     }
 

@@ -3,7 +3,6 @@
 namespace App\Jobs\Innoquest;
 
 use App\Constants\Innoquest\PanelPanelItem as PanelPanelItemConstants;
-use App\Jobs\ConsultCall\ProcessConsultCall;
 use App\Jobs\SendToAIServer;
 use App\Models\DeliveryFile;
 use App\Models\Doctor;
@@ -23,7 +22,6 @@ use App\Models\TestResultItem;
 use App\Models\TestResultProfile;
 use App\Services\MyHealthService;
 use App\Services\PanelInterpretationService;
-use App\Services\PatientMatcherService;
 use Carbon\Carbon;
 use DateTime;
 use Exception;
@@ -452,18 +450,6 @@ class ProcessPanelResults implements ShouldQueue
                 }
             }
 
-            // Run patient matching for exact matches (100% confidence)
-            if ($hasPdf && $test_result) {
-                try {
-                    $this->runPatientMatching($test_result);
-                } catch (Throwable $e) {
-                    Log::warning('ProcessPanelResults: Patient matching failed, continuing', [
-                        'test_result_id' => $test_result->id,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            }
-
             // Dispatch to AI server queue if PDF was received
             if (isset($validated['EncodedBase64pdf']) && filled($validated['EncodedBase64pdf']) && $test_result && $test_result->id) {
                 try {
@@ -474,19 +460,6 @@ class ProcessPanelResults implements ShouldQueue
                     ]);
                 } catch (Throwable $e) {
                     Log::error('Failed to dispatch test result to AI server queue', [
-                        'test_result_id' => $test_result->id,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-
-                // Dispatch ConsultCall job in parallel with AI Server
-                try {
-                    ProcessConsultCall::dispatch($test_result->id);
-                    Log::info('Dispatched test result to ConsultCall queue', [
-                        'test_result_id' => $test_result->id,
-                    ]);
-                } catch (Throwable $e) {
-                    Log::error('Failed to dispatch ConsultCall job', [
                         'test_result_id' => $test_result->id,
                         'error' => $e->getMessage(),
                     ]);
@@ -691,80 +664,6 @@ class ProcessPanelResults implements ShouldQueue
         $altItem = $testResultItems[PanelPanelItemConstants::PLATELETS_ALT] ?? null;
         if ($altItem !== null && $altItem->value !== null && $altItem->value !== '') {
             return $altItem->value;
-        }
-
-        return null;
-    }
-
-    /**
-     * Run patient matching for exact IC matches.
-     * Only auto-approves 100% confidence matches.
-     * Non-critical: if this fails, AI review and ConsultCall still proceed.
-     */
-    protected function runPatientMatching(TestResult $testResult): void
-    {
-        $patient = $testResult->patient;
-        if (!$patient) {
-            return;
-        }
-
-        // Skip if already has customer link
-        if ($patient->customerLink()->exists()) {
-            Log::debug('ProcessPanelResults: Patient already has customer link, skipping matching', [
-                'patient_id' => $patient->id,
-            ]);
-            return;
-        }
-
-        $matcher = app(PatientMatcherService::class);
-        $labCode = $this->extractLabCode($testResult->ref_id);
-
-        Log::info('ProcessPanelResults: Running patient matching', [
-            'test_result_id' => $testResult->id,
-            'patient_id' => $patient->id,
-            'lab_code' => $labCode,
-        ]);
-
-        $candidates = $matcher->findMatchCandidates($patient, $labCode);
-
-        if ($candidates->isEmpty()) {
-            Log::info('ProcessPanelResults: No match candidates found', [
-                'patient_id' => $patient->id,
-            ]);
-            return;
-        }
-
-        $topCandidate = $candidates->first();
-
-        // Only auto-process 100% confidence matches
-        if ($topCandidate['confidence_score'] >= 1.0) {
-            $matcher->createMatchCandidate($patient, $topCandidate, $labCode);
-
-            Log::info('ProcessPanelResults: 100% match auto-approved', [
-                'patient_id' => $patient->id,
-                'customer_id' => $topCandidate['candidate_customer_id'],
-                'confidence' => $topCandidate['confidence_score'],
-            ]);
-        } else {
-            Log::info('ProcessPanelResults: Fuzzy match found, requires manual review', [
-                'patient_id' => $patient->id,
-                'top_confidence' => $topCandidate['confidence_score'],
-                'candidate_count' => $candidates->count(),
-            ]);
-        }
-    }
-
-    /**
-     * Extract lab code prefix from ref_id (e.g., "INN12345" -> "INN").
-     */
-    protected function extractLabCode(?string $refId): ?string
-    {
-        if (!$refId) {
-            return null;
-        }
-
-        if (preg_match('/^([A-Z]+)\d/', strtoupper($refId), $matches)) {
-            return $matches[1];
         }
 
         return null;
