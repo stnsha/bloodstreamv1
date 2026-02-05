@@ -72,7 +72,11 @@ class ReconcileUnmatchedPatientsJob implements ShouldQueue
         // Filter by lab code if specified
         if ($this->labCode) {
             $query->whereHas('testResults', function ($q) {
-                $q->where('ref_id', 'LIKE', $this->labCode . '%');
+                $q->whereHas('doctor', function ($dq) {
+                    $dq->whereHas('lab', function ($lq) {
+                        $lq->where('code', $this->labCode);
+                    });
+                });
             });
         }
 

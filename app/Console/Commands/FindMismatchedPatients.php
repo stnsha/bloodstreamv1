@@ -72,7 +72,11 @@ class FindMismatchedPatients extends Command
 
             if ($labCode) {
                 $query->whereHas('testResults', function ($q) use ($labCode) {
-                    $q->where('ref_id', 'LIKE', $labCode . '%');
+                    $q->whereHas('doctor', function ($dq) use ($labCode) {
+                        $dq->whereHas('lab', function ($lq) use ($labCode) {
+                            $lq->where('code', $labCode);
+                        });
+                    });
                 });
             }
 
