@@ -31,4 +31,16 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'consult_call' => [
+        'api_url' => env('CONSULT_CALL_API_URL'),
+        'username' => env('CONSULT_CALL_API_USERNAME'),
+        'password' => env('CONSULT_CALL_API_PASSWORD'),
+    ],
+
+    'octopus' => [
+        'api_url' => env('APP_ENV') === 'production'
+            ? env('ODB_API_URL_PROD')
+            : env('ODB_API_URL_LOCAL'),
+    ],
+
 ];
