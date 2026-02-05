@@ -76,6 +76,16 @@ class ReconcileUnmatchedPatientsJob implements ShouldQueue
             });
         }
 
+        // Order by latest test result first
+        $query->orderByDesc(function ($q) {
+            $q->select('created_at')
+                ->from('test_results')
+                ->whereColumn('test_results.patient_id', 'patients.id')
+                ->whereNull('test_results.deleted_at')
+                ->orderByDesc('created_at')
+                ->limit(1);
+        });
+
         $patients = $query->limit($this->batchSize)->get();
 
         Log::info('ReconcileUnmatchedPatientsJob: Found unlinked patients', [
