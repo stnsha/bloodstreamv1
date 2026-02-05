@@ -189,15 +189,23 @@ class PatientMatcherService
         $scores['name'] = $nameResult['score'];
         $methods['name'] = $nameResult['method'];
 
-        // If IC match is by DOB prefix only, require minimum name similarity
+        // Reject candidates with low name similarity in these cases:
+        // 1. IC match is by DOB prefix only (not exact)
+        // 2. IC match is weak (levenshtein with low score) AND candidate has no blood_test_sales
         // This prevents matching MOE KYAW with Derek Wong just because they share a birthday
-        if ($methods['ic'] === 'dob_prefix_match' && $scores['name'] < self::MIN_NAME_SCORE_FOR_DOB_PREFIX) {
-            Log::info('PatientMatcherService: Rejecting candidate - DOB prefix match with low name similarity', [
+        $candidateRefId = $candidate['refid'] ?? null;
+        $weakIcMatch = $methods['ic'] === 'dob_prefix_match'
+            || ($methods['ic'] === 'levenshtein' && $scores['ic'] < 0.5 && empty($candidateRefId));
+
+        if ($weakIcMatch && $scores['name'] < self::MIN_NAME_SCORE_FOR_DOB_PREFIX) {
+            Log::info('PatientMatcherService: Rejecting candidate - weak IC match with low name similarity', [
                 'patient_id' => $patient->id,
                 'patient_name' => $patient->name,
                 'candidate_name' => $candidate['customer_name'] ?? null,
                 'ic_method' => $methods['ic'],
+                'ic_score' => $scores['ic'],
                 'name_score' => $scores['name'],
+                'has_refid' => !empty($candidateRefId),
                 'min_required' => self::MIN_NAME_SCORE_FOR_DOB_PREFIX,
             ]);
 
