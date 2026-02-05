@@ -43,6 +43,7 @@ Stores potential matches found by the fuzzy search algorithm.
 | candidate_ic / candidate_name / candidate_dob / candidate_gender / candidate_refid | Customer data from Octopus |
 | ic_score / ic_match_method | IC comparison score (0-1) and method used |
 | refid_score / refid_match_method | RefID comparison score (0-1) and method used |
+| name_score / name_match_method | Name comparison score (0-1) and method used |
 | dob_score / gender_score | DOB and gender comparison scores |
 | confidence_score | Final weighted score (0-1) |
 | status | `pending_review`, `approved`, `rejected` |
@@ -71,23 +72,48 @@ Immutable audit trail for all matching operations.
 
 ---
 
-## Scoring Algorithm (v1.0)
+## Scoring Algorithm (v1.1)
 
 ### Weights
 
 | Field | Standard Weight | No-DOB Weight |
 |---|---|---|
-| IC | 0.45 | 0.50 |
-| RefID | 0.25 | 0.35 |
-| DOB | 0.20 | 0.00 |
-| Gender | 0.10 | 0.15 |
+| IC | 0.35 | 0.40 |
+| Name | 0.25 | 0.30 |
+| RefID | 0.15 | 0.20 |
+| DOB | 0.15 | 0.00 |
+| Gender | 0.10 | 0.10 |
 
-When the patient DOB is invalid (e.g., `0000-00-00`), the DOB weight is redistributed to IC and RefID.
+When the patient DOB is invalid (e.g., `0000-00-00`), the DOB weight is redistributed to IC, Name, and RefID.
 
 ### IC Scoring Methods
 1. **Normalized exact** (score: 1.0) -- After normalization, ICs are identical
-2. **DOB prefix match** (score: 0.5-1.0) -- First 6 digits of IC match the DOB, remaining digits scored by Levenshtein
+2. **DOB prefix match** (score: 0.5-1.0) -- First 6 digits of IC match the DOB, remaining digits scored by Levenshtein. **Only applies to Malaysian NRICs, not passports.**
 3. **Levenshtein** (score: 0.0-1.0) -- Character-level similarity
+
+### Passport Detection
+ICs starting with letters (e.g., `MF957881`, `PA0288102`) are detected as passports. Passports CAN exist in the ODB `customer.ic` column (which stores both Malaysian NRICs and passports).
+
+For passport holders:
+- DOB prefix matching is **disabled** (passports don't follow YYMMDD format like Malaysian NRICs)
+- IC scoring uses Levenshtein only
+- **Name matching becomes critical** to prevent false positives
+
+Example of why name matching matters:
+```
+Patient A: LEE KIAN TIN, IC: 971202XXXXXX, DOB: 1997-12-02
+Patient B: SAMUEL LEE,   Passport: M12345, DOB: 1997-12-02
+```
+Both share the same DOB but are different people. When ODB returns candidates matched by DOB, the name similarity check prevents incorrectly linking SAMUEL LEE to LEE KIAN TIN.
+
+### Name Scoring Methods
+1. **Exact** (score: 1.0) -- Normalized names are identical
+2. **Token match** (score: 0.90) -- Same name parts in different order (e.g., "WONG KAI MING" vs "KAI MING WONG")
+3. **Partial contains** (score: 0.85) -- One name contains the other
+4. **Partial token** (score: 0.70) -- At least 50% of name tokens overlap
+5. **Levenshtein** (score: 0.0-1.0) -- Character-level similarity
+
+Name normalization: Uppercased, titles removed (MR, MRS, DR, DATO, etc.), punctuation stripped.
 
 ### RefID Scoring Methods
 1. **Normalized exact** (score: 1.0) -- After normalization, RefIDs are identical
@@ -95,7 +121,14 @@ When the patient DOB is invalid (e.g., `0000-00-00`), the DOB weight is redistri
 
 ### DOB and Gender
 - DOB: 1.0 for exact match, 0.0 for mismatch, 0.5 for neutral (missing/invalid)
-- Gender: 1.0 for match, 0.0 for mismatch, 0.5 for neutral (missing)
+- Gender: 1.0 for match, 0.0 for mismatch, 0.5 for neutral (missing). Normalizes M/Male/L/Lelaki and F/Female/P/Perempuan.
+
+### Candidate Rejection Rules
+Candidates are **rejected** (not saved) when:
+1. **DOB prefix match with low name similarity** -- IC matched via DOB prefix but name score < 0.60
+2. **Weak IC match with no blood_test_sales** -- IC levenshtein score < 0.5 AND candidate has no refid (never had tests at this lab) AND name score < 0.60
+
+These rules prevent false positives like matching "MOE KYAW" (passport holder) with "Derek Wong" just because they share the same birthday.
 
 ### Auto-Approval
 Candidates with confidence = 1.0 (exact IC match from Octopus API) are automatically approved without admin review.
@@ -135,12 +168,24 @@ All endpoints are POST, authenticated via `wa_api_user` table (username + SHA-25
 
 | Endpoint | Input | Output |
 |---|---|---|
-| `/customerFuzzySearch.php` | ic, ic_normalized, dob, gender, refid, lab_code | exact_match or candidates array |
+| `/customerFuzzySearch.php` | ic, ic_normalized, dob, gender, refid, lab_code | exact_match or candidates array (includes refid from latest blood_test_sales) |
 | `/customerByRefId.php` | refid, lab_code | Single customer record with blood_test_sales data |
 | `/customerSalesByCustomerId.php` | customer_id | Array of `{id, date}` from blood_test_sales |
 
 Base URL configured at `config/services.php` -> `services.octopus.api_url` (env: `ODB_API_URL_PROD`).
 Credentials at `config/credentials.php` -> `credentials.odb_api.username` / `credentials.odb_api.password`.
+
+### Fuzzy Search Logic
+The `/customerFuzzySearch.php` endpoint searches using OR conditions:
+1. **Exact IC match** -- Returns immediately if found
+2. **IC prefix match** -- First 6 digits of IC (for Malaysian NRICs starting with YYMMDD)
+3. **DOB + Gender match** -- Same birthday and gender
+4. **RefID match** -- Via blood_test_sales table
+
+Each candidate includes `refid` (format: `{lab_code}{sales_id}`) from their most recent blood_test_sales record. If the candidate has no sales, refid is null.
+
+### Candidate RefID Enrichment
+If the fuzzy search returns a candidate without a refid, the `PatientMatcherService` makes a secondary call to `/customerSalesByCustomerId.php` to fetch the customer's blood_test_sales records. The most recent sale ID is used as the candidate's refid. This is a fallback mechanism.
 
 ---
 
