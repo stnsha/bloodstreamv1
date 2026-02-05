@@ -361,7 +361,8 @@ class PatientMatcherService
     }
 
     /**
-     * Create a match candidate record for admin review.
+     * Create a match candidate record.
+     * If confidence is 100% (1.0), auto-approve and update related records.
      *
      * @param Patient $patient The patient
      * @param array $candidateData Scored candidate data
@@ -370,39 +371,157 @@ class PatientMatcherService
      */
     public function createMatchCandidate(Patient $patient, array $candidateData, ?string $labCode = null): PatientMatchCandidate
     {
+        $isExactMatch = $candidateData['confidence_score'] >= 1.0;
+
         Log::info('PatientMatcherService: Creating match candidate', [
             'patient_id' => $patient->id,
             'candidate_customer_id' => $candidateData['candidate_customer_id'],
             'confidence_score' => $candidateData['confidence_score'],
+            'is_exact_match' => $isExactMatch,
         ]);
 
         $refId = $patient->testResults()->whereNotNull('ref_id')->value('ref_id');
 
-        return PatientMatchCandidate::create([
+        try {
+            DB::beginTransaction();
+
+            // Create candidate record
+            $candidate = PatientMatchCandidate::create([
+                'patient_id' => $patient->id,
+                'source_ic' => $patient->icno,
+                'source_ic_normalized' => $this->icNormalizer->normalize($patient->icno),
+                'source_refid' => $refId,
+                'source_refid_normalized' => $refId ? $this->refIdNormalizer->normalize($refId) : null,
+                'source_name' => $patient->name,
+                'source_dob' => $patient->dob,
+                'source_gender' => $patient->gender,
+                'source_lab_code' => $labCode,
+                'candidate_customer_id' => $candidateData['candidate_customer_id'],
+                'candidate_ic' => $candidateData['candidate_ic'],
+                'candidate_name' => $candidateData['candidate_name'],
+                'candidate_dob' => $candidateData['candidate_dob'],
+                'candidate_gender' => $candidateData['candidate_gender'],
+                'candidate_refid' => $candidateData['candidate_refid'],
+                'ic_score' => $candidateData['ic_score'],
+                'ic_match_method' => $candidateData['ic_match_method'],
+                'refid_score' => $candidateData['refid_score'],
+                'refid_match_method' => $candidateData['refid_match_method'],
+                'dob_score' => $candidateData['dob_score'],
+                'gender_score' => $candidateData['gender_score'],
+                'confidence_score' => $candidateData['confidence_score'],
+                'status' => $isExactMatch
+                    ? PatientMatchCandidate::STATUS_APPROVED
+                    : PatientMatchCandidate::STATUS_PENDING_REVIEW,
+                'reviewed_at' => $isExactMatch ? now() : null,
+                'review_notes' => $isExactMatch ? 'Auto-approved: 100% confidence match' : null,
+                'match_algorithm_version' => self::ALGORITHM_VERSION,
+            ]);
+
+            // Auto-approve exact matches
+            if ($isExactMatch) {
+                $this->autoApproveExactMatch($patient, $candidate, $candidateData, $labCode);
+            }
+
+            DB::commit();
+
+            return $candidate;
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error('PatientMatcherService: Error creating match candidate', [
+                'patient_id' => $patient->id,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Auto-approve exact match and update related records.
+     *
+     * @param Patient $patient The patient
+     * @param PatientMatchCandidate $candidate The candidate record
+     * @param array $candidateData The candidate data
+     * @param string|null $labCode The lab code
+     */
+    protected function autoApproveExactMatch(Patient $patient, PatientMatchCandidate $candidate, array $candidateData, ?string $labCode): void
+    {
+        Log::info('PatientMatcherService: Auto-approving exact match', [
             'patient_id' => $patient->id,
-            'source_ic' => $patient->icno,
-            'source_ic_normalized' => $this->icNormalizer->normalize($patient->icno),
-            'source_refid' => $refId,
-            'source_refid_normalized' => $refId ? $this->refIdNormalizer->normalize($refId) : null,
-            'source_name' => $patient->name,
-            'source_dob' => $patient->dob,
-            'source_gender' => $patient->gender,
-            'source_lab_code' => $labCode,
             'candidate_customer_id' => $candidateData['candidate_customer_id'],
-            'candidate_ic' => $candidateData['candidate_ic'],
-            'candidate_name' => $candidateData['candidate_name'],
-            'candidate_dob' => $candidateData['candidate_dob'],
-            'candidate_gender' => $candidateData['candidate_gender'],
-            'candidate_refid' => $candidateData['candidate_refid'],
-            'ic_score' => $candidateData['ic_score'],
-            'ic_match_method' => $candidateData['ic_match_method'],
-            'refid_score' => $candidateData['refid_score'],
-            'refid_match_method' => $candidateData['refid_match_method'],
-            'dob_score' => $candidateData['dob_score'],
-            'gender_score' => $candidateData['gender_score'],
+        ]);
+
+        // Create patient-customer link
+        $link = PatientCustomerLink::create([
+            'patient_id' => $patient->id,
+            'customer_id' => $candidateData['candidate_customer_id'],
+            'link_type' => PatientCustomerLink::LINK_TYPE_EXACT_MATCH,
             'confidence_score' => $candidateData['confidence_score'],
-            'status' => PatientMatchCandidate::STATUS_PENDING_REVIEW,
-            'match_algorithm_version' => self::ALGORITHM_VERSION,
+            'match_candidate_id' => $candidate->id,
+            'linked_by' => null,
+            'linked_at' => now(),
+            'notes' => 'Auto-linked: 100% confidence exact match',
+        ]);
+
+        // Update patient IC if different (normalize both for comparison)
+        $patientIcNormalized = $this->icNormalizer->normalize($patient->icno);
+        $candidateIcNormalized = $this->icNormalizer->normalize($candidateData['candidate_ic']);
+
+        if ($patientIcNormalized !== $candidateIcNormalized) {
+            $oldIc = $patient->icno;
+            $patient->icno = $candidateData['candidate_ic'];
+            $patient->updated_at = now();
+            $patient->save();
+
+            Log::info('PatientMatcherService: Updated patient IC', [
+                'patient_id' => $patient->id,
+                'old_ic' => $oldIc,
+                'new_ic' => $candidateData['candidate_ic'],
+            ]);
+        }
+
+        // Update test_results ref_id ONLY if currently NULL and candidate has refid
+        if (!empty($candidateData['candidate_refid'])) {
+            $testResultsUpdated = $patient->testResults()
+                ->where(function ($q) {
+                    $q->whereNull('ref_id')
+                        ->orWhere('ref_id', '');
+                })
+                ->update([
+                    'ref_id' => $candidateData['candidate_refid'],
+                    'updated_at' => now(),
+                ]);
+
+            if ($testResultsUpdated > 0) {
+                Log::info('PatientMatcherService: Updated test_results ref_id (was NULL)', [
+                    'patient_id' => $patient->id,
+                    'new_ref_id' => $candidateData['candidate_refid'],
+                    'records_updated' => $testResultsUpdated,
+                ]);
+            }
+        }
+
+        // Log audit trail
+        PatientMatchAuditLog::create([
+            'patient_id' => $patient->id,
+            'customer_id' => $candidateData['candidate_customer_id'],
+            'match_candidate_id' => $candidate->id,
+            'patient_customer_link_id' => $link->id,
+            'action' => PatientMatchAuditLog::ACTION_CANDIDATE_APPROVED,
+            'input_data' => [
+                'auto_approved' => true,
+                'confidence_score' => $candidateData['confidence_score'],
+            ],
+            'output_data' => [
+                'link_id' => $link->id,
+                'link_type' => PatientCustomerLink::LINK_TYPE_EXACT_MATCH,
+            ],
+            'triggered_by' => PatientMatchAuditLog::TRIGGERED_BY_SYSTEM,
+        ]);
+
+        Log::info('PatientMatcherService: Exact match auto-approved successfully', [
+            'patient_id' => $patient->id,
+            'customer_id' => $candidateData['candidate_customer_id'],
+            'link_id' => $link->id,
         ]);
     }
 
