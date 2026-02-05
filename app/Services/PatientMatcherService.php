@@ -532,10 +532,21 @@ class PatientMatcherService
         }
 
         try {
+            Log::info('PatientMatcherService: Fetching blood_test_sales for candidate', [
+                'customer_id' => $customerId,
+                'lab_code' => $labCode,
+            ]);
+
             $sales = $this->octopusApi->getBloodTestSalesByCustomerId($customerId);
 
+            Log::info('PatientMatcherService: Blood test sales API response', [
+                'customer_id' => $customerId,
+                'sales_count' => count($sales),
+                'sales' => $sales,
+            ]);
+
             if (empty($sales)) {
-                Log::debug('PatientMatcherService: No blood_test_sales for candidate', [
+                Log::info('PatientMatcherService: No blood_test_sales for candidate', [
                     'customer_id' => $customerId,
                 ]);
                 return $candidate;
@@ -547,16 +558,17 @@ class PatientMatcherService
             $prefix = $labCode ?? '';
             $candidate['refid'] = $prefix . $latestSale['id'];
 
-            Log::debug('PatientMatcherService: Enriched candidate with refid', [
+            Log::info('PatientMatcherService: Enriched candidate with refid', [
                 'customer_id' => $customerId,
                 'refid' => $candidate['refid'],
                 'sales_count' => count($sales),
             ]);
 
         } catch (Throwable $e) {
-            Log::warning('PatientMatcherService: Failed to fetch refid for candidate', [
+            Log::error('PatientMatcherService: Failed to fetch refid for candidate', [
                 'customer_id' => $customerId,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
         }
 
