@@ -62,11 +62,8 @@ class ReconcileUnmatchedPatients extends Command
             $this->info('Running synchronously...');
             $this->newLine();
 
-            $this->withProgressBar(1, function () use ($job) {
-                dispatch_sync($job);
-            });
+            dispatch_sync($job);
 
-            $this->newLine();
             $this->newLine();
             $this->info('Processing completed.');
         } else {
