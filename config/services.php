@@ -38,7 +38,7 @@ return [
     ],
 
     'octopus' => [
-        'api_url' => env('APP_ENV') === 'production'
+        'api_url' => in_array(env('APP_ENV'), ['production', 'staging'])
             ? env('ODB_API_URL_PROD')
             : env('ODB_API_URL_LOCAL'),
     ],
