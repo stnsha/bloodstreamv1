@@ -3,6 +3,9 @@
 namespace App\Services;
 
 use Exception;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class OctopusApiService
@@ -18,6 +21,11 @@ class OctopusApiService
     protected string $username;
     protected string $password;
 
+    /**
+     * HTTP request timeout in seconds.
+     */
+    protected int $timeout = 30;
+
     public function __construct()
     {
         $this->baseUrl = config('services.octopus.api_url', '');
@@ -26,84 +34,94 @@ class OctopusApiService
     }
 
     /**
-     * Call ODB API using cURL.
+     * Call ODB API using Laravel HTTP client.
      *
      * @param string $method HTTP method (POST, GET, PUT)
-     * @param string $url Full API URL
+     * @param string $endpoint API endpoint path
      * @param array $data Request data
-     * @return string Raw response
+     * @return array Decoded JSON response
      * @throws Exception
      */
-    protected function callAPI(string $method, string $url, array $data): string
+    protected function callAPI(string $method, string $endpoint, array $data): array
     {
-        $curl = curl_init();
-
-        $jsonData = json_encode($data);
-
-        switch ($method) {
-            case "POST":
-                curl_setopt($curl, CURLOPT_POST, 1);
-                if ($jsonData) {
-                    curl_setopt($curl, CURLOPT_POSTFIELDS, $jsonData);
-                }
-                break;
-            case "PUT":
-                curl_setopt($curl, CURLOPT_CUSTOMREQUEST, "PUT");
-                if ($jsonData) {
-                    curl_setopt($curl, CURLOPT_POSTFIELDS, $jsonData);
-                }
-                break;
-            default:
-                if ($data) {
-                    $url = sprintf("%s?%s", $url, http_build_query($data));
-                }
-        }
-
-        curl_setopt($curl, CURLOPT_URL, $url);
-        curl_setopt($curl, CURLOPT_HTTPHEADER, array(
-            'Content-Type: application/json',
-        ));
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
-        curl_setopt($curl, CURLOPT_TIMEOUT, 30);
+        $url = rtrim($this->baseUrl, '/') . '/' . ltrim($endpoint, '/');
 
         Log::info('OctopusApiService: API Request', [
             'method' => $method,
             'url' => $url,
-            'data_length' => strlen($jsonData),
+            'data_keys' => array_keys($data),
         ]);
 
-        $result = curl_exec($curl);
+        try {
+            $http = Http::timeout($this->timeout)
+                ->acceptJson()
+                ->asJson();
 
-        if (!$result) {
-            $error = curl_error($curl);
-            $errno = curl_errno($curl);
-            $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+            switch (strtoupper($method)) {
+                case 'POST':
+                    $response = $http->post($url, $data);
+                    break;
+                case 'PUT':
+                    $response = $http->put($url, $data);
+                    break;
+                case 'GET':
+                default:
+                    $response = $http->get($url, $data);
+                    break;
+            }
 
+            $httpCode = $response->status();
+            $body = $response->body();
+
+            Log::info('OctopusApiService: API Response', [
+                'method' => $method,
+                'url' => $url,
+                'http_code' => $httpCode,
+                'response_length' => strlen($body),
+            ]);
+
+            if ($response->failed()) {
+                Log::error('OctopusApiService: API returned error status', [
+                    'method' => $method,
+                    'url' => $url,
+                    'http_code' => $httpCode,
+                    'response_body' => substr($body, 0, 500),
+                ]);
+
+                throw new Exception("API request failed with status {$httpCode}: " . substr($body, 0, 200));
+            }
+
+            $result = $response->json();
+
+            if ($result === null && !empty($body)) {
+                Log::error('OctopusApiService: Invalid JSON response', [
+                    'response' => substr($body, 0, 500),
+                ]);
+
+                throw new Exception('Invalid JSON response from ODB API');
+            }
+
+            return $result ?? [];
+
+        } catch (ConnectionException $e) {
             Log::error('OctopusApiService: Connection Failure', [
                 'method' => $method,
                 'url' => $url,
-                'error_code' => $errno,
-                'error_message' => $error,
-                'http_code' => $httpCode,
+                'error_message' => $e->getMessage(),
             ]);
 
-            curl_close($curl);
-            throw new Exception("Connection Failure: [{$errno}] {$error}");
+            throw new Exception("Connection Failure: " . $e->getMessage(), 0, $e);
+
+        } catch (RequestException $e) {
+            Log::error('OctopusApiService: Request Exception', [
+                'method' => $method,
+                'url' => $url,
+                'error_message' => $e->getMessage(),
+                'http_code' => $e->response ? $e->response->status() : null,
+            ]);
+
+            throw new Exception("Request failed: " . $e->getMessage(), 0, $e);
         }
-
-        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-
-        Log::info('OctopusApiService: API Response', [
-            'method' => $method,
-            'url' => $url,
-            'http_code' => $httpCode,
-            'response_length' => strlen($result),
-        ]);
-
-        curl_close($curl);
-
-        return $result;
     }
 
     /**
@@ -121,7 +139,7 @@ class OctopusApiService
             'lab_code' => $params['lab_code'] ?? null,
         ]);
 
-        $data = array(
+        $data = [
             'username' => $this->username,
             'password' => $this->password,
             'search_type' => 'fuzzy',
@@ -132,34 +150,25 @@ class OctopusApiService
             'refid' => $params['refid'] ?? '',
             'lab_code' => $params['lab_code'] ?? '',
             'max_candidates' => $params['max_candidates'] ?? 10,
-        );
-
-        $apiUrl = $this->baseUrl . '/customerFuzzySearch.php';
+        ];
 
         try {
-            $response = $this->callAPI('POST', $apiUrl, $data);
-            $result = json_decode($response, true);
-
-            if ($result === null) {
-                Log::error('OctopusApiService: Invalid JSON response', [
-                    'response' => substr($response, 0, 500),
-                ]);
-                throw new Exception('Invalid JSON response from ODB API');
-            }
+            $result = $this->callAPI('POST', '/customerFuzzySearch.php', $data);
 
             Log::info('OctopusApiService: Fuzzy search completed', [
                 'ic' => $params['ic'] ?? null,
                 'has_exact_match' => isset($result['exact_match']) && $result['exact_match'] !== null,
-                'candidate_count' => count($result['candidates'] ?? array()),
+                'candidate_count' => count($result['candidates'] ?? []),
             ]);
 
-            return array(
+            return [
                 'status' => $result['status'] ?? 'error',
                 'exact_match' => $result['exact_match'] ?? null,
-                'candidates' => $result['candidates'] ?? array(),
-                'search_criteria_used' => $result['search_criteria_used'] ?? array(),
+                'candidates' => $result['candidates'] ?? [],
+                'search_criteria_used' => $result['search_criteria_used'] ?? [],
                 'total_found' => $result['total_found'] ?? 0,
-            );
+            ];
+
         } catch (Exception $e) {
             Log::error('OctopusApiService: Fuzzy search exception', [
                 'error' => $e->getMessage(),
@@ -178,25 +187,22 @@ class OctopusApiService
      * @return array|null Customer data or null if not found
      * @throws Exception
      */
-    public function getCustomerByRefId(string $refId, ?string $labCode = null): ?array
+    public function customerByRefId(string $refId, ?string $labCode = null): ?array
     {
         Log::info('OctopusApiService: Looking up customer by RefID', [
             'refid' => $refId,
             'lab_code' => $labCode,
         ]);
 
-        $data = array(
+        $data = [
             'username' => $this->username,
             'password' => $this->password,
             'refid' => $refId,
             'lab_code' => $labCode ?? '',
-        );
-
-        $apiUrl = $this->baseUrl . '/customerByRefId.php';
+        ];
 
         try {
-            $response = $this->callAPI('POST', $apiUrl, $data);
-            $result = json_decode($response, true);
+            $result = $this->callAPI('POST', '/customerByRefId.php', $data);
 
             if (($result['status'] ?? '') !== 'success' || !isset($result['customer'])) {
                 Log::info('OctopusApiService: Customer not found by RefID', [
@@ -209,9 +215,11 @@ class OctopusApiService
             Log::info('OctopusApiService: Customer found by RefID', [
                 'refid' => $refId,
                 'customer_id' => $result['customer']['customer_id'] ?? null,
+                'blood_test_sales_date' => $result['customer']['date'] ?? null,
             ]);
 
             return $result['customer'];
+
         } catch (Exception $e) {
             Log::error('OctopusApiService: RefID lookup exception', [
                 'error' => $e->getMessage(),
@@ -220,6 +228,20 @@ class OctopusApiService
 
             throw $e;
         }
+    }
+
+    /**
+     * Look up customer by blood_test_sales reference ID.
+     * Alias for customerByRefId for backward compatibility.
+     *
+     * @param string $refId The reference ID (e.g., INN10256)
+     * @param string|null $labCode The lab code prefix (e.g., INN)
+     * @return array|null Customer data or null if not found
+     * @throws Exception
+     */
+    public function getCustomerByRefId(string $refId, ?string $labCode = null): ?array
+    {
+        return $this->customerByRefId($refId, $labCode);
     }
 
     /**
@@ -235,16 +257,67 @@ class OctopusApiService
             'ic' => $ic,
         ]);
 
-        $result = $this->fuzzySearch(array(
+        $result = $this->fuzzySearch([
             'ic' => $ic,
             'ic_normalized' => $ic,
-        ));
+        ]);
 
         if ($result['exact_match']) {
             return $result['exact_match'];
         }
 
         return null;
+    }
+
+    /**
+     * Get blood_test_sales records for a customer.
+     *
+     * @param int $customerId The Octopus customer ID
+     * @return array List of sales records [['id' => int, 'date' => string], ...]
+     * @throws Exception
+     */
+    public function getBloodTestSalesByCustomerId(int $customerId): array
+    {
+        Log::info('OctopusApiService: Fetching blood_test_sales by customer ID', [
+            'customer_id' => $customerId,
+        ]);
+
+        $data = [
+            'username' => $this->username,
+            'password' => $this->password,
+            'customer_id' => $customerId,
+        ];
+
+        try {
+            $result = $this->callAPI('POST', '/customerSalesByCustomerId.php', $data);
+
+            if (($result['status'] ?? '') !== 'success') {
+                Log::warning('OctopusApiService: Sales lookup returned non-success status', [
+                    'customer_id' => $customerId,
+                    'status' => $result['status'] ?? null,
+                    'message' => $result['message'] ?? null,
+                ]);
+
+                return [];
+            }
+
+            $sales = $result['sales'] ?? [];
+
+            Log::info('OctopusApiService: Blood test sales fetched successfully', [
+                'customer_id' => $customerId,
+                'sales_count' => count($sales),
+            ]);
+
+            return $sales;
+
+        } catch (Exception $e) {
+            Log::error('OctopusApiService: Blood test sales lookup exception', [
+                'error' => $e->getMessage(),
+                'customer_id' => $customerId,
+            ]);
+
+            throw $e;
+        }
     }
 
     /**
@@ -255,16 +328,16 @@ class OctopusApiService
     public function testConnection(): bool
     {
         try {
-            $data = array(
+            $data = [
                 'username' => $this->username,
                 'password' => $this->password,
                 'search_type' => 'test',
-            );
+            ];
 
-            $apiUrl = $this->baseUrl . '/customerFuzzySearch.php';
-            $response = $this->callAPI('POST', $apiUrl, $data);
+            $result = $this->callAPI('POST', '/customerFuzzySearch.php', $data);
 
-            return !empty($response);
+            return !empty($result);
+
         } catch (Exception $e) {
             Log::error('OctopusApiService: Connection test failed', [
                 'error' => $e->getMessage(),
@@ -297,6 +370,18 @@ class OctopusApiService
     {
         $this->username = $username;
         $this->password = $password;
+        return $this;
+    }
+
+    /**
+     * Set HTTP request timeout.
+     *
+     * @param int $seconds Timeout in seconds
+     * @return self
+     */
+    public function setTimeout(int $seconds): self
+    {
+        $this->timeout = $seconds;
         return $this;
     }
 }

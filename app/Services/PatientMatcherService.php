@@ -6,10 +6,13 @@ use App\Models\Patient;
 use App\Models\PatientMatchAuditLog;
 use App\Models\PatientMatchCandidate;
 use App\Models\PatientCustomerLink;
+use App\Models\TestResult;
+use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class PatientMatcherService
 {
@@ -479,25 +482,15 @@ class PatientMatcherService
             ]);
         }
 
-        // Update test_results ref_id ONLY if currently NULL and candidate has refid
-        if (!empty($candidateData['candidate_refid'])) {
-            $testResultsUpdated = $patient->testResults()
-                ->where(function ($q) {
-                    $q->whereNull('ref_id')
-                        ->orWhere('ref_id', '');
-                })
-                ->update([
-                    'ref_id' => $candidateData['candidate_refid'],
-                    'updated_at' => now(),
-                ]);
-
-            if ($testResultsUpdated > 0) {
-                Log::info('PatientMatcherService: Updated test_results ref_id (was NULL)', [
-                    'patient_id' => $patient->id,
-                    'new_ref_id' => $candidateData['candidate_refid'],
-                    'records_updated' => $testResultsUpdated,
-                ]);
-            }
+        // Update test_results ref_id using date-validated matching against blood_test_sales
+        try {
+            $this->updateRefIdsByDateMatch($patient, $candidateData, $labCode);
+        } catch (Throwable $e) {
+            Log::warning('PatientMatcherService: Non-critical ref_id date-match update failed', [
+                'patient_id' => $patient->id,
+                'customer_id' => $candidateData['candidate_customer_id'],
+                'error' => $e->getMessage(),
+            ]);
         }
 
         // Log audit trail
@@ -522,6 +515,135 @@ class PatientMatcherService
             'patient_id' => $patient->id,
             'customer_id' => $candidateData['candidate_customer_id'],
             'link_id' => $link->id,
+        ]);
+    }
+
+    /**
+     * Update test_results ref_id by matching collected_date to blood_test_sales dates.
+     *
+     * Only assigns a ref_id when the test_result's collected_date is within 14 days
+     * of a blood_test_sales.date, picking the closest match. Skips test_results
+     * without a collected_date and prevents duplicate ref_id assignments.
+     *
+     * @param Patient $patient The patient
+     * @param array $candidateData The candidate data containing customer_id
+     * @param string|null $labCode The lab code prefix (e.g., 'INN')
+     */
+    protected function updateRefIdsByDateMatch(Patient $patient, array $candidateData, ?string $labCode): void
+    {
+        $customerId = $candidateData['candidate_customer_id'];
+
+        Log::info('PatientMatcherService: Starting date-validated ref_id update', [
+            'patient_id' => $patient->id,
+            'customer_id' => $customerId,
+            'lab_code' => $labCode,
+        ]);
+
+        // Fetch blood_test_sales for this customer from ODB
+        $sales = $this->octopusApi->getBloodTestSalesByCustomerId($customerId);
+
+        if (empty($sales)) {
+            Log::info('PatientMatcherService: No blood_test_sales found for customer, skipping ref_id update', [
+                'patient_id' => $patient->id,
+                'customer_id' => $customerId,
+            ]);
+
+            return;
+        }
+
+        // Get test_results with NULL/empty ref_id that have a collected_date
+        $testResults = $patient->testResults()
+            ->where(function ($q) {
+                $q->whereNull('ref_id')
+                    ->orWhere('ref_id', '');
+            })
+            ->whereNotNull('collected_date')
+            ->get();
+
+        if ($testResults->isEmpty()) {
+            Log::info('PatientMatcherService: No eligible test_results for ref_id update', [
+                'patient_id' => $patient->id,
+            ]);
+
+            return;
+        }
+
+        // Parse sales dates once
+        $parsedSales = [];
+        foreach ($sales as $sale) {
+            $saleDate = Carbon::parse($sale['date']);
+            $parsedSales[] = [
+                'id' => $sale['id'],
+                'date' => $saleDate,
+            ];
+        }
+
+        $updatedCount = 0;
+        $prefix = $labCode ?? '';
+
+        foreach ($testResults as $testResult) {
+            $collectedDate = Carbon::parse($testResult->collected_date);
+
+            // Find the closest blood_test_sales within 14 days
+            $bestMatch = null;
+            $bestDaysDiff = null;
+
+            foreach ($parsedSales as $sale) {
+                $daysDiff = abs($collectedDate->diffInDays($sale['date']));
+
+                if ($daysDiff > 14) {
+                    continue;
+                }
+
+                if ($bestDaysDiff === null || $daysDiff < $bestDaysDiff) {
+                    $bestMatch = $sale;
+                    $bestDaysDiff = $daysDiff;
+                }
+            }
+
+            if ($bestMatch === null) {
+                Log::info('PatientMatcherService: No blood_test_sales within 14 days for test_result', [
+                    'test_result_id' => $testResult->id,
+                    'collected_date' => $collectedDate->toDateString(),
+                ]);
+
+                continue;
+            }
+
+            $newRefId = $prefix . $bestMatch['id'];
+
+            // Check for duplicate ref_id in test_results table
+            $existingCount = TestResult::where('ref_id', $newRefId)->count();
+
+            if ($existingCount > 0) {
+                Log::info('PatientMatcherService: Skipping ref_id assignment, already exists in test_results', [
+                    'test_result_id' => $testResult->id,
+                    'ref_id' => $newRefId,
+                    'existing_count' => $existingCount,
+                ]);
+
+                continue;
+            }
+
+            $testResult->ref_id = $newRefId;
+            $testResult->updated_at = now();
+            $testResult->save();
+            $updatedCount++;
+
+            Log::info('PatientMatcherService: Assigned ref_id by date match', [
+                'test_result_id' => $testResult->id,
+                'ref_id' => $newRefId,
+                'collected_date' => $collectedDate->toDateString(),
+                'sales_date' => $bestMatch['date']->toDateString(),
+                'days_diff' => $bestDaysDiff,
+            ]);
+        }
+
+        Log::info('PatientMatcherService: Date-validated ref_id update completed', [
+            'patient_id' => $patient->id,
+            'customer_id' => $customerId,
+            'test_results_checked' => $testResults->count(),
+            'test_results_updated' => $updatedCount,
         ]);
     }
 
