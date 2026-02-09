@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\API\ConsultCall\ReportController;
 use App\Http\Controllers\API\PDFController;
 use App\Http\Controllers\API\Testing\SpecialTestController;
 use App\Http\Controllers\ExportController;
@@ -28,8 +27,6 @@ Route::controller(LoginController::class)->group(function () {
     Route::post('login', 'login');
     Route::get('logout', 'logout')->name('logout');
 });
-
-Route::get('/consult-call/summary/pdf', [ReportController::class, 'summaryPdfWeb'])->name('consult-call.summary.pdf.web');
 
 // Export routes
 Route::get('/export/bp', [ExportController::class, 'exportBp'])->name('export.bp');

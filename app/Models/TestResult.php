@@ -25,7 +25,7 @@ class TestResult extends Model
         'validated_by',
         'is_completed',
         'is_reviewed',
-        'manual_sync_date'
+        'manual_sync_date',
     ];
 
     protected $casts = [
@@ -39,7 +39,7 @@ class TestResult extends Model
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
         'is_reviewed' => 'boolean',
-        'manual_sync_date' => 'datetime'
+        'manual_sync_date' => 'datetime',
     ];
 
     protected $attributes = [
@@ -107,8 +107,6 @@ class TestResult extends Model
 
     /**
      * Get the user associated with the TestResult
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\HasOne
      */
     public function record(): HasOne
     {

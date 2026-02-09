@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\API\AuthController;
-use App\Http\Controllers\API\ConsultCall\ReportController;
 use App\Http\Controllers\API\Fixes\HotFixController;
 use App\Http\Controllers\API\General\LabResultsController;
 use App\Http\Controllers\API\Innoquest\PanelResultsController;
@@ -107,8 +106,4 @@ Route::middleware(['api.auth', 'throttle:api'])->group(function () {
         Route::get('/', 'index')->name('special-test.index');
     });
 
-    Route::prefix('consult-call')->controller(ReportController::class)->group(function () {
-        Route::post('/report/summary', 'summary')->name('consult-call.summary');
-        Route::post('/report/summary/pdf', 'summaryPdf')->name('consult-call.summary.pdf');
-    });
 });

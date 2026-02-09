@@ -8,6 +8,7 @@ use Closure;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Tymon\JWTAuth\Exceptions\JWTException;
 use Tymon\JWTAuth\Exceptions\TokenExpiredException;
@@ -119,16 +120,25 @@ class APIAuthMiddleware
                 ? substr($token, 0, 10) . '...' . substr($token, -10)
                 : 'token_too_short';
 
-            Log::channel('auth')->info('Authentication attempt', array_merge($logContext, [
+            Log::channel('auth')->debug('Authentication attempt', array_merge($logContext, [
                 'token_source' => $tokenSource,
                 'token_length' => strlen($token),
                 'token_preview' => $tokenPreview,
             ]));
 
-            // Authenticate using the lab guard with the token
-            $user = Auth::guard('lab')->setToken($token)->user();
+            // Authenticate using cached user lookup to avoid DB query on every request.
+            // Cache key is derived from token hash; cached for 5 minutes.
+            $tokenHash = hash('xxh128', $token);
+            $cacheKey = 'jwt_user:' . $tokenHash;
+
+            $user = Cache::remember($cacheKey, 300, function () use ($token) {
+                return Auth::guard('lab')->setToken($token)->user();
+            });
 
             if (!$user) {
+                // Evict failed lookup from cache so next attempt re-queries DB
+                Cache::forget($cacheKey);
+
                 $this->logRawAuthForDebug($request, ['failure_reason' => 'user_not_found']);
                 Log::channel('auth')->error('Authentication failed: User not found after token validation', array_merge($logContext, [
                     'token_preview' => $tokenPreview,
@@ -137,15 +147,15 @@ class APIAuthMiddleware
                 return response()->json(['error' => 'Invalid token'], 401);
             }
 
-            // Log successful authentication
-            Log::channel('auth')->info('Authentication successful', array_merge($logContext, [
+            // Set the authenticated user on the guard so downstream code can use Auth::user()
+            Auth::guard('lab')->setUser($user);
+
+            Log::channel('auth')->debug('Authentication successful', array_merge($logContext, [
                 'lab_credential_id' => $user->id,
                 'lab_id' => $user->lab_id,
                 'username' => $user->username,
             ]));
 
-            // The user is already authenticated by the guard, no need to call setUser again
-            // Just proceed to the next middleware/controller
             return $next($request);
         } catch (TokenExpiredException $e) {
             $this->logRawAuthForDebug($request, [

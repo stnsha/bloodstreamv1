@@ -59,10 +59,10 @@ return [
             'strict' => true,
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
-                PDO::ATTR_TIMEOUT => 30,  // 30 second connection timeout to prevent indefinite hangs
+                PDO::ATTR_TIMEOUT => 5,  // 5 second connection timeout - fail fast if DB unreachable
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [
-                PDO::ATTR_TIMEOUT => 30,  // 30 second connection timeout
+                PDO::ATTR_TIMEOUT => 5,  // 5 second connection timeout - fail fast if DB unreachable
             ],
         ],
 
@@ -82,10 +82,10 @@ return [
             'strict' => true,
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
-                PDO::ATTR_TIMEOUT => 30,  // 30 second connection timeout to prevent indefinite hangs
+                PDO::ATTR_TIMEOUT => 5,  // 5 second connection timeout - fail fast if DB unreachable
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [
-                PDO::ATTR_TIMEOUT => 30,  // 30 second connection timeout
+                PDO::ATTR_TIMEOUT => 5,  // 5 second connection timeout - fail fast if DB unreachable
             ],
         ],
 
@@ -105,10 +105,10 @@ return [
             'strict' => true,
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
-                PDO::ATTR_TIMEOUT => 30,  // 30 second connection timeout to prevent indefinite hangs
+                PDO::ATTR_TIMEOUT => 5,  // 5 second connection timeout - fail fast if DB unreachable
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [
-                PDO::ATTR_TIMEOUT => 30,  // 30 second connection timeout
+                PDO::ATTR_TIMEOUT => 5,  // 5 second connection timeout - fail fast if DB unreachable
             ],
         ],
 

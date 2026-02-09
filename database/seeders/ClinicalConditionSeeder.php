@@ -1,16 +1,18 @@
 <?php
 
-namespace App\Constants\ConsultCall;
+namespace Database\Seeders;
 
-class ClinicalCondition
+use App\Models\ClinicalCondition;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+
+class ClinicalConditionSeeder extends Seeder
 {
     /**
-     * All clinical conditions for evaluation.
-     * Each condition has: id, description, evaluator method name.
-     *
-     * Threshold boundaries are EXCLUSIVE (e.g., LDL > 2.6 means 2.6 does NOT match).
+     * All clinical conditions data.
      */
-    public const CONDITIONS = [
+    private const CONDITIONS = [
         1 => [
             'description' => 'LDL > 2.6 mmol/L AND HbA1c 5.7 - 6.2 %',
             'evaluator' => 'condition1',
@@ -139,50 +141,47 @@ class ClinicalCondition
     ];
 
     /**
-     * Get all condition IDs
+     * Run the database seeds.
      */
-    public static function getAllIds(): array
+    public function run(): void
     {
-        return array_keys(self::CONDITIONS);
-    }
+        Log::info('ClinicalConditionSeeder: Starting seeding');
 
-    /**
-     * Get condition by ID
-     */
-    public static function getCondition(int $id): ?array
-    {
-        return self::CONDITIONS[$id] ?? null;
-    }
+        try {
+            DB::beginTransaction();
 
-    /**
-     * Get all conditions
-     */
-    public static function getAll(): array
-    {
-        return self::CONDITIONS;
-    }
+            $seededCount = 0;
 
-    /**
-     * Get condition IDs sorted by priority (highest criteria_count first).
-     *
-     * Used for exclusive condition assignment: patients are assigned to
-     * the MOST SPECIFIC condition they match (most criteria).
-     *
-     * @return array Condition IDs sorted by criteria_count DESC, then ID ASC
-     */
-    public static function getIdsSortedByPriority(): array
-    {
-        $conditions = self::CONDITIONS;
-
-        // Sort by criteria_count DESC, then by ID ASC for stable ordering
-        uasort($conditions, function ($a, $b) {
-            if ($a['criteria_count'] !== $b['criteria_count']) {
-                return $b['criteria_count'] <=> $a['criteria_count'];
+            foreach (self::CONDITIONS as $id => $data) {
+                ClinicalCondition::updateOrCreate(
+                    ['id' => $id],
+                    [
+                        'description' => $data['description'],
+                        'evaluator' => $data['evaluator'],
+                        'criteria_count' => $data['criteria_count'],
+                        'is_active' => true,
+                    ]
+                );
+                $seededCount++;
             }
 
-            return 0;
-        });
+            DB::commit();
 
-        return array_keys($conditions);
+            // Clear cache after seeding
+            ClinicalCondition::clearCache();
+
+            Log::info('ClinicalConditionSeeder: Seeding completed', [
+                'total_seeded' => $seededCount,
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            Log::error('ClinicalConditionSeeder: Seeding failed', [
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
     }
 }

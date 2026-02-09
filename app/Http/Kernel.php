@@ -40,7 +40,8 @@ class Kernel extends HttpKernel
 
         'api' => [
             // \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
-            \Illuminate\Routing\Middleware\ThrottleRequests::class . ':api',
+            // Throttle removed from global group - each route group defines its own
+            // explicit throttle (throttle:auth, throttle:lab-results, throttle:api)
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
             \App\Http\Middleware\LogRequestDuration::class,
         ],

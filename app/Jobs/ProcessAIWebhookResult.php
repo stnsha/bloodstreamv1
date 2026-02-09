@@ -8,22 +8,26 @@ use App\Models\TestResult;
 use App\Services\ReviewHtmlGenerator;
 use Exception;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-class ProcessAIWebhookResult implements ShouldQueue, ShouldBeUnique
+class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $timeout = 60;  // Fast DB operation
+
     public $tries = 3;     // Allow retries - webhook acknowledgment is separate from processing
+
     public $backoff = [60, 300, 900];  // Exponential backoff: 1 min, 5 min, 15 min
+
     public $uniqueFor = 3600;  // Lock for 1 hour
+
     protected $webhookData;
 
     /**
@@ -44,6 +48,7 @@ class ProcessAIWebhookResult implements ShouldQueue, ShouldBeUnique
         // Generate deterministic hash from webhook payload
         // Same webhook payload will always produce same hash
         $idempotencyKey = hash('sha256', json_encode($this->webhookData));
+
         return "process_ai_webhook_{$idempotencyKey}";
     }
 
@@ -67,13 +72,13 @@ class ProcessAIWebhookResult implements ShouldQueue, ShouldBeUnique
             'test_result_id' => $testResultId,
             'idempotency_key' => $idempotencyKey,
             'success' => $this->webhookData['success'],
-            'status' => $this->webhookData['status']
+            'status' => $this->webhookData['status'],
         ]);
 
         try {
             // Check if webhook indicates success
-            if (!$this->webhookData['success'] || $this->webhookData['status'] !== 'DONE') {
-                throw new Exception('Webhook indicates AI processing failed: ' . json_encode($this->webhookData));
+            if (! $this->webhookData['success'] || $this->webhookData['status'] !== 'DONE') {
+                throw new Exception('Webhook indicates AI processing failed: '.json_encode($this->webhookData));
             }
 
             // Extract AI analysis data
@@ -90,7 +95,7 @@ class ProcessAIWebhookResult implements ShouldQueue, ShouldBeUnique
                     ->orderBy('id', 'desc')
                     ->first();
 
-                if (!$aiReview) {
+                if (! $aiReview) {
                     // Log warning
                     Log::channel('webhook')->warning('No AI review record found for webhook - storing to ai_errors', [
                         'test_result_id' => $testResultId,
@@ -115,6 +120,7 @@ class ProcessAIWebhookResult implements ShouldQueue, ShouldBeUnique
                         'test_result_id' => $testResultId,
                         'idempotency_key' => $idempotencyKey,
                     ]);
+
                     return;
                 }
 
@@ -129,18 +135,18 @@ class ProcessAIWebhookResult implements ShouldQueue, ShouldBeUnique
 
                 // Update test_result.is_reviewed flag (only on first successful webhook)
                 $testResult = TestResult::find($testResultId);
-                if ($testResult && !$testResult->is_reviewed) {
+                if ($testResult && ! $testResult->is_reviewed) {
                     $testResult->is_reviewed = true;
                     $testResult->save();
 
                     Log::channel('webhook')->info('Test result marked as reviewed', [
-                        'test_result_id' => $testResultId
+                        'test_result_id' => $testResultId,
                     ]);
                 }
             });
 
             Log::channel('webhook')->info('AI review stored successfully from webhook', [
-                'test_result_id' => $testResultId
+                'test_result_id' => $testResultId,
             ]);
 
             // Log performance metrics
@@ -158,7 +164,7 @@ class ProcessAIWebhookResult implements ShouldQueue, ShouldBeUnique
             Log::channel('webhook')->error('ProcessAIWebhookResult job failed', [
                 'test_result_id' => $testResultId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
 
             // Update ai_reviews status to failed and store error
@@ -178,7 +184,7 @@ class ProcessAIWebhookResult implements ShouldQueue, ShouldBeUnique
 
         Log::channel('webhook')->error('ProcessAIWebhookResult job failed permanently after all retries', [
             'test_result_id' => $testResultId,
-            'error' => $exception->getMessage()
+            'error' => $exception->getMessage(),
         ]);
 
         if ($testResultId) {
@@ -217,14 +223,14 @@ class ProcessAIWebhookResult implements ShouldQueue, ShouldBeUnique
                     'error_message' => $e->getMessage(),
                     'error_trace' => $e->getTraceAsString(),
                     'compiled_data' => $this->webhookData,
-                    'attempt_count' => 1
+                    'attempt_count' => 1,
                 ]);
             });
         } catch (Exception $dbError) {
             Log::channel('webhook')->error('Failed to handle webhook error', [
                 'test_result_id' => $testResultId,
                 'original_error' => $e->getMessage(),
-                'storage_error' => $dbError->getMessage()
+                'storage_error' => $dbError->getMessage(),
             ]);
         }
     }
