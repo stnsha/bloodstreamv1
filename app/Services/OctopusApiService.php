@@ -248,18 +248,21 @@ class OctopusApiService
      * Look up customer by exact IC number.
      *
      * @param string $ic The IC number
+     * @param string|null $labCode The lab code prefix (e.g., INN) to return prefixed refid
      * @return array|null Customer data or null if not found
      * @throws Exception
      */
-    public function getCustomerByIc(string $ic): ?array
+    public function getCustomerByIc(string $ic, ?string $labCode = null): ?array
     {
         Log::info('OctopusApiService: Looking up customer by IC', [
             'ic' => $ic,
+            'lab_code' => $labCode,
         ]);
 
         $result = $this->fuzzySearch([
             'ic' => $ic,
             'ic_normalized' => $ic,
+            'lab_code' => $labCode ?? '',
         ]);
 
         if ($result['exact_match']) {

@@ -6,6 +6,7 @@ use App\Constants\Innoquest\PanelPanelItem as PanelPanelItemConstants;
 use App\Jobs\SendToAIServer;
 use App\Models\DeliveryFile;
 use App\Models\Doctor;
+use App\Models\Lab;
 use App\Models\MasterPanel;
 use App\Models\MasterPanelComment;
 use App\Models\MasterPanelItem;
@@ -21,6 +22,7 @@ use App\Models\TestResultComment;
 use App\Models\TestResultItem;
 use App\Models\TestResultProfile;
 use App\Services\MyHealthService;
+use App\Services\OctopusApiService;
 use App\Services\PanelInterpretationService;
 use Carbon\Carbon;
 use DateTime;
@@ -402,6 +404,54 @@ class ProcessPanelResults implements ShouldQueue
 
             // AFTER TRANSACTION: Non-critical operations that don't need atomicity
             // These are moved outside to reduce transaction lock hold time
+
+            // Resolve null ref_id via exact IC match from ODB
+            if ($test_result && $reference_id === null) {
+                try {
+                    $patient = Patient::find($patient_id);
+                    $patientIc = $patient->icno ?? null;
+
+                    if ($patientIc) {
+                        $lab = Lab::find($lab_id);
+                        $labCode = $lab->code ?? null;
+
+                        Log::info('Attempting ref_id resolution via IC match', [
+                            'test_result_id' => $test_result->id,
+                            'lab_no' => $test_result->lab_no,
+                            'patient_ic' => $patientIc,
+                            'lab_code' => $labCode,
+                        ]);
+
+                        $octopusApi = app(OctopusApiService::class);
+                        $exactMatch = $octopusApi->getCustomerByIc($patientIc, $labCode);
+
+                        if ($exactMatch && !empty($exactMatch['refid'])) {
+                            $test_result->ref_id = $exactMatch['refid'];
+                            $test_result->save();
+
+                            Log::info('Resolved null ref_id via exact IC match', [
+                                'test_result_id' => $test_result->id,
+                                'lab_no' => $test_result->lab_no,
+                                'resolved_ref_id' => $exactMatch['refid'],
+                                'patient_ic' => $patientIc,
+                            ]);
+                        } else {
+                            Log::info('No exact IC match found for ref_id resolution', [
+                                'test_result_id' => $test_result->id,
+                                'lab_no' => $test_result->lab_no,
+                                'patient_ic' => $patientIc,
+                            ]);
+                        }
+                    }
+                } catch (Throwable $e) {
+                    Log::error('Failed to resolve null ref_id via IC match', [
+                        'test_result_id' => $test_result->id,
+                        'error' => $e->getMessage(),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine(),
+                    ]);
+                }
+            }
 
             // Calculate special tests OUTSIDE transaction (queries external DB)
             if ($hasPdf && $test_result) {
