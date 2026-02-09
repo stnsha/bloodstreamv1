@@ -410,8 +410,9 @@ class ProcessPanelResults implements ShouldQueue
                 try {
                     $patient = Patient::find($patient_id);
                     $patientIc = $patient->icno ?? null;
+                    $referenceDate = $test_result->collected_date ?? $test_result->reported_date;
 
-                    if ($patientIc) {
+                    if ($patientIc && $referenceDate) {
                         $lab = Lab::find($lab_id);
                         $labCode = $lab->code ?? null;
 
@@ -420,27 +421,68 @@ class ProcessPanelResults implements ShouldQueue
                             'lab_no' => $test_result->lab_no,
                             'patient_ic' => $patientIc,
                             'lab_code' => $labCode,
+                            'reference_date' => $referenceDate,
                         ]);
 
-                        $octopusApi = app(OctopusApiService::class);
-                        $exactMatch = $octopusApi->getCustomerByIc($patientIc, $labCode);
+                        if ($labCode) {
+                            $octopusApi = app(OctopusApiService::class);
+                            $exactMatch = $octopusApi->getCustomerByIc($patientIc, $labCode);
 
-                        if ($exactMatch && !empty($exactMatch['refid'])) {
-                            $test_result->ref_id = $exactMatch['refid'];
-                            $test_result->save();
+                            if ($exactMatch) {
+                                $customerId = (int) $exactMatch['customer_id'];
+                                $sales = $octopusApi->getBloodTestSalesByCustomerId($customerId);
 
-                            Log::info('Resolved null ref_id via exact IC match', [
-                                'test_result_id' => $test_result->id,
-                                'lab_no' => $test_result->lab_no,
-                                'resolved_ref_id' => $exactMatch['refid'],
-                                'patient_ic' => $patientIc,
-                            ]);
-                        } else {
-                            Log::info('No exact IC match found for ref_id resolution', [
-                                'test_result_id' => $test_result->id,
-                                'lab_no' => $test_result->lab_no,
-                                'patient_ic' => $patientIc,
-                            ]);
+                                $parsedReferenceDate = Carbon::parse($referenceDate);
+                                $cutoffDate = $parsedReferenceDate->copy()->subDays(14);
+
+                                // Filter sales within 14 days of collected_date
+                                $recentSales = collect($sales)->filter(function ($sale) use ($parsedReferenceDate, $cutoffDate) {
+                                    $saleDate = Carbon::parse($sale['date']);
+
+                                    return $saleDate->gte($cutoffDate) && $saleDate->lte($parsedReferenceDate);
+                                });
+
+                                if ($recentSales->count() === 1) {
+                                    $sale = $recentSales->first();
+                                    $resolvedRefId = strtoupper($labCode . $sale['id']);
+                                    $test_result->update(['ref_id' => $resolvedRefId]);
+
+                                    Log::info('Resolved null ref_id via exact IC match', [
+                                        'test_result_id' => $test_result->id,
+                                        'lab_no' => $test_result->lab_no,
+                                        'resolved_ref_id' => $resolvedRefId,
+                                        'patient_ic' => $patientIc,
+                                        'customer_id' => $customerId,
+                                        'sales_date' => $sale['date'],
+                                    ]);
+                                } elseif ($recentSales->count() > 1) {
+                                    Log::info('Skipped ref_id resolution: multiple sales within 14 days', [
+                                        'test_result_id' => $test_result->id,
+                                        'lab_no' => $test_result->lab_no,
+                                        'patient_ic' => $patientIc,
+                                        'customer_id' => $customerId,
+                                        'reference_date' => $referenceDate,
+                                        'cutoff_date' => $cutoffDate->toDateString(),
+                                        'matching_sales_count' => $recentSales->count(),
+                                    ]);
+                                } else {
+                                    Log::info('No blood_test_sales within 14 days of collected_date', [
+                                        'test_result_id' => $test_result->id,
+                                        'lab_no' => $test_result->lab_no,
+                                        'patient_ic' => $patientIc,
+                                        'customer_id' => $customerId,
+                                        'reference_date' => $referenceDate,
+                                        'cutoff_date' => $cutoffDate->toDateString(),
+                                        'total_sales' => count($sales),
+                                    ]);
+                                }
+                            } else {
+                                Log::info('No exact IC match found for ref_id resolution', [
+                                    'test_result_id' => $test_result->id,
+                                    'lab_no' => $test_result->lab_no,
+                                    'patient_ic' => $patientIc,
+                                ]);
+                            }
                         }
                     }
                 } catch (Throwable $e) {
