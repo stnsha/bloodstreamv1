@@ -6,6 +6,7 @@ use App\Http\Controllers\API\General\LabResultsController;
 use App\Http\Controllers\API\Innoquest\PanelResultsController;
 use App\Http\Controllers\API\ODB\BloodTestController;
 use App\Http\Controllers\API\PDFController;
+use App\Http\Controllers\API\ConsultCall\StatusLibraryController;
 use App\Http\Controllers\API\Testing\SpecialTestController;
 use App\Http\Controllers\API\Webhook\AIResultController;
 use App\Http\Controllers\ExportController;
@@ -104,6 +105,20 @@ Route::middleware(['api.auth', 'throttle:api'])->group(function () {
 
     Route::prefix('special-test')->controller(SpecialTestController::class)->group(function () {
         Route::get('/', 'index')->name('special-test.index');
+    });
+
+    Route::prefix('consult-call/statuses')->controller(StatusLibraryController::class)->group(function () {
+        Route::get('enrollment-types', 'enrollmentTypes')->name('consult-call.statuses.enrollment-types');
+        Route::get('consent-call-statuses', 'consentCallStatuses')->name('consult-call.statuses.consent-call-statuses');
+        Route::get('scheduled-statuses', 'scheduledStatuses')->name('consult-call.statuses.scheduled-statuses');
+        Route::get('modes-of-consultation', 'modesOfConsultation')->name('consult-call.statuses.modes-of-consultation');
+        Route::get('actions', 'actions')->name('consult-call.statuses.actions');
+        Route::get('consult-statuses', 'consultStatuses')->name('consult-call.statuses.consult-statuses');
+        Route::get('process-statuses', 'processStatuses')->name('consult-call.statuses.process-statuses');
+        Route::get('follow-up-types', 'followUpTypes')->name('consult-call.statuses.follow-up-types');
+        Route::get('next-follow-ups', 'nextFollowUps')->name('consult-call.statuses.next-follow-ups');
+        Route::get('referral-statuses', 'referralStatuses')->name('consult-call.statuses.referral-statuses');
+        Route::get('follow-up-reminders', 'followUpReminders')->name('consult-call.statuses.follow-up-reminders');
     });
 
 });

@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             TranslationSeeder::class,
             EurofinsLabSeeder::class,
             PanelInterpretationSeeder::class,
+            ClinicalConditionSeeder::class
         ]);
     }
 }

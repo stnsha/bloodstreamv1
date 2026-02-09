@@ -15,12 +15,14 @@ class ClinicalCondition extends Model
         'id',
         'description',
         'evaluator',
+        'risk_tier',
         'criteria_count',
         'is_active',
     ];
 
     protected $casts = [
         'id' => 'integer',
+        'risk_tier' => 'integer',
         'criteria_count' => 'integer',
         'is_active' => 'boolean',
     ];
