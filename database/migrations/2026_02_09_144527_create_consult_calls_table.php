@@ -22,7 +22,7 @@ return new class extends Migration
             $table->dateTime('consent_call_date')->nullable();
             $table->integer('scheduled_status')->default(0); //0 - pending, 1 - confirmed, 2 - rescheduled, 3 - cancelled
             $table->dateTime('scheduled_call_date')->nullable();
-            $table->unsignedBigInteger('handled_by'); //staff_id
+            $table->unsignedBigInteger('handled_by')->nullable(); //staff_id
             $table->integer('mode_of_consultation')->default(0); //0 - pending, 1 - phone, 2 - google meet, 3 - whatsapp
             $table->dateTime('closure_date')->nullable();
             $table->longText('final_remarks')->nullable();

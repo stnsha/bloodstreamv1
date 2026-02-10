@@ -93,6 +93,28 @@ class ConditionEvaluatorService
     }
 
     /**
+     * Evaluate a single patient against all conditions, returning the first match.
+     *
+     * Iterates conditions from highest criteria_count (most specific) to lowest.
+     * Returns the first matching condition ID, or null if healthy.
+     *
+     * @param  array  $patientData  Patient data array with keys: tc, ldlc, egfr, hba1c_percent, alt, age, bmi
+     * @return int|null The matching condition ID, or null if no condition matched
+     */
+    public function evaluateSinglePatient(array $patientData): ?int
+    {
+        $sortedConditionIds = ClinicalCondition::getIdsSortedByPriority();
+
+        foreach ($sortedConditionIds as $conditionId) {
+            if ($this->evaluateCondition($conditionId, $patientData)) {
+                return $conditionId;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Evaluate a single condition against patient data.
      *
      * @param  int  $conditionId  The condition ID to evaluate
