@@ -9,6 +9,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class DispatchUnreviewedResultsAsync extends Command
 {
@@ -54,25 +55,31 @@ class DispatchUnreviewedResultsAsync extends Command
      */
     public function handle()
     {
-        // Set resource limits
-        ini_set('memory_limit', '128M');
-        ini_set('max_execution_time', '120');
-
-        // Acquire lock to prevent concurrent execution
-        if (!$this->acquireLock()) {
-            $this->warn('Another instance is already running. Exiting.');
-            Log::channel('ai-command')->warning('Command skipped - another instance running');
-            return Command::SUCCESS;
-        }
-
         try {
+            // Set resource limits
+            ini_set('memory_limit', '128M');
+            ini_set('max_execution_time', '120');
+
+            // Acquire lock to prevent concurrent execution
+            if (!$this->acquireLock()) {
+                $this->warn('Another instance is already running. Exiting.');
+                Log::channel('ai-command')->warning('Command skipped - another instance running');
+                return Command::SUCCESS;
+            }
+
             return $this->dispatchUnreviewedResults();
-        } catch (Exception $e) {
-            Log::channel('ai-command')->error('Dispatch command failed with unhandled exception', [
+        } catch (Throwable $e) {
+            $this->error('Command failed: ' . $e->getMessage());
+            $this->error('Exception class: ' . get_class($e));
+            $this->error('File: ' . $e->getFile() . ':' . $e->getLine());
+
+            Log::channel('ai-command')->error('Dispatch command failed', [
+                'exception_class' => get_class($e),
                 'error' => $e->getMessage(),
+                'file' => $e->getFile() . ':' . $e->getLine(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            $this->error('Command failed: ' . $e->getMessage());
+
             return Command::FAILURE;
         } finally {
             $this->releaseLock();
