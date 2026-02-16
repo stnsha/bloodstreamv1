@@ -25,8 +25,8 @@ class SendToAIServer implements ShouldQueue, ShouldBeUnique
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $timeout = 120;  // 120 seconds for AI service communication
-    public $tries = 3;      // Retry up to 3 times on failure
-    public $backoff = [60, 300, 900];  // Exponential backoff: 1 min, 5 min, 15 min
+    public $tries = 6;      // Retry up to 6 times on failure
+    public $backoff = [120, 300, 600, 900, 1200, 1800];  // 2min, 5min, 10min, 15min, 20min, 30min
     public $testResultId;
     public $uniqueFor = 3600;  // Lock job uniqueness for 1 hour
 
@@ -184,10 +184,33 @@ class SendToAIServer implements ShouldQueue, ShouldBeUnique
                 ]);
             }
         } catch (Exception $e) {
-            // Update ai_reviews status or create error record
+            // Detect 429/QUEUE_FULL: release back to queue without polluting ai_errors
+            if ($this->isQueueFullError($e) && $this->attempts() < $this->tries) {
+                $delay = $this->backoff[$this->attempts() - 1] ?? end($this->backoff);
+
+                Log::channel('job')->warning('SendToAIServer: AI queue full, releasing for retry', [
+                    'test_result_id' => $this->testResultId,
+                    'attempt' => $this->attempts(),
+                    'max_tries' => $this->tries,
+                    'retry_delay_seconds' => $delay,
+                ]);
+
+                // Update AIReview to PENDING so it does not appear as FAILED
+                $aiReview = AIReview::where('test_result_id', $this->testResultId)
+                    ->orderBy('id', 'desc')
+                    ->first();
+
+                if ($aiReview && $aiReview->processing_status !== 'COMPLETED') {
+                    $aiReview->update(['processing_status' => 'PENDING']);
+                }
+
+                $this->release($delay);
+                return;
+            }
+
+            // Non-429 errors or final 429 attempt: record error and re-throw
             $this->handleError($e);
 
-            // Re-throw to allow job retry (with exponential backoff)
             throw $e;
         }
     }
@@ -297,5 +320,17 @@ class SendToAIServer implements ShouldQueue, ShouldBeUnique
                 'storage_error' => $dbError->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Check if the exception indicates a 429/QUEUE_FULL response from the AI server
+     */
+    protected function isQueueFullError(Throwable $e): bool
+    {
+        $message = $e->getMessage();
+
+        return str_contains($message, '429') && (
+            str_contains($message, 'QUEUE_FULL') || str_contains($message, 'Queue is full')
+        );
     }
 }
