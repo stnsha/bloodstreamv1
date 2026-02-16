@@ -4,7 +4,6 @@ namespace App\Console\Commands;
 
 use App\Jobs\SendToAIServer;
 use App\Models\TestResult;
-use Carbon\Carbon;
 use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
@@ -42,6 +41,13 @@ class DispatchUnreviewedResultsAsync extends Command
     protected $lockKey = 'ai:dispatch-unreviewed-async';
 
     /**
+     * Cache lock instance (must reuse same instance for acquire and release)
+     *
+     * @var \Illuminate\Contracts\Cache\Lock|null
+     */
+    protected $lock = null;
+
+    /**
      * Execute the console command.
      *
      * @return int
@@ -61,6 +67,13 @@ class DispatchUnreviewedResultsAsync extends Command
 
         try {
             return $this->dispatchUnreviewedResults();
+        } catch (Exception $e) {
+            Log::channel('ai-command')->error('Dispatch command failed with unhandled exception', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            $this->error('Command failed: ' . $e->getMessage());
+            return Command::FAILURE;
         } finally {
             $this->releaseLock();
         }
@@ -207,7 +220,8 @@ class DispatchUnreviewedResultsAsync extends Command
      */
     protected function acquireLock(): bool
     {
-        return Cache::lock($this->lockKey, 1680)->get();
+        $this->lock = Cache::lock($this->lockKey, 600);
+        return $this->lock->get();
     }
 
     /**
@@ -217,6 +231,8 @@ class DispatchUnreviewedResultsAsync extends Command
      */
     protected function releaseLock(): void
     {
-        Cache::lock($this->lockKey)->release();
+        if ($this->lock) {
+            $this->lock->release();
+        }
     }
 }
