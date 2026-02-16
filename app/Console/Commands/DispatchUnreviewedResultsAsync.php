@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Jobs\SendToAIServer;
+use App\Models\AIReview;
 use App\Models\TestResult;
 use Exception;
 use Illuminate\Console\Command;
@@ -97,6 +98,18 @@ class DispatchUnreviewedResultsAsync extends Command
             'timestamp' => $startTime,
             'dry_run' => $this->option('dry-run')
         ]);
+
+        // Check if AI server queue is already saturated
+        $queuedCount = AIReview::where('processing_status', 'QUEUED')->count();
+
+        if ($queuedCount > 10) {
+            $this->info("Skipping dispatch: {$queuedCount} reviews already QUEUED (threshold: 10).");
+            Log::channel('ai-command')->info('Dispatch skipped - AI queue saturated', [
+                'queued_count' => $queuedCount,
+                'threshold' => 10,
+            ]);
+            return Command::SUCCESS;
+        }
 
         // Fetch IDs with short-lived lock
         $testResultIds = $this->fetchUnreviewedIds();
