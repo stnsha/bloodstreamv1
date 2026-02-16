@@ -68,5 +68,6 @@ class Kernel extends HttpKernel
         'api.auth' => \App\Http\Middleware\APIAuthMiddleware::class,
         'swagger.auth' => \App\Http\Middleware\SwaggerAuth::class,
         'webhook.auth' => \App\Http\Middleware\ValidateWebhookToken::class,
+        'consult-call.auth' => \App\Http\Middleware\ConsultCallAuthMiddleware::class,
     ];
 }

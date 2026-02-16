@@ -6,6 +6,8 @@ use App\Http\Controllers\API\General\LabResultsController;
 use App\Http\Controllers\API\Innoquest\PanelResultsController;
 use App\Http\Controllers\API\ODB\BloodTestController;
 use App\Http\Controllers\API\PDFController;
+use App\Http\Controllers\API\ConsultCall\ConsultCallAuthController;
+use App\Http\Controllers\API\ConsultCall\ConsultCallController;
 use App\Http\Controllers\API\ConsultCall\StatusLibraryController;
 use App\Http\Controllers\API\Testing\SpecialTestController;
 use App\Http\Controllers\API\Webhook\AIResultController;
@@ -107,6 +109,31 @@ Route::middleware(['api.auth', 'throttle:api'])->group(function () {
         Route::get('/', 'index')->name('special-test.index');
     });
 
+});
+
+// Consult-call auth routes -- NO middleware (entry point for ODB frontend)
+Route::prefix('consult-call/auth')->controller(ConsultCallAuthController::class)->group(function () {
+    Route::post('/', 'auth');
+    Route::post('/verify', 'verifyToken');
+});
+
+// Consult-call protected routes -- custom JWT auth (separate from api.auth)
+Route::middleware(['consult-call.auth', 'throttle:api'])->group(function () {
+    Route::prefix('consult-call')->controller(ConsultCallController::class)->group(function () {
+        Route::get('/', 'index');
+        Route::get('/summary', 'summary');
+        Route::post('/', 'store');
+        Route::get('/{id}', 'show');
+        Route::put('/{id}', 'update');
+        Route::delete('/{id}', 'destroy');
+        Route::post('/{id}/details', 'storeDetails');
+        Route::put('/{id}/details/{detailId}', 'updateDetails');
+        Route::delete('/{id}/details/{detailId}', 'destroyDetails');
+        Route::post('/{id}/follow-up', 'storeFollowUp');
+        Route::put('/{id}/follow-up/{followUpId}', 'updateFollowUp');
+        Route::delete('/{id}/follow-up/{followUpId}', 'destroyFollowUp');
+    });
+
     Route::prefix('consult-call/statuses')->controller(StatusLibraryController::class)->group(function () {
         Route::get('enrollment-types', 'enrollmentTypes')->name('consult-call.statuses.enrollment-types');
         Route::get('consent-call-statuses', 'consentCallStatuses')->name('consult-call.statuses.consent-call-statuses');
@@ -120,5 +147,4 @@ Route::middleware(['api.auth', 'throttle:api'])->group(function () {
         Route::get('referral-statuses', 'referralStatuses')->name('consult-call.statuses.referral-statuses');
         Route::get('follow-up-reminders', 'followUpReminders')->name('consult-call.statuses.follow-up-reminders');
     });
-
 });

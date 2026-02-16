@@ -135,6 +135,16 @@ Blood Stream is a comprehensive blood test result management and analysis system
 - `MasterPanelComment` for template comments
 - Processed via `ProcessPanelComments` job
 
+#### 9. **Consult Call System** (`app/Http/Controllers/API/ConsultCall/`)
+- Manages patient consultation call workflows (enrollment, scheduling, follow-ups)
+- **Own authentication**: Uses `consult-call.auth` middleware (separate from `api.auth`)
+- Auth controller: `ConsultCallAuthController` -- issues/verifies JWTs via `tymon/jwt-auth`
+- CRUD controller: `ConsultCallController` -- consult calls, details sub-resource, follow-ups sub-resource
+- Status lookups: `StatusLibraryController` -- static enum endpoints for frontend dropdowns
+- Models: `ConsultCall`, `ConsultCallDetails`, `ConsultCallFollowUp`
+- ODB frontend authenticates via proxy (`api-jwt.php`) that reads ODB `staff` table
+- API documentation: `docs/consult-call-api.md`
+
 ### Data Models & Relationships
 
 **Core Patient/Result Models**:
@@ -158,6 +168,11 @@ Blood Stream is a comprehensive blood test result management and analysis system
 - `MigrationBatch` - ODB migration batches
 - `AIReview` - AI review records and results
 - `AIError` - Errors from AI processing
+
+**Consult Call**:
+- `ConsultCall` - Patient consultation call record (enrollment, consent, scheduling)
+- `ConsultCallDetails` - Individual consultation session (diagnosis, treatment, actions)
+- `ConsultCallFollowUp` - Follow-up scheduling and tracking (reminders, referrals)
 
 **Reference Data**:
 - `ReferenceRange` - Test reference ranges
@@ -187,7 +202,8 @@ Services handle business logic—controllers remain thin by delegating to these 
 - Route model binding
 
 **Route Middleware Aliases**:
-- `api.auth` - JWT authentication for API
+- `api.auth` - JWT authentication for API (Tymon guard, requires `LabCredential` user)
+- `consult-call.auth` - Custom JWT authentication for consult-call routes (ODB staff, no user model)
 - `webhook.auth` - Webhook token validation
 - `swagger.auth` - Swagger UI authentication
 
@@ -233,6 +249,21 @@ All use Maatwebsite Excel for Excel file handling.
 - `GET /api/export/*` - Export results
 - `GET /api/comment/update` - Update comments
 
+**Consult Call Auth Routes** (public, no middleware):
+- `POST /api/consult-call/auth` - Obtain consult-call JWT (from ODB proxy)
+- `POST /api/consult-call/auth/verify` - Verify token validity
+
+**Consult Call Routes** (require `consult-call.auth`):
+- `GET /api/consult-call` - List consult calls (paginated, filterable)
+- `GET /api/consult-call/summary` - Dashboard aggregate counts
+- `POST /api/consult-call` - Create consult call
+- `GET|PUT|DELETE /api/consult-call/{id}` - Show/update/delete consult call
+- `POST /api/consult-call/{id}/details` - Create consultation detail
+- `PUT|DELETE /api/consult-call/{id}/details/{detailId}` - Update/delete detail
+- `POST /api/consult-call/{id}/follow-up` - Create follow-up
+- `PUT|DELETE /api/consult-call/{id}/follow-up/{followUpId}` - Update/delete follow-up
+- `GET /api/consult-call/statuses/*` - Status library lookup endpoints (11 endpoints)
+
 **Webhook Routes** (require `webhook.auth`):
 - `POST /api/webhook/ai-result` - Receive AI review results
 
@@ -266,11 +297,34 @@ Every significant operation must log:
 - Keep controllers thin
 
 ### Authentication
-- JWT tokens configured in `config/jwt.php`
+
+**API Auth** (`api.auth` middleware -- lab systems):
+- JWT tokens configured in `config/jwt.php`, signed with `JWT_SECRET`
+- Uses Tymon guard with `LabCredential` model (`Auth::guard('lab')`)
 - TTL: 30 days (43,200 minutes)
 - Refresh TTL: 20,160 minutes (14 days)
 - Token blacklisting enabled by default
 - Set `JWT_SECRET` in `.env` (generated via `php artisan jwt:secret`)
+
+**Consult Call Auth** (`consult-call.auth` middleware -- ODB staff):
+- Separate JWT auth, does NOT use a user model or Laravel guard
+- Uses `JWTFactory` + `JWTAuth::encode()` with same `JWT_SECRET`
+- TTL: 24 hours (1,440 minutes)
+- Tokens include a `token_type: "consult_call"` claim to prevent cross-use with `api.auth`
+- Auth controller: `ConsultCallAuthController`
+- Middleware: `ConsultCallAuthMiddleware` -- extracts `staff_id`, `staff_department_id`, `consult_call_role` onto `$request->attributes`
+- Access control roles (from ODB `staff.consult_call` column):
+
+| Value | Role | Description |
+|-------|------|-------------|
+| 0 | Normal User | Standard access |
+| 1 | Super Admin | Full access, bypasses all filters (dept 16 auto-assigned) |
+| 2 | Doctor | Doctor access |
+| 3 | Pharmacy | Pharmacy access |
+| 4 | HQ | HQ access |
+| 5 | Outlet | Outlet access |
+
+- Flow: ODB frontend -> `api-jwt.php` proxy (reads staff table) -> `POST /api/consult-call/auth` -> JWT -> all subsequent calls with `Authorization: Bearer {token}`
 
 ### Configuration Files
 - `.env.example` contains all required environment variables
