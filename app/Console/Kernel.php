@@ -15,7 +15,6 @@ class Kernel extends ConsoleKernel
         $logPath = storage_path('logs/scheduler.log');
 
         // Phase 1A: Process AI webhook jobs every minute for fast turnaround
-        // Background workers use callbacks instead of appendOutputTo to avoid Windows file locks
         $schedule->command('queue:work database --queue=ai-webhooks --timeout=300 --max-jobs=50 --max-time=55 --tries=3')
             ->everyMinute()
             ->environments(['production'])
@@ -36,37 +35,42 @@ class Kernel extends ConsoleKernel
             ->onFailure($this->logEntry($logPath, 'queue:work panel,ai-reviews', 'FAIL'));
 
         // Phase 2A: Find orphaned test results that missed AI review and re-dispatch them
-        // Foreground commands use appendOutputTo for full output capture
         $schedule->command('ai:reconcile-reviews --hours=6 --limit=200')
             ->hourlyAt(5)
             ->environments(['production'])
             ->withoutOverlapping(30)
-            ->appendOutputTo($logPath);
+            ->before($this->logEntry($logPath, 'ai:reconcile-reviews', 'STARTING'))
+            ->onSuccess($this->logEntry($logPath, 'ai:reconcile-reviews', 'DONE'))
+            ->onFailure($this->logEntry($logPath, 'ai:reconcile-reviews', 'FAIL'));
 
         // Phase 2B: Retry failed AI reviews from the ai_errors table
         $schedule->command('ai:retry-failed-reviews --hours=12 --limit=50')
             ->hourlyAt(15)
             ->environments(['production'])
             ->withoutOverlapping(30)
-            ->appendOutputTo($logPath);
+            ->before($this->logEntry($logPath, 'ai:retry-failed-reviews', 'STARTING'))
+            ->onSuccess($this->logEntry($logPath, 'ai:retry-failed-reviews', 'DONE'))
+            ->onFailure($this->logEntry($logPath, 'ai:retry-failed-reviews', 'FAIL'));
 
         // Phase 2C: Dispatch any unreviewed results to the AI server
         $schedule->command('ai:dispatch-unreviewed-async')
             ->everyTenMinutes()
             ->environments(['production'])
             ->withoutOverlapping(10)
-            ->appendOutputTo($logPath);
+            ->before($this->logEntry($logPath, 'ai:dispatch-unreviewed-async', 'STARTING'))
+            ->onSuccess($this->logEntry($logPath, 'ai:dispatch-unreviewed-async', 'DONE'))
+            ->onFailure($this->logEntry($logPath, 'ai:dispatch-unreviewed-async', 'FAIL'));
     }
 
     /**
-     * Create a closure that writes a log entry to a file.
-     * Uses file_put_contents (open-write-close) to avoid persistent Windows file locks.
+     * Create a closure that writes a log entry to scheduler.log.
+     * Uses file_put_contents (open-write-close) without LOCK_EX to avoid Windows file lock conflicts.
      */
     protected function logEntry(string $logPath, string $command, string $status): \Closure
     {
         return function () use ($logPath, $command, $status) {
             $timestamp = date('Y-m-d H:i:s');
-            file_put_contents($logPath, "[{$timestamp}] {$command} -- {$status}\n", FILE_APPEND | LOCK_EX);
+            @file_put_contents($logPath, "[{$timestamp}] {$command} -- {$status}\n", FILE_APPEND);
         };
     }
 
