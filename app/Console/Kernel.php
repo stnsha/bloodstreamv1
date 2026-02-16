@@ -23,11 +23,11 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping(2);
 
         // Phase 1B: Process remaining queued jobs (panel results, AI reviews)
-        // Runs for up to 4 minutes, restarts every 5 minutes
-        $schedule->command('queue:work database --queue=panel,ai-reviews --timeout=300 --max-jobs=50 --max-time=240 --tries=3')
-            ->everyFiveMinutes()
+        // Runs for 55 seconds, restarts every minute
+        $schedule->command('queue:work database --queue=panel,ai-reviews --timeout=300 --max-jobs=50 --max-time=55 --tries=3')
+            ->everyMinute()
             ->environments(['production'])
-            ->withoutOverlapping(6);
+            ->withoutOverlapping(2);
 
         // Phase 2A: Find orphaned test results that missed AI review and re-dispatch them
         $schedule->command('ai:reconcile-reviews --hours=6 --limit=200')
