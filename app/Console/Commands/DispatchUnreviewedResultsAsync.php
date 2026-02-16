@@ -160,7 +160,7 @@ class DispatchUnreviewedResultsAsync extends Command
                         ->whereIn('ai_reviews.processing_status', ['QUEUED', 'PENDING', 'PROCESSING']);
                 })
                 ->orderBy('id', 'desc')
-                ->limit(15)
+                ->limit(20)
                 ->lockForUpdate()
                 ->pluck('id')
                 ->toArray();
