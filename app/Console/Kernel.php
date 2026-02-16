@@ -10,25 +10,14 @@ class Kernel extends ConsoleKernel
     /**
      * Define the application's command schedule.
      *
-     * All commands run as FOREGROUND on Windows.
-     * runInBackground() with start /b cmd silently fails on Windows,
-     * causing queue workers to never process jobs.
+     * Queue workers (ai-webhooks, panel, ai-reviews) run as separate
+     * Windows Task Scheduler tasks via dedicated batch files.
+     * This prevents foreground commands from blocking each other.
+     *
+     * Only periodic commands remain here.
      */
     protected function schedule(Schedule $schedule): void
     {
-        // Phase 1A: Process AI webhook jobs -- runs for 55 seconds, restarts every minute
-        $schedule->command('queue:work database --queue=ai-webhooks --timeout=300 --max-jobs=50 --max-time=55 --tries=3')
-            ->everyMinute()
-            ->environments(['production'])
-            ->withoutOverlapping(2);
-
-        // Phase 1B: Process remaining queued jobs (panel results, AI reviews)
-        // Runs for 55 seconds, restarts every minute
-        $schedule->command('queue:work database --queue=panel,ai-reviews --timeout=300 --max-jobs=50 --max-time=55 --tries=3')
-            ->everyMinute()
-            ->environments(['production'])
-            ->withoutOverlapping(2);
-
         // Phase 2A: Find orphaned test results that missed AI review and re-dispatch them
         $schedule->command('ai:reconcile-reviews --hours=6 --limit=200')
             ->hourlyAt(5)
