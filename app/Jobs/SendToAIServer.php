@@ -78,6 +78,13 @@ class SendToAIServer implements ShouldQueue, ShouldBeUnique
                 return;
             }
 
+            if (!$testResultCheck->is_completed) {
+                Log::channel('performance')->info('SendToAIServer: Test result not completed, skipping', [
+                    'test_result_id' => $this->testResultId,
+                ]);
+                return;
+            }
+
             // IDEMPOTENCY CHECK: Don't process if already in progress or completed
             $existingReview = AIReview::where('test_result_id', $this->testResultId)
                 ->whereIn('processing_status', ['QUEUED', 'PROCESSING', 'COMPLETED'])

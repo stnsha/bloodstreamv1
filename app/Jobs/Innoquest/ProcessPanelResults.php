@@ -226,9 +226,17 @@ class ProcessPanelResults implements ShouldQueue
                                     'patient_id' => $patient_id,
                                     'collected_date' => $collected_date,
                                     'reported_date' => $reported_date,
-                                    'is_completed' => false,
                                 ]
                             );
+
+                            // Only set is_completed = false on newly created records;
+                            // existing records retain their current is_completed state
+                            // to prevent race conditions where a later panel arrival
+                            // overwrites a previously completed result
+                            if ($test_result->wasRecentlyCreated) {
+                                $test_result->is_completed = false;
+                                $test_result->save();
+                            }
                         }
 
                         // Update cache with fresh data (5-minute TTL)

@@ -67,6 +67,12 @@ class RetryFailedAIReviews extends Command
                         continue;
                     }
 
+                    if (!$testResult->is_completed) {
+                        $skipCount++;
+                        $this->line("  [SKIP] test_result_id: {$error->test_result_id} - not completed");
+                        continue;
+                    }
+
                     // Increment attempt counter
                     $error->increment('attempt_count');
 
