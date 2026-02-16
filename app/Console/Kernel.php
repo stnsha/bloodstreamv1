@@ -12,7 +12,8 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        $logPath = storage_path('logs/scheduler.log');
+        $bgLogPath = storage_path('logs/scheduler-bg.log');
+        $commandLogPath = storage_path('logs/scheduler-commands.log');
 
         // Phase 1A: Process AI webhook jobs every minute for fast turnaround
         $schedule->command('queue:work database --queue=ai-webhooks --timeout=300 --max-jobs=50 --max-time=55 --tries=3')
@@ -20,7 +21,7 @@ class Kernel extends ConsoleKernel
             ->environments(['production'])
             ->withoutOverlapping(2)
             ->runInBackground()
-            ->appendOutputTo($logPath);
+            ->appendOutputTo($bgLogPath);
 
         // Phase 1B: Process remaining queued jobs (panel results, AI reviews, migrations)
         $schedule->command('queue:work database --queue=panel,ai-reviews,migration --timeout=300 --max-jobs=50 --max-time=600 --tries=3')
@@ -28,28 +29,28 @@ class Kernel extends ConsoleKernel
             ->environments(['production'])
             ->withoutOverlapping(15)
             ->runInBackground()
-            ->appendOutputTo($logPath);
+            ->appendOutputTo($bgLogPath);
 
         // Phase 2A: Find orphaned test results that missed AI review and re-dispatch them
         $schedule->command('ai:reconcile-reviews --hours=6 --limit=200')
             ->hourlyAt(5)
             ->environments(['production'])
             ->withoutOverlapping(30)
-            ->appendOutputTo($logPath);
+            ->appendOutputTo($commandLogPath);
 
         // Phase 2B: Retry failed AI reviews from the ai_errors table
         $schedule->command('ai:retry-failed-reviews --hours=12 --limit=50')
             ->hourlyAt(15)
             ->environments(['production'])
             ->withoutOverlapping(30)
-            ->appendOutputTo($logPath);
+            ->appendOutputTo($commandLogPath);
 
         // Phase 2C: Dispatch any unreviewed results to the AI server
         $schedule->command('ai:dispatch-unreviewed-async')
-            ->everyMinute()
+            ->everyTenMinutes()
             ->environments(['production'])
             ->withoutOverlapping(10)
-            ->appendOutputTo($logPath);
+            ->appendOutputTo($commandLogPath);
     }
 
     /**
