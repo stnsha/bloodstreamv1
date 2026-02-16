@@ -23,8 +23,8 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping(2)
             ->runInBackground();
 
-        // Phase 1B: Process remaining queued jobs (panel results, AI reviews, migrations)
-        $schedule->command('queue:work database --queue=panel,ai-reviews,migration --timeout=300 --max-jobs=50 --max-time=600 --tries=3')
+        // Phase 1B: Process remaining queued jobs (panel results, AI reviews)
+        $schedule->command('queue:work database --queue=panel,ai-reviews --timeout=300 --max-jobs=50 --max-time=600 --tries=3')
             ->everyFiveMinutes()
             ->environments(['production'])
             ->withoutOverlapping(15)
