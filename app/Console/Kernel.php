@@ -43,9 +43,9 @@ class Kernel extends ConsoleKernel
 
         // Phase 2C: Dispatch any unreviewed results to the AI server
         $schedule->command('ai:dispatch-unreviewed-async')
-            ->everyTenMinutes()
+            ->everyThirtyMinutes()
             ->environments(['production'])
-            ->withoutOverlapping(10);
+            ->withoutOverlapping(35);
     }
 
     /**
