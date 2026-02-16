@@ -35,21 +35,21 @@ class Kernel extends ConsoleKernel
             ->hourlyAt(5)
             ->environments(['production'])
             ->withoutOverlapping(30)
-            ->appendOutputTo($logsPath . '/ai-reconcile.log');
+            ->runInBackground();
 
         // Phase 2B: Retry failed AI reviews from the ai_errors table
         $schedule->command('ai:retry-failed-reviews --hours=12 --limit=50')
             ->hourlyAt(15)
             ->environments(['production'])
             ->withoutOverlapping(30)
-            ->appendOutputTo($logsPath . '/ai-retry.log');
+            ->runInBackground();
 
         // Phase 2C: Dispatch any unreviewed results to the AI server
         $schedule->command('ai:dispatch-unreviewed-async')
             ->everyTenMinutes()
             ->environments(['production'])
             ->withoutOverlapping(10)
-            ->appendOutputTo($logsPath . '/ai-dispatch.log');
+            ->runInBackground();
     }
 
     /**
