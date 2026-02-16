@@ -55,6 +55,9 @@ class DispatchUnreviewedResultsAsync extends Command
      */
     public function handle()
     {
+        $debugLog = storage_path('logs/dispatch-debug.log');
+        file_put_contents($debugLog, date('Y-m-d H:i:s') . " [START] handle() entered\n", FILE_APPEND);
+
         try {
             // Set resource limits
             ini_set('memory_limit', '128M');
@@ -62,16 +65,26 @@ class DispatchUnreviewedResultsAsync extends Command
 
             // Acquire lock to prevent concurrent execution
             if (!$this->acquireLock()) {
+                file_put_contents($debugLog, date('Y-m-d H:i:s') . " [LOCK] Lock not acquired, skipping\n", FILE_APPEND);
                 $this->warn('Another instance is already running. Exiting.');
                 Log::channel('ai-command')->warning('Command skipped - another instance running');
                 return Command::SUCCESS;
             }
 
-            return $this->dispatchUnreviewedResults();
+            file_put_contents($debugLog, date('Y-m-d H:i:s') . " [LOCK] Lock acquired, dispatching\n", FILE_APPEND);
+
+            $result = $this->dispatchUnreviewedResults();
+
+            file_put_contents($debugLog, date('Y-m-d H:i:s') . " [DONE] Result code: {$result}\n", FILE_APPEND);
+
+            return $result;
         } catch (Throwable $e) {
+            $errorMsg = date('Y-m-d H:i:s') . " [ERROR] " . get_class($e) . ": " . $e->getMessage()
+                . "\nFile: " . $e->getFile() . ":" . $e->getLine()
+                . "\nTrace: " . $e->getTraceAsString() . "\n";
+            file_put_contents($debugLog, $errorMsg, FILE_APPEND);
+
             $this->error('Command failed: ' . $e->getMessage());
-            $this->error('Exception class: ' . get_class($e));
-            $this->error('File: ' . $e->getFile() . ':' . $e->getLine());
 
             Log::channel('ai-command')->error('Dispatch command failed', [
                 'exception_class' => get_class($e),
