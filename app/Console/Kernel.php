@@ -14,8 +14,16 @@ class Kernel extends ConsoleKernel
     {
         $logPath = storage_path('logs/scheduler.log');
 
-        // Phase 1: Process all queued jobs (panel results, AI webhooks, AI reviews, migrations)
-        $schedule->command('queue:work database --queue=panel,ai-webhooks,ai-reviews,migration --timeout=300 --max-jobs=50 --max-time=600 --tries=3')
+        // Phase 1A: Process AI webhook jobs every minute for fast turnaround
+        $schedule->command('queue:work database --queue=ai-webhooks --timeout=300 --max-jobs=50 --max-time=55 --tries=3')
+            ->everyMinute()
+            ->environments(['production'])
+            ->withoutOverlapping(2)
+            ->runInBackground()
+            ->appendOutputTo($logPath);
+
+        // Phase 1B: Process remaining queued jobs (panel results, AI reviews, migrations)
+        $schedule->command('queue:work database --queue=panel,ai-reviews,migration --timeout=300 --max-jobs=50 --max-time=600 --tries=3')
             ->everyFiveMinutes()
             ->environments(['production'])
             ->withoutOverlapping(15)
