@@ -15,20 +15,20 @@ class Kernel extends ConsoleKernel
         $logsPath = storage_path('logs');
 
         // Phase 1A: Process AI webhook jobs every minute for fast turnaround
+        // No appendOutputTo -- background workers on Windows lock log files, blocking subsequent runs
+        // Job-level logging is handled by Laravel Log facade within each job class
         $schedule->command('queue:work database --queue=ai-webhooks --timeout=300 --max-jobs=50 --max-time=55 --tries=3')
             ->everyMinute()
             ->environments(['production'])
             ->withoutOverlapping(2)
-            ->runInBackground()
-            ->appendOutputTo($logsPath . '/worker-webhooks.log');
+            ->runInBackground();
 
         // Phase 1B: Process remaining queued jobs (panel results, AI reviews, migrations)
         $schedule->command('queue:work database --queue=panel,ai-reviews,migration --timeout=300 --max-jobs=50 --max-time=600 --tries=3')
             ->everyFiveMinutes()
             ->environments(['production'])
             ->withoutOverlapping(15)
-            ->runInBackground()
-            ->appendOutputTo($logsPath . '/worker-general.log');
+            ->runInBackground();
 
         // Phase 2A: Find orphaned test results that missed AI review and re-dispatch them
         $schedule->command('ai:reconcile-reviews --hours=6 --limit=200')
