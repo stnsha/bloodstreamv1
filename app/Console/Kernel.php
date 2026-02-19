@@ -26,7 +26,7 @@ class Kernel extends ConsoleKernel
 
         // Phase 2B: Retry failed AI reviews from the ai_errors table
         $schedule->command('ai:retry-failed-reviews --hours=12 --limit=50')
-            ->hourlyAt(15)
+            ->hourlyAt(20)
             ->environments(['production'])
             ->withoutOverlapping(30);
 
