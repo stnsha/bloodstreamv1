@@ -245,6 +245,61 @@ class OctopusApiService
     }
 
     /**
+     * Look up customer by blood_test_sales reference ID, restricted to Melaka outlets.
+     * Returns null if the ref ID does not belong to a Melaka outlet (regional_id = 6,
+     * outlet code starting with 'M').
+     *
+     * @param string $refId The reference ID (e.g., INN10256)
+     * @param string|null $labCode The lab code prefix used for normalization (e.g., INN)
+     * @return array|null Customer data or null if not found or not a Melaka customer
+     * @throws Exception
+     */
+    public function customerMelakaByRefId(string $refId, ?string $labCode = null): ?array
+    {
+        Log::info('OctopusApiService: Looking up Melaka customer by RefID', [
+            'refid'    => $refId,
+            'lab_code' => $labCode,
+        ]);
+
+        $data = [
+            'username' => $this->username,
+            'password' => $this->password,
+            'refid'    => $refId,
+            'lab_code' => $labCode ?? '',
+        ];
+
+        try {
+            $result = $this->callAPI('POST', '/customerMelakaByRefId.php', $data);
+
+            if (($result['status'] ?? '') !== 'success' || ! isset($result['customer'])) {
+                Log::info('OctopusApiService: Melaka customer not found by RefID', [
+                    'refid'   => $refId,
+                    'message' => $result['message'] ?? null,
+                ]);
+
+                return null;
+            }
+
+            Log::info('OctopusApiService: Melaka customer found by RefID', [
+                'refid'       => $refId,
+                'customer_id' => $result['customer']['customer_id'] ?? null,
+                'outlet_id'   => $result['customer']['outlet_id'] ?? null,
+                'date'        => $result['customer']['date'] ?? null,
+            ]);
+
+            return $result['customer'];
+
+        } catch (Exception $e) {
+            Log::error('OctopusApiService: Melaka RefID lookup exception', [
+                'error' => $e->getMessage(),
+                'refid' => $refId,
+            ]);
+
+            throw $e;
+        }
+    }
+
+    /**
      * Look up customer by exact IC number.
      *
      * @param string $ic The IC number

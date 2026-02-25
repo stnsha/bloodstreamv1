@@ -126,6 +126,7 @@ Route::middleware(['consult-call.auth', 'throttle:api'])->group(function () {
         Route::get('/{id}', 'show');
         Route::put('/{id}', 'update');
         Route::delete('/{id}', 'destroy');
+        Route::get('/{id}/pdf', 'exportPdf');
         Route::post('/{id}/details', 'storeDetails');
         Route::put('/{id}/details/{detailId}', 'updateDetails');
         Route::delete('/{id}/details/{detailId}', 'destroyDetails');

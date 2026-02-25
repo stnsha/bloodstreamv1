@@ -106,7 +106,7 @@ class RunConsultCallEligibility extends Command
                 ['Eligible (CC created)', $counters['eligible']],
                 ['Healthy (no match)', $counters['healthy']],
                 ['No customer_id', $counters['no_customer']],
-                ['Skipped (no patient/IC)', $counters['skipped_no_patient']],
+                ['Skipped (no patient)', $counters['skipped_no_patient']],
                 ['Skipped (no lab)', $counters['skipped_no_lab']],
                 ['Already exists', $counters['already_exists']],
                 ['Errors', $counters['errors']],
@@ -133,10 +133,10 @@ class RunConsultCallEligibility extends Command
     ): string {
         $patient = $testResult->patient;
 
-        if (! $patient || ! $patient->icno) {
-            Log::info('RunConsultCallEligibility: Skipping, no patient or IC', [
+        if (! $patient) {
+            Log::info('RunConsultCallEligibility: Skipping, no patient', [
                 'test_result_id' => $testResult->id,
-                'patient_id' => $testResult->patient_id,
+                'patient_id'     => $testResult->patient_id,
             ]);
 
             return 'skipped_no_patient';
@@ -163,19 +163,19 @@ class RunConsultCallEligibility extends Command
             return 'skipped_no_lab';
         }
 
-        $exactMatch = $octopusApi->getCustomerByIc($patient->icno, $lab->code);
+        $melakaCustomer = $octopusApi->customerMelakaByRefId($testResult->ref_id, $lab->code);
 
-        if (! $exactMatch) {
-            Log::info('RunConsultCallEligibility: No customer match for IC', [
+        if (! $melakaCustomer) {
+            Log::info('RunConsultCallEligibility: No Melaka customer match for ref ID', [
                 'test_result_id' => $testResult->id,
-                'patient_ic' => $patient->icno,
-                'lab_code' => $lab->code,
+                'ref_id'         => $testResult->ref_id,
+                'lab_code'       => $lab->code,
             ]);
 
             return 'no_customer';
         }
 
-        $customerId = (int) $exactMatch['customer_id'];
+        $customerId = (int) $melakaCustomer['customer_id'];
 
         $existedBefore = ConsultCallDetails::where('test_result_id', $testResult->id)->exists();
 

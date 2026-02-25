@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API\ConsultCall;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\API\PDFController;
 use App\Models\ConsultCall;
 use App\Models\ConsultCallDetails;
 use App\Models\ConsultCallFollowUp;
@@ -235,6 +236,7 @@ class ConsultCallController extends Controller
             'consent_call_date' => 'nullable|date',
             'scheduled_status' => 'nullable|integer|in:0,1,2,3',
             'scheduled_call_date' => 'nullable|date',
+            'updated_scheduled_date' => 'nullable|date',
             'handled_by' => 'nullable|integer',
             'mode_of_consultation' => 'nullable|integer|in:0,1,2,3',
             'closure_date' => 'nullable|date',
@@ -304,6 +306,7 @@ class ConsultCallController extends Controller
             'consent_call_date' => 'nullable|date',
             'scheduled_status' => 'nullable|integer|in:0,1,2,3',
             'scheduled_call_date' => 'nullable|date',
+            'updated_scheduled_date' => 'nullable|date',
             'handled_by' => 'nullable|integer',
             'mode_of_consultation' => 'nullable|integer|in:0,1,2,3',
             'closure_date' => 'nullable|date',
@@ -437,13 +440,21 @@ class ConsultCallController extends Controller
         try {
             DB::beginTransaction();
 
-            $detail = $consultCall->details()->create($validator->validated());
+            $detailData = $validator->validated();
+
+            // Auto-set process_status to active (1) if not explicitly provided
+            if (!isset($detailData['process_status'])) {
+                $detailData['process_status'] = 1;
+            }
+
+            $detail = $consultCall->details()->create($detailData);
 
             DB::commit();
 
             Log::info('ConsultCall storeDetails: created successfully', [
                 'consult_call_id' => $id,
                 'detail_id' => $detail->id,
+                'process_status' => $detail->process_status,
             ]);
 
             return response()->json([
@@ -513,13 +524,21 @@ class ConsultCallController extends Controller
         try {
             DB::beginTransaction();
 
-            $detail->update($validator->validated());
+            $detailData = $validator->validated();
+
+            // Auto-set process_status to active (1) if not explicitly provided
+            if (!isset($detailData['process_status'])) {
+                $detailData['process_status'] = 1;
+            }
+
+            $detail->update($detailData);
 
             DB::commit();
 
             Log::info('ConsultCall updateDetails: updated successfully', [
                 'consult_call_id' => $id,
                 'detail_id' => $detailId,
+                'process_status' => $detail->process_status,
             ]);
 
             return response()->json([
@@ -643,13 +662,21 @@ class ConsultCallController extends Controller
         try {
             DB::beginTransaction();
 
-            $followUp = $consultCall->followUps()->create($validator->validated());
+            $followUpData = $validator->validated();
+
+            // Auto-set followup_reminder to pending (0) on creation if not explicitly provided
+            if (!isset($followUpData['followup_reminder'])) {
+                $followUpData['followup_reminder'] = 0;
+            }
+
+            $followUp = $consultCall->followUps()->create($followUpData);
 
             DB::commit();
 
             Log::info('ConsultCall storeFollowUp: created successfully', [
                 'consult_call_id' => $id,
                 'follow_up_id' => $followUp->id,
+                'followup_reminder' => $followUp->followup_reminder,
             ]);
 
             return response()->json([
@@ -802,5 +829,58 @@ class ConsultCallController extends Controller
                 'message' => 'Failed to delete consult call follow-up.',
             ], 500);
         }
+    }
+
+    // ──────────────────────────────────────────────
+    // PDF export
+    // ──────────────────────────────────────────────
+
+    public function exportPdf(Request $request, int $id): JsonResponse
+    {
+        Log::info('ConsultCall exportPdf: generating PDF', ['consult_call_id' => $id]);
+
+        // If a specific test_result_id is provided, use it directly.
+        if ($request->filled('test_result_id')) {
+            $testResultId = (int) $request->input('test_result_id');
+
+            Log::info('ConsultCall exportPdf: using specific test_result_id', [
+                'consult_call_id' => $id,
+                'test_result_id'  => $testResultId,
+            ]);
+
+            return app(PDFController::class)->exportByTestResultId($testResultId);
+        }
+
+        // Fallback: use the latest detail that has a linked test result.
+        $consultCall = ConsultCall::with(['details' => function ($q) {
+            $q->whereNotNull('test_result_id')->latest();
+        }])->find($id);
+
+        if (!$consultCall) {
+            Log::warning('ConsultCall exportPdf: consult call not found', ['consult_call_id' => $id]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Consult call not found.',
+            ], 404);
+        }
+
+        $detail = $consultCall->details->first();
+
+        if (!$detail || !$detail->test_result_id) {
+            Log::warning('ConsultCall exportPdf: no test result linked', ['consult_call_id' => $id]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'No test result linked to this consult call.',
+            ], 404);
+        }
+
+        Log::info('ConsultCall exportPdf: dispatching to PDFController', [
+            'consult_call_id' => $id,
+            'test_result_id'  => $detail->test_result_id,
+        ]);
+
+        return app(PDFController::class)->exportByTestResultId($detail->test_result_id);
     }
 }
