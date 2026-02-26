@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Constants\ConsultCall\ClinicalCondition;
 use App\Constants\ConsultCall\PanelPanelItem;
 use App\Models\ClinicalCondition as ClinicalConditionModel;
 use App\Models\ConsultCall;
@@ -188,7 +187,7 @@ class ConsultCallEligibilityService
 
             DB::commit();
 
-            $condition = ClinicalCondition::getCondition($conditionId);
+            $condition = ClinicalConditionModel::getCondition($conditionId);
 
             Log::info('ConsultCallEligibilityService: Consult call record created', [
                 'test_result_id' => $testResult->id,

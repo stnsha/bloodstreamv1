@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Constants\ConsultCall\ClinicalCondition;
+use App\Models\ClinicalCondition;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
@@ -33,8 +33,8 @@ class ConditionEvaluatorService
         // Get conditions sorted by criteria_count DESC (most specific first)
         $sortedConditionIds = ClinicalCondition::getIdsSortedByPriority();
 
-        // Initialize counts: index 0 = healthy, indices 1-25 = conditions
-        $conditionCounts = array_fill(0, 26, 0);
+        // Initialize counts: index 0 = healthy, indices 1-26 = DB condition IDs
+        $conditionCounts = array_fill(0, 27, 0);
 
         // Assign each patient to exactly ONE condition (first match wins)
         foreach ($evaluatableData as $patientData) {
@@ -52,8 +52,12 @@ class ConditionEvaluatorService
             $conditionCounts[$assignedCondition]++;
         }
 
-        // Build statistics array in original order (1-25)
+        // Build statistics array in original order (excludes healthy row)
         $statistics = [];
+        $conditions = array_filter(
+            $conditions,
+            fn ($c) => ($c['criteria_count'] ?? 0) > 0
+        );
         foreach ($conditions as $conditionId => $conditionConfig) {
             $totalMet = $conditionCounts[$conditionId];
 
