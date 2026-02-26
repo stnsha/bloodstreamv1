@@ -671,6 +671,15 @@ class ConsultCallController extends Controller
 
             $followUp = $consultCall->followUps()->create($followUpData);
 
+            // Promote enrollment_type to Follow-up (2) the first time a follow-up is created,
+            // provided the parent ConsultCall is still in Primary status (1).
+            if ($consultCall->enrollment_type === ConsultCall::ENROLLMENT_TYPE_PRIMARY) {
+                $consultCall->update(['enrollment_type' => ConsultCall::ENROLLMENT_TYPE_FOLLOW_UP]);
+                Log::info('ConsultCall storeFollowUp: promoted enrollment_type to Follow-up', [
+                    'consult_call_id' => $id,
+                ]);
+            }
+
             DB::commit();
 
             Log::info('ConsultCall storeFollowUp: created successfully', [
