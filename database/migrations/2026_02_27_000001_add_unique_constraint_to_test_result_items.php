@@ -12,21 +12,27 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Remove duplicate active rows, keeping the one with the highest id.
-        // Duplicates arise because upsert() requires a database-level UNIQUE constraint
-        // to detect conflicts; without it, MySQL performs plain INSERTs every time.
-        DB::statement('
-            DELETE t1
-            FROM test_result_items t1
-            INNER JOIN test_result_items t2
-                ON  t1.test_result_id      = t2.test_result_id
-                AND t1.panel_panel_item_id = t2.panel_panel_item_id
-                AND t1.value = t2.value
-                AND t1.sequence = t2.sequence
-                AND t1.deleted_at          IS NULL
-                AND t2.deleted_at          IS NULL
-                AND t1.id < t2.id
-        ');
+        // Remove duplicate active rows in batches to avoid a single long-running
+        // transaction that would lock the table and risk PHP/MySQL timeout.
+        // Each batch deletes at most 500 rows, keeping the highest-id copy.
+        // The loop continues until no more duplicates remain.
+        $batchSize = 500;
+
+        do {
+            $affected = DB::delete('
+                DELETE t1
+                FROM test_result_items t1
+                INNER JOIN test_result_items t2
+                    ON  t1.test_result_id      = t2.test_result_id
+                    AND t1.panel_panel_item_id = t2.panel_panel_item_id
+                    AND t1.value              = t2.value
+                    AND t1.sequence           = t2.sequence
+                    AND t1.deleted_at          IS NULL
+                    AND t2.deleted_at          IS NULL
+                    AND t1.id < t2.id
+                LIMIT ' . $batchSize . '
+            ');
+        } while ($affected > 0);
 
         Schema::table('test_result_items', function (Blueprint $table) {
             $table->unique(
