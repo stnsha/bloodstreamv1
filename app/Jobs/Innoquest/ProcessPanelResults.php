@@ -355,7 +355,7 @@ class ProcessPanelResults implements ShouldQueue
                                 TestResultItem::upsert(
                                     $itemsToUpsert,
                                     ['test_result_id', 'panel_panel_item_id'],
-                                    ['reference_range_id', 'value', 'flag', 'sequence', 'is_tagon', 'has_amended', 'updated_at']
+                                    ['reference_range_id', 'value', 'flag', 'sequence', 'is_tagon', 'has_amended', 'updated_at', 'deleted_at']
                                 );
                             }
 
