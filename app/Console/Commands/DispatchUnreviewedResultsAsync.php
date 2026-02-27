@@ -3,13 +3,14 @@
 namespace App\Console\Commands;
 
 use App\Jobs\SendToAIServer;
+use App\Models\AIReview;
 use App\Models\TestResult;
-use Carbon\Carbon;
 use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class DispatchUnreviewedResultsAsync extends Command
 {
@@ -42,25 +43,43 @@ class DispatchUnreviewedResultsAsync extends Command
     protected $lockKey = 'ai:dispatch-unreviewed-async';
 
     /**
+     * Cache lock instance (must reuse same instance for acquire and release)
+     *
+     * @var \Illuminate\Contracts\Cache\Lock|null
+     */
+    protected $lock = null;
+
+    /**
      * Execute the console command.
      *
      * @return int
      */
     public function handle()
     {
-        // Set resource limits
-        ini_set('memory_limit', '128M');
-        ini_set('max_execution_time', '120');
-
-        // Acquire lock to prevent concurrent execution
-        if (!$this->acquireLock()) {
-            $this->warn('Another instance is already running. Exiting.');
-            Log::channel('ai-command')->warning('Command skipped - another instance running');
-            return Command::SUCCESS;
-        }
-
         try {
+            // Set resource limits
+            ini_set('memory_limit', '128M');
+            ini_set('max_execution_time', '120');
+
+            // Acquire lock to prevent concurrent execution
+            if (!$this->acquireLock()) {
+                $this->warn('Another instance is already running. Exiting.');
+                Log::channel('ai-command')->warning('Command skipped - another instance running');
+                return Command::SUCCESS;
+            }
+
             return $this->dispatchUnreviewedResults();
+        } catch (Throwable $e) {
+            $this->error('Command failed: ' . $e->getMessage());
+
+            Log::channel('ai-command')->error('Dispatch command failed', [
+                'exception_class' => get_class($e),
+                'error' => $e->getMessage(),
+                'file' => $e->getFile() . ':' . $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return Command::FAILURE;
         } finally {
             $this->releaseLock();
         }
@@ -79,6 +98,18 @@ class DispatchUnreviewedResultsAsync extends Command
             'timestamp' => $startTime,
             'dry_run' => $this->option('dry-run')
         ]);
+
+        // Check if AI server queue is already saturated
+        $queuedCount = AIReview::where('processing_status', 'QUEUED')->count();
+
+        if ($queuedCount > 10) {
+            $this->info("Skipping dispatch: {$queuedCount} reviews already QUEUED (threshold: 10).");
+            Log::channel('ai-command')->info('Dispatch skipped - AI queue saturated', [
+                'queued_count' => $queuedCount,
+                'threshold' => 10,
+            ]);
+            return Command::SUCCESS;
+        }
 
         // Fetch IDs with short-lived lock
         $testResultIds = $this->fetchUnreviewedIds();
@@ -207,7 +238,8 @@ class DispatchUnreviewedResultsAsync extends Command
      */
     protected function acquireLock(): bool
     {
-        return Cache::lock($this->lockKey, 1680)->get();
+        $this->lock = Cache::lock($this->lockKey, 600);
+        return $this->lock->get();
     }
 
     /**
@@ -217,6 +249,8 @@ class DispatchUnreviewedResultsAsync extends Command
      */
     protected function releaseLock(): void
     {
-        Cache::lock($this->lockKey)->release();
+        if ($this->lock) {
+            $this->lock->release();
+        }
     }
 }

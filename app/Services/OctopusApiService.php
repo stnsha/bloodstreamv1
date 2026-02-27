@@ -28,9 +28,9 @@ class OctopusApiService
 
     public function __construct()
     {
-        $this->baseUrl = config('services.octopus.api_url', '');
-        $this->username = config('credentials.odb_api.username', '');
-        $this->password = config('credentials.odb_api.password', '');
+        $this->baseUrl = config('services.octopus.api_url') ?? '';
+        $this->username = config('credentials.odb_api.username') ?? '';
+        $this->password = config('credentials.odb_api.password') ?? '';
     }
 
     /**

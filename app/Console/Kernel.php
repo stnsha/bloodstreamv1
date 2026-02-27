@@ -2,7 +2,6 @@
 
 namespace App\Console;
 
-use App\Jobs\ProcessCsvFilesJob;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
@@ -10,11 +9,32 @@ class Kernel extends ConsoleKernel
 {
     /**
      * Define the application's command schedule.
+     *
+     * Queue workers (ai-webhooks, panel, ai-reviews) run as separate
+     * Windows Task Scheduler tasks via dedicated batch files.
+     * This prevents foreground commands from blocking each other.
+     *
+     * Only periodic commands remain here.
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        // Phase 2A: Find orphaned test results that missed AI review and re-dispatch them
+        $schedule->command('ai:reconcile-reviews --hours=6 --limit=200')
+            ->hourlyAt(5)
+            ->environments(['production'])
+            ->withoutOverlapping(30);
 
+        // Phase 2B: Retry failed AI reviews from the ai_errors table
+        $schedule->command('ai:retry-failed-reviews --hours=12 --limit=50')
+            ->hourlyAt(20)
+            ->environments(['production'])
+            ->withoutOverlapping(30);
+
+        // Phase 2C: Dispatch any unreviewed results to the AI server
+        $schedule->command('ai:dispatch-unreviewed-async')
+            ->everyFifteenMinutes()
+            ->environments(['production'])
+            ->withoutOverlapping(18);
     }
 
     /**

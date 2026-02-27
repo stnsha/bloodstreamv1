@@ -102,12 +102,13 @@ class AIApiClient
 
     /**
      * Send test result data to AI server asynchronously (webhook-based)
-     * Retries up to 3 times with exponential backoff on connection failures
+     * Retries up to 3 times with exponential backoff on non-429 failures.
+     * On 429 (QUEUE_FULL), throws immediately so job-level retry handles it.
      *
      * @param array $payload The payload to send (includes test_result_id, source, and compiled data)
      * @param string $token The authentication token
      * @return array The AI server response data (status)
-     * @throws RuntimeException If the API call fails after all retries
+     * @throws RuntimeException If the API call fails after all retries or on 429
      */
     public function sendAsync(array $payload, string $token): array
     {
@@ -123,6 +124,19 @@ class AIApiClient
 
                 if ($response->failed()) {
                     $responseBody = $response->body();
+
+                    // 429/QUEUE_FULL: throw immediately, let job-level retry handle it
+                    if ($response->status() === 429) {
+                        Log::channel($this->logChannel)->warning('AI server queue full (429), skipping HTTP retries', [
+                            'attempt' => $attempt + 1,
+                            'response_body' => $responseBody,
+                        ]);
+
+                        throw new RuntimeException(
+                            "AI server returned 429 QUEUE_FULL. Response: " . $responseBody
+                        );
+                    }
+
                     $attempt++;
 
                     Log::channel($this->logChannel)->warning('AI async send failed, may retry', [
