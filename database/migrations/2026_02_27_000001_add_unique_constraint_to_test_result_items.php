@@ -18,6 +18,27 @@ return new class extends Migration
         // The loop continues until no more duplicates remain.
         $batchSize = 500;
 
+        // Pass 1: Remove exact duplicates (same value and sequence).
+        // These are plain re-deliveries of the same payload.
+        do {
+            $affected = DB::delete('
+                DELETE t1
+                FROM test_result_items t1
+                INNER JOIN test_result_items t2
+                    ON  t1.test_result_id      = t2.test_result_id
+                    AND t1.panel_panel_item_id = t2.panel_panel_item_id
+                    AND t1.value              = t2.value
+                    AND t1.sequence           = t2.sequence
+                    AND t1.deleted_at          IS NULL
+                    AND t2.deleted_at          IS NULL
+                    AND t1.id < t2.id
+                LIMIT ' . $batchSize . '
+            ');
+        } while ($affected > 0);
+
+        // Pass 2: Remove any remaining duplicates on (test_result_id, panel_panel_item_id)
+        // where value or sequence differs (e.g. amended results delivered twice).
+        // Keep the highest id — the most recently inserted row — as the authoritative value.
         do {
             $affected = DB::delete('
                 DELETE t1
