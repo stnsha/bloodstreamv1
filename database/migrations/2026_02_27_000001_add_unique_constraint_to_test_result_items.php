@@ -25,8 +25,6 @@ return new class extends Migration
                 INNER JOIN test_result_items t2
                     ON  t1.test_result_id      = t2.test_result_id
                     AND t1.panel_panel_item_id = t2.panel_panel_item_id
-                    AND t1.value              = t2.value
-                    AND t1.sequence           = t2.sequence
                     AND t1.deleted_at          IS NULL
                     AND t2.deleted_at          IS NULL
                     AND t1.id < t2.id
