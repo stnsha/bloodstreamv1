@@ -22,12 +22,6 @@ class ConsultCallFollowUp extends Model
     const NEXT_FOLLOWUP_3_MONTHS = 2;
     const NEXT_FOLLOWUP_6_MONTHS = 3;
 
-    // My Referral Status
-    const REFERRAL_STATUS_NONE = 0;
-    const REFERRAL_STATUS_REFERRED = 1;
-    const REFERRAL_STATUS_ACKNOWLEDGED = 2;
-    const REFERRAL_STATUS_COMPLETED = 3;
-
     // Follow-up Reminder
     const FOLLOWUP_REMINDER_PENDING = 0;
     const FOLLOWUP_REMINDER_COMPLETED = 1;
@@ -42,7 +36,6 @@ class ConsultCallFollowUp extends Model
         'is_blood_test_required',
         'mode_of_conversion',
         'referral_to',
-        'my_referral_status',
         'my_referral_id',
         'followup_reminder',
         'rescheduled_date',
@@ -57,7 +50,6 @@ class ConsultCallFollowUp extends Model
         'is_blood_test_required' => 'boolean',
         'mode_of_conversion' => 'integer',
         'referral_to' => 'integer',
-        'my_referral_status' => 'integer',
         'my_referral_id' => 'integer',
         'followup_reminder' => 'integer',
         'rescheduled_date' => 'datetime',
@@ -71,7 +63,6 @@ class ConsultCallFollowUp extends Model
         'next_followup' => self::NEXT_FOLLOWUP_NONE,
         'followup_date' => null,
         'is_blood_test_required' => false,
-        'my_referral_status' => self::REFERRAL_STATUS_NONE,
         'my_referral_id' => null,
         'followup_reminder' => self::FOLLOWUP_REMINDER_PENDING,
         'rescheduled_date' => null,
