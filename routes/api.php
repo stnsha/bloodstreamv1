@@ -8,6 +8,7 @@ use App\Http\Controllers\API\ODB\BloodTestController;
 use App\Http\Controllers\API\PDFController;
 use App\Http\Controllers\API\ConsultCall\ConsultCallAuthController;
 use App\Http\Controllers\API\ConsultCall\ConsultCallController;
+use App\Http\Controllers\API\ConsultCall\ConsultCallFollowUpController;
 use App\Http\Controllers\API\ConsultCall\StatusLibraryController;
 use App\Http\Controllers\API\Testing\SpecialTestController;
 use App\Http\Controllers\API\Webhook\AIResultController;
@@ -133,6 +134,10 @@ Route::middleware(['consult-call.auth', 'throttle:api'])->group(function () {
         Route::post('/{id}/follow-up', 'storeFollowUp');
         Route::put('/{id}/follow-up/{followUpId}', 'updateFollowUp');
         Route::delete('/{id}/follow-up/{followUpId}', 'destroyFollowUp');
+    });
+
+    Route::prefix('consult-call')->controller(ConsultCallFollowUpController::class)->group(function () {
+        Route::patch('/{id}/follow-up/{followUpId}/link-referral', 'linkReferral');
     });
 
     Route::prefix('consult-call/statuses')->controller(StatusLibraryController::class)->group(function () {
