@@ -36,6 +36,7 @@ class ConsultCall extends Model
     protected $fillable = [
         'patient_id',
         'customer_id',
+        'outlet_id',
         'is_eligible',
         'enrollment_date',
         'enrollment_type',
@@ -53,6 +54,7 @@ class ConsultCall extends Model
     protected $casts = [
         'patient_id' => 'integer',
         'customer_id' => 'integer',
+        'outlet_id' => 'integer',
         'is_eligible' => 'boolean',
         'enrollment_date' => 'datetime',
         'enrollment_type' => 'integer',

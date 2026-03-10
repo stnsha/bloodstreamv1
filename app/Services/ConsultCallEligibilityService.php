@@ -33,13 +33,15 @@ class ConsultCallEligibilityService
      * @param  TestResult  $testResult  The completed test result
      * @param  int  $patientId  The patient ID
      * @param  int  $customerId  The ODB customer ID
+     * @param  int|null  $outletId  The ODB outlet ID
      */
-    public function checkAndCreate(TestResult $testResult, int $patientId, int $customerId): void
+    public function checkAndCreate(TestResult $testResult, int $patientId, int $customerId, ?int $outletId = null): void
     {
         Log::info('ConsultCallEligibilityService: Starting eligibility check', [
             'test_result_id' => $testResult->id,
             'patient_id' => $patientId,
             'customer_id' => $customerId,
+            'outlet_id' => $outletId,
         ]);
 
         // Duplicate guard: skip if this test_result_id already has a ConsultCallDetails record
@@ -129,6 +131,7 @@ class ConsultCallEligibilityService
                     'customer_id' => $customerId,
                 ],
                 [
+                    'outlet_id' => $outletId,
                     'is_eligible' => true,
                     'enrollment_date' => now(),
                     'enrollment_type' => ConsultCall::ENROLLMENT_TYPE_PRIMARY,

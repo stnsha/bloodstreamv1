@@ -176,10 +176,11 @@ class RunConsultCallEligibility extends Command
         }
 
         $customerId = (int) $melakaCustomer['customer_id'];
+        $outletId = isset($melakaCustomer['outlet_id']) ? (int) $melakaCustomer['outlet_id'] : null;
 
         $existedBefore = ConsultCallDetails::where('test_result_id', $testResult->id)->exists();
 
-        $eligibilityService->checkAndCreate($testResult, $testResult->patient_id, $customerId);
+        $eligibilityService->checkAndCreate($testResult, $testResult->patient_id, $customerId, $outletId);
 
         if ($existedBefore) {
             return 'already_exists';
