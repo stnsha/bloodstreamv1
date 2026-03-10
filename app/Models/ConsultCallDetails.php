@@ -31,6 +31,7 @@ class ConsultCallDetails extends Model
         'consult_call_id',
         'clinical_condition_id',
         'test_result_id',
+        'documentation',
         'diagnosis',
         'treatment_plan',
         'rx_issued',

@@ -20,7 +20,7 @@ class ConsultCallController extends Controller
     {
         Log::info('ConsultCall index: listing consult calls', [
             'filters' => $request->only([
-                'patient_id', 'consent_call_status', 'scheduled_status',
+                'patient_id', 'outlet_id', 'consent_call_status', 'scheduled_status',
                 'date_from', 'date_to', 'search', 'enrollment_type',
                 'process_status', 'followup_reminder', 'last_consult_from', 'last_consult_to',
             ]),
@@ -30,6 +30,10 @@ class ConsultCallController extends Controller
 
         if ($request->filled('patient_id')) {
             $query->where('patient_id', $request->input('patient_id'));
+        }
+
+        if ($request->filled('outlet_id')) {
+            $query->where('outlet_id', $request->input('outlet_id'));
         }
 
         if ($request->filled('consent_call_status')) {
@@ -229,6 +233,7 @@ class ConsultCallController extends Controller
         $validator = Validator::make($request->all(), [
             'patient_id' => 'required|integer|exists:patients,id',
             'customer_id' => 'nullable|integer',
+            'outlet_id' => 'nullable|integer',
             'is_eligible' => 'nullable|boolean',
             'enrollment_date' => 'required|date',
             'enrollment_type' => 'nullable|integer|in:1,2',
@@ -299,6 +304,7 @@ class ConsultCallController extends Controller
         $validator = Validator::make($request->all(), [
             'patient_id' => 'sometimes|integer|exists:patients,id',
             'customer_id' => 'nullable|integer',
+            'outlet_id' => 'nullable|integer',
             'is_eligible' => 'nullable|boolean',
             'enrollment_date' => 'sometimes|date',
             'enrollment_type' => 'nullable|integer|in:1,2',
@@ -418,6 +424,7 @@ class ConsultCallController extends Controller
         $validator = Validator::make($request->all(), [
             'clinical_condition_id' => 'nullable|integer|exists:clinical_conditions,id',
             'test_result_id' => 'nullable|integer|exists:test_results,id',
+            'documentation' => 'required|string',
             'diagnosis' => 'nullable|string',
             'treatment_plan' => 'nullable|string',
             'rx_issued' => 'nullable|boolean',
@@ -499,9 +506,26 @@ class ConsultCallController extends Controller
             ], 404);
         }
 
+        // Once consulted_by is set, only that doctor may update this detail record
+        if ($detail->consulted_by && $detail->consulted_by !== (int) $request->attributes->get('staff_id')) {
+            Log::warning('ConsultCall updateDetails: forbidden — staff_id does not match consulted_by', [
+                'consult_call_id' => $id,
+                'detail_id' => $detailId,
+                'consulted_by' => $detail->consulted_by,
+                'staff_id' => $request->attributes->get('staff_id'),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'data' => null,
+                'message' => 'Only the assigned doctor can update this consultation detail.',
+            ], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'clinical_condition_id' => 'nullable|integer|exists:clinical_conditions,id',
             'test_result_id' => 'nullable|integer|exists:test_results,id',
+            'documentation' => 'sometimes|nullable|string',
             'diagnosis' => 'nullable|string',
             'treatment_plan' => 'nullable|string',
             'rx_issued' => 'nullable|boolean',
