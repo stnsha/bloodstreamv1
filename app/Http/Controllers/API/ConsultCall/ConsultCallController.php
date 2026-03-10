@@ -22,7 +22,7 @@ class ConsultCallController extends Controller
             'filters' => $request->only([
                 'patient_id', 'outlet_id', 'consent_call_status', 'scheduled_status',
                 'date_from', 'date_to', 'search', 'enrollment_type',
-                'process_status', 'followup_reminder', 'last_consult_from', 'last_consult_to',
+                'process_status', 'followup_reminder', 'scheduled_from', 'scheduled_to',
             ]),
         ]);
 
@@ -79,22 +79,23 @@ class ConsultCallController extends Controller
             });
         }
 
-        if ($request->filled('last_consult_from')) {
-            $consultFrom = $request->input('last_consult_from');
-            $query->whereHas('details', function ($q) use ($consultFrom) {
-                $q->where('consult_date', '>=', $consultFrom);
-            });
+        if ($request->filled('scheduled_from')) {
+            $query->where('scheduled_call_date', '>=', $request->input('scheduled_from'));
         }
 
-        if ($request->filled('last_consult_to')) {
-            $consultTo = $request->input('last_consult_to');
-            $query->whereHas('details', function ($q) use ($consultTo) {
-                $q->where('consult_date', '<=', $consultTo);
+        if ($request->filled('scheduled_to')) {
+            $query->where('scheduled_call_date', '<=', $request->input('scheduled_to'));
+        }
+
+        if ($request->filled('consulted_by')) {
+            $consultedBy = $request->input('consulted_by');
+            $query->whereHas('details', function ($q) use ($consultedBy) {
+                $q->where('consulted_by', $consultedBy);
             });
         }
 
         $perPage = $request->input('per_page', 15);
-        $data = $query->orderBy('created_at', 'desc')->paginate($perPage);
+        $data = $query->orderByRaw('scheduled_call_date IS NULL, scheduled_call_date ASC')->paginate($perPage);
 
         Log::info('ConsultCall index: completed', ['total' => $data->total()]);
 
