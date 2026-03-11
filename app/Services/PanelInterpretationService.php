@@ -226,7 +226,10 @@ class PanelInterpretationService
             ->where('panel_panel_items.panel_id', 25) // panel: Lipid Profile
             ->value('panel_panel_items.id');
 
-        // 2. Validate inputs - early return if invalid
+        // 2. Cast first, then validate — PHP 8 no longer coerces "" to 0 in loose comparison
+        $totalCholesterol = is_null($totalCholesterol) ? null : (float) $totalCholesterol;
+        $hdlCholesterol = is_null($hdlCholesterol) ? null : (float) $hdlCholesterol;
+
         if (is_null($hdlCholesterol) || is_null($totalCholesterol) || $hdlCholesterol == 0 || $totalCholesterol == 0) {
             return [
                 'panel_panel_item_id' => $acPanelPanelItemId,
@@ -308,7 +311,12 @@ class PanelInterpretationService
             ->where('panel_panel_items.panel_id', 24) // panel: Liver Function Test
             ->value('panel_panel_items.id');
 
-        // 2. Validate inputs - early return if invalid
+        // 2. Cast first, then validate — PHP 8 no longer coerces "" to 0 in loose comparison
+        $age = is_null($age) ? null : (float) $age;
+        $ast = is_null($ast) ? null : (float) $ast;
+        $alt = is_null($alt) ? null : (float) $alt;
+        $plateletCount = is_null($plateletCount) ? null : (float) $plateletCount;
+
         if (is_null($age) || is_null($ast) || is_null($alt) || is_null($plateletCount) ||
             $age == 0 || $ast == 0 || $alt == 0 || $plateletCount == 0) {
             return [
@@ -317,12 +325,6 @@ class PanelInterpretationService
                 'fib_interpretation' => null,
             ];
         }
-
-        // 3. Calculate FIB-4 — cast to float to handle string values from DB/callers
-        $age = (float) $age;
-        $ast = (float) $ast;
-        $alt = (float) $alt;
-        $plateletCount = (float) $plateletCount;
 
         $fibValue = round((($age * $ast) / ($plateletCount * sqrt($alt))), 2);
         $fibInterpretation = null;
@@ -405,7 +407,11 @@ class PanelInterpretationService
             ->where('panel_panel_items.panel_id', 24) // panel: Liver Function Test
             ->value('panel_panel_items.id');
 
-        // 2. Validate inputs - early return if invalid
+        // 2. Cast first, then validate — PHP 8 no longer coerces "" to 0 in loose comparison
+        $ast = is_null($ast) ? null : (float) $ast;
+        $astRef = is_null($astRef) ? null : (float) $astRef;
+        $plateletCount = is_null($plateletCount) ? null : (float) $plateletCount;
+
         if (is_null($ast) || is_null($astRef) || is_null($plateletCount) ||
             $ast == 0 || $astRef == 0 || $plateletCount == 0) {
             return [
@@ -496,7 +502,15 @@ class PanelInterpretationService
             ->where('panel_panel_items.panel_id', 24) // panel: Liver Function Test
             ->value('panel_panel_items.id');
 
-        // 2. Validate inputs - early return if invalid (fasting is boolean, not required to be non-null)
+        // 2. Cast first, then validate — PHP 8 no longer coerces "" to 0 in loose comparison
+        $age = is_null($age) ? null : (float) $age;
+        $bmi = is_null($bmi) ? null : (float) $bmi;
+        $ast = is_null($ast) ? null : (float) $ast;
+        $alt = is_null($alt) ? null : (float) $alt;
+        $plateletCount = is_null($plateletCount) ? null : (float) $plateletCount;
+        $albumin = is_null($albumin) ? null : (float) $albumin;
+
+        // fasting is boolean, not required to be non-null
         if (is_null($age) || is_null($bmi) || is_null($ast) || is_null($alt) || is_null($plateletCount) || is_null($albumin) ||
             $age == 0 || $bmi == 0 || $ast == 0 || $alt == 0 || $plateletCount == 0 || $albumin == 0) {
             return [
