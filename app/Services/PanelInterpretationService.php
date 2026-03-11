@@ -318,7 +318,12 @@ class PanelInterpretationService
             ];
         }
 
-        // 3. Calculate FIB-4
+        // 3. Calculate FIB-4 — cast to float to handle string values from DB/callers
+        $age = (float) $age;
+        $ast = (float) $ast;
+        $alt = (float) $alt;
+        $plateletCount = (float) $plateletCount;
+
         $fibValue = round((($age * $ast) / ($plateletCount * sqrt($alt))), 2);
         $fibInterpretation = null;
 
