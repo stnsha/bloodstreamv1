@@ -18,16 +18,11 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-<<<<<<< Updated upstream
         // Phase 2A: Find orphaned test results that missed AI review and re-dispatch them
         $schedule->command('ai:reconcile-reviews --hours=6 --limit=200')
             ->hourlyAt(5)
             ->environments(['production'])
             ->withoutOverlapping(30);
-=======
-        // $schedule->command('inspire')->hourly();
-
->>>>>>> Stashed changes
 
         // Phase 2B: Retry failed AI reviews from the ai_errors table
         $schedule->command('ai:retry-failed-reviews --hours=12 --limit=50')
