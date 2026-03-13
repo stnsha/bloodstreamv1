@@ -542,33 +542,54 @@ class ProcessPanelResults implements ShouldQueue
             // Consult call eligibility check (requires completed result with PDF)
             if ($hasPdf && $test_result && $test_result->id && $patient_id) {
                 try {
-                    // Resolve customer_id if not already resolved from ref_id block
+                    // Gate 1: customer_id must have been resolved from the ref_id block
                     if ($customerId === null) {
-                        $patientForConsult = isset($patient) ? $patient : Patient::find($patient_id);
-                        $patientIcForConsult = $patientForConsult->icno ?? null;
-
-                        if ($patientIcForConsult) {
-                            $labForConsult = isset($lab) ? $lab : Lab::find($lab_id);
-                            $labCodeForConsult = $labForConsult->code ?? null;
-
-                            if ($labCodeForConsult) {
-                                $octopusApi = app(OctopusApiService::class);
-                                $customerMatch = $octopusApi->getCustomerByIc($patientIcForConsult, $labCodeForConsult);
-
-                                if ($customerMatch) {
-                                    $customerId = (int) $customerMatch['customer_id'];
-                                }
-                            }
-                        }
-                    }
-
-                    if ($customerId !== null) {
-                        app(ConsultCallEligibilityService::class)->checkAndCreate($test_result, $patient_id, $customerId);
-                    } else {
                         Log::info('Consult call skipped: no customer_id resolved', [
                             'test_result_id' => $test_result->id,
                             'patient_id' => $patient_id,
                         ]);
+                    } else {
+                        // Gate 2: collected_date must be on or after 2026-03-08
+                        $collectedDateForConsult = $test_result->collected_date ?? $test_result->reported_date;
+                        $consultCutoffDate = Carbon::parse('2026-03-08')->startOfDay();
+
+                        if (! $collectedDateForConsult || Carbon::parse($collectedDateForConsult)->lt($consultCutoffDate)) {
+                            Log::info('Consult call skipped: collected date before 2026-03-08', [
+                                'test_result_id' => $test_result->id,
+                                'collected_date' => $collectedDateForConsult,
+                            ]);
+                        } else {
+                            // Gate 3: must be a Melaka outlet, verified via ref_id
+                            $refIdForConsult = $test_result->ref_id;
+
+                            if (! $refIdForConsult) {
+                                Log::info('Consult call skipped: no ref_id to verify Melaka outlet', [
+                                    'test_result_id' => $test_result->id,
+                                    'patient_id' => $patient_id,
+                                ]);
+                            } else {
+                                $labForConsult = isset($lab) ? $lab : Lab::find($lab_id);
+                                $labCodeForConsult = $labForConsult->code ?? null;
+
+                                $octopusApi = app(OctopusApiService::class);
+                                $melakaCustomer = $octopusApi->customerMelakaByRefId($refIdForConsult, $labCodeForConsult);
+
+                                if (! $melakaCustomer) {
+                                    Log::info('Consult call skipped: not a Melaka outlet or customer not found by ref_id', [
+                                        'test_result_id' => $test_result->id,
+                                        'ref_id' => $refIdForConsult,
+                                        'patient_id' => $patient_id,
+                                    ]);
+                                } else {
+                                    $consultCustomerId = (int) $melakaCustomer['customer_id'];
+                                    $consultOutletId = isset($melakaCustomer['outlet_id']) ? (int) $melakaCustomer['outlet_id'] : null;
+
+                                    app(ConsultCallEligibilityService::class)->checkAndCreate(
+                                        $test_result, $patient_id, $consultCustomerId, $consultOutletId
+                                    );
+                                }
+                            }
+                        }
                     }
                 } catch (Throwable $e) {
                     Log::error('Consult call eligibility check failed', [
