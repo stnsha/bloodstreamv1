@@ -35,6 +35,17 @@ class Kernel extends ConsoleKernel
             ->everyFifteenMinutes()
             ->environments(['production'])
             ->withoutOverlapping(18);
+
+        // Daily: Run consult call eligibility checks for the previous day's completed results
+        $schedule->command('testing:run-consult-eligibility', [
+            '--date-from' => now()->subDay()->format('Y-m-d'),
+            '--date-to'   => now()->subDay()->format('Y-m-d'),
+            '--limit'     => 50,
+            '--offset'    => 0,
+        ])
+            ->dailyAt('00:00')
+            ->environments(['production'])
+            ->withoutOverlapping(60);
     }
 
     /**
