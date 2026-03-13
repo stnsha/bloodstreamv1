@@ -15,12 +15,14 @@ class ClinicalCondition extends Model
         'id',
         'description',
         'evaluator',
+        'risk_tier',
         'criteria_count',
         'is_active',
     ];
 
     protected $casts = [
         'id' => 'integer',
+        'risk_tier' => 'integer',
         'criteria_count' => 'integer',
         'is_active' => 'boolean',
     ];
@@ -70,12 +72,15 @@ class ClinicalCondition extends Model
     }
 
     /**
-     * Get condition IDs sorted by priority (highest criteria_count first)
+     * Get condition IDs sorted by priority (highest criteria_count first).
+     * Excludes the healthy condition (criteria_count = 0) so it is never
+     * passed into the evaluator loop.
      */
     public static function getIdsSortedByPriority(): array
     {
-        return Cache::remember('clinical_conditions_sorted', 3600, function () {
+        return Cache::remember('clinical_conditions_sorted_evaluable', 3600, function () {
             return self::active()
+                ->where('criteria_count', '>', 0)
                 ->orderByDesc('criteria_count')
                 ->orderBy('id')
                 ->pluck('id')
@@ -90,5 +95,6 @@ class ClinicalCondition extends Model
     {
         Cache::forget('clinical_conditions_all');
         Cache::forget('clinical_conditions_sorted');
+        Cache::forget('clinical_conditions_sorted_evaluable');
     }
 }

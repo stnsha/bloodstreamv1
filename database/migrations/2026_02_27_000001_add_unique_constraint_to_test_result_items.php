@@ -65,12 +65,16 @@ return new class extends Migration
             ');
         } while ($affected > 0);
 
-        Schema::table('test_result_items', function (Blueprint $table) {
-            $table->unique(
-                ['test_result_id', 'panel_panel_item_id'],
-                'test_result_items_unique_pair'
-            );
-        });
+        $indexExists = collect(DB::select("SHOW INDEX FROM test_result_items WHERE Key_name = 'test_result_items_unique_pair'"))->isNotEmpty();
+
+        if (! $indexExists) {
+            Schema::table('test_result_items', function (Blueprint $table) {
+                $table->unique(
+                    ['test_result_id', 'panel_panel_item_id'],
+                    'test_result_items_unique_pair'
+                );
+            });
+        }
     }
 
     /**

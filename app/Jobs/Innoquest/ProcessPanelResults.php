@@ -21,6 +21,7 @@ use App\Models\TestResult;
 use App\Models\TestResultComment;
 use App\Models\TestResultItem;
 use App\Models\TestResultProfile;
+use App\Services\ConsultCallEligibilityService;
 use App\Services\MyHealthService;
 use App\Services\OctopusApiService;
 use App\Services\PanelInterpretationService;
@@ -144,6 +145,7 @@ class ProcessPanelResults implements ShouldQueue
         $observations_count = 0;
         $patient_id = null;
         $panel = null;
+        $customerId = null;
 
         try {
             DB::beginTransaction();
@@ -529,39 +531,52 @@ class ProcessPanelResults implements ShouldQueue
 
             // DeliveryFile tracking OUTSIDE main transaction (non-critical)
             if ($test_result) {
-                try {
-                    DeliveryFile::firstOrCreate(
-                        [
-                            'lab_id' => $lab_id,
-                            'sending_facility' => $sending_facility,
-                            'batch_id' => $batch_id,
-                        ],
-                        [
-                            'json_content' => json_encode($validated),
-                            'status' => DeliveryFile::compl,
-                        ]
-                    );
-                } catch (Throwable $e) {
-                    // Non-critical - log but don't fail the job
-                    Log::warning('Failed to create DeliveryFile record', [
-                        'error' => $e->getMessage(),
-                        'batch_id' => $batch_id,
-                    ]);
-                }
+                $this->trackDeliveryFile($lab_id, $sending_facility, $batch_id, $validated);
             }
 
             // Dispatch to AI server queue if PDF was received
             if (isset($validated['EncodedBase64pdf']) && filled($validated['EncodedBase64pdf']) && $test_result && $test_result->id) {
+                $this->dispatchAIReview($test_result);
+            }
+
+            // Consult call eligibility check (requires completed result with PDF)
+            if ($hasPdf && $test_result && $test_result->id && $patient_id) {
                 try {
-                    SendToAIServer::dispatch($test_result->id);
-                    Log::info('Dispatched test result to AI server queue', [
-                        'test_result_id' => $test_result->id,
-                        'lab_no' => $test_result->lab_no ?? null,
-                    ]);
+                    // Resolve customer_id if not already resolved from ref_id block
+                    if ($customerId === null) {
+                        $patientForConsult = isset($patient) ? $patient : Patient::find($patient_id);
+                        $patientIcForConsult = $patientForConsult->icno ?? null;
+
+                        if ($patientIcForConsult) {
+                            $labForConsult = isset($lab) ? $lab : Lab::find($lab_id);
+                            $labCodeForConsult = $labForConsult->code ?? null;
+
+                            if ($labCodeForConsult) {
+                                $octopusApi = app(OctopusApiService::class);
+                                $customerMatch = $octopusApi->getCustomerByIc($patientIcForConsult, $labCodeForConsult);
+
+                                if ($customerMatch) {
+                                    $customerId = (int) $customerMatch['customer_id'];
+                                }
+                            }
+                        }
+                    }
+
+                    if ($customerId !== null) {
+                        app(ConsultCallEligibilityService::class)->checkAndCreate($test_result, $patient_id, $customerId);
+                    } else {
+                        Log::info('Consult call skipped: no customer_id resolved', [
+                            'test_result_id' => $test_result->id,
+                            'patient_id' => $patient_id,
+                        ]);
+                    }
                 } catch (Throwable $e) {
-                    Log::error('Failed to dispatch test result to AI server queue', [
+                    Log::error('Consult call eligibility check failed', [
                         'test_result_id' => $test_result->id,
+                        'patient_id' => $patient_id,
                         'error' => $e->getMessage(),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine(),
                     ]);
                 }
             }
@@ -599,7 +614,45 @@ class ProcessPanelResults implements ShouldQueue
         ]);
     }
 
-    private function findOrCreatePatient(array $patient, $batch_id = null)
+    protected function dispatchAIReview(TestResult $test_result): void
+    {
+        try {
+            SendToAIServer::dispatch($test_result->id);
+            Log::info('Dispatched test result to AI server queue', [
+                'test_result_id' => $test_result->id,
+                'lab_no' => $test_result->lab_no ?? null,
+            ]);
+        } catch (Throwable $e) {
+            Log::error('Failed to dispatch test result to AI server queue', [
+                'test_result_id' => $test_result->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    protected function trackDeliveryFile(int $lab_id, ?string $sending_facility, ?string $batch_id, array $validated): void
+    {
+        try {
+            DeliveryFile::firstOrCreate(
+                [
+                    'lab_id' => $lab_id,
+                    'sending_facility' => $sending_facility,
+                    'batch_id' => $batch_id,
+                ],
+                [
+                    'json_content' => json_encode($validated),
+                    'status' => DeliveryFile::compl,
+                ]
+            );
+        } catch (Throwable $e) {
+            Log::warning('Failed to create DeliveryFile record', [
+                'error' => $e->getMessage(),
+                'batch_id' => $batch_id,
+            ]);
+        }
+    }
+
+    protected function findOrCreatePatient(array $patient, $batch_id = null)
     {
         $icno = null;
         $ic_type = Patient::IC_TYPE_OTHERS;
@@ -661,7 +714,7 @@ class ProcessPanelResults implements ShouldQueue
         return $patient->id;
     }
 
-    private function findOrCreatePanel($lab_id, $panel_code, $panel_name)
+    protected function findOrCreatePanel($lab_id, $panel_code, $panel_name)
     {
         $masterPanelCacheKey = 'master_panel_'.md5($panel_name);
         $masterPanel = $this->cachedFirstOrCreate(
@@ -688,7 +741,7 @@ class ProcessPanelResults implements ShouldQueue
         return $panel;
     }
 
-    private function findOrCreateProfile($lab_id, $profile_code = null)
+    protected function findOrCreateProfile($lab_id, $profile_code = null)
     {
         if (filled($profile_code)) {
             $panelProfileCacheKey = "panel_profile_{$lab_id}_{$profile_code}";
@@ -710,7 +763,7 @@ class ProcessPanelResults implements ShouldQueue
         return null;
     }
 
-    private function convertDatetime($datetime)
+    protected function convertDatetime($datetime)
     {
         if (empty($datetime)) {
             return null;
@@ -730,7 +783,7 @@ class ProcessPanelResults implements ShouldQueue
         return null;
     }
 
-    private function isTagOnItem($panel_name, $panel_code)
+    protected function isTagOnItem($panel_name, $panel_code)
     {
         $tagOnKeywords = [
             'TAG',
@@ -754,7 +807,7 @@ class ProcessPanelResults implements ShouldQueue
      *
      * @param  \Illuminate\Support\Collection  $testResultItems
      */
-    private function getPlateletsValue($testResultItems): ?string
+    protected function getPlateletsValue($testResultItems): ?string
     {
         $item = $testResultItems[PanelPanelItemConstants::PLATELETS] ?? null;
         if ($item !== null && $item->value !== null && $item->value !== '') {
