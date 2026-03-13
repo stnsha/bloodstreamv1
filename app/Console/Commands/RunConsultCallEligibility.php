@@ -39,8 +39,8 @@ class RunConsultCallEligibility extends Command
 
         $testResults = TestResult::where('is_completed', true)
             ->whereNotNull('ref_id')
-            ->whereBetween('created_at', [$dateFrom . ' 00:00:00', $dateTo . ' 23:59:59'])
-            ->whereBetween('updated_at', [$dateFrom . ' 00:00:00', $dateTo . ' 23:59:59'])
+            ->whereBetween('collected_date', [$dateFrom . ' 00:00:00', $dateTo . ' 23:59:59'])
+            ->whereBetween('collected_date', [$dateFrom . ' 00:00:00', $dateTo . ' 23:59:59'])
             ->orderBy('id', 'desc')
             ->skip($offset)
             ->take($limit)
