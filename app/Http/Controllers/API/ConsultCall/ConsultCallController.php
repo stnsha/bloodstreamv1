@@ -450,9 +450,11 @@ class ConsultCallController extends Controller
 
             $detailData = $validator->validated();
 
-            // Auto-set process_status to active (1) if not explicitly provided
-            if (!isset($detailData['process_status'])) {
-                $detailData['process_status'] = 1;
+            // Auto-set process_status: End Process action forces Closed; default to Active
+            if (isset($detailData['action']) && $detailData['action'] === ConsultCallDetails::ACTION_END_PROCESS) {
+                $detailData['process_status'] = ConsultCallDetails::PROCESS_STATUS_CLOSED;
+            } elseif (!isset($detailData['process_status'])) {
+                $detailData['process_status'] = ConsultCallDetails::PROCESS_STATUS_ACTIVE;
             }
 
             $detail = $consultCall->details()->create($detailData);
@@ -551,9 +553,11 @@ class ConsultCallController extends Controller
 
             $detailData = $validator->validated();
 
-            // Auto-set process_status to active (1) if not explicitly provided
-            if (!isset($detailData['process_status'])) {
-                $detailData['process_status'] = 1;
+            // Auto-set process_status: End Process action forces Closed; default to Active
+            if (isset($detailData['action']) && $detailData['action'] === ConsultCallDetails::ACTION_END_PROCESS) {
+                $detailData['process_status'] = ConsultCallDetails::PROCESS_STATUS_CLOSED;
+            } elseif (!isset($detailData['process_status'])) {
+                $detailData['process_status'] = ConsultCallDetails::PROCESS_STATUS_ACTIVE;
             }
 
             $detail->update($detailData);
