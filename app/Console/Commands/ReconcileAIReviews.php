@@ -46,6 +46,7 @@ class ReconcileAIReviews extends Command
                 ->whereDoesntHave('aiReview', function ($query) {
                     $query->where('processing_status', 'COMPLETED');
                 })
+                ->orderBy('collected_at', 'desc')
                 ->limit($limit)
                 ->get();
 
