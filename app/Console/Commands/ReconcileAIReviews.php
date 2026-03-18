@@ -37,12 +37,15 @@ class ReconcileAIReviews extends Command
         $this->info("{$action} AI review jobs for orphaned test results from the last {$hours} hours...");
 
         try {
-            // Find test results that have PDF but no AI review completed
-            // These are candidates for AI review dispatch if they're recent enough
+            // Find test results that are completed but have no COMPLETED ai_review.
+            // Non-COMPLETED records (PENDING/QUEUED/FAILED) are treated as absent
+            // because they are cleaned up by the job on failure.
             $orphanedResults = TestResult::where('is_completed', true)
                 ->where('is_reviewed', false)
                 ->where('created_at', '>=', now()->subHours($hours))
-                ->doesntHave('aiReview')  // No AI review record at all
+                ->whereDoesntHave('aiReview', function ($query) {
+                    $query->where('processing_status', 'COMPLETED');
+                })
                 ->limit($limit)
                 ->get();
 

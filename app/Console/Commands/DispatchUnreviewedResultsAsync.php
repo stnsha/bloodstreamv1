@@ -188,7 +188,8 @@ class DispatchUnreviewedResultsAsync extends Command
                     $query->select(DB::raw(1))
                         ->from('ai_reviews')
                         ->whereColumn('ai_reviews.test_result_id', 'test_results.id')
-                        ->whereIn('ai_reviews.processing_status', ['QUEUED', 'PENDING', 'PROCESSING']);
+                        ->where('ai_reviews.processing_status', 'COMPLETED')
+                        ->whereNull('ai_reviews.deleted_at');
                 })
                 ->orderBy('id', 'desc')
                 ->limit(10)

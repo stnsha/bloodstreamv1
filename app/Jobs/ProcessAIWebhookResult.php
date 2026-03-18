@@ -96,22 +96,14 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
                     ->first();
 
                 if (! $aiReview) {
-                    // Log warning
-                    Log::channel('webhook')->warning('No AI review record found for webhook - storing to ai_errors', [
+                    // No prior record — create a new instance to be saved as COMPLETED below
+                    // This is expected when the job's intermediate record was cleaned up or never existed
+                    Log::channel('webhook')->info('No prior AI review record found for webhook - will create COMPLETED record directly', [
                         'test_result_id' => $testResultId,
                     ]);
 
-                    // Store webhook data to ai_errors table for recovery
-                    AIError::create([
-                        'test_result_id' => $testResultId,
-                        'processing_status' => 'FAILED',
-                        'http_status' => $aiAnalysis['status'] ?? 200,
-                        'error_message' => 'Webhook received but AIReview record not found in database',
-                        'compiled_data' => $this->webhookData,
-                        'attempt_count' => 1,
-                    ]);
-
-                    return;
+                    $aiReview = new AIReview();
+                    $aiReview->test_result_id = $testResultId;
                 }
 
                 // IDEMPOTENCY CHECK: Skip if already processed with same webhook
@@ -176,7 +168,8 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
     }
 
     /**
-     * Handle permanent job failure after all retries exhausted
+     * Handle permanent job failure after all retries exhausted.
+     * Deletes any non-COMPLETED ai_review record so the result can be re-dispatched.
      */
     public function failed(Exception $exception): void
     {
@@ -193,28 +186,17 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
     }
 
     /**
-     * Handle error by updating ai_reviews and creating error record
-     * Does not delete - preserves audit trail for manual recovery
+     * Handle error by deleting any non-COMPLETED ai_review record and creating an ai_errors entry.
+     * ai_reviews must only contain COMPLETED rows.
      */
     protected function handleError(int $testResultId, Exception $e): void
     {
         try {
             DB::transaction(function () use ($testResultId, $e) {
-                // Update AIReview status to FAILED instead of deleting (preserves audit trail)
-                $aiReview = AIReview::where('test_result_id', $testResultId)
-                    ->withTrashed()
-                    ->orderBy('id', 'desc')
-                    ->first();
-
-                if ($aiReview && $aiReview->processing_status !== 'COMPLETED') {
-                    $aiReview->update([
-                        'processing_status' => 'FAILED',
-                        'raw_response' => json_encode([
-                            'error' => $e->getMessage(),
-                            'error_class' => get_class($e),
-                        ]),
-                    ]);
-                }
+                // Delete any non-COMPLETED record — ai_reviews must only contain COMPLETED rows
+                AIReview::where('test_result_id', $testResultId)
+                    ->where('processing_status', '!=', 'COMPLETED')
+                    ->forceDelete();
 
                 // Create error record for recovery
                 AIError::create([

@@ -85,28 +85,24 @@ class SendToAIServer implements ShouldQueue, ShouldBeUnique
                 return;
             }
 
-            // IDEMPOTENCY CHECK: Don't process if already in progress or completed
+            // IDEMPOTENCY CHECK: Skip only if already COMPLETED
             $existingReview = AIReview::where('test_result_id', $this->testResultId)
-                ->whereIn('processing_status', ['QUEUED', 'PROCESSING', 'COMPLETED'])
+                ->where('processing_status', 'COMPLETED')
                 ->first();
 
             if ($existingReview) {
-                // If review is COMPLETED, ensure is_reviewed flag is set
-                if ($existingReview->processing_status === 'COMPLETED') {
-                    $testResult = TestResult::find($this->testResultId);
-                    if ($testResult && !$testResult->is_reviewed) {
-                        $testResult->is_reviewed = true;
-                        $testResult->save();
+                $testResult = TestResult::find($this->testResultId);
+                if ($testResult && !$testResult->is_reviewed) {
+                    $testResult->is_reviewed = true;
+                    $testResult->save();
 
-                        Log::channel('performance')->info('Fixed is_reviewed flag for completed review', [
-                            'test_result_id' => $this->testResultId,
-                        ]);
-                    }
+                    Log::channel('performance')->info('Fixed is_reviewed flag for completed review', [
+                        'test_result_id' => $this->testResultId,
+                    ]);
                 }
 
-                Log::channel('performance')->info('AI review already in progress, skipping', [
+                Log::channel('performance')->info('SendToAIServer: AI review already completed, skipping', [
                     'test_result_id' => $this->testResultId,
-                    'current_status' => $existingReview->processing_status,
                 ]);
                 return;
             }
@@ -148,11 +144,10 @@ class SendToAIServer implements ShouldQueue, ShouldBeUnique
             if (isset($responseData)) {
                 // Check if AI server returned failure
                 if (isset($responseData['success']) && $responseData['success'] === false) {
-                    // Update status to FAILED instead of deleting (preserves audit trail)
-                    $aiReview->update([
-                        'processing_status' => 'FAILED',
-                        'raw_response' => json_encode($responseData),
-                    ]);
+                    // Delete the pending record — ai_reviews must only contain COMPLETED rows
+                    AIReview::where('test_result_id', $this->testResultId)
+                        ->where('processing_status', '!=', 'COMPLETED')
+                        ->forceDelete();
 
                     AIError::create([
                         'test_result_id' => $this->testResultId,
@@ -167,12 +162,7 @@ class SendToAIServer implements ShouldQueue, ShouldBeUnique
                     return;
                 }
 
-                // Success - update AIReview with status from server (QUEUED, PROCESSING, etc.)
-                $aiReview->update([
-                    'processing_status' => $responseData['status'] ?? 'QUEUED'
-                ]);
-
-                // Log performance metrics
+                // Success - AI server accepted the request; keep record as PENDING until webhook completes it
                 $duration = round((microtime(true) - $startTime) * 1000, 2);
                 $memoryUsed = round((memory_get_usage() - $startMemory) / 1024 / 1024, 2);
 
@@ -195,16 +185,7 @@ class SendToAIServer implements ShouldQueue, ShouldBeUnique
                     'retry_delay_seconds' => $delay,
                 ]);
 
-                // Update AIReview to PENDING so it does not appear as FAILED
-                $aiReview = AIReview::where('test_result_id', $this->testResultId)
-                    ->orderBy('id', 'desc')
-                    ->first();
-
-                if ($aiReview && $aiReview->processing_status !== 'COMPLETED') {
-                    $aiReview->update(['processing_status' => 'PENDING']);
-                }
-
-                $this->release($delay);
+                    $this->release($delay);
                 return;
             }
 
@@ -223,26 +204,15 @@ class SendToAIServer implements ShouldQueue, ShouldBeUnique
     {
         try {
             DB::transaction(function () use ($exception) {
-                $aiReview = AIReview::where('test_result_id', $this->testResultId)
-                    ->orderBy('id', 'desc')
-                    ->first();
-
-                // Update status to FAILED instead of deleting (preserves audit trail)
-                if ($aiReview) {
-                    $aiReview->update([
-                        'processing_status' => 'FAILED',
-                        'raw_response' => json_encode([
-                            'error' => $exception->getMessage(),
-                            'all_retries_exhausted' => true
-                        ]),
-                    ]);
-                }
+                // Delete any non-COMPLETED record — ai_reviews must only contain COMPLETED rows
+                AIReview::where('test_result_id', $this->testResultId)
+                    ->where('processing_status', '!=', 'COMPLETED')
+                    ->forceDelete();
 
                 // Store error record for recovery
                 $this->storeError($exception);
             });
         } catch (Exception $dbError) {
-            // Log but don't fail - error storage is best effort
             Log::error('SendToAIServer: Failed to record job failure', [
                 'test_result_id' => $this->testResultId,
                 'error' => $dbError->getMessage(),
@@ -258,22 +228,15 @@ class SendToAIServer implements ShouldQueue, ShouldBeUnique
     {
         try {
             DB::transaction(function () use ($e) {
-                $aiReview = AIReview::where('test_result_id', $this->testResultId)
-                    ->orderBy('id', 'desc')
-                    ->first();
-
-                // Update status to FAILED instead of deleting
-                if ($aiReview) {
-                    $aiReview->update([
-                        'processing_status' => 'FAILED',
-                    ]);
-                }
+                // Delete any non-COMPLETED record — ai_reviews must only contain COMPLETED rows
+                AIReview::where('test_result_id', $this->testResultId)
+                    ->where('processing_status', '!=', 'COMPLETED')
+                    ->forceDelete();
 
                 // Store error to ai_errors table for recovery
                 $this->storeError($e);
             });
         } catch (Exception $dbError) {
-            // Log but don't fail - error storage is best effort
             Log::error('SendToAIServer: handleError failed to update records', [
                 'test_result_id' => $this->testResultId,
                 'error' => $dbError->getMessage(),
