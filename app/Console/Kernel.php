@@ -46,12 +46,6 @@ class Kernel extends ConsoleKernel
             ->dailyAt('00:00')
             ->environments(['production'])
             ->withoutOverlapping(60);
-
-        // Daily: Export incomplete and unreviewed lab numbers to Excel
-        $schedule->command('export:incomplete-lab-numbers')
-            ->dailyAt('00:00')
-            ->environments(['production'])
-            ->withoutOverlapping(120);
     }
 
     /**
