@@ -123,6 +123,13 @@ class ThyroidExportService
             ->whereNotNull('tr.ref_id')
             ->whereNull('tr.deleted_at')
             ->whereBetween('tr.collected_date', [$dateFrom, $dateTo])
+            ->whereExists(function ($q) {
+                $q->select(DB::raw(1))
+                  ->from('test_result_items')
+                  ->whereColumn('test_result_id', 'tr.id')
+                  ->whereIn('panel_panel_item_id', [self::TSH, self::FT4, self::FT3])
+                  ->whereNull('deleted_at');
+            })
             ->count();
     }
 
@@ -148,6 +155,13 @@ class ThyroidExportService
             ->whereNotNull('tr.ref_id')
             ->whereNull('tr.deleted_at')
             ->whereBetween('tr.collected_date', [$dateFrom, $dateTo])
+            ->whereExists(function ($q) {
+                $q->select(DB::raw(1))
+                  ->from('test_result_items')
+                  ->whereColumn('test_result_id', 'tr.id')
+                  ->whereIn('panel_panel_item_id', [self::TSH, self::FT4, self::FT3])
+                  ->whereNull('deleted_at');
+            })
             ->select('tr.ref_id')
             ->distinct();
 
@@ -278,6 +292,11 @@ class ThyroidExportService
             ->whereNotNull('tr.ref_id')
             ->whereNull('tr.deleted_at')
             ->whereBetween('tr.collected_date', [$dateFrom, $dateTo])
+            ->where(function ($q) {
+                $q->whereNotNull('tsh_i.id')
+                  ->orWhereNotNull('ft4_i.id')
+                  ->orWhereNotNull('ft3_i.id');
+            })
             ->orderBy('tr.collected_date')
             ->when($limit !== null, fn ($q) => $q->limit($limit))
             ->select([
