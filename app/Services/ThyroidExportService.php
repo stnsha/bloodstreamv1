@@ -32,7 +32,7 @@ class ThyroidExportService
      * @param int|null $limit    Optional row cap (for sample runs)
      * @return Generator
      */
-    public function rowGenerator(string $dateFrom, string $dateTo, ?int $limit = null): Generator
+    public function rowGenerator(string $dateFrom, string $dateTo, ?int $limit = null, ?callable $onProgress = null): Generator
     {
         Log::channel('thyroid-export')->info('ThyroidExportService: starting row generator', [
             'date_from' => $dateFrom,
@@ -103,6 +103,10 @@ class ThyroidExportService
                 $row->ft3_value      ?? null,
                 $row->ft3_ref_range  ?? null,
             ];
+
+            if ($onProgress !== null) {
+                ($onProgress)();
+            }
         }
     }
 

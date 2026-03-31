@@ -54,20 +54,41 @@ class ExportThyroidDataCommand extends Command
             $filename    = 'thyroid_' . now()->format('Y-m-d_His') . '.csv';
             $storagePath = 'public/csv/' . $filename;
 
+            $total = ($limit !== null) ? $limit : $service->countMatchingRows($dateFrom, $dateTo);
+
+            $this->info("Rows to export: {$total}");
+
+            $bar = $this->output->createProgressBar($total);
+            $bar->setFormat(' %current%/%max% [%bar%] %percent:3s%% -- %elapsed:6s%/%estimated:-6s%');
+            $bar->start();
+
             Excel::store(
-                new ThyroidDataExport($service, $dateFrom, $dateTo, $limit),
+                new ThyroidDataExport($service, $dateFrom, $dateTo, $limit, function () use ($bar) {
+                    $bar->advance();
+                }),
                 $storagePath,
                 null,
                 \Maatwebsite\Excel\Excel::CSV
             );
 
+            $bar->finish();
+            $this->newLine(2);
+
             $fullPath = storage_path('app/' . $storagePath);
 
-            $this->info("Export complete: {$fullPath}");
+            $this->table(
+                ['Field', 'Value'],
+                [
+                    ['Date range', "{$dateFrom} to {$dateTo}"],
+                    ['Rows exported', $total . ($limit !== null ? ' (limited)' : '')],
+                    ['Output file', $fullPath],
+                ]
+            );
 
             Log::channel('thyroid-export')->info('ExportThyroidDataCommand: completed', [
                 'filename'  => $filename,
                 'full_path' => $fullPath,
+                'rows'      => $total,
             ]);
 
             return self::SUCCESS;

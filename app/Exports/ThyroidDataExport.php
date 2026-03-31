@@ -14,18 +14,20 @@ class ThyroidDataExport implements FromGenerator, WithHeadings, WithColumnWidths
     private string $dateFrom;
     private string $dateTo;
     private ?int $limit;
+    private $onProgress;
 
-    public function __construct(ThyroidExportService $service, string $dateFrom, string $dateTo, ?int $limit = null)
+    public function __construct(ThyroidExportService $service, string $dateFrom, string $dateTo, ?int $limit = null, ?callable $onProgress = null)
     {
-        $this->service  = $service;
-        $this->dateFrom = $dateFrom;
-        $this->dateTo   = $dateTo;
-        $this->limit    = $limit;
+        $this->service    = $service;
+        $this->dateFrom   = $dateFrom;
+        $this->dateTo     = $dateTo;
+        $this->limit      = $limit;
+        $this->onProgress = $onProgress;
     }
 
     public function generator(): Generator
     {
-        return $this->service->rowGenerator($this->dateFrom, $this->dateTo, $this->limit);
+        return $this->service->rowGenerator($this->dateFrom, $this->dateTo, $this->limit, $this->onProgress);
     }
 
     public function headings(): array
