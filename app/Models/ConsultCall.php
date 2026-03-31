@@ -76,9 +76,9 @@ class ConsultCall extends Model
         'enrollment_type' => self::ENROLLMENT_TYPE_PRIMARY,
         'consent_call_status' => self::CONSENT_STATUS_PENDING,
         'consent_call_date' => null,
-        'scheduled_status' => self::SCHEDULED_STATUS_PENDING,
+        'scheduled_status' => null,
         'scheduled_call_date' => null,
-        'mode_of_consultation' => self::MODE_PENDING,
+        'mode_of_consultation' => null,
     ];
 
     public function patient(): BelongsTo
