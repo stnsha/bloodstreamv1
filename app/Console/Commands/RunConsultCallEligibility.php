@@ -3,7 +3,6 @@
 namespace App\Console\Commands;
 
 use App\Models\ConsultCallDetails;
-use App\Models\Lab;
 use App\Models\TestResult;
 use App\Services\ConsultCallEligibilityService;
 use App\Services\OctopusApiService;
@@ -70,7 +69,7 @@ class RunConsultCallEligibility extends Command
             'healthy' => 0,
             'no_customer' => 0,
             'skipped_no_patient' => 0,
-            'skipped_no_lab' => 0,
+            'skipped_no_ic' => 0,
             'already_exists' => 0,
             'errors' => 0,
         ];
@@ -113,7 +112,7 @@ class RunConsultCallEligibility extends Command
                 ['Healthy (no match)', $counters['healthy']],
                 ['No customer_id', $counters['no_customer']],
                 ['Skipped (no patient)', $counters['skipped_no_patient']],
-                ['Skipped (no lab)', $counters['skipped_no_lab']],
+                ['Skipped (no IC)', $counters['skipped_no_ic']],
                 ['Already exists', $counters['already_exists']],
                 ['Errors', $counters['errors']],
             ]
@@ -158,34 +157,21 @@ class RunConsultCallEligibility extends Command
             return ['skipped_no_patient', null];
         }
 
-        $doctor = $testResult->doctor;
-
-        if (! $doctor || ! $doctor->lab_id) {
-            Log::info('RunConsultCallEligibility: Skipping, no doctor or lab', [
+        if (empty($patient->icno)) {
+            Log::info('RunConsultCallEligibility: Skipping, patient has no IC number', [
                 'test_result_id' => $testResult->id,
+                'patient_id'     => $patient->id,
             ]);
 
-            return ['skipped_no_lab', null];
+            return ['skipped_no_ic', null];
         }
 
-        $lab = Lab::find($doctor->lab_id);
-
-        if (! $lab || ! $lab->code) {
-            Log::info('RunConsultCallEligibility: Skipping, lab not found or no code', [
-                'test_result_id' => $testResult->id,
-                'lab_id' => $doctor->lab_id,
-            ]);
-
-            return ['skipped_no_lab', null];
-        }
-
-        $customer = $octopusApi->eligibleConsultCallByOutlet($testResult->ref_id, $lab->code);
+        $customer = $octopusApi->eligibleConsultCallByOutletIc($patient->icno);
 
         if (! $customer) {
-            Log::info('RunConsultCallEligibility: No eligible customer match for ref ID', [
+            Log::info('RunConsultCallEligibility: No eligible customer match for patient IC', [
                 'test_result_id' => $testResult->id,
-                'ref_id'         => $testResult->ref_id,
-                'lab_code'       => $lab->code,
+                'patient_id'     => $patient->id,
             ]);
 
             return ['no_customer', null];

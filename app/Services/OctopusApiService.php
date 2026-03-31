@@ -298,6 +298,56 @@ class OctopusApiService
     }
 
     /**
+     * Look up eligible consult call customer by patient IC across non-Melaka outlets (regional_id IN 11, 5).
+     * Returns null if no matching customer is found in those regions.
+     *
+     * @param string $patientIc The patient IC number
+     * @return array|null Customer data or null if not found
+     * @throws Exception
+     */
+    public function eligibleConsultCallByOutletIc(string $patientIc): ?array
+    {
+        Log::info('OctopusApiService: Looking up eligible consult call customer by patient IC', [
+            'patient_ic' => $patientIc,
+        ]);
+
+        $data = [
+            'username'   => $this->username,
+            'password'   => $this->password,
+            'patient_ic' => $patientIc,
+        ];
+
+        try {
+            $result = $this->callAPI('POST', '/eligibleConsultCallByOutlet.php', $data);
+
+            if (($result['status'] ?? '') !== 'success' || ! isset($result['customer'])) {
+                Log::info('OctopusApiService: Eligible consult call customer not found by patient IC', [
+                    'patient_ic' => $patientIc,
+                    'message'    => $result['message'] ?? null,
+                ]);
+
+                return null;
+            }
+
+            Log::info('OctopusApiService: Eligible consult call customer found by patient IC', [
+                'patient_ic'  => $patientIc,
+                'customer_id' => $result['customer']['customer_id'] ?? null,
+                'outlet_id'   => $result['customer']['outlet_id'] ?? null,
+            ]);
+
+            return $result['customer'];
+
+        } catch (Exception $e) {
+            Log::error('OctopusApiService: Eligible consult call patient IC lookup exception', [
+                'error'      => $e->getMessage(),
+                'patient_ic' => $patientIc,
+            ]);
+
+            throw $e;
+        }
+    }
+
+    /**
      * Look up customer by blood_test_sales reference ID, restricted to Melaka outlets.
      * Returns null if the ref ID does not belong to a Melaka outlet (regional_id = 6,
      * outlet code starting with 'M').
