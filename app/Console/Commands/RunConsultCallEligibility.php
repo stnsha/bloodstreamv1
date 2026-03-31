@@ -14,8 +14,8 @@ use Throwable;
 class RunConsultCallEligibility extends Command
 {
     protected $signature = 'testing:run-consult-eligibility
-        {--date-from=2026-02-01 : Start date filter (created_at and updated_at)}
-        {--date-to=2026-02-10 : End date filter (created_at and updated_at)}
+        {--date-from=2025-10-01 : Start date filter (collected_date)}
+        {--date-to=2026-03-31 : End date filter (collected_date)}
         {--limit=100 : Number of test results to process}
         {--offset=0 : Skip first N records}';
 
@@ -75,13 +75,19 @@ class RunConsultCallEligibility extends Command
             'errors' => 0,
         ];
 
+        $outletEligibleCounts = [];
+
         $bar = $this->output->createProgressBar($total);
         $bar->start();
 
         foreach ($testResults as $testResult) {
             try {
-                $result = $this->processTestResult($testResult, $octopusApi, $eligibilityService);
+                [$result, $outletId] = $this->processTestResult($testResult, $octopusApi, $eligibilityService);
                 $counters[$result]++;
+
+                if ($result === 'eligible' && $outletId !== null) {
+                    $outletEligibleCounts[$outletId] = ($outletEligibleCounts[$outletId] ?? 0) + 1;
+                }
             } catch (Throwable $e) {
                 $counters['errors']++;
                 Log::error('RunConsultCallEligibility: Error processing test result', [
@@ -113,6 +119,16 @@ class RunConsultCallEligibility extends Command
             ]
         );
 
+        if (! empty($outletEligibleCounts)) {
+            ksort($outletEligibleCounts);
+            $outletRows = [];
+            foreach ($outletEligibleCounts as $outletId => $count) {
+                $outletRows[] = [$outletId, $count];
+            }
+            $this->info('Eligible cases by outlet:');
+            $this->table(['Outlet ID', 'Total Eligible Cases'], $outletRows);
+        }
+
         Log::info('RunConsultCallEligibility: Completed', [
             'total' => $total,
             'counters' => $counters,
@@ -124,13 +140,13 @@ class RunConsultCallEligibility extends Command
     /**
      * Process a single test result for consult call eligibility.
      *
-     * @return string Counter key indicating the outcome
+     * @return array{0: string, 1: int|null} Counter key and outlet ID
      */
     private function processTestResult(
         TestResult $testResult,
         OctopusApiService $octopusApi,
         ConsultCallEligibilityService $eligibilityService
-    ): string {
+    ): array {
         $patient = $testResult->patient;
 
         if (! $patient) {
@@ -139,7 +155,7 @@ class RunConsultCallEligibility extends Command
                 'patient_id'     => $testResult->patient_id,
             ]);
 
-            return 'skipped_no_patient';
+            return ['skipped_no_patient', null];
         }
 
         $doctor = $testResult->doctor;
@@ -149,7 +165,7 @@ class RunConsultCallEligibility extends Command
                 'test_result_id' => $testResult->id,
             ]);
 
-            return 'skipped_no_lab';
+            return ['skipped_no_lab', null];
         }
 
         $lab = Lab::find($doctor->lab_id);
@@ -160,38 +176,38 @@ class RunConsultCallEligibility extends Command
                 'lab_id' => $doctor->lab_id,
             ]);
 
-            return 'skipped_no_lab';
+            return ['skipped_no_lab', null];
         }
 
-        $melakaCustomer = $octopusApi->customerMelakaByRefId($testResult->ref_id, $lab->code);
+        $customer = $octopusApi->eligibleConsultCallByOutlet($testResult->ref_id, $lab->code);
 
-        if (! $melakaCustomer) {
-            Log::info('RunConsultCallEligibility: No Melaka customer match for ref ID', [
+        if (! $customer) {
+            Log::info('RunConsultCallEligibility: No eligible customer match for ref ID', [
                 'test_result_id' => $testResult->id,
                 'ref_id'         => $testResult->ref_id,
                 'lab_code'       => $lab->code,
             ]);
 
-            return 'no_customer';
+            return ['no_customer', null];
         }
 
-        $customerId = (int) $melakaCustomer['customer_id'];
-        $outletId = isset($melakaCustomer['outlet_id']) ? (int) $melakaCustomer['outlet_id'] : null;
+        $customerId = (int) $customer['customer_id'];
+        $outletId = isset($customer['outlet_id']) ? (int) $customer['outlet_id'] : null;
 
         $existedBefore = ConsultCallDetails::where('test_result_id', $testResult->id)->exists();
 
         $eligibilityService->checkAndCreate($testResult, $testResult->patient_id, $customerId, $outletId);
 
         if ($existedBefore) {
-            return 'already_exists';
+            return ['already_exists', $outletId];
         }
 
         $existsNow = ConsultCallDetails::where('test_result_id', $testResult->id)->exists();
 
         if ($existsNow) {
-            return 'eligible';
+            return ['eligible', $outletId];
         }
 
-        return 'healthy';
+        return ['healthy', $outletId];
     }
 }

@@ -245,6 +245,59 @@ class OctopusApiService
     }
 
     /**
+     * Look up eligible consult call customer by reference ID across all outlets.
+     * Returns null if the ref ID does not match an eligible customer.
+     *
+     * @param string $refId The reference ID (e.g., INN10256)
+     * @param string|null $labCode The lab code prefix used for normalization (e.g., INN)
+     * @return array|null Customer data or null if not found
+     * @throws Exception
+     */
+    public function eligibleConsultCallByOutlet(string $refId, ?string $labCode = null): ?array
+    {
+        Log::info('OctopusApiService: Looking up eligible consult call customer by RefID', [
+            'refid'    => $refId,
+            'lab_code' => $labCode,
+        ]);
+
+        $data = [
+            'username' => $this->username,
+            'password' => $this->password,
+            'refid'    => $refId,
+            'lab_code' => $labCode ?? '',
+        ];
+
+        try {
+            $result = $this->callAPI('POST', '/eligibleConsultCallByOutlet.php', $data);
+
+            if (($result['status'] ?? '') !== 'success' || ! isset($result['customer'])) {
+                Log::info('OctopusApiService: Eligible consult call customer not found by RefID', [
+                    'refid'   => $refId,
+                    'message' => $result['message'] ?? null,
+                ]);
+
+                return null;
+            }
+
+            Log::info('OctopusApiService: Eligible consult call customer found by RefID', [
+                'refid'       => $refId,
+                'customer_id' => $result['customer']['customer_id'] ?? null,
+                'outlet_id'   => $result['customer']['outlet_id'] ?? null,
+            ]);
+
+            return $result['customer'];
+
+        } catch (Exception $e) {
+            Log::error('OctopusApiService: Eligible consult call RefID lookup exception', [
+                'error' => $e->getMessage(),
+                'refid' => $refId,
+            ]);
+
+            throw $e;
+        }
+    }
+
+    /**
      * Look up customer by blood_test_sales reference ID, restricted to Melaka outlets.
      * Returns null if the ref ID does not belong to a Melaka outlet (regional_id = 6,
      * outlet code starting with 'M').
