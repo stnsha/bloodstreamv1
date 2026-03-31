@@ -85,6 +85,13 @@ return [
             'days' => 3,
         ],
 
+        'thyroid-export' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/thyroid-export.log'),
+            'level' => env('LOG_LEVEL', 'warning'),
+            'days' => 3,
+        ],
+
         'migrate-log' => [
             'driver' => 'daily',
             'path' => storage_path('logs/migration.log'),

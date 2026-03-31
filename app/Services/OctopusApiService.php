@@ -245,6 +245,55 @@ class OctopusApiService
     }
 
     /**
+     * Look up outlet details by outlet ID.
+     * Returns outlet data including regional name from outlet_regional table.
+     *
+     * @param int $outletId The outlet ID
+     * @return array|null Outlet data or null if not found
+     * @throws Exception
+     */
+    public function outletById(int $outletId): ?array
+    {
+        Log::info('OctopusApiService: Looking up outlet by ID', [
+            'outlet_id' => $outletId,
+        ]);
+
+        $data = [
+            'username'  => $this->username,
+            'password'  => $this->password,
+            'outlet_id' => $outletId,
+        ];
+
+        try {
+            $result = $this->callAPI('POST', '/outletById.php', $data);
+
+            if (empty($result) || ! isset($result[0])) {
+                Log::info('OctopusApiService: Outlet not found', [
+                    'outlet_id' => $outletId,
+                ]);
+
+                return null;
+            }
+
+            Log::info('OctopusApiService: Outlet found', [
+                'outlet_id' => $outletId,
+                'comp_name' => $result[0]['comp_name'] ?? null,
+                'regional'  => $result[0]['regional'] ?? null,
+            ]);
+
+            return $result[0];
+
+        } catch (Exception $e) {
+            Log::error('OctopusApiService: Outlet lookup exception', [
+                'error'     => $e->getMessage(),
+                'outlet_id' => $outletId,
+            ]);
+
+            throw $e;
+        }
+    }
+
+    /**
      * Look up eligible consult call customer by reference ID across all outlets.
      * Returns null if the ref ID does not match an eligible customer.
      *
