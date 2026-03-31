@@ -16,7 +16,8 @@ class RunConsultCallEligibility extends Command
         {--date-from=2025-10-01 : Start date filter (collected_date)}
         {--date-to=2026-03-31 : End date filter (collected_date)}
         {--limit=100 : Number of test results to process}
-        {--offset=0 : Skip first N records}';
+        {--offset=0 : Skip first N records}
+        {--dry-run : Simulate eligibility checks without writing to the database}';
 
     protected $description = 'Run consult call eligibility checks on existing completed test results';
 
@@ -26,12 +27,18 @@ class RunConsultCallEligibility extends Command
         $dateTo = $this->option('date-to');
         $limit = (int) $this->option('limit');
         $offset = (int) $this->option('offset');
+        $dryRun = (bool) $this->option('dry-run');
+
+        if ($dryRun) {
+            $this->warn('DRY RUN MODE — no records will be written to the database.');
+        }
 
         Log::info('RunConsultCallEligibility: Starting', [
             'date_from' => $dateFrom,
-            'date_to' => $dateTo,
-            'limit' => $limit,
-            'offset' => $offset,
+            'date_to'   => $dateTo,
+            'limit'     => $limit,
+            'offset'    => $offset,
+            'dry_run'   => $dryRun,
         ]);
 
         $this->info("Querying completed test results (date_from={$dateFrom}, date_to={$dateTo}, limit={$limit}, offset={$offset})");
@@ -81,7 +88,7 @@ class RunConsultCallEligibility extends Command
 
         foreach ($testResults as $testResult) {
             try {
-                [$result, $outletId] = $this->processTestResult($testResult, $octopusApi, $eligibilityService);
+                [$result, $outletId] = $this->processTestResult($testResult, $octopusApi, $eligibilityService, $dryRun);
                 $counters[$result]++;
 
                 if ($result === 'eligible' && $outletId !== null) {
@@ -144,7 +151,8 @@ class RunConsultCallEligibility extends Command
     private function processTestResult(
         TestResult $testResult,
         OctopusApiService $octopusApi,
-        ConsultCallEligibilityService $eligibilityService
+        ConsultCallEligibilityService $eligibilityService,
+        bool $dryRun = false
     ): array {
         $patient = $testResult->patient;
 
@@ -182,11 +190,15 @@ class RunConsultCallEligibility extends Command
 
         $existedBefore = ConsultCallDetails::where('test_result_id', $testResult->id)->exists();
 
-        $eligibilityService->checkAndCreate($testResult, $testResult->patient_id, $customerId, $outletId);
-
         if ($existedBefore) {
             return ['already_exists', $outletId];
         }
+
+        if ($dryRun) {
+            return ['eligible', $outletId];
+        }
+
+        $eligibilityService->checkAndCreate($testResult, $testResult->patient_id, $customerId, $outletId);
 
         $existsNow = ConsultCallDetails::where('test_result_id', $testResult->id)->exists();
 
