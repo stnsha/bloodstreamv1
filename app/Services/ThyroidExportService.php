@@ -34,27 +34,33 @@ class ThyroidExportService
      */
     public function rowGenerator(string $dateFrom, string $dateTo, ?int $limit = null): Generator
     {
-        Log::channel('thyroid-export')->info('ThyroidExportService: building customer map', [
+        Log::channel('thyroid-export')->info('ThyroidExportService: starting row generator', [
             'date_from' => $dateFrom,
             'date_to'   => $dateTo,
             'limit'     => $limit,
         ]);
 
-        // Pass 1: collect unique ref_ids to minimise API calls
-        $refIds = $this->collectUniqueRefIds($dateFrom, $dateTo, $limit);
+        // For limited runs: fetch the exact target rows first so we build the
+        // customer map only for those ref_ids (avoids ORDER BY / DISTINCT mismatch).
+        // For full runs: collect all distinct ref_ids via cursor, then stream.
+        if ($limit !== null) {
+            $targetRows = $this->buildMainQuery($dateFrom, $dateTo)->limit($limit)->get()->all();
+            $refIds     = array_unique(array_column($targetRows, 'ref_id'));
+        } else {
+            $targetRows = null;
+            $refIds     = $this->collectUniqueRefIds($dateFrom, $dateTo);
+        }
 
-        Log::channel('thyroid-export')->info('ThyroidExportService: unique ref_ids collected', [
+        Log::channel('thyroid-export')->info('ThyroidExportService: ref_ids collected', [
             'count' => count($refIds),
         ]);
 
-        // Build customer map from ODB API: [ref_id => {birth_date, gender, race, outlet_id}]
         $customerMap = $this->buildCustomerMap($refIds);
 
         Log::channel('thyroid-export')->info('ThyroidExportService: customer map built', [
             'matched' => count(array_filter($customerMap)),
         ]);
 
-        // Build outlet map from ODB API for unique outlet_ids: [outlet_id => {comp_name, regional}]
         $outletIds = [];
         foreach ($customerMap as $data) {
             if ($data !== null && ! empty($data['outlet_id'])) {
@@ -67,21 +73,18 @@ class ThyroidExportService
             'outlets' => count($outletMap),
         ]);
 
-        // Pass 2: stream the full query and yield CSV rows
-        $cursor  = $this->buildMainCursor($dateFrom, $dateTo, $limit);
-        $yielded = 0;
+        $source = ($targetRows !== null) ? $targetRows : $this->buildMainQuery($dateFrom, $dateTo)->cursor();
 
-        foreach ($cursor as $row) {
-            if ($limit !== null && $yielded >= $limit) {
-                break;
-            }
-            $cust   = $customerMap[$row->ref_id] ?? null;
+        foreach ($source as $row) {
+            $row  = (object) $row;
+            $cust = $customerMap[$row->ref_id] ?? null;
+
             $outlet = ($cust !== null && ! empty($cust['outlet_id']))
                 ? ($outletMap[(int) $cust['outlet_id']] ?? null)
                 : null;
 
-            $age    = $this->resolveAge($row->patient_dob, $cust, $row->collected_date);
-            $gender = $row->patient_gender ?? ($cust['gender'] ?? null);
+            $age    = $this->resolveAge($row->patient_dob ?? null, $cust, $row->collected_date ?? null);
+            $gender = (! empty($row->patient_gender)) ? $row->patient_gender : ($cust['gender'] ?? null);
             $race   = ($cust !== null) ? ($cust['race'] ?? 'Unknown') : null;
 
             yield [
@@ -93,15 +96,13 @@ class ThyroidExportService
                 $race,
                 $outlet['regional']  ?? null,
                 $outlet['comp_name'] ?? null,
-                $row->tsh_value,
-                $row->tsh_ref_range,
-                $row->ft4_value,
-                $row->ft4_ref_range,
-                $row->ft3_value,
-                $row->ft3_ref_range,
+                $row->tsh_value      ?? null,
+                $row->tsh_ref_range  ?? null,
+                $row->ft4_value      ?? null,
+                $row->ft4_ref_range  ?? null,
+                $row->ft3_value      ?? null,
+                $row->ft3_ref_range  ?? null,
             ];
-
-            $yielded++;
         }
     }
 
@@ -134,19 +135,17 @@ class ThyroidExportService
     }
 
     /**
-     * Collect distinct ref_ids matching the export filters.
-     * When $limit is set, fetches only enough ref_ids to cover that many rows.
+     * Collect all distinct ref_ids matching the export filters (full export path).
      *
-     * @param string   $dateFrom
-     * @param string   $dateTo
-     * @param int|null $limit
+     * @param string $dateFrom
+     * @param string $dateTo
      * @return array<string>
      */
-    private function collectUniqueRefIds(string $dateFrom, string $dateTo, ?int $limit = null): array
+    private function collectUniqueRefIds(string $dateFrom, string $dateTo): array
     {
         $refIds = [];
 
-        $query = DB::table('test_results as tr')
+        $cursor = DB::table('test_results as tr')
             ->join('doctors as d', function ($join) {
                 $join->on('d.id', '=', 'tr.doctor_id')
                      ->where('d.lab_id', '=', self::LAB_ID);
@@ -163,13 +162,8 @@ class ThyroidExportService
                   ->whereNull('deleted_at');
             })
             ->select('tr.ref_id')
-            ->distinct();
-
-        if ($limit !== null) {
-            $query->limit($limit);
-        }
-
-        $cursor = $query->cursor();
+            ->distinct()
+            ->cursor();
 
         foreach ($cursor as $row) {
             $refIds[] = $row->ref_id;
@@ -252,14 +246,14 @@ class ThyroidExportService
     }
 
     /**
-     * Build the main DB cursor that streams test result rows with pivoted thyroid values.
+     * Build the base query for thyroid test result rows with pivoted thyroid values.
+     * Call ->cursor() for streaming or ->limit(N)->get() for sample runs.
      *
-     * @param string   $dateFrom
-     * @param string   $dateTo
-     * @param int|null $limit
-     * @return \Illuminate\Support\LazyCollection
+     * @param string $dateFrom
+     * @param string $dateTo
+     * @return \Illuminate\Database\Query\Builder
      */
-    private function buildMainCursor(string $dateFrom, string $dateTo, ?int $limit = null)
+    private function buildMainQuery(string $dateFrom, string $dateTo)
     {
         return DB::table('test_results as tr')
             ->join('doctors as d', function ($join) {
@@ -298,7 +292,6 @@ class ThyroidExportService
                   ->orWhereNotNull('ft3_i.id');
             })
             ->orderBy('tr.collected_date')
-            ->when($limit !== null, fn ($q) => $q->limit($limit))
             ->select([
                 'tr.lab_no',
                 'tr.ref_id',
@@ -311,8 +304,7 @@ class ThyroidExportService
                 'ft4_rr.value  as ft4_ref_range',
                 'ft3_i.value   as ft3_value',
                 'ft3_rr.value  as ft3_ref_range',
-            ])
-            ->cursor();
+            ]);
     }
 
     /**
