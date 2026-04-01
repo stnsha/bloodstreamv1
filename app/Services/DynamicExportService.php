@@ -173,7 +173,7 @@ class DynamicExportService
 
             if (count($buffer) >= 500) {
                 $this->processBuffer(
-                    $buffer, $ppiIds, $ppiMeta, $columns,
+                    $buffer, $ppiIds, $masterPanelItemIds, $ppiMeta, $columns,
                     $customerMap, $outletMap, $includeOctopus,
                     $stream, $headersWritten, $rowCount
                 );
@@ -183,7 +183,7 @@ class DynamicExportService
 
         if (!empty($buffer)) {
             $this->processBuffer(
-                $buffer, $ppiIds, $ppiMeta, $columns,
+                $buffer, $ppiIds, $masterPanelItemIds, $ppiMeta, $columns,
                 $customerMap, $outletMap, $includeOctopus,
                 $stream, $headersWritten, $rowCount
             );
@@ -208,18 +208,22 @@ class DynamicExportService
     // Private helpers
     // -------------------------------------------------------------------------
 
+    /**
+     * Returns meta keyed by master_panel_item_id (deduplicated).
+     */
     private function resolvePpiMeta(array $ppiIds): array
     {
         $rows = DB::table('panel_panel_items as ppi')
             ->join('panel_items as pi', 'pi.id', '=', 'ppi.panel_item_id')
             ->join('master_panel_items as mpi', 'mpi.id', '=', 'pi.master_panel_item_id')
             ->whereIn('ppi.id', $ppiIds)
-            ->select(['ppi.id as ppi_id', 'mpi.name as panel_item_name', 'mpi.unit'])
+            ->select(['pi.master_panel_item_id', 'mpi.name as panel_item_name', 'mpi.unit'])
+            ->distinct()
             ->get();
 
         $meta = [];
         foreach ($rows as $row) {
-            $meta[$row->ppi_id] = [
+            $meta[$row->master_panel_item_id] = [
                 'panel_item_name' => $row->panel_item_name,
                 'unit'            => $row->unit,
             ];
@@ -287,9 +291,15 @@ class DynamicExportService
             ]);
     }
 
+    /**
+     * Fetch items grouped by [test_result_id][master_panel_item_id].
+     * Multiple ppi_ids across labs for the same master item collapse into one entry.
+     */
     private function fetchItemsForChunk(array $testResultIds, array $ppiIds): array
     {
         $rows = DB::table('test_result_items as trii')
+            ->join('panel_panel_items as ppi', 'ppi.id', '=', 'trii.panel_panel_item_id')
+            ->join('panel_items as pi', 'pi.id', '=', 'ppi.panel_item_id')
             ->leftJoin('reference_ranges as rr', function ($join) {
                 $join->on('rr.id', '=', 'trii.reference_range_id')
                      ->whereNull('rr.deleted_at');
@@ -299,7 +309,7 @@ class DynamicExportService
             ->whereNull('trii.deleted_at')
             ->select([
                 'trii.test_result_id',
-                'trii.panel_panel_item_id',
+                'pi.master_panel_item_id',
                 'trii.value as result_value',
                 'trii.flag',
                 'rr.value   as ref_range',
@@ -308,11 +318,14 @@ class DynamicExportService
 
         $items = [];
         foreach ($rows as $row) {
-            $items[$row->test_result_id][$row->panel_panel_item_id] = [
-                'result_value' => $row->result_value,
-                'flag'         => $row->flag,
-                'ref_range'    => $row->ref_range,
-            ];
+            // First result wins per master_panel_item_id per test_result
+            if (!isset($items[$row->test_result_id][$row->master_panel_item_id])) {
+                $items[$row->test_result_id][$row->master_panel_item_id] = [
+                    'result_value' => $row->result_value,
+                    'flag'         => $row->flag,
+                    'ref_range'    => $row->ref_range,
+                ];
+            }
         }
 
         return $items;
@@ -321,6 +334,7 @@ class DynamicExportService
     private function processBuffer(
         array $buffer,
         array $ppiIds,
+        array $masterPanelItemIds,
         array $ppiMeta,
         array $columns,
         array $customerMap,
@@ -334,7 +348,7 @@ class DynamicExportService
         $items         = $this->fetchItemsForChunk($testResultIds, $ppiIds);
 
         if (!$headersWritten) {
-            fputcsv($stream, $this->buildHeaders($columns, $ppiIds, $ppiMeta));
+            fputcsv($stream, $this->buildHeaders($columns, $masterPanelItemIds, $ppiMeta));
             $headersWritten = true;
         }
 
@@ -352,7 +366,7 @@ class DynamicExportService
             $phone        = $includeOctopus ? ($cust['phone']         ?? null) : null;
 
             fputcsv($stream, $this->buildDataRow(
-                $row, $columns, $ppiIds,
+                $row, $columns, $masterPanelItemIds,
                 $items[$row->id] ?? [],
                 $age, $gender, $race, $regional, $customerName, $nric, $phone
             ));
@@ -360,7 +374,7 @@ class DynamicExportService
         }
     }
 
-    private function buildHeaders(array $columns, array $ppiIds, array $ppiMeta): array
+    private function buildHeaders(array $columns, array $masterPanelItemIds, array $ppiMeta): array
     {
         $columnLabels = [
             'customer_name'  => 'Customer Name',
@@ -383,8 +397,8 @@ class DynamicExportService
             }
         }
 
-        foreach ($ppiIds as $ppiId) {
-            $meta  = $ppiMeta[$ppiId] ?? ['panel_item_name' => 'Unknown', 'unit' => null];
+        foreach ($masterPanelItemIds as $mpiId) {
+            $meta  = $ppiMeta[$mpiId] ?? ['panel_item_name' => 'Unknown', 'unit' => null];
             $label = $meta['panel_item_name'];
             if (!empty($meta['unit'])) {
                 $label .= ' (' . $meta['unit'] . ')';
@@ -424,8 +438,8 @@ class DynamicExportService
         if (in_array('collected_date', $columns))  $data[] = $row->collected_date ?? '';
         if (in_array('regional', $columns))        $data[] = $regional            ?? '';
 
-        foreach ($ppiIds as $ppiId) {
-            $item   = $rowItems[$ppiId] ?? null;
+        foreach ($masterPanelItemIds as $mpiId) {
+            $item   = $rowItems[$mpiId] ?? null;
             $data[] = ($item !== null) ? ($item['result_value'] ?? '') : '';
             $data[] = ($item !== null) ? ($item['flag']         ?? '') : '';
             $data[] = ($item !== null) ? ($item['ref_range']    ?? '') : '';
