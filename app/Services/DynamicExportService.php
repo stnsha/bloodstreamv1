@@ -414,7 +414,7 @@ class DynamicExportService
     private function buildDataRow(
         object $row,
         array $columns,
-        array $ppiIds,
+        array $masterPanelItemIds,
         array $rowItems,
         ?int $age,
         ?string $gender,
