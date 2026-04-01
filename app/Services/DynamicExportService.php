@@ -301,6 +301,7 @@ class DynamicExportService
                 'trii.test_result_id',
                 'trii.panel_panel_item_id',
                 'trii.value as result_value',
+                'trii.flag',
                 'rr.value   as ref_range',
             ])
             ->get();
@@ -309,6 +310,7 @@ class DynamicExportService
         foreach ($rows as $row) {
             $items[$row->test_result_id][$row->panel_panel_item_id] = [
                 'result_value' => $row->result_value,
+                'flag'         => $row->flag,
                 'ref_range'    => $row->ref_range,
             ];
         }
@@ -361,17 +363,17 @@ class DynamicExportService
     private function buildHeaders(array $columns, array $ppiIds, array $ppiMeta): array
     {
         $columnLabels = [
-            'lab_no'         => 'Lab No',
-            'ref_id'         => 'Ref ID',
-            'collected_date' => 'Collected Date',
-            'age'            => 'Age',
-            'gender'         => 'Gender',
-            'outlet_code'    => 'Outlet Code',
-            'race'           => 'Race',
-            'regional'       => 'Regional',
             'customer_name'  => 'Customer Name',
             'nric'           => 'NRIC',
             'phone'          => 'Phone',
+            'lab_no'         => 'Lab No',
+            'ref_id'         => 'Ref ID',
+            'age'            => 'Age',
+            'gender'         => 'Gender',
+            'race'           => 'Race',
+            'outlet_code'    => 'Outlet Code',
+            'collected_date' => 'Collected Date',
+            'regional'       => 'Regional',
         ];
 
         $headers = [];
@@ -388,6 +390,7 @@ class DynamicExportService
                 $label .= ' (' . $meta['unit'] . ')';
             }
             $headers[] = $label . ' Value';
+            $headers[] = $label . ' Flag';
             $headers[] = $label . ' Ref Range';
         }
 
@@ -409,21 +412,22 @@ class DynamicExportService
     ): array {
         $data = [];
 
-        if (in_array('lab_no', $columns))         $data[] = $row->lab_no        ?? '';
-        if (in_array('ref_id', $columns))          $data[] = $row->ref_id         ?? '';
-        if (in_array('collected_date', $columns))  $data[] = $row->collected_date ?? '';
-        if (in_array('age', $columns))             $data[] = $age                 ?? '';
-        if (in_array('gender', $columns))          $data[] = $gender              ?? '';
-        if (in_array('outlet_code', $columns))     $data[] = $row->outlet_code    ?? '';
-        if (in_array('race', $columns))            $data[] = $race                ?? '';
-        if (in_array('regional', $columns))        $data[] = $regional            ?? '';
         if (in_array('customer_name', $columns))   $data[] = $customerName        ?? '';
         if (in_array('nric', $columns))            $data[] = $nric                ?? '';
         if (in_array('phone', $columns))           $data[] = $phone               ?? '';
+        if (in_array('lab_no', $columns))          $data[] = $row->lab_no         ?? '';
+        if (in_array('ref_id', $columns))          $data[] = $row->ref_id         ?? '';
+        if (in_array('age', $columns))             $data[] = $age                 ?? '';
+        if (in_array('gender', $columns))          $data[] = $gender              ?? '';
+        if (in_array('race', $columns))            $data[] = $race                ?? '';
+        if (in_array('outlet_code', $columns))     $data[] = $row->outlet_code    ?? '';
+        if (in_array('collected_date', $columns))  $data[] = $row->collected_date ?? '';
+        if (in_array('regional', $columns))        $data[] = $regional            ?? '';
 
         foreach ($ppiIds as $ppiId) {
             $item   = $rowItems[$ppiId] ?? null;
             $data[] = ($item !== null) ? ($item['result_value'] ?? '') : '';
+            $data[] = ($item !== null) ? ($item['flag']         ?? '') : '';
             $data[] = ($item !== null) ? ($item['ref_range']    ?? '') : '';
         }
 
@@ -441,9 +445,9 @@ class DynamicExportService
                     'gender'        => $customer['gender']     ?? null,
                     'race'          => $customer['race']       ?? null,
                     'outlet_id'     => $customer['outlet_id']  ?? null,
-                    'customer_name' => $customer['name']       ?? null,
-                    'ic'            => $customer['ic']         ?? null,
-                    'phone'         => $customer['phone']      ?? null,
+                    'customer_name' => $customer['customer_name']  ?? null,
+                    'ic'            => $customer['ic']             ?? null,
+                    'phone'         => $customer['customer_phone'] ?? null,
                 ];
             } catch (Exception $e) {
                 Log::warning('DynamicExportService: customer lookup failed', ['ref_id' => $refId, 'error' => $e->getMessage()]);
