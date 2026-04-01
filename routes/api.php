@@ -12,6 +12,7 @@ use App\Http\Controllers\API\ConsultCall\ConsultCallFollowUpController;
 use App\Http\Controllers\API\ConsultCall\StatusLibraryController;
 use App\Http\Controllers\API\Testing\SpecialTestController;
 use App\Http\Controllers\API\Webhook\AIResultController;
+use App\Http\Controllers\API\Export\DynamicExportController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\PanelCommentController;
@@ -85,6 +86,12 @@ Route::middleware(['api.auth', 'throttle:api'])->group(function () {
     Route::prefix('export')->controller(ExportController::class)->group(function () {
         Route::get('/age', 'exportAge')->name('export.age');
         Route::get('/bt/age', 'exportBtAge')->name('export.bt');
+    });
+
+    Route::prefix('export/dynamic')->controller(DynamicExportController::class)->group(function () {
+        Route::get('/options', 'options')->name('export.dynamic.options');
+        Route::post('/count',  'count')->name('export.dynamic.count');
+        Route::post('/',       'export')->name('export.dynamic.export');
     });
 
     Route::prefix('odb')->controller(BloodTestController::class)->group(function () {
