@@ -127,7 +127,8 @@ class DynamicExportService
         array $masterPanelItemIds,
         array $columns,
         bool $includeOctopus,
-        string $labCode = ''
+        string $labCode = '',
+        ?int $maxOctopusRecords = 300
     ): array {
         $ppiIds = $this->resolvePpiIds($masterPanelItemIds);
 
@@ -150,7 +151,17 @@ class DynamicExportService
 
         if ($includeOctopus) {
             Log::info('DynamicExportService: collecting ref_ids for Octopus lookup');
-            $refIds      = $this->collectDistinctRefIds($dateFrom, $dateTo, $ppiIds);
+            $refIds = $this->collectDistinctRefIds($dateFrom, $dateTo, $ppiIds);
+
+            if ($maxOctopusRecords !== null && count($refIds) > $maxOctopusRecords) {
+                return [
+                    'csv_base64' => base64_encode(''),
+                    'row_count'  => 0,
+                    'warnings'   => [],
+                    'error'      => count($refIds) . ' unique records require Octopus API lookup. Maximum for direct export is ' . $maxOctopusRecords . '. Please narrow the date range, deselect slow columns, or use the queued export option.',
+                ];
+            }
+
             $customerMap = $this->buildCustomerMap($refIds, $labCode);
 
             $outletIds = [];

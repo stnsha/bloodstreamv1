@@ -89,9 +89,11 @@ Route::middleware(['api.auth', 'throttle:api'])->group(function () {
     });
 
     Route::prefix('export/dynamic')->controller(DynamicExportController::class)->group(function () {
-        Route::get('/options', 'options')->name('export.dynamic.options');
-        Route::post('/count',  'count')->name('export.dynamic.count');
-        Route::post('/',       'export')->name('export.dynamic.export');
+        Route::get('/options',        'options')->name('export.dynamic.options');
+        Route::post('/count',         'count')->name('export.dynamic.count');
+        Route::post('/',              'export')->name('export.dynamic.export');
+        Route::post('/queue',         'queue')->name('export.dynamic.queue');
+        Route::get('/status/{uuid}',  'status')->name('export.dynamic.status');
     });
 
     Route::prefix('odb')->controller(BloodTestController::class)->group(function () {

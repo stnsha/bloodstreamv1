@@ -36,6 +36,12 @@ class Kernel extends ConsoleKernel
             ->environments(['production'])
             ->withoutOverlapping(18);
 
+        // Dynamic CSV export queue worker — processes jobs from the 'exports' queue, exits when empty
+        $schedule->command('queue:work --queue=exports --stop-when-empty --timeout=3600 --tries=1')
+            ->everyMinute()
+            ->environments(['production'])
+            ->withoutOverlapping(60);
+
         // Daily: Run consult call eligibility checks for the previous day's completed results
         $schedule->command('testing:run-consult-eligibility', [
             '--date-from' => now()->subDay()->format('Y-m-d'),
