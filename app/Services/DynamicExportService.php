@@ -439,7 +439,11 @@ class DynamicExportService
         $map = [];
         foreach ($refIds as $refId) {
             try {
-                $customer    = $this->octopus->customerByRefId($refId, $labCode);
+                $prefix   = '';
+                if (preg_match('/^([A-Za-z]+)/', $refId, $m)) {
+                    $prefix = strtoupper($m[1]);
+                }
+                $customer    = $this->octopus->customerByRefId($refId, $prefix ?: $labCode);
                 $map[$refId] = $customer === null ? null : [
                     'birth_date'    => $customer['birth_date'] ?? null,
                     'gender'        => $customer['gender']     ?? null,
