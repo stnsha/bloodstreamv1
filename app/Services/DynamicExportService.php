@@ -206,12 +206,20 @@ class DynamicExportService
 
         Log::info('DynamicExportService: generateCsv complete', ['row_count' => $rowCount]);
 
+        $warnings = [];
+        if ($includeOctopus) {
+            $nullCount = count(array_filter($customerMap, function ($v) { return $v === null; }));
+            if ($nullCount === count($customerMap) && count($customerMap) > 0) {
+                $warnings[] = 'Octopus API was unreachable. Customer name, NRIC, phone, race and regional columns are empty for all records.';
+            } else {
+                $warnings[] = 'Customer name, NRIC, phone, race and regional data sourced from external API. Some records may have null values.';
+            }
+        }
+
         return [
             'csv_base64' => base64_encode($csvContent),
             'row_count'  => $rowCount,
-            'warnings'   => $includeOctopus
-                ? ['Customer name, NRIC, phone, race and regional data sourced from external API. Some records may have null values.']
-                : [],
+            'warnings'   => $warnings,
         ];
     }
 
@@ -461,28 +469,52 @@ class DynamicExportService
 
     private function buildCustomerMap(array $refIds, string $labCode): array
     {
-        $map = [];
+        $map                 = [];
+        $consecutiveFailures = 0;
+        $maxConsecutiveFails = 3;
+
         foreach ($refIds as $refId) {
+            // If Octopus is unreachable, stop waiting and mark all remaining as null
+            if ($consecutiveFailures >= $maxConsecutiveFails) {
+                $map[$refId] = null;
+                continue;
+            }
+
             try {
-                $prefix   = '';
+                $prefix = '';
                 if (preg_match('/^([A-Za-z]+)/', $refId, $m)) {
                     $prefix = strtoupper($m[1]);
                 }
                 $customer    = $this->octopus->customerByRefId($refId, $prefix ?: $labCode);
                 $map[$refId] = $customer === null ? null : [
-                    'birth_date'    => $customer['birth_date'] ?? null,
-                    'gender'        => $customer['gender']     ?? null,
-                    'race'          => $customer['race']       ?? null,
-                    'outlet_id'     => $customer['outlet_id']  ?? null,
-                    'customer_name' => $customer['customer_name']  ?? null,
-                    'ic'            => $customer['ic']             ?? null,
+                    'birth_date'    => $customer['birth_date']    ?? null,
+                    'gender'        => $customer['gender']        ?? null,
+                    'race'          => $customer['race']          ?? null,
+                    'outlet_id'     => $customer['outlet_id']     ?? null,
+                    'customer_name' => $customer['customer_name'] ?? null,
+                    'ic'            => $customer['ic']            ?? null,
                     'phone'         => $customer['customer_phone'] ?? null,
                 ];
+                $consecutiveFailures = 0; // reset on success
             } catch (Exception $e) {
+                $isConnectionFailure = strpos($e->getMessage(), 'Connection Failure') !== false
+                                    || strpos($e->getMessage(), 'cURL error 28') !== false;
+
+                if ($isConnectionFailure) {
+                    $consecutiveFailures++;
+                    if ($consecutiveFailures >= $maxConsecutiveFails) {
+                        Log::warning('DynamicExportService: Octopus unreachable after ' . $maxConsecutiveFails . ' consecutive failures — skipping remaining lookups', [
+                            'ref_id' => $refId,
+                            'total'  => count($refIds),
+                        ]);
+                    }
+                }
+
                 Log::warning('DynamicExportService: customer lookup failed', ['ref_id' => $refId, 'error' => $e->getMessage()]);
                 $map[$refId] = null;
             }
         }
+
         return $map;
     }
 
