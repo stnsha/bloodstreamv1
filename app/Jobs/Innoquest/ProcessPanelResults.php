@@ -298,6 +298,7 @@ class ProcessPanelResults implements ShouldQueue
                                         [
                                             'name' => $res['Text'],
                                             'unit' => $masterPanelItem->unit,
+                                            'chi_character' => null,
                                         ],
                                         $panelItemCacheKey
                                     );

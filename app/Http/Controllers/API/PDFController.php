@@ -1323,7 +1323,7 @@ class PDFController extends Controller
             $panelItemData = [
                 'panel_item_id' => $ppi->panel_item_id,
                 'panel_item_name' => $ppi->panelItem->name,
-                'chinese_character' => $ppi->panelItem->masterPanelItem->chi_character,
+                'chinese_character' => $ppi->panelItem->chi_character,
                 'panel_item_unit' => $unit,
                 'result_value' => $res_value,
                 'result_flag' => $res_flag,
@@ -2169,7 +2169,7 @@ class PDFController extends Controller
             $panelItemData = [
                 'panel_item_id' => $ppi->panel_item_id,
                 'panel_item_name' => $ppi->panelItem->name,
-                'chinese_character' => $ppi->panelItem->masterPanelItem->chi_character,
+                'chinese_character' => $ppi->panelItem->chi_character,
                 'panel_item_unit' => $unit,
                 'result_value' => $res_value,
                 'result_flag' => $res_flag,
@@ -3165,7 +3165,7 @@ class PDFController extends Controller
             $panelItemData = [
                 'panel_item_id' => $ppi->panel_item_id,
                 'panel_item_name' => $ppi->panelItem->name,
-                'chinese_character' => $ppi->panelItem->masterPanelItem->chi_character,
+                'chinese_character' => $ppi->panelItem->chi_character,
                 'panel_item_unit' => $unit,
                 'result_value' => $res_value,
                 'result_flag' => $res_flag,

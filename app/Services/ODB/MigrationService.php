@@ -471,6 +471,7 @@ class MigrationService
                     'name' => $itemName,
                     'code' => $code,
                     'unit' => $unit,
+                    'chi_character' => $chiCharacter,
                 ]
             );
         }

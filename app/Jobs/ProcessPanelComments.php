@@ -161,6 +161,7 @@ class ProcessPanelComments implements ShouldQueue
                                                 ], [
                                                     'name' => $res['Text'],
                                                     'unit' => $masterPanelItem->unit,
+                                                    'chi_character' => null,
                                                 ]);
 
                                                 $panel_item_id = $panel_item->id;

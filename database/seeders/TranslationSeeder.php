@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Models\MasterPanelItem;
+use App\Models\PanelItem;
 use Exception;
 use Illuminate\Support\Facades\Log;
 use Stichoza\GoogleTranslate\GoogleTranslate;
@@ -18,13 +18,13 @@ class TranslationSeeder extends Seeder
         $tr = new GoogleTranslate('zh-CN');
         $tr->setSource('en');
 
-        $masterPanelItems = MasterPanelItem::whereNull('chi_character')->get();
+        $panelItems = PanelItem::whereNull('chi_character')->get();
 
-        $total = $masterPanelItems->count();
+        $total = $panelItems->count();
         $success = 0;
         $failed = 0;
 
-        foreach ($masterPanelItems as $pi) {
+        foreach ($panelItems as $pi) {
             try {
                 $pi->chi_character = $tr->translate($pi->name);
                 $pi->save();
