@@ -296,6 +296,11 @@ class OctopusApiService
     /**
      * Look up eligible consult call customer by reference ID across all outlets.
      * Returns null if the ref ID does not match an eligible customer.
+     * 
+     * Updated outlet:
+     * Melaka (Regional ID 6, outlet code starting with 'M') 
+     * Johor (Regional ID 11)
+     * Kelantan (Regional ID 5)
      *
      * @param string $refId The reference ID (e.g., INN10256)
      * @param string|null $labCode The lab code prefix used for normalization (e.g., INN)

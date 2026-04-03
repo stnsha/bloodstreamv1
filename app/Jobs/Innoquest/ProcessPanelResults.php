@@ -560,30 +560,41 @@ class ProcessPanelResults implements ShouldQueue
                                 'collected_date' => $collectedDateForConsult,
                             ]);
                         } else {
-                            // Gate 3: must be a Melaka outlet, verified via ref_id
+                            // Gate 3: verify outlet eligibility via ref_id.
+                            // From 2026-04-06 onward, Melaka + Johor + Kelantan are eligible.
+                            // Before 2026-04-06, only Melaka is eligible.
                             $refIdForConsult = $test_result->ref_id;
 
                             if (! $refIdForConsult) {
-                                Log::info('Consult call skipped: no ref_id to verify Melaka outlet', [
+                                Log::info('Consult call skipped: no ref_id to verify eligible outlet', [
                                     'test_result_id' => $test_result->id,
-                                    'patient_id' => $patient_id,
+                                    'patient_id'     => $patient_id,
                                 ]);
                             } else {
-                                $labForConsult = isset($lab) ? $lab : Lab::find($lab_id);
+                                $labForConsult     = isset($lab) ? $lab : Lab::find($lab_id);
                                 $labCodeForConsult = $labForConsult->code ?? null;
 
-                                $octopusApi = app(OctopusApiService::class);
-                                $melakaCustomer = $octopusApi->customerMelakaByRefId($refIdForConsult, $labCodeForConsult);
+                                $octopusApi         = app(OctopusApiService::class);
+                                $multiOutletCutoff  = Carbon::parse('2026-04-06')->startOfDay();
+                                $collectedForBranch = Carbon::parse($collectedDateForConsult);
 
-                                if (! $melakaCustomer) {
-                                    Log::info('Consult call skipped: not a Melaka outlet or customer not found by ref_id', [
+                                if ($collectedForBranch->gte($multiOutletCutoff)) {
+                                    // Multi-outlet: Melaka, Johor, Kelantan
+                                    $eligibleCustomer = $octopusApi->eligibleConsultCallByOutlet($refIdForConsult, $labCodeForConsult);
+                                } else {
+                                    // Melaka only (legacy path)
+                                    $eligibleCustomer = $octopusApi->customerMelakaByRefId($refIdForConsult, $labCodeForConsult);
+                                }
+
+                                if (! $eligibleCustomer) {
+                                    Log::info('Consult call skipped: not an eligible outlet or customer not found by ref_id', [
                                         'test_result_id' => $test_result->id,
-                                        'ref_id' => $refIdForConsult,
-                                        'patient_id' => $patient_id,
+                                        'ref_id'         => $refIdForConsult,
+                                        'patient_id'     => $patient_id,
                                     ]);
                                 } else {
-                                    $consultCustomerId = (int) $melakaCustomer['customer_id'];
-                                    $consultOutletId = isset($melakaCustomer['outlet_id']) ? (int) $melakaCustomer['outlet_id'] : null;
+                                    $consultCustomerId = (int) $eligibleCustomer['customer_id'];
+                                    $consultOutletId   = isset($eligibleCustomer['outlet_id']) ? (int) $eligibleCustomer['outlet_id'] : null;
 
                                     app(ConsultCallEligibilityService::class)->checkAndCreate(
                                         $test_result, $patient_id, $consultCustomerId, $consultOutletId
