@@ -95,7 +95,18 @@ class ConsultCallController extends Controller
         }
 
         $perPage = $request->input('per_page', 15);
-        $data = $query->orderByRaw('(consent_call_status = 2) ASC, scheduled_call_date IS NULL, scheduled_call_date ASC')->paginate($perPage);
+        $data = $query->orderByRaw("
+            (consent_call_status = 2 OR COALESCE((
+                SELECT d.process_status = 3
+                FROM consult_call_details d
+                WHERE d.consult_call_id = consult_calls.id
+                  AND d.deleted_at IS NULL
+                ORDER BY d.id DESC
+                LIMIT 1
+            ), 0)) ASC,
+            scheduled_call_date IS NULL,
+            scheduled_call_date ASC
+        ")->paginate($perPage);
 
         Log::info('ConsultCall index: completed', ['total' => $data->total()]);
 
