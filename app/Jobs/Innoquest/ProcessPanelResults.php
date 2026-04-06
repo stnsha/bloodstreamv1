@@ -543,63 +543,55 @@ class ProcessPanelResults implements ShouldQueue
             // Consult call eligibility check (requires completed result with PDF)
             if ($hasPdf && $test_result && $test_result->id && $patient_id) {
                 try {
-                    // Gate 1: customer_id must have been resolved from the ref_id block
-                    if ($customerId === null) {
-                        Log::info('Consult call skipped: no customer_id resolved', [
+                    // Gate 1: collected_date must be on or after 2026-03-08
+                    $collectedDateForConsult = $test_result->collected_date ?? $test_result->reported_date;
+                    $consultCutoffDate = Carbon::parse('2026-03-08')->startOfDay();
+
+                    if (! $collectedDateForConsult || Carbon::parse($collectedDateForConsult)->lt($consultCutoffDate)) {
+                        Log::info('Consult call skipped: collected date before 2026-03-08', [
                             'test_result_id' => $test_result->id,
-                            'patient_id' => $patient_id,
+                            'collected_date' => $collectedDateForConsult,
                         ]);
                     } else {
-                        // Gate 2: collected_date must be on or after 2026-03-08
-                        $collectedDateForConsult = $test_result->collected_date ?? $test_result->reported_date;
-                        $consultCutoffDate = Carbon::parse('2026-03-08')->startOfDay();
+                        // Gate 2: verify outlet eligibility via ref_id.
+                        // From 2026-04-06 onward, Melaka + Johor + Kelantan are eligible.
+                        // Before 2026-04-06, only Melaka is eligible.
+                        $refIdForConsult = $test_result->ref_id;
 
-                        if (! $collectedDateForConsult || Carbon::parse($collectedDateForConsult)->lt($consultCutoffDate)) {
-                            Log::info('Consult call skipped: collected date before 2026-03-08', [
+                        if (! $refIdForConsult) {
+                            Log::info('Consult call skipped: no ref_id to verify eligible outlet', [
                                 'test_result_id' => $test_result->id,
-                                'collected_date' => $collectedDateForConsult,
+                                'patient_id'     => $patient_id,
                             ]);
                         } else {
-                            // Gate 3: verify outlet eligibility via ref_id.
-                            // From 2026-04-06 onward, Melaka + Johor + Kelantan are eligible.
-                            // Before 2026-04-06, only Melaka is eligible.
-                            $refIdForConsult = $test_result->ref_id;
+                            $labForConsult     = isset($lab) ? $lab : Lab::find($lab_id);
+                            $labCodeForConsult = $labForConsult->code ?? null;
 
-                            if (! $refIdForConsult) {
-                                Log::info('Consult call skipped: no ref_id to verify eligible outlet', [
+                            $octopusApi         = app(OctopusApiService::class);
+                            $multiOutletCutoff  = Carbon::parse('2026-04-06')->startOfDay();
+                            $collectedForBranch = Carbon::parse($collectedDateForConsult);
+
+                            if ($collectedForBranch->gte($multiOutletCutoff)) {
+                                // Multi-outlet: Melaka, Johor, Kelantan
+                                $eligibleCustomer = $octopusApi->eligibleConsultCallByOutlet($refIdForConsult, $labCodeForConsult);
+                            } else {
+                                // Melaka only (legacy path)
+                                $eligibleCustomer = $octopusApi->customerMelakaByRefId($refIdForConsult, $labCodeForConsult);
+                            }
+
+                            if (! $eligibleCustomer) {
+                                Log::info('Consult call skipped: not an eligible outlet or customer not found by ref_id', [
                                     'test_result_id' => $test_result->id,
+                                    'ref_id'         => $refIdForConsult,
                                     'patient_id'     => $patient_id,
                                 ]);
                             } else {
-                                $labForConsult     = isset($lab) ? $lab : Lab::find($lab_id);
-                                $labCodeForConsult = $labForConsult->code ?? null;
+                                $consultCustomerId = (int) $eligibleCustomer['customer_id'];
+                                $consultOutletId   = isset($eligibleCustomer['outlet_id']) ? (int) $eligibleCustomer['outlet_id'] : null;
 
-                                $octopusApi         = app(OctopusApiService::class);
-                                $multiOutletCutoff  = Carbon::parse('2026-04-06')->startOfDay();
-                                $collectedForBranch = Carbon::parse($collectedDateForConsult);
-
-                                if ($collectedForBranch->gte($multiOutletCutoff)) {
-                                    // Multi-outlet: Melaka, Johor, Kelantan
-                                    $eligibleCustomer = $octopusApi->eligibleConsultCallByOutlet($refIdForConsult, $labCodeForConsult);
-                                } else {
-                                    // Melaka only (legacy path)
-                                    $eligibleCustomer = $octopusApi->customerMelakaByRefId($refIdForConsult, $labCodeForConsult);
-                                }
-
-                                if (! $eligibleCustomer) {
-                                    Log::info('Consult call skipped: not an eligible outlet or customer not found by ref_id', [
-                                        'test_result_id' => $test_result->id,
-                                        'ref_id'         => $refIdForConsult,
-                                        'patient_id'     => $patient_id,
-                                    ]);
-                                } else {
-                                    $consultCustomerId = (int) $eligibleCustomer['customer_id'];
-                                    $consultOutletId   = isset($eligibleCustomer['outlet_id']) ? (int) $eligibleCustomer['outlet_id'] : null;
-
-                                    app(ConsultCallEligibilityService::class)->checkAndCreate(
-                                        $test_result, $patient_id, $consultCustomerId, $consultOutletId
-                                    );
-                                }
+                                app(ConsultCallEligibilityService::class)->checkAndCreate(
+                                    $test_result, $patient_id, $consultCustomerId, $consultOutletId
+                                );
                             }
                         }
                     }
