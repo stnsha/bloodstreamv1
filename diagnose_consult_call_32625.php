@@ -42,21 +42,27 @@ echo "     lab_no:          {$testResult->lab_no}\n";
 echo "     ref_id:          " . ($testResult->ref_id ?? '(null)') . "\n";
 echo "     collected_date:  " . ($testResult->collected_date ?? '(null)') . "\n";
 echo "     reported_date:   " . ($testResult->reported_date ?? '(null)') . "\n";
-echo "     pdf_path:        " . ($testResult->pdf_path ?? '(null)') . "\n";
+echo "     is_completed:    " . ($testResult->is_completed ? 'true' : 'false') . "\n";
 echo "     patient_id:      " . ($testResult->patient_id ?? '(null)') . "\n";
 echo "     lab_id:          " . ($testResult->lab_id ?? '(null)') . "\n\n";
 
 // ---------------------------------------------------------------
 // Step 2: Check hasPdf gate
 // ---------------------------------------------------------------
-echo "--- Step 2: Gate - hasPdf ---\n";
+// NOTE: hasPdf in ProcessPanelResults is set from the live EncodedBase64pdf
+// field in the incoming JSON payload - it is never stored in the database.
+// The correct proxy is is_completed: ProcessPanelResults sets is_completed=true
+// on the same condition (hasPdf=true), so if is_completed is true, the PDF
+// was received and the hasPdf gate would have been true during job execution.
+echo "--- Step 2: Gate - hasPdf (proxy: is_completed) ---\n";
 
-$hasPdf = ! empty($testResult->pdf_path);
+$hasPdf = (bool) $testResult->is_completed;
 
 if (! $hasPdf) {
-    echo "[FAIL] pdf_path is empty. Consult call block is skipped entirely when hasPdf is false.\n\n";
+    echo "[FAIL] is_completed is false. This means EncodedBase64pdf was absent when the job ran.\n";
+    echo "       The hasPdf gate in ProcessPanelResults would have been false - consult call block skipped.\n\n";
 } else {
-    echo "[OK] pdf_path is set.\n\n";
+    echo "[OK] is_completed is true - PDF was received when the job ran (hasPdf was true).\n\n";
 }
 
 // ---------------------------------------------------------------
