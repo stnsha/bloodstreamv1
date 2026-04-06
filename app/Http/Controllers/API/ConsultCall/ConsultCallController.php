@@ -104,8 +104,17 @@ class ConsultCallController extends Controller
                 ORDER BY d.id DESC
                 LIMIT 1
             ), 0)) ASC,
-            scheduled_call_date IS NULL,
-            scheduled_call_date ASC
+            scheduled_call_date IS NULL ASC,
+            (scheduled_call_date < CURDATE()) ASC,
+            scheduled_call_date ASC,
+            COALESCE((
+                SELECT d.action = 1
+                FROM consult_call_details d
+                WHERE d.consult_call_id = consult_calls.id
+                  AND d.deleted_at IS NULL
+                ORDER BY d.id DESC
+                LIMIT 1
+            ), 0) DESC
         ")->paginate($perPage);
 
         Log::info('ConsultCall index: completed', ['total' => $data->total()]);
