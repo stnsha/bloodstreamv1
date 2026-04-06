@@ -6,6 +6,7 @@ use App\Models\ConsultCallDetails;
 use App\Models\TestResult;
 use App\Services\ConsultCallEligibilityService;
 use App\Services\OctopusApiService;
+use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -172,6 +173,18 @@ class RunConsultCallEligibility extends Command
             ]);
 
             return ['skipped_no_ic', null];
+        }
+
+        $collectedDate     = $testResult->collected_date ?? $testResult->reported_date;
+        $multiOutletCutoff = Carbon::parse('2026-04-06')->startOfDay();
+
+        if (! $collectedDate || Carbon::parse($collectedDate)->lt($multiOutletCutoff)) {
+            Log::info('RunConsultCallEligibility: Skipping, collected date before 2026-04-06 multi-outlet cutoff', [
+                'test_result_id' => $testResult->id,
+                'collected_date' => $collectedDate,
+            ]);
+
+            return ['no_customer', null];
         }
 
         $customer = $octopusApi->eligibleConsultCallByOutletIc($patient->icno);

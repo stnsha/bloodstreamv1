@@ -9,7 +9,6 @@
  * duplicate guard that will skip if ConsultCallDetails already exists for this test_result_id.
  */
 
-use App\Models\Lab;
 use App\Models\TestResult;
 use App\Services\ConsultCallEligibilityService;
 use App\Services\OctopusApiService;
@@ -46,8 +45,7 @@ $collectedDate      = $testResult->collected_date ?? $testResult->reported_date;
 $multiOutletCutoff  = Carbon::parse('2026-04-06')->startOfDay();
 $collectedForBranch = Carbon::parse($collectedDate);
 
-$lab     = Lab::find($testResult->lab_id);
-$labCode = $lab->code ?? null;
+$labCode = $testResult->doctor->lab->code ?? null;
 
 echo "test_result_id:  {$testResultId}\n";
 echo "patient_id:      {$patientId}\n";
