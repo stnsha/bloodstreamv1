@@ -82,6 +82,7 @@ class RunConsultCallEligibility extends Command
         ];
 
         $outletEligibleCounts = [];
+        $dailyEligibleCounts  = [];
 
         $bar = $this->output->createProgressBar($total);
         $bar->start();
@@ -91,8 +92,15 @@ class RunConsultCallEligibility extends Command
                 [$result, $outletId] = $this->processTestResult($testResult, $octopusApi, $eligibilityService, $dryRun);
                 $counters[$result]++;
 
-                if ($result === 'eligible' && $outletId !== null) {
-                    $outletEligibleCounts[$outletId] = ($outletEligibleCounts[$outletId] ?? 0) + 1;
+                if ($result === 'eligible') {
+                    if ($outletId !== null) {
+                        $outletEligibleCounts[$outletId] = ($outletEligibleCounts[$outletId] ?? 0) + 1;
+                    }
+
+                    $day = $testResult->collected_date
+                        ? Carbon::parse($testResult->collected_date)->toDateString()
+                        : 'unknown';
+                    $dailyEligibleCounts[$day] = ($dailyEligibleCounts[$day] ?? 0) + 1;
                 }
             } catch (Throwable $e) {
                 $counters['errors']++;
@@ -133,6 +141,16 @@ class RunConsultCallEligibility extends Command
             }
             $this->info('Eligible cases by outlet:');
             $this->table(['Outlet ID', 'Total Eligible Cases'], $outletRows);
+        }
+
+        if (! empty($dailyEligibleCounts)) {
+            ksort($dailyEligibleCounts);
+            $dailyRows = [];
+            foreach ($dailyEligibleCounts as $day => $count) {
+                $dailyRows[] = [$day, $count];
+            }
+            $this->info('Eligible cases by day:');
+            $this->table(['Date', 'Total Eligible Cases'], $dailyRows);
         }
 
         Log::info('RunConsultCallEligibility: Completed', [
