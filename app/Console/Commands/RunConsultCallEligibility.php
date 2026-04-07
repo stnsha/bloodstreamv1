@@ -14,18 +14,18 @@ use Throwable;
 class RunConsultCallEligibility extends Command
 {
     protected $signature = 'testing:run-consult-eligibility
-        {--date-from=2026-03-07 : Start date filter (collected_date)}
-        {--date-to=2026-04-05 : End date filter (collected_date)}
+        {--date-from=2026-04-01 : Start date filter (collected_date)}
+        {--date-to= : End date filter (collected_date), defaults to today}
         {--limit=100 : Number of test results to process}
         {--offset=0 : Skip first N records}
         {--dry-run : Simulate eligibility checks without writing to the database}';
 
-    protected $description = 'Run consult call eligibility checks on existing completed test results (Melaka outlet, ref_id-based lookup)';
+    protected $description = 'Run consult call eligibility checks on existing completed test results (Melaka, Johor, Kelantan outlets)';
 
     public function handle(): int
     {
         $dateFrom = $this->option('date-from');
-        $dateTo   = $this->option('date-to');
+        $dateTo   = $this->option('date-to') ?: Carbon::today()->toDateString();
         $limit    = (int) $this->option('limit');
         $offset   = (int) $this->option('offset');
         $dryRun   = (bool) $this->option('dry-run');
@@ -117,7 +117,7 @@ class RunConsultCallEligibility extends Command
                 ['Total records',          $total],
                 ['Eligible (CC created)',  $counters['eligible']],
                 ['Healthy (no match)',     $counters['healthy']],
-                ['No customer (Melaka)',   $counters['no_customer']],
+                ['No customer found',       $counters['no_customer']],
                 ['Skipped (no ref_id)',    $counters['skipped_no_ref_id']],
                 ['Skipped (no patient)',   $counters['skipped_no_patient']],
                 ['Already exists',         $counters['already_exists']],
@@ -144,9 +144,9 @@ class RunConsultCallEligibility extends Command
     }
 
     /**
-     * Process a single test result for Melaka consult call eligibility.
+     * Process a single test result for consult call eligibility.
      *
-     * Uses ref_id-based lookup (customerMelakaByRefId) — Melaka outlet only.
+     * Uses outlet-based lookup (eligibleConsultCallByOutlet) — Melaka, Johor, Kelantan.
      *
      * @return array{0: string, 1: int|null} Counter key and outlet ID
      */
@@ -173,10 +173,10 @@ class RunConsultCallEligibility extends Command
         }
 
         $labCode  = $testResult->doctor->lab->code ?? null;
-        $customer = $octopusApi->customerMelakaByRefId($testResult->ref_id, $labCode);
+        $customer = $octopusApi->eligibleConsultCallByOutlet($testResult->ref_id, $labCode);
 
         if (! $customer) {
-            Log::info('RunConsultCallEligibility: Not a Melaka customer or ref_id not found', [
+            Log::info('RunConsultCallEligibility: Not an eligible outlet customer or ref_id not found', [
                 'test_result_id' => $testResult->id,
                 'ref_id'         => $testResult->ref_id,
             ]);
