@@ -445,7 +445,7 @@ class ConsultCallController extends Controller
         $validator = Validator::make($request->all(), [
             'clinical_condition_id' => 'nullable|integer|exists:clinical_conditions,id',
             'test_result_id' => 'nullable|integer|exists:test_results,id',
-            'documentation' => 'required|string',
+            'documentation' => 'nullable|string',
             'diagnosis' => 'nullable|string',
             'treatment_plan' => 'nullable|string',
             'rx_issued' => 'nullable|boolean',
@@ -470,8 +470,11 @@ class ConsultCallController extends Controller
 
             $detailData = $validator->validated();
 
-            // Auto-set process_status: End Process action forces Closed; default to Active
+            // Auto-set process_status: End Process action or No Show consult status forces Closed;
+            // default to Active when not explicitly provided
             if (isset($detailData['action']) && $detailData['action'] === ConsultCallDetails::ACTION_END_PROCESS) {
+                $detailData['process_status'] = ConsultCallDetails::PROCESS_STATUS_CLOSED;
+            } elseif (isset($detailData['consult_status']) && $detailData['consult_status'] === ConsultCallDetails::CONSULT_STATUS_NO_SHOW) {
                 $detailData['process_status'] = ConsultCallDetails::PROCESS_STATUS_CLOSED;
             } elseif (!isset($detailData['process_status'])) {
                 $detailData['process_status'] = ConsultCallDetails::PROCESS_STATUS_ACTIVE;
@@ -573,8 +576,11 @@ class ConsultCallController extends Controller
 
             $detailData = $validator->validated();
 
-            // Auto-set process_status: End Process action forces Closed; default to Active
+            // Auto-set process_status: End Process action or No Show consult status forces Closed;
+            // default to Active when not explicitly provided
             if (isset($detailData['action']) && $detailData['action'] === ConsultCallDetails::ACTION_END_PROCESS) {
+                $detailData['process_status'] = ConsultCallDetails::PROCESS_STATUS_CLOSED;
+            } elseif (isset($detailData['consult_status']) && $detailData['consult_status'] === ConsultCallDetails::CONSULT_STATUS_NO_SHOW) {
                 $detailData['process_status'] = ConsultCallDetails::PROCESS_STATUS_CLOSED;
             } elseif (!isset($detailData['process_status'])) {
                 $detailData['process_status'] = ConsultCallDetails::PROCESS_STATUS_ACTIVE;
