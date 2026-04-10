@@ -147,6 +147,7 @@ Route::middleware(['consult-call.auth', 'throttle:api'])->group(function () {
 
     Route::prefix('consult-call')->controller(ConsultCallFollowUpController::class)->group(function () {
         Route::patch('/{id}/follow-up/{followUpId}/link-referral', 'linkReferral');
+        Route::patch('/{id}/link-referral-by-call', 'linkReferralByCall');
     });
 
     Route::prefix('consult-call/statuses')->controller(StatusLibraryController::class)->group(function () {
