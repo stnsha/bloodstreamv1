@@ -20,6 +20,7 @@ class ConsultCall extends Model
     const CONSENT_STATUS_PENDING = 0;
     const CONSENT_STATUS_OBTAINED = 1;
     const CONSENT_STATUS_REFUSED = 2;
+    const CONSENT_STATUS_ON_MEDICATION = 3;
 
     // Scheduled Status
     const SCHEDULED_STATUS_PENDING = 0;

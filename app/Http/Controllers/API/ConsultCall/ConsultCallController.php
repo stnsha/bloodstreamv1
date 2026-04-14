@@ -141,7 +141,8 @@ class ConsultCallController extends Controller
                 SUM(CASE WHEN enrollment_type = 2 THEN 1 ELSE 0 END) as enrollment_follow_up,
                 SUM(CASE WHEN consent_call_status = 0 THEN 1 ELSE 0 END) as consent_pending,
                 SUM(CASE WHEN consent_call_status = 1 THEN 1 ELSE 0 END) as consent_obtained,
-                SUM(CASE WHEN consent_call_status = 2 THEN 1 ELSE 0 END) as consent_refused
+                SUM(CASE WHEN consent_call_status = 2 THEN 1 ELSE 0 END) as consent_refused,
+                SUM(CASE WHEN consent_call_status = 3 THEN 1 ELSE 0 END) as consent_on_medication
             ")->first();
 
             $processStatusCounts = DB::table('consult_call_details as ccd')
@@ -191,6 +192,7 @@ class ConsultCallController extends Controller
                     'pending' => (int) $baseStats->consent_pending,
                     'obtained' => (int) $baseStats->consent_obtained,
                     'refused' => (int) $baseStats->consent_refused,
+                    'on_medication' => (int) $baseStats->consent_on_medication,
                 ],
                 'process_status' => [
                     'active' => (int) ($processStatusCounts->active ?? 0),
@@ -262,7 +264,7 @@ class ConsultCallController extends Controller
             'is_eligible' => 'nullable|boolean',
             'enrollment_date' => 'required|date',
             'enrollment_type' => 'nullable|integer|in:1,2',
-            'consent_call_status' => 'nullable|integer|in:0,1,2',
+            'consent_call_status' => 'nullable|integer|in:0,1,2,3',
             'consent_call_date' => 'nullable|date',
             'scheduled_status' => 'nullable|integer|in:0,1,2,3',
             'scheduled_call_date' => 'nullable|date',
@@ -333,7 +335,7 @@ class ConsultCallController extends Controller
             'is_eligible' => 'nullable|boolean',
             'enrollment_date' => 'sometimes|date',
             'enrollment_type' => 'nullable|integer|in:1,2',
-            'consent_call_status' => 'nullable|integer|in:0,1,2',
+            'consent_call_status' => 'nullable|integer|in:0,1,2,3',
             'consent_call_date' => 'nullable|date',
             'scheduled_status' => 'nullable|integer|in:0,1,2,3',
             'scheduled_call_date' => 'nullable|date',
