@@ -7,6 +7,7 @@ use App\Http\Controllers\API\PDFController;
 use App\Models\ConsultCall;
 use App\Models\ConsultCallDetails;
 use App\Models\ConsultCallFollowUp;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -486,6 +487,53 @@ class ConsultCallController extends Controller
                 $detailData['process_status'] = ConsultCallDetails::PROCESS_STATUS_ACTIVE;
             }
 
+            // Smart update-or-create: if consult_date matches the scheduled date on a
+            // primary-enrollment CC, update the original auto-created detail instead of
+            // inserting a duplicate. For follow-up enrollment, always create.
+            $consultDateStr = isset($detailData['consult_date'])
+                ? Carbon::parse($detailData['consult_date'])->toDateString()
+                : null;
+
+            $scheduledDateStr = $consultCall->scheduled_call_date
+                ? Carbon::parse($consultCall->scheduled_call_date)->toDateString()
+                : null;
+
+            $updatedScheduledDateStr = $consultCall->updated_scheduled_date
+                ? Carbon::parse($consultCall->updated_scheduled_date)->toDateString()
+                : null;
+
+            $dateMatchesScheduled = $consultDateStr && (
+                ($scheduledDateStr && $consultDateStr === $scheduledDateStr) ||
+                ($updatedScheduledDateStr && $consultDateStr === $updatedScheduledDateStr)
+            );
+
+            if ($dateMatchesScheduled && $consultCall->enrollment_type === ConsultCall::ENROLLMENT_TYPE_PRIMARY) {
+                $originalDetail = $consultCall->details()
+                    ->whereDate('created_at', Carbon::parse($consultCall->created_at)->toDateString())
+                    ->orderBy('created_at')
+                    ->first();
+
+                if ($originalDetail) {
+                    $originalDetail->update($detailData);
+
+                    DB::commit();
+
+                    Log::info('ConsultCall storeDetails: updated original detail via smart-update', [
+                        'consult_call_id' => $id,
+                        'detail_id'       => $originalDetail->id,
+                        'enrollment_type' => $consultCall->enrollment_type,
+                        'consult_date'    => $consultDateStr,
+                    ]);
+
+                    return response()->json([
+                        'success' => true,
+                        'data'    => $originalDetail->fresh(['clinicalCondition', 'testResult']),
+                        'message' => 'Consult call detail updated successfully.',
+                    ], 200);
+                }
+            }
+
+            // Falls through to CREATE for: follow-up enrollment, date mismatch, or no original detail found.
             $detail = $consultCall->details()->create($detailData);
 
             DB::commit();
