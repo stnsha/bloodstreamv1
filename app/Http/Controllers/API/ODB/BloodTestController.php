@@ -794,14 +794,19 @@ class BloodTestController extends Controller
                 // Delete existing AI review
                 $aiReview->forceDelete();
 
-                // Update test result is_reviewed to false
-                $testResult->is_reviewed = false;
-                $testResult->save();
-
-                Log::channel($this->getLogChannel())->info('regenerateReviewById: Existing AIReview deleted and is_reviewed set to false', [
+                Log::channel($this->getLogChannel())->info('regenerateReviewById: Existing AIReview deleted', [
                     'test_result_id' => $testResult->id
                 ]);
             }
+
+            // Always reset is_reviewed before attempting regeneration,
+            // regardless of whether an AIReview previously existed.
+            $testResult->is_reviewed = false;
+            $testResult->save();
+
+            Log::channel($this->getLogChannel())->info('regenerateReviewById: is_reviewed reset to false', [
+                'test_result_id' => $testResult->id
+            ]);
 
             // Generate new review synchronously
             Log::channel($this->getLogChannel())->info('regenerateReviewById: Generating new AI review', [

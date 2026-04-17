@@ -4,7 +4,9 @@ namespace App\Console\Commands;
 
 use App\Jobs\SendToAIServer;
 use App\Models\AIError;
+use App\Models\AIReview;
 use App\Models\TestResult;
+use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -67,6 +69,18 @@ class RetryFailedAIReviews extends Command
                         continue;
                     }
 
+                    // Skip if a COMPLETED AI review already exists — dispatching SendToAIServer
+                    // would only trigger the idempotency early-return without generating a new review
+                    $hasCompletedReview = AIReview::where('test_result_id', $error->test_result_id)
+                        ->where('processing_status', 'COMPLETED')
+                        ->exists();
+
+                    if ($hasCompletedReview) {
+                        $skipCount++;
+                        $this->line("  [SKIP] test_result_id: {$error->test_result_id} - completed review already exists");
+                        continue;
+                    }
+
                     if (!$testResult->is_completed) {
                         $skipCount++;
                         $this->line("  [SKIP] test_result_id: {$error->test_result_id} - not completed");
@@ -82,7 +96,7 @@ class RetryFailedAIReviews extends Command
 
                     $this->line("  [OK] Queued retry for test_result_id: {$error->test_result_id} (attempt {$error->attempt_count})");
 
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     $skipCount++;
                     $this->error("  [ERROR] Failed to queue retry for test_result_id {$error->test_result_id}: {$e->getMessage()}");
                     Log::error('RetryFailedAIReviews: Failed to dispatch job', [
@@ -105,7 +119,7 @@ class RetryFailedAIReviews extends Command
 
             return self::SUCCESS;
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->error("Command failed: {$e->getMessage()}");
             Log::error('RetryFailedAIReviews: Command failed', [
                 'error' => $e->getMessage(),

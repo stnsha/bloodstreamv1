@@ -6,6 +6,7 @@ use App\Models\AIError;
 use App\Models\AIReview;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 
@@ -63,21 +64,32 @@ class AIResultRequest extends FormRequest
 
     protected function failedValidation(Validator $validator): void
     {
-        $aiReview = AIReview::where('test_result_id', $this->input('test_result_id'))->first();
+        $testResultId = $this->input('test_result_id');
 
-        if($aiReview)
-        {
-            $aiReview->forceDelete();
+        if ($testResultId) {
+            // Only delete non-COMPLETED reviews.
+            // COMPLETED reviews represent a valid, previously accepted AI analysis and must be preserved.
+            // The original code force-deleted ANY review unconditionally, which destroyed completed
+            // reviews when the AI server sent a failure or non-DONE webhook (e.g. status != "DONE"),
+            // leaving test_results.is_reviewed = 1 with no corresponding ai_reviews record.
+            AIReview::where('test_result_id', $testResultId)
+                ->where('processing_status', '!=', 'COMPLETED')
+                ->forceDelete();
+
+            AIError::create([
+                'test_result_id' => $testResultId,
+                'processing_status' => 'FAILED',
+                'http_status' => 422,
+                'error_message' => $validator->errors()->toJson(),
+                'compiled_data' => json_encode($this->all()),
+                'attempt_count' => 1,
+            ]);
+
+            Log::channel('webhook')->warning('AIResultRequest: Webhook payload failed validation', [
+                'test_result_id' => $testResultId,
+                'errors' => $validator->errors()->toArray(),
+            ]);
         }
-        
-        AIError::create([
-            'test_result_id' => $this->input('test_result_id'),
-            'processing_status' => 'FAILED',
-            'http_status' => 422,
-            'error_message' => $validator->errors()->toJson(),
-            'compiled_data' => json_encode($this->all()),
-            'attempt_count' => 1,
-        ]);
 
         throw new ValidationException($validator);
     }

@@ -91,16 +91,6 @@ class SendToAIServer implements ShouldQueue, ShouldBeUnique
                 ->first();
 
             if ($existingReview) {
-                $testResult = TestResult::find($this->testResultId);
-                if ($testResult && !$testResult->is_reviewed) {
-                    $testResult->is_reviewed = true;
-                    $testResult->save();
-
-                    Log::channel('performance')->info('Fixed is_reviewed flag for completed review', [
-                        'test_result_id' => $this->testResultId,
-                    ]);
-                }
-
                 Log::channel('performance')->info('SendToAIServer: AI review already completed, skipping', [
                     'test_result_id' => $this->testResultId,
                 ]);
