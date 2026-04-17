@@ -98,6 +98,14 @@ class ConsultCallController extends Controller
         $data = $query->orderByRaw("
             CASE
                 WHEN consent_call_status = 0 THEN 0
+                WHEN (consent_call_status IN (2, 3) OR COALESCE((
+                    SELECT d.process_status = 3
+                    FROM consult_call_details d
+                    WHERE d.consult_call_id = consult_calls.id
+                      AND d.deleted_at IS NULL
+                    ORDER BY d.id DESC
+                    LIMIT 1
+                ), 0) = 1) THEN 3
                 WHEN COALESCE((
                     SELECT d.action = 1
                     FROM consult_call_details d
@@ -108,14 +116,6 @@ class ConsultCallController extends Controller
                 ), 0) = 1 THEN 2
                 ELSE 1
             END ASC,
-            (consent_call_status = 2 OR COALESCE((
-                SELECT d.process_status = 3
-                FROM consult_call_details d
-                WHERE d.consult_call_id = consult_calls.id
-                  AND d.deleted_at IS NULL
-                ORDER BY d.id DESC
-                LIMIT 1
-            ), 0)) ASC,
             scheduled_call_date IS NULL ASC,
             (scheduled_call_date < CURDATE()) ASC,
             scheduled_call_date ASC
