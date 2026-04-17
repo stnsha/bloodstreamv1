@@ -182,12 +182,19 @@ Blood Stream is a comprehensive blood test result management and analysis system
 ### Services Layer
 
 **Key Service Classes**:
-- `TestResultCompilerService` - Compiles test results from raw data
-- `AIReviewService` - Handles AI review workflows
-- `ReviewHtmlGenerator` - Generates HTML for AI reviews
+- `TestResultCompilerService` - Compiles test results from raw data; auto-selects log channel based on calling context (queue job → `job`, ODB request → `odb-log`, otherwise default)
+- `AIReviewService` - Orchestrates AI review: compiles data, calls `AIApiClient`, stores via `ReviewHtmlGenerator`; same context-aware log channel selection
+- `ReviewHtmlGenerator` - Generates HTML output for AI reviews
 - `ODB\MigrationService` - Manages ODB data migrations
 - `MyHealthService` - External MyHealth system integration
-- `QueueJobTrackerService` - Tracks async job progress
+- `QueueJobTrackerService` - Tracks async job progress by UUID
+- `ConsultCallEligibilityService` - Evaluates clinical condition rules and auto-creates `ConsultCall` records post-result
+- `ConditionEvaluatorService` - Low-level rule evaluator used by `ConsultCallEligibilityService`
+- `OctopusApiService` - ODB API client (patient matching, dynamic exports); config at `services.octopus.api_url`
+- `DynamicExportService` - Builds configurable exports using `OctopusApiService`
+- `TokenValidationService` / `TokenValidationRateLimiter` - JWT format pre-validation and per-IP rate limiting (used by `APIAuthMiddleware` only)
+- `PanelInterpretationService` - Evaluates panel-level interpretations
+- `ApiTokenService` / `TokenCacheService` - Token lifecycle helpers used by `BloodTestController`
 
 Services handle business logic—controllers remain thin by delegating to these services.
 
@@ -197,25 +204,40 @@ Services handle business logic—controllers remain thin by delegating to these 
 - CORS handling
 - Request logging (`LogRequestDuration`)
 
-**API-Specific** (`api` middleware group):
-- Throttling (1000 requests/minute by default)
-- Route model binding
-
 **Route Middleware Aliases**:
 - `api.auth` - JWT authentication for API (Tymon guard, requires `LabCredential` user)
 - `consult-call.auth` - Custom JWT authentication for consult-call routes (ODB staff, no user model)
 - `webhook.auth` - Webhook token validation
 - `swagger.auth` - Swagger UI authentication
 
+**Rate Limiting Groups** (`routes/api.php`):
+- `throttle:auth` - stricter limit (brute-force protection) on `/register`, `/login`, `/logout`
+- `throttle:lab-results` - 500/min on `/result/*` to handle batch lab ingestion
+- `throttle:api` - 1000/min on all other protected routes
+
+**`APIAuthMiddleware` caching behaviour**:
+JWT user lookups are cached for 5 minutes using key `jwt_user:{xxh128_hash_of_token}`. Token revocation (blacklist) may take up to 5 minutes to propagate. Failed lookups evict the cache key immediately. `TokenValidationService` pre-validates JWT format (length, character set, segment count) before the expensive Tymon parse; repeated format failures from the same IP are rate-limited via `TokenValidationRateLimiter`.
+
+**`ConsultCallAuthMiddleware`**:
+Decodes the JWT and enforces `token_type === 'consult_call'` to prevent API-auth tokens from being accepted on consult-call routes. Extracted claims (`staff_id`, `staff_department_id`, `consult_call`) are attached to `$request->attributes` for downstream use.
+
 ### Jobs & Async Processing
 
 **Async Jobs** (`app/Jobs/`):
-- `ProcessPanelResults` - Async panel result processing
+- `ProcessPanelResults` - Async panel result processing (timeout=300s, tries=3, backoff=[30,60,120]s)
 - `ProcessPanelComments` - Async comment processing
 - `ProcessMigrationBatch` - Async ODB migration batches
 - `ProcessMigrationReport` - Generate migration reports
-- `ExportBpJob` - Background export jobs
-- Tracked via `QueueJobTrackerService`
+- `ExportBpJob` / `DynamicExportJob` - Background export jobs (tracked by UUID via `QueueJobTrackerService`)
+- `ProcessAIWebhookResult` - Handles incoming AI webhook payloads asynchronously
+- `SendToAIServer` - Dispatches test results to the AI review service
+
+**Post-result processing chain** (inside `ProcessPanelResults`, after `DB::commit()`):
+1. Patient matching via `OctopusApiService`
+2. Consult-call eligibility check via `ConsultCallEligibilityService` (uses `ConditionEvaluatorService` to evaluate `ClinicalCondition` rules; creates `ConsultCall` record automatically when a condition matches)
+3. AI review dispatch via `SendToAIServer`
+
+Each of these post-transaction steps is wrapped in its own try/catch so a failure in one does not roll back the main transaction.
 
 ### Imports & Exports
 
@@ -290,6 +312,23 @@ Every significant operation must log:
 - Success completion: `Log::info('Operation completed', ['context' => 'data'])`
 - Errors: `Log::error('Operation failed', ['error' => 'details'])`
 
+**Log channels** (`config/logging.php`) — use the appropriate channel rather than the default:
+
+| Channel | File | Use for |
+|---|---|---|
+| `auth` | `logs/auth.log` | All authentication events (`APIAuthMiddleware`) |
+| `odb-log` | `logs/odb.log` | ODB controller and migration operations |
+| `job` | `logs/job.log` | Queue job execution |
+| `webhook` | `logs/webhook.log` | Incoming webhook events |
+| `migrate-log` | `logs/migration.log` | ODB batch migrations |
+| `gpt-log` | `logs/gpt.log` | AI/GPT review processing |
+| `ai-command` | `logs/ai-command.log` | Artisan AI commands |
+| `bp-log` | `logs/bp-export.log` | BP export jobs |
+| `thyroid-export` | `logs/thyroid-export.log` | Thyroid export jobs |
+| `performance` | `logs/performance.log` | Performance timing |
+
+All daily channels retain 3 days of logs. Default log level is driven by `LOG_LEVEL` env var (defaults to `warning` in production, `debug` locally).
+
 ### Code Style
 - Follow PSR-12 via Laravel Pint (`./vendor/bin/pint`)
 - Use proper import statements (never inline fully-qualified names)
@@ -359,11 +398,11 @@ Every significant operation must log:
 
 ## Testing
 
-Run tests with context available. The test environment uses:
-- In-memory cache
-- Sync queue (jobs execute immediately)
-- File session driver
+The test environment (`phpunit.xml`) uses:
+- Array cache driver (in-memory)
+- Sync queue (jobs execute immediately in-process)
 - Array mail driver (no emails sent)
+- **Real MySQL database** — SQLite/in-memory is explicitly disabled. Tests require a configured `DB_*` connection. There is no automatic schema setup; run `php artisan migrate` against the test database before running tests.
 
 ## Engineering & Automation Rules
 
