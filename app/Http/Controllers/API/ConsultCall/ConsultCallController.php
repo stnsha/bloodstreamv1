@@ -105,8 +105,8 @@ class ConsultCallController extends Controller
                       AND d.deleted_at IS NULL
                     ORDER BY d.id DESC
                     LIMIT 1
-                ), 0) = 1 THEN 1
-                ELSE 2
+                ), 0) = 1 THEN 2
+                ELSE 1
             END ASC,
             (consent_call_status = 2 OR COALESCE((
                 SELECT d.process_status = 3
