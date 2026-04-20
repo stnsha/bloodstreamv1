@@ -1189,7 +1189,7 @@ class PDFController extends Controller
      * @param int $testResultId The primary key of the TestResult record
      * @return JsonResponse
      */
-    public function exportByTestResultId(int $testResultId): JsonResponse
+    public function exportByTestResultId(int $testResultId, bool $requireReviewed = true): JsonResponse
     {
         Log::info('exportByTestResultId: Starting', ['test_result_id' => $testResultId]);
 
@@ -1210,7 +1210,7 @@ class PDFController extends Controller
             ], 404);
         }
 
-        if (!$testResult->is_completed || !$testResult->is_reviewed) {
+        if (!$testResult->is_completed || ($requireReviewed && !$testResult->is_reviewed)) {
             Log::warning('exportByTestResultId: TestResult not completed or not reviewed', [
                 'test_result_id' => $testResultId,
                 'is_completed'   => $testResult->is_completed,
@@ -1775,6 +1775,21 @@ class PDFController extends Controller
         Log::info('exportByTestResultId: Result array built, delegating to generatePdf', ['test_result_id' => $testResultId]);
 
         return $this->generatePdf($result);
+    }
+
+    /**
+     * Generate a PDF for a TestResult by its primary key, for the consult call context.
+     *
+     * Identical to exportByTestResultId() except that is_reviewed is not required —
+     * only is_completed must be true. Consult call staff may view results before
+     * the AI review cycle completes.
+     *
+     * @param int $testResultId The primary key of the TestResult record
+     * @return JsonResponse
+     */
+    public function exportByTestResultIdForConsultCall(int $testResultId): JsonResponse
+    {
+        return $this->exportByTestResultId($testResultId, false);
     }
 
     /**

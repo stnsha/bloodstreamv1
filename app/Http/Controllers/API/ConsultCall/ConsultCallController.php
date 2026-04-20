@@ -964,7 +964,7 @@ class ConsultCallController extends Controller
                 'test_result_id'  => $testResultId,
             ]);
 
-            return app(PDFController::class)->exportByTestResultId($testResultId);
+            return app(PDFController::class)->exportByTestResultIdForConsultCall($testResultId);
         }
 
         // Fallback: use the latest detail that has a linked test result.
@@ -997,6 +997,6 @@ class ConsultCallController extends Controller
             'test_result_id'  => $detail->test_result_id,
         ]);
 
-        return app(PDFController::class)->exportByTestResultId($detail->test_result_id);
+        return app(PDFController::class)->exportByTestResultIdForConsultCall($detail->test_result_id);
     }
 }
