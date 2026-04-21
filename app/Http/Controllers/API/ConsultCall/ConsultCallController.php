@@ -21,9 +21,10 @@ class ConsultCallController extends Controller
     {
         Log::info('ConsultCall index: listing consult calls', [
             'filters' => $request->only([
-                'patient_id', 'outlet_id', 'consent_call_status', 'scheduled_status',
+                'id', 'patient_id', 'outlet_id', 'consent_call_status', 'scheduled_status',
                 'date_from', 'date_to', 'search', 'enrollment_type',
                 'process_status', 'followup_reminder', 'scheduled_from', 'scheduled_to',
+                'consulted_by', 'action',
             ]),
         ]);
 
@@ -92,6 +93,17 @@ class ConsultCallController extends Controller
             $consultedBy = $request->input('consulted_by');
             $query->whereHas('details', function ($q) use ($consultedBy) {
                 $q->where('consulted_by', $consultedBy);
+            });
+        }
+
+        if ($request->filled('id')) {
+            $query->where('id', $request->input('id'));
+        }
+
+        if ($request->filled('action')) {
+            $action = $request->input('action');
+            $query->whereHas('details', function ($q) use ($action) {
+                $q->where('action', $action);
             });
         }
 
