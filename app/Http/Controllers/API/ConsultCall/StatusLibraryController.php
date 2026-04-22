@@ -96,7 +96,6 @@ class StatusLibraryController extends Controller
             'success' => true,
             'data' => [
                 ['id' => ConsultCallDetails::PROCESS_STATUS_ACTIVE, 'label' => 'Active'],
-                ['id' => ConsultCallDetails::PROCESS_STATUS_ESCALATED, 'label' => 'Escalated'],
                 ['id' => ConsultCallDetails::PROCESS_STATUS_CLOSED, 'label' => 'Closed'],
             ],
             'message' => 'Process statuses retrieved successfully',
@@ -127,20 +126,6 @@ class StatusLibraryController extends Controller
                 ['id' => ConsultCallFollowUp::NEXT_FOLLOWUP_6_MONTHS, 'label' => '6 Months'],
             ],
             'message' => 'Next follow-ups retrieved successfully',
-        ]);
-    }
-
-    public function referralStatuses(): JsonResponse
-    {
-        return response()->json([
-            'success' => true,
-            'data' => [
-                ['id' => ConsultCallFollowUp::REFERRAL_STATUS_NONE, 'label' => 'None'],
-                ['id' => ConsultCallFollowUp::REFERRAL_STATUS_REFERRED, 'label' => 'Referred'],
-                ['id' => ConsultCallFollowUp::REFERRAL_STATUS_ACKNOWLEDGED, 'label' => 'Acknowledged'],
-                ['id' => ConsultCallFollowUp::REFERRAL_STATUS_COMPLETED, 'label' => 'Completed'],
-            ],
-            'message' => 'Referral statuses retrieved successfully',
         ]);
     }
 
