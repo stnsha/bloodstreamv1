@@ -41,6 +41,7 @@ class ConsultCallDetails extends Model
         'consulted_by',
         'consult_date',
         'remarks',
+        'is_draft',
     ];
 
     protected $casts = [
@@ -53,6 +54,7 @@ class ConsultCallDetails extends Model
         'process_status' => 'integer',
         'consulted_by' => 'integer',
         'consult_date' => 'datetime',
+        'is_draft' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
@@ -63,6 +65,7 @@ class ConsultCallDetails extends Model
         'consult_status' => self::CONSULT_STATUS_PENDING,
         'process_status' => self::PROCESS_STATUS_ACTIVE,
         'remarks' => null,
+        'is_draft' => 0,
     ];
 
     public function consultCall(): BelongsTo

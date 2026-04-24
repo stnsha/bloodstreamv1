@@ -107,32 +107,58 @@ class ConsultCallController extends Controller
             });
         }
 
+        if ($request->filled('draft_status')) {
+            $isDraft = (int) $request->input('draft_status');
+            $query->whereRaw("
+                COALESCE((
+                    SELECT d.is_draft
+                    FROM consult_call_details d
+                    WHERE d.consult_call_id = consult_calls.id
+                      AND d.deleted_at IS NULL
+                    ORDER BY d.id DESC
+                    LIMIT 1
+                ), 0) = ?
+            ", [$isDraft]);
+        }
+
         $perPage = $request->input('per_page', 15);
-        $data = $query->orderByRaw("
-            CASE
-                WHEN consent_call_status = 0 THEN 0
-                WHEN (consent_call_status IN (2, 3) OR COALESCE((
-                    SELECT d.process_status = 3
+        $data = $query
+            ->orderByRaw("
+                COALESCE((
+                    SELECT d.is_draft
                     FROM consult_call_details d
                     WHERE d.consult_call_id = consult_calls.id
                       AND d.deleted_at IS NULL
                     ORDER BY d.id DESC
                     LIMIT 1
-                ), 0) = 1) THEN 3
-                WHEN COALESCE((
-                    SELECT d.action = 1
-                    FROM consult_call_details d
-                    WHERE d.consult_call_id = consult_calls.id
-                      AND d.deleted_at IS NULL
-                    ORDER BY d.id DESC
-                    LIMIT 1
-                ), 0) = 1 THEN 2
-                ELSE 1
-            END ASC,
-            scheduled_call_date IS NULL ASC,
-            (scheduled_call_date < CURDATE()) ASC,
-            scheduled_call_date ASC
-        ")->paginate($perPage);
+                ), 0) DESC
+            ")
+            ->orderByRaw("
+                CASE
+                    WHEN consent_call_status = 0 THEN 0
+                    WHEN (consent_call_status IN (2, 3) OR COALESCE((
+                        SELECT d.process_status = 3
+                        FROM consult_call_details d
+                        WHERE d.consult_call_id = consult_calls.id
+                          AND d.deleted_at IS NULL
+                        ORDER BY d.id DESC
+                        LIMIT 1
+                    ), 0) = 1) THEN 3
+                    WHEN COALESCE((
+                        SELECT d.action = 1
+                        FROM consult_call_details d
+                        WHERE d.consult_call_id = consult_calls.id
+                          AND d.deleted_at IS NULL
+                        ORDER BY d.id DESC
+                        LIMIT 1
+                    ), 0) = 1 THEN 2
+                    ELSE 1
+                END ASC,
+                scheduled_call_date IS NULL ASC,
+                (scheduled_call_date < CURDATE()) ASC,
+                scheduled_call_date ASC
+            ")
+            ->paginate($perPage);
 
         Log::info('ConsultCall index: completed', ['total' => $data->total()]);
 
@@ -474,6 +500,7 @@ class ConsultCallController extends Controller
             'consulted_by' => 'nullable|integer',
             'consult_date' => 'nullable|date',
             'remarks' => 'nullable|string',
+            'is_draft' => 'nullable|integer|in:0,1,2',
         ]);
 
         if ($validator->fails()) {
@@ -631,6 +658,7 @@ class ConsultCallController extends Controller
             'consulted_by' => 'nullable|integer',
             'consult_date' => 'nullable|date',
             'remarks' => 'nullable|string',
+            'is_draft' => 'nullable|integer|in:0,1,2',
         ]);
 
         if ($validator->fails()) {
