@@ -122,43 +122,61 @@ class ConsultCallController extends Controller
         }
 
         $perPage = $request->input('per_page', 15);
-        $data = $query
-            ->orderByRaw("
-                COALESCE((
-                    SELECT d.is_draft
-                    FROM consult_call_details d
-                    WHERE d.consult_call_id = consult_calls.id
-                      AND d.deleted_at IS NULL
-                    ORDER BY d.id DESC
-                    LIMIT 1
-                ), 0) DESC
-            ")
-            ->orderByRaw("
-                CASE
-                    WHEN consent_call_status = 0 THEN 0
-                    WHEN (consent_call_status IN (2, 3) OR COALESCE((
-                        SELECT d.process_status = 3
-                        FROM consult_call_details d
-                        WHERE d.consult_call_id = consult_calls.id
-                          AND d.deleted_at IS NULL
-                        ORDER BY d.id DESC
-                        LIMIT 1
-                    ), 0) = 1) THEN 3
-                    WHEN COALESCE((
-                        SELECT d.action = 1
-                        FROM consult_call_details d
-                        WHERE d.consult_call_id = consult_calls.id
-                          AND d.deleted_at IS NULL
-                        ORDER BY d.id DESC
-                        LIMIT 1
-                    ), 0) = 1 THEN 2
-                    ELSE 1
-                END ASC,
-                scheduled_call_date IS NULL ASC,
-                (scheduled_call_date < CURDATE()) ASC,
-                scheduled_call_date ASC
-            ")
-            ->paginate($perPage);
+
+        $sortBy  = $request->input('sort_by', '');
+        $sortDir = strtolower($request->input('sort_dir', 'asc')) === 'desc' ? 'DESC' : 'ASC';
+
+        $sortableColumns = [
+            'id'                  => 'consult_calls.id',
+            'consent_call_status' => 'consult_calls.consent_call_status',
+            'enrollment_date'     => 'consult_calls.enrollment_date',
+            'scheduled_call_date' => 'consult_calls.scheduled_call_date',
+            'process_status'      => '(SELECT d.process_status FROM consult_call_details d
+                                       WHERE d.consult_call_id = consult_calls.id
+                                         AND d.deleted_at IS NULL
+                                       ORDER BY d.id DESC LIMIT 1)',
+        ];
+
+        if ($sortBy && isset($sortableColumns[$sortBy])) {
+            $data = $query
+                ->orderByRaw($sortableColumns[$sortBy] . ' ' . $sortDir)
+                ->paginate($perPage);
+        } else {
+            $latestProcessStatus = "(SELECT d.process_status FROM consult_call_details d
+                                     WHERE d.consult_call_id = consult_calls.id
+                                       AND d.deleted_at IS NULL
+                                     ORDER BY d.id DESC LIMIT 1)";
+            $latestAction = "(SELECT d.action FROM consult_call_details d
+                              WHERE d.consult_call_id = consult_calls.id
+                                AND d.deleted_at IS NULL
+                              ORDER BY d.id DESC LIMIT 1)";
+
+            $data = $query
+                ->orderByRaw("
+                    CASE
+                        WHEN consent_call_status = 0
+                             AND COALESCE({$latestProcessStatus}, 1) = 1
+                        THEN 0
+                        WHEN consent_call_status = 1
+                             AND COALESCE({$latestProcessStatus}, 1) = 1
+                             AND COALESCE({$latestAction}, 0) = 1
+                        THEN 2
+                        WHEN consent_call_status = 1
+                             AND COALESCE({$latestProcessStatus}, 1) = 1
+                        THEN 1
+                        WHEN COALESCE({$latestProcessStatus}, 1) = 3
+                             AND COALESCE({$latestAction}, 0) = 2
+                        THEN 3
+                        WHEN COALESCE({$latestProcessStatus}, 1) = 3
+                             AND COALESCE({$latestAction}, 0) = 3
+                        THEN 4
+                        ELSE 5
+                    END ASC
+                ")
+                ->orderByRaw('consult_calls.enrollment_date DESC')
+                ->orderByRaw('consult_calls.scheduled_call_date IS NULL ASC, consult_calls.scheduled_call_date DESC')
+                ->paginate($perPage);
+        }
 
         Log::info('ConsultCall index: completed', ['total' => $data->total()]);
 
