@@ -6,6 +6,7 @@ use App\Http\Controllers\API\General\LabResultsController;
 use App\Http\Controllers\API\Innoquest\PanelResultsController;
 use App\Http\Controllers\API\ODB\BloodTestController;
 use App\Http\Controllers\API\PDFController;
+use App\Http\Controllers\API\ConsultCall\ClinicalConditionController;
 use App\Http\Controllers\API\ConsultCall\ConsultCallAuthController;
 use App\Http\Controllers\API\ConsultCall\ConsultCallController;
 use App\Http\Controllers\API\ConsultCall\ConsultCallFollowUpController;
@@ -129,25 +130,32 @@ Route::prefix('consult-call/auth')->controller(ConsultCallAuthController::class)
 
 // Consult-call protected routes -- custom JWT auth (separate from api.auth)
 Route::middleware(['consult-call.auth', 'throttle:api'])->group(function () {
+    // Static-path routes must be registered before wildcard {id} routes to avoid capture
+    Route::prefix('consult-call')->controller(ClinicalConditionController::class)->group(function () {
+        Route::get('/clinical-conditions', 'index')->name('consult-call.clinical-conditions.index');
+        Route::put('/clinical-conditions/{id}', 'update')->name('consult-call.clinical-conditions.update');
+        Route::patch('/clinical-conditions/{id}/toggle', 'toggle')->name('consult-call.clinical-conditions.toggle');
+    });
+
     Route::prefix('consult-call')->controller(ConsultCallController::class)->group(function () {
         Route::get('/', 'index');
         Route::get('/summary', 'summary');
         Route::post('/', 'store');
-        Route::get('/{id}', 'show');
-        Route::put('/{id}', 'update');
-        Route::delete('/{id}', 'destroy');
-        Route::get('/{id}/pdf', 'exportPdf');
-        Route::post('/{id}/details', 'storeDetails');
-        Route::put('/{id}/details/{detailId}', 'updateDetails');
-        Route::delete('/{id}/details/{detailId}', 'destroyDetails');
-        Route::post('/{id}/follow-up', 'storeFollowUp');
-        Route::put('/{id}/follow-up/{followUpId}', 'updateFollowUp');
-        Route::delete('/{id}/follow-up/{followUpId}', 'destroyFollowUp');
+        Route::get('/{id}', 'show')->whereNumber('id');
+        Route::put('/{id}', 'update')->whereNumber('id');
+        Route::delete('/{id}', 'destroy')->whereNumber('id');
+        Route::get('/{id}/pdf', 'exportPdf')->whereNumber('id');
+        Route::post('/{id}/details', 'storeDetails')->whereNumber('id');
+        Route::put('/{id}/details/{detailId}', 'updateDetails')->whereNumber('id');
+        Route::delete('/{id}/details/{detailId}', 'destroyDetails')->whereNumber('id');
+        Route::post('/{id}/follow-up', 'storeFollowUp')->whereNumber('id');
+        Route::put('/{id}/follow-up/{followUpId}', 'updateFollowUp')->whereNumber('id');
+        Route::delete('/{id}/follow-up/{followUpId}', 'destroyFollowUp')->whereNumber('id');
     });
 
     Route::prefix('consult-call')->controller(ConsultCallFollowUpController::class)->group(function () {
-        Route::patch('/{id}/follow-up/{followUpId}/link-referral', 'linkReferral');
-        Route::patch('/{id}/link-referral-by-call', 'linkReferralByCall');
+        Route::patch('/{id}/follow-up/{followUpId}/link-referral', 'linkReferral')->whereNumber('id');
+        Route::patch('/{id}/link-referral-by-call', 'linkReferralByCall')->whereNumber('id');
     });
 
     Route::prefix('consult-call/statuses')->controller(StatusLibraryController::class)->group(function () {
