@@ -142,39 +142,8 @@ class ConsultCallController extends Controller
                 ->orderByRaw($sortableColumns[$sortBy] . ' ' . $sortDir)
                 ->paginate($perPage);
         } else {
-            $latestProcessStatus = "(SELECT d.process_status FROM consult_call_details d
-                                     WHERE d.consult_call_id = consult_calls.id
-                                       AND d.deleted_at IS NULL
-                                     ORDER BY d.id DESC LIMIT 1)";
-            $latestAction = "(SELECT d.action FROM consult_call_details d
-                              WHERE d.consult_call_id = consult_calls.id
-                                AND d.deleted_at IS NULL
-                              ORDER BY d.id DESC LIMIT 1)";
-
             $data = $query
-                ->orderByRaw("
-                    CASE
-                        WHEN consent_call_status = 0
-                             AND COALESCE({$latestProcessStatus}, 1) = 1
-                        THEN 0
-                        WHEN consent_call_status = 1
-                             AND COALESCE({$latestProcessStatus}, 1) = 1
-                             AND COALESCE({$latestAction}, 0) = 1
-                        THEN 2
-                        WHEN consent_call_status = 1
-                             AND COALESCE({$latestProcessStatus}, 1) = 1
-                        THEN 1
-                        WHEN COALESCE({$latestProcessStatus}, 1) = 3
-                             AND COALESCE({$latestAction}, 0) = 2
-                        THEN 3
-                        WHEN COALESCE({$latestProcessStatus}, 1) = 3
-                             AND COALESCE({$latestAction}, 0) = 3
-                        THEN 4
-                        ELSE 5
-                    END ASC
-                ")
                 ->orderByRaw('consult_calls.enrollment_date DESC')
-                ->orderByRaw('consult_calls.scheduled_call_date IS NULL ASC, consult_calls.scheduled_call_date DESC')
                 ->paginate($perPage);
         }
 
