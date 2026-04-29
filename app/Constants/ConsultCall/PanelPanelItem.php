@@ -27,7 +27,7 @@ class PanelPanelItem
      */
     public const tc = [28, 118];
 
-    public const ldlc = [34, 125];
+    public const ldlc = [31, 121];
 
     public const egfr = [42, 218];
 
@@ -52,5 +52,5 @@ class PanelPanelItem
     /**
      * All panel_panel_item IDs combined
      */
-    public const ALL_IDS = [28, 118, 34, 125, 42, 218, 49, 293, 663, 50, 294, 664, 9];
+    public const ALL_IDS = [28, 118, 31, 121, 42, 218, 49, 293, 663, 50, 294, 664, 9];
 }
