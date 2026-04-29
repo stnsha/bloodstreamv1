@@ -33,8 +33,11 @@ class ConditionEvaluatorService
         // Get conditions sorted by criteria_count DESC (most specific first)
         $sortedConditionIds = ClinicalCondition::getIdsSortedByPriority();
 
-        // Initialize counts: index 0 = healthy, indices 1-26 = DB condition IDs
-        $conditionCounts = array_fill(0, 27, 0);
+        // Initialize counts keyed by condition ID; 0 = healthy
+        $conditionCounts = [0 => 0];
+        foreach ($sortedConditionIds as $id) {
+            $conditionCounts[$id] = 0;
+        }
 
         // Assign each patient to exactly ONE condition (first match wins)
         foreach ($evaluatableData as $patientData) {
@@ -514,5 +517,54 @@ class ConditionEvaluatorService
             && $data['ldlc'] <= 3.0
             && $data['tc'] >= 5.2
             && $data['tc'] <= 6.0;
+    }
+
+    /**
+     * Condition 27: TC > 5.2
+     */
+    private function condition27(array $data): bool
+    {
+        if ($data['tc'] === null) {
+            return false;
+        }
+
+        return $data['tc'] > 5.2;
+    }
+
+    /**
+     * Condition 28: LDL > 2.6
+     */
+    private function condition28(array $data): bool
+    {
+        if ($data['ldlc'] === null) {
+            return false;
+        }
+
+        return $data['ldlc'] > 2.6;
+    }
+
+    /**
+     * Condition 29: LDL > 2.6 AND TC > 5.2
+     */
+    private function condition29(array $data): bool
+    {
+        if ($data['ldlc'] === null || $data['tc'] === null) {
+            return false;
+        }
+
+        return $data['ldlc'] > 2.6
+            && $data['tc'] > 5.2;
+    }
+
+    /**
+     * Condition 30: HbA1c >= 6.3
+     */
+    private function condition30(array $data): bool
+    {
+        if ($data['hba1c_percent'] === null) {
+            return false;
+        }
+
+        return $data['hba1c_percent'] >= 6.3;
     }
 }
