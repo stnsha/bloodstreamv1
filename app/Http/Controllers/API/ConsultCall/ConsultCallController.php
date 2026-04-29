@@ -544,8 +544,6 @@ class ConsultCallController extends Controller
                 $detailData['consult_status'] === ConsultCallDetails::CONSULT_STATUS_NO_SHOW;
             if ($actionForcesClose || $statusForcesClose) {
                 $detailData['process_status'] = ConsultCallDetails::PROCESS_STATUS_CLOSED;
-            } elseif (!isset($detailData['process_status'])) {
-                $detailData['process_status'] = ConsultCallDetails::PROCESS_STATUS_ACTIVE;
             }
 
             // Smart update-or-create: if consult_date matches the scheduled date on a
@@ -595,6 +593,9 @@ class ConsultCallController extends Controller
             }
 
             // Falls through to CREATE for: follow-up enrollment, date mismatch, or no original detail found.
+            if (!isset($detailData['process_status'])) {
+                $detailData['process_status'] = ConsultCallDetails::PROCESS_STATUS_ACTIVE;
+            }
             $detail = $consultCall->details()->create($detailData);
 
             DB::commit();
@@ -702,8 +703,6 @@ class ConsultCallController extends Controller
                 $detailData['consult_status'] === ConsultCallDetails::CONSULT_STATUS_NO_SHOW;
             if ($actionForcesClose || $statusForcesClose) {
                 $detailData['process_status'] = ConsultCallDetails::PROCESS_STATUS_CLOSED;
-            } elseif (!isset($detailData['process_status'])) {
-                $detailData['process_status'] = ConsultCallDetails::PROCESS_STATUS_ACTIVE;
             }
 
             $detail->update($detailData);
