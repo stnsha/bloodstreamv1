@@ -11,7 +11,7 @@ class NewClinicalConditionSeeder extends Seeder
 {
     private const CONDITIONS = [
             27 => [
-                'description' => 'Total Cholesterol (TC) > 5.2 mmol/L',
+                'description' => 'TC > 5.2 mmol/L',
                 'evaluator' => 'condition27',
                 'risk_tier' => 2,
                 'criteria_count' => 1,
@@ -23,7 +23,7 @@ class NewClinicalConditionSeeder extends Seeder
                 'criteria_count' => 1,
             ],
             29 => [
-                'description' => 'LDL-C > 2.6 mmol/L AND TC > 5.2 mmol/L',
+                'description' => 'LDL > 2.6 mmol/L AND TC > 5.2 mmol/L',
                 'evaluator' => 'condition29',
                 'risk_tier' => 2,
                 'criteria_count' => 2,
