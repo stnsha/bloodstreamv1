@@ -4,6 +4,7 @@ namespace App\Jobs\Innoquest;
 
 use App\Constants\Innoquest\PanelPanelItem as PanelPanelItemConstants;
 use App\Jobs\SendToAIServer;
+use App\Models\AIReview;
 use App\Models\DeliveryFile;
 use App\Models\Doctor;
 use App\Models\Lab;
@@ -409,6 +410,9 @@ class ProcessPanelResults implements ShouldQueue
                 $test_result->is_completed = true;
                 $test_result->is_reviewed = false;
                 $test_result->save();
+
+                // Clear any stale AI review so SendToAIServer dispatches a fresh one
+                AIReview::where('test_result_id', $test_result->id)->forceDelete();
             }
 
             DB::commit();
