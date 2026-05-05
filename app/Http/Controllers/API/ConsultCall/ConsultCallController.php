@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\API\ConsultCall;
 
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\API\PDFController;
+use App\Http\Controllers\API\Innoquest\PDFController;
 use App\Models\ConsultCall;
 use App\Models\ConsultCallDetails;
 use App\Models\ConsultCallFollowUp;

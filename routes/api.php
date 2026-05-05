@@ -5,7 +5,7 @@ use App\Http\Controllers\API\Fixes\HotFixController;
 use App\Http\Controllers\API\General\LabResultsController;
 use App\Http\Controllers\API\Innoquest\PanelResultsController;
 use App\Http\Controllers\API\ODB\BloodTestController;
-use App\Http\Controllers\API\PDFController;
+use App\Http\Controllers\API\Innoquest\PDFController;
 use App\Http\Controllers\API\ConsultCall\ClinicalConditionController;
 use App\Http\Controllers\API\ConsultCall\ConsultCallAuthController;
 use App\Http\Controllers\API\ConsultCall\ConsultCallController;

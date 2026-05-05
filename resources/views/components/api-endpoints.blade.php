@@ -1,7 +1,7 @@
     <!-- API Endpoints Documentation - Each API per row -->
     <div class="space-y-4 sm:space-y-6">
         <!-- Authentication Endpoints Section -->
-        <div class="bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden">
+        <div class="print-section bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden">
             <div class="p-4 sm:p-6 border-b border-[#003049]/10">
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
@@ -92,9 +92,9 @@
             </div>
         </div>
 
-        @if ($lab_id == 1 || $lab_id == 2)
+        @if (false) {{-- Panel Results Endpoint hidden temporarily --}}
             <!-- Panel Results Endpoint -->
-            <div class="bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden">
+            <div class="print-section bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden">
                 <div class="p-4 sm:p-6 border-b border-[#003049]/10">
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
@@ -751,7 +751,7 @@ Accept: application/json</code></pre>
 
         @if ($lab_id == 1 || $lab_id == 3)
             <!-- Patient Results Endpoint -->
-            <div class="bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden">
+            <div class="print-section bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden">
                 <div class="p-4 sm:p-6 border-b border-[#003049]/10">
                     <div class="flex items-center gap-3 mb-4">
                         <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
@@ -794,6 +794,24 @@ Accept: application/json</code></pre>
                                         </tr>
                                     </thead>
                                     <tbody class="bg-white divide-y divide-gray-200">
+                                        <!-- Root Fields -->
+                                        <tr class="bg-[#003049]/5">
+                                            <td colspan="4" class="px-3 sm:px-6 py-2 sm:py-3 font-semibold text-[#003049] text-sm">Root Fields</td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">reference_id</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Obtained from Alpro Platform when printing the lab form with sample</div>
+                                            </td>
+                                        </tr>
                                         <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
                                             <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
                                                 <div class="text-xs sm:text-sm font-mono text-[#003049]">lab_no</div>
@@ -802,11 +820,24 @@ Accept: application/json</code></pre>
                                                 <div class="text-xs sm:text-sm text-gray-700">string</div>
                                             </td>
                                             <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
-                                                <span
-                                                    class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#991B1B]/10 text-[#991B1B] border border-[#991B1B]/20">Yes</span>
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#991B1B]/10 text-[#991B1B] border border-[#991B1B]/20">Yes</span>
                                             </td>
                                             <td class="px-3 sm:px-6 py-2 sm:py-3">
-                                                <div class="text-xs sm:text-sm text-gray-700">Laboratory number</div>
+                                                <div class="text-xs sm:text-sm text-gray-700">Laboratory accession number for this sample</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">bill_code</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Billing or clinic code associated with the request</div>
                                             </td>
                                         </tr>
                                         <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
@@ -817,11 +848,10 @@ Accept: application/json</code></pre>
                                                 <div class="text-xs sm:text-sm text-gray-700">object</div>
                                             </td>
                                             <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
-                                                <span
-                                                    class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#991B1B]/10 text-[#991B1B] border border-[#991B1B]/20">Yes</span>
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#991B1B]/10 text-[#991B1B] border border-[#991B1B]/20">Yes</span>
                                             </td>
                                             <td class="px-3 sm:px-6 py-2 sm:py-3">
-                                                <div class="text-xs sm:text-sm text-gray-700">Doctor information</div>
+                                                <div class="text-xs sm:text-sm text-gray-700">Referring doctor / clinic information</div>
                                             </td>
                                         </tr>
                                         <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
@@ -832,28 +862,251 @@ Accept: application/json</code></pre>
                                                 <div class="text-xs sm:text-sm text-gray-700">object</div>
                                             </td>
                                             <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
-                                                <span
-                                                    class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#991B1B]/10 text-[#991B1B] border border-[#991B1B]/20">Yes</span>
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#991B1B]/10 text-[#991B1B] border border-[#991B1B]/20">Yes</span>
                                             </td>
                                             <td class="px-3 sm:px-6 py-2 sm:py-3">
-                                                <div class="text-xs sm:text-sm text-gray-700">Patient information</div>
+                                                <div class="text-xs sm:text-sm text-gray-700">Patient demographic information</div>
                                             </td>
                                         </tr>
                                         <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
                                             <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
-                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">patient.icno
-                                                </div>
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">validated_by</div>
                                             </td>
                                             <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
                                                 <div class="text-xs sm:text-sm text-gray-700">string</div>
                                             </td>
                                             <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
-                                                <span
-                                                    class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#991B1B]/10 text-[#991B1B] border border-[#991B1B]/20">Yes</span>
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
                                             </td>
                                             <td class="px-3 sm:px-6 py-2 sm:py-3">
-                                                <div class="text-xs sm:text-sm text-gray-700">Patient IC number</div>
+                                                <div class="text-xs sm:text-sm text-gray-700">Name and credentials of the validating pathologist</div>
                                             </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">package_name</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Health package or profile name for grouping</div>
+                                            </td>
+                                        </tr>
+                                        <!-- Date Fields -->
+                                        <tr class="bg-[#003049]/5">
+                                            <td colspan="4" class="px-3 sm:px-6 py-2 sm:py-3 font-semibold text-[#003049] text-sm">Date Fields</td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">collected_date</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Date and time the sample was collected (YYYY-MM-DD HH:mm:ss)</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">received_date</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Date and time the sample was received at the laboratory</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">reported_date</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Date and time the result was reported</div>
+                                            </td>
+                                        </tr>
+                                        <!-- Doctor Object -->
+                                        <tr class="bg-[#003049]/5">
+                                            <td colspan="4" class="px-3 sm:px-6 py-2 sm:py-3 font-semibold text-[#003049] text-sm">Doctor Object</td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">doctor.code</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Short code identifying the referring doctor or clinic</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">doctor.name</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#991B1B]/10 text-[#991B1B] border border-[#991B1B]/20">Yes</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Full name of the referring doctor or clinic</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">doctor.type</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Type of referring entity (e.g., "clinic", "hospital")</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">doctor.address</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Physical address of the referring doctor or clinic</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">doctor.phone</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Contact phone number of the referring doctor or clinic</div>
+                                            </td>
+                                        </tr>
+                                        <!-- Patient Object -->
+                                        <tr class="bg-[#003049]/5">
+                                            <td colspan="4" class="px-3 sm:px-6 py-2 sm:py-3 font-semibold text-[#003049] text-sm">Patient Object</td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">patient.icno</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#991B1B]/10 text-[#991B1B] border border-[#991B1B]/20">Yes</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Patient identity card number (NRIC or passport)</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">patient.ic_type</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Type of identity document (e.g., "NRIC", "PASSPORT")</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">patient.name</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#991B1B]/10 text-[#991B1B] border border-[#991B1B]/20">Yes</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Full name of the patient</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">patient.age</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Age of the patient in years</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">patient.gender</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Gender of the patient ("M" or "F")</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">patient.tel</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Contact phone number of the patient</div>
+                                            </td>
+                                        </tr>
+                                        <!-- Results Structure -->
+                                        <tr class="bg-[#003049]/5">
+                                            <td colspan="4" class="px-3 sm:px-6 py-2 sm:py-3 font-semibold text-[#003049] text-sm">Results Structure</td>
                                         </tr>
                                         <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
                                             <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
@@ -863,12 +1116,224 @@ Accept: application/json</code></pre>
                                                 <div class="text-xs sm:text-sm text-gray-700">object</div>
                                             </td>
                                             <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
-                                                <span
-                                                    class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#991B1B]/10 text-[#991B1B] border border-[#991B1B]/20">Yes</span>
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#991B1B]/10 text-[#991B1B] border border-[#991B1B]/20">Yes</span>
                                             </td>
                                             <td class="px-3 sm:px-6 py-2 sm:py-3">
-                                                <div class="text-xs sm:text-sm text-gray-700">Test results by panel
-                                                </div>
+                                                <div class="text-xs sm:text-sm text-gray-700">Map of panel name keys to panel result objects</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">results.{panel_name}</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">object</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#991B1B]/10 text-[#991B1B] border border-[#991B1B]/20">Yes</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Result object for a named panel (e.g., "Haematology")</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">results.{panel_name}.panel_code</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Short code identifying the panel</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">results.{panel_name}.panel_sequence</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">integer</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Display ordering sequence for the panel</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">results.{panel_name}.panel_remarks</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string|null</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Free-text remarks for the panel; nullable</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">results.{panel_name}.result_status</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">integer</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#991B1B]/10 text-[#991B1B] border border-[#991B1B]/20">Yes</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Result status flag (1 = final)</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">results.{panel_name}.tests</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">array</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#991B1B]/10 text-[#991B1B] border border-[#991B1B]/20">Yes</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Array of individual test result objects within the panel</div>
+                                            </td>
+                                        </tr>
+                                        <!-- Tests Array Items -->
+                                        <tr class="bg-[#003049]/5">
+                                            <td colspan="4" class="px-3 sm:px-6 py-2 sm:py-3 font-semibold text-[#003049] text-sm">Tests Array Items (results.{panel_name}.tests[])</td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">tests[].test_code</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Short code for the individual test</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">tests[].test_name</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#991B1B]/10 text-[#991B1B] border border-[#991B1B]/20">Yes</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Human-readable name of the individual test</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">tests[].result_value</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#991B1B]/10 text-[#991B1B] border border-[#991B1B]/20">Yes</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">The result value as a string</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">tests[].result_flag</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string|null</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Abnormality flag (e.g., "H", "L"); nullable</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">tests[].unit</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Unit of measurement (e.g., "g/dL")</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">tests[].ref_range</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Reference range string</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">tests[].test_note</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">string|null</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Additional note for the test; nullable</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">tests[].report_sequence</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">integer</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Display ordering sequence within the panel</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">tests[].decimal_point</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">integer</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Number of decimal places to display for the result</div>
                                             </td>
                                         </tr>
                                     </tbody>
@@ -883,7 +1348,7 @@ Content-Type: application/json
 Accept: application/json</code></pre>
                         </div>
 
-                        <div class="mb-3">
+                        <div class="mb-3 print-page-break">
                             <span class="font-semibold text-sm pb-1 tracking-wide block">Request Body Example:</span>
                             <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049]"><code>{
   "reference_id": "REF123456",
@@ -948,7 +1413,7 @@ Accept: application/json</code></pre>
 }</code></pre>
                         </div>
 
-                        <div class="mb-3">
+                        <div class="mb-3 print-page-break">
                             <span class="font-semibold text-sm pb-1 tracking-wide block">CURL Example:</span>
                             <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049]"><code>curl -X POST "https://mytotalhealth.com.my/staging/api/v1/result/patient" \
      -H "accept: application/json" \
@@ -1043,7 +1508,7 @@ Accept: application/json</code></pre>
         @endif
 
         <!-- Other Endpoints -->
-        <div class="bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden">
+        <div class="print-section bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden">
             <div class="p-4 sm:p-6 border-b border-[#003049]/10">
                 <div class="flex items-center gap-3 mb-4">
                     <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
@@ -1107,7 +1572,7 @@ Accept: application/json</code></pre>
         <!-- Error Responses & Data Formats -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <!-- Error Responses -->
-            <div class="bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden">
+            <div class="print-section bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden">
                 <div class="p-4 sm:p-6 border-b border-[#003049]/10">
                     <div class="flex items-center gap-3 mb-4">
                         <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
@@ -1201,7 +1666,7 @@ Accept: application/json</code></pre>
             </div>
 
             <!-- Data Formats -->
-            <div class="bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden h-full">
+            <div class="print-section bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden h-full">
                 <div class="p-4 sm:p-6 border-b border-[#003049]/10">
                     <div class="flex items-center gap-3 mb-4">
                         <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">

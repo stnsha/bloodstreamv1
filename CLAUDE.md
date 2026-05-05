@@ -119,7 +119,7 @@ Blood Stream is a comprehensive blood test result management and analysis system
 - Commands: `ai:dispatch-unreviewed-async`, `ai:reconcile-reviews`, `ai:retry-failed-reviews`
 - HTML review generation via `ReviewHtmlGenerator`
 
-#### 6. **PDF/Document Export** (`app/Http/Controllers/API/PDFController.php`)
+#### 6. **PDF/Document Export** (`app/Http/Controllers/API/Innoquest/PDFController.php`)
 - Generates PDF reports for test results
 - Supports multiple PDF backends (mPDF, DomPDF)
 - Large file handling via memory optimization

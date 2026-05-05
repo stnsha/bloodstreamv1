@@ -1,4 +1,57 @@
 <x-app-layout>
+    <style>
+        @media print {
+            nav,
+            .print-hide {
+                display: none !important;
+            }
+
+            .print-page-break {
+                break-before: page;
+                page-break-before: always;
+            }
+
+            .print-section {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+
+            tr {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+
+            table {
+                break-inside: auto;
+                page-break-inside: auto;
+                width: 100% !important;
+                table-layout: fixed;
+            }
+
+            .overflow-x-auto {
+                overflow: visible !important;
+            }
+
+            table th:nth-child(1),
+            table td:nth-child(1) { width: 28%; }
+
+            table th:nth-child(2),
+            table td:nth-child(2) { width: 14%; }
+
+            table th:nth-child(3),
+            table td:nth-child(3) { width: 14%; }
+
+            table th:nth-child(4),
+            table td:nth-child(4) { width: 44%; }
+
+            table td {
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+                white-space: normal !important;
+            }
+        }
+    </style>
+
     <!-- Header Section -->
     <div class="mb-6 sm:mb-8">
         <div class="flex items-center gap-3 mb-4 sm:mb-6">
@@ -60,6 +113,140 @@
         </div>
     </div>-->
 
+    <!-- Scheduled Maintenance Banner -->
+    @php
+        $now = now();
+        $inMaintenance = ($now->hour === 2 && $now->minute >= 55)
+                      || ($now->hour === 3 && $now->minute <= 5);
+    @endphp
+
+    @if($inMaintenance)
+    <div class="mb-6 bg-amber-50 border border-amber-300 rounded-2xl p-4 flex items-start gap-3">
+        <div class="w-8 h-8 bg-amber-400 rounded-lg flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+        </div>
+        <div>
+            <div class="text-sm font-semibold text-amber-800">Scheduled Maintenance in Progress</div>
+            <div class="text-xs text-amber-700 mt-0.5">
+                The system is currently undergoing scheduled maintenance (02:55 – 03:05 AM).
+                Some endpoints may be temporarily unavailable. Please try again shortly.
+            </div>
+        </div>
+    </div>
+    @endif
+
+    <!-- Overview Section -->
+    <div class="print-section bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden mb-6 sm:mb-8">
+        <div class="p-4 sm:p-6 border-b border-[#003049]/10">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
+                    <svg class="w-6 h-6 text-[#003049]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <h2 class="text-lg sm:text-xl font-semibold text-[#003049]">Overview</h2>
+            </div>
+        </div>
+        <div class="p-4 sm:p-6 space-y-6">
+            <!-- Description -->
+            <p class="text-sm text-gray-700 leading-relaxed">
+                The BloodStream API is a RESTful interface that enables authorized laboratory systems to submit, retrieve,
+                and manage patient blood test results. It serves as a secure middleware layer between external laboratories
+                and the BloodStream platform, normalizing incoming data into a consistent structure for downstream processing,
+                AI-powered review, and clinical reporting.
+            </p>
+
+            <!-- Key Info Grid -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div class="bg-[#003049]/5 rounded-xl p-3 text-center">
+                    <div class="text-xs font-semibold text-[#003049] uppercase tracking-wide mb-1">API Version</div>
+                    <div class="text-sm font-bold text-[#003049]">v1</div>
+                </div>
+                <div class="bg-[#003049]/5 rounded-xl p-3 text-center">
+                    <div class="text-xs font-semibold text-[#003049] uppercase tracking-wide mb-1">Protocol</div>
+                    <div class="text-sm font-bold text-[#003049]">HTTPS</div>
+                </div>
+                <div class="bg-[#003049]/5 rounded-xl p-3 text-center">
+                    <div class="text-xs font-semibold text-[#003049] uppercase tracking-wide mb-1">Format</div>
+                    <div class="text-sm font-bold text-[#003049]">JSON</div>
+                </div>
+                <div class="bg-[#003049]/5 rounded-xl p-3 text-center">
+                    <div class="text-xs font-semibold text-[#003049] uppercase tracking-wide mb-1">Auth</div>
+                    <div class="text-sm font-bold text-[#003049]">JWT Bearer</div>
+                </div>
+            </div>
+
+            <!-- Capabilities -->
+            <div>
+                <h3 class="text-sm font-semibold text-[#003049] mb-3">What this API provides</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div class="w-7 h-7 bg-[#003049] rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="text-sm font-medium text-gray-900">Result Submission</div>
+                            <div class="text-xs text-gray-500 mt-0.5">Submit structured patient lab results with panels and individual test values</div>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div class="w-7 h-7 bg-[#003049] rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="text-sm font-medium text-gray-900">Result Retrieval</div>
+                            <div class="text-xs text-gray-500 mt-0.5">Fetch full test result records including patient demographics and panel data</div>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div class="w-7 h-7 bg-[#003049] rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="text-sm font-medium text-gray-900">AI Review Integration</div>
+                            <div class="text-xs text-gray-500 mt-0.5">Submitted results are automatically dispatched for AI-powered clinical review</div>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div class="w-7 h-7 bg-[#003049] rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="text-sm font-medium text-gray-900">Secure Access Control</div>
+                            <div class="text-xs text-gray-500 mt-0.5">JWT authentication with per-lab credentials and token expiry management</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rate Limits -->
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <div class="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-2">Rate Limits</div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-amber-800">
+                    <div><span class="font-mono font-bold">60/min</span> — Authentication endpoints</div>
+                    <div><span class="font-mono font-bold">500/min</span> — Result submission endpoints</div>
+                    <div><span class="font-mono font-bold">1000/min</span> — All other protected endpoints</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Content Grid -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6 sm:mb-8">
         <!-- API Summary
@@ -97,7 +284,7 @@
                 </div>
             </div>
         </div>-->
-        <div class="lg:col-span-2 bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden">
+        <div class="print-section lg:col-span-2 bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden">
             <div class="p-4 sm:p-6 border-b border-[#003049]/10">
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
@@ -181,7 +368,7 @@
         <!-- Quick Access & System Info -->
         <div class="space-y-6">
             <!-- Session Info -->
-            <div class="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border border-[#003049]/10">
+            <div class="print-hide print-section bg-white rounded-2xl shadow-lg p-4 sm:p-6 border border-[#003049]/10">
                 <div class="flex items-center gap-3 mb-4">
                     <div class="w-10 h-10 bg-[#991B1B]/10 rounded-xl flex items-center justify-center">
                         <svg class="w-6 h-6 text-[#991B1B]" fill="none" stroke="currentColor"
@@ -211,7 +398,7 @@
             </div>
 
             <!-- Quick Access -->
-            <div class="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border border-[#003049]/10">
+            <div class="print-hide print-section bg-white rounded-2xl shadow-lg p-4 sm:p-6 border border-[#003049]/10">
                 <div class="flex items-center gap-3 mb-4">
                     <div class="w-10 h-10 bg-[#003049] rounded-xl flex items-center justify-center shadow-md">
                         <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -233,6 +420,43 @@
                         </div>
                         <div class="text-xs text-white/80">Interactive API explorer</div>
                     </a>
+                </div>
+            </div>
+
+            <!-- Scheduled Maintenance Info -->
+            <div class="print-section bg-white rounded-2xl shadow-lg p-4 sm:p-6 border border-amber-200">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
+                        <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-[#003049]">Maintenance Schedule</h3>
+                </div>
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between py-2 border-b border-gray-100">
+                        <span class="text-sm text-gray-600">Frequency</span>
+                        <span class="text-sm font-medium text-[#003049] bg-[#003049]/5 px-2 py-1 rounded">Daily</span>
+                    </div>
+                    <div class="flex items-center justify-between py-2 border-b border-gray-100">
+                        <span class="text-sm text-gray-600">Start</span>
+                        <span class="text-sm font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded font-mono">02:55 AM</span>
+                    </div>
+                    <div class="flex items-center justify-between py-2 border-b border-gray-100">
+                        <span class="text-sm text-gray-600">End</span>
+                        <span class="text-sm font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded font-mono">03:05 AM</span>
+                    </div>
+                    <div class="flex items-center justify-between py-2">
+                        <span class="text-sm text-gray-600">Duration</span>
+                        <span class="text-sm font-medium text-[#003049] bg-[#003049]/5 px-2 py-1 rounded">10 minutes</span>
+                    </div>
+                    <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-2">
+                        <p class="text-xs text-amber-800">
+                            During this window, API endpoints may be temporarily unavailable.
+                            Please avoid scheduling automated jobs or batch submissions within this period.
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>

@@ -1,7 +1,7 @@
 <?php
 
 use App\Http\Controllers\API\ConsultCall\ReportController;
-use App\Http\Controllers\API\PDFController;
+use App\Http\Controllers\API\Innoquest\PDFController;
 use App\Http\Controllers\API\Testing\SpecialTestController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\LoginController;
