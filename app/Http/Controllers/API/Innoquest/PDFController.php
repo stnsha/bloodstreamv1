@@ -1793,6 +1793,20 @@ class PDFController extends Controller
     }
 
     /**
+     * Generate a PDF for a TestResult by its primary key, for the nexus context.
+     *
+     * Identical to exportByTestResultId() except that is_reviewed is not required —
+     * only is_completed must be true. 
+     *
+     * @param int $testResultId The primary key of the TestResult record
+     * @return JsonResponse
+     */
+    public function exportByTestResultIdForNexus(int $testResultId): JsonResponse
+    {
+        return $this->exportByTestResultId($testResultId, false);
+    }
+
+    /**
      * Compile raw data of Test Result and its relationship by IC No and Reference ID
      */
     private function processTestResult(ODBRequest $request)

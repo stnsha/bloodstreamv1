@@ -292,7 +292,7 @@
                                         },
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "{\n    \"success\": 1,\n    \"status\": \"sample_text\",\n    \"test_result_id\": 5,\n    \"data\": {\n        \"ai_analysis\": {\n            \"success\": 1,\n            \"status\": 0,\n            \"answer\": {\n                \"section_a1\": [],\n                \"section_a2\": [],\n                \"section_b\": [],\n                \"section_c\": \"sample_text\"\n            }\n        }\n    },\n    \"data.ai_analysis.answer.section_a1\": [\n        {\n            \"health_area\": \"sample_text\",\n            \"status\": \"sample_text\",\n            \"notes\": \"sample_text\"\n        }\n    ],\n    \"data.ai_analysis.answer.section_a2\": [\n        []\n    ],\n    \"data.ai_analysis.answer.section_b\": [\n        {\n            \"timeline\": \"sample_text\",\n            \"action\": \"sample_text\",\n            \"goals\": \"sample_text\",\n            \"alpro_care\": \"sample_text\",\n            \"appointment\": \"sample_text\"\n        }\n    ]\n}",
+                                            "raw": "{\n    \"success\": 1,\n    \"status\": \"sample_text\",\n    \"test_result_id\": 1,\n    \"data\": {\n        \"ai_analysis\": {\n            \"success\": 0,\n            \"status\": 3,\n            \"answer\": {\n                \"section_a1\": [],\n                \"section_a2\": [],\n                \"section_b\": [],\n                \"section_c\": \"sample_text\"\n            }\n        }\n    },\n    \"data.ai_analysis.answer.section_a1\": [\n        {\n            \"health_area\": \"sample_text\",\n            \"status\": \"sample_text\",\n            \"notes\": \"sample_text\"\n        }\n    ],\n    \"data.ai_analysis.answer.section_a2\": [\n        []\n    ],\n    \"data.ai_analysis.answer.section_b\": [\n        {\n            \"timeline\": \"sample_text\",\n            \"action\": \"sample_text\",\n            \"goals\": \"sample_text\",\n            \"alpro_care\": \"sample_text\",\n            \"appointment\": \"sample_text\"\n        }\n    ]\n}",
                                             "options": []
                                         }
                                     }
@@ -337,7 +337,7 @@
                                         },
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "{\n    \"sending_facility\": \"sample_text\",\n    \"batch_id\": \"sample_text\",\n    \"reference_id\": \"sample_text\",\n    \"lab_no\": \"sample_text\",\n    \"bill_code\": \"sample_text\",\n    \"doctor\": {\n        \"code\": \"sample_text\",\n        \"name\": \"sample_text\",\n        \"address\": \"sample_text\",\n        \"phone\": \"sample_text\",\n        \"type\": \"sample_text\"\n    },\n    \"received_date\": \"sample_text\",\n    \"reported_date\": \"sample_text\",\n    \"collected_date\": \"sample_text\",\n    \"validated_by\": \"sample_text\",\n    \"package_name\": \"sample_text\",\n    \"patient\": {\n        \"icno\": \"sample_text\",\n        \"gender\": \"sample_text\",\n        \"age\": \"sample_text\",\n        \"name\": \"sample_text\",\n        \"tel\": \"sample_text\",\n        \"ic_type\": \"sample_text\"\n    },\n    \"results\": [\n        {\n            \"panel_code\": \"sample_text\",\n            \"panel_sequence\": 5,\n            \"panel_remarks\": \"sample_text\",\n            \"result_status\": 9,\n            \"tests\": [\n                {\n                    \"test_name\": \"sample_text\",\n                    \"test_code\": \"sample_text\",\n                    \"result_value\": \"sample_text\",\n                    \"decimal_point\": \"sample_text\",\n                    \"result_flag\": \"sample_text\",\n                    \"unit\": \"sample_text\",\n                    \"ref_range\": \"sample_text\",\n                    \"test_note\": \"sample_text\",\n                    \"report_sequence\": 7\n                }\n            ]\n        }\n    ]\n}",
+                                            "raw": "{\n    \"sending_facility\": \"sample_text\",\n    \"batch_id\": \"sample_text\",\n    \"reference_id\": \"sample_text\",\n    \"lab_no\": \"sample_text\",\n    \"bill_code\": \"sample_text\",\n    \"doctor\": {\n        \"code\": \"sample_text\",\n        \"name\": \"sample_text\",\n        \"address\": \"sample_text\",\n        \"phone\": \"sample_text\",\n        \"type\": \"sample_text\"\n    },\n    \"received_date\": \"sample_text\",\n    \"reported_date\": \"sample_text\",\n    \"collected_date\": \"sample_text\",\n    \"validated_by\": \"sample_text\",\n    \"package_name\": \"sample_text\",\n    \"patient\": {\n        \"icno\": \"sample_text\",\n        \"gender\": \"sample_text\",\n        \"age\": \"sample_text\",\n        \"name\": \"sample_text\",\n        \"tel\": \"sample_text\",\n        \"ic_type\": \"sample_text\"\n    },\n    \"results\": [\n        {\n            \"panel_code\": \"sample_text\",\n            \"panel_sequence\": 7,\n            \"panel_remarks\": \"sample_text\",\n            \"result_status\": 5,\n            \"tests\": [\n                {\n                    \"test_name\": \"sample_text\",\n                    \"test_code\": \"sample_text\",\n                    \"result_value\": \"sample_text\",\n                    \"decimal_point\": \"sample_text\",\n                    \"result_flag\": \"sample_text\",\n                    \"unit\": \"sample_text\",\n                    \"ref_range\": \"sample_text\",\n                    \"test_note\": \"sample_text\",\n                    \"report_sequence\": 4\n                }\n            ]\n        }\n    ]\n}",
                                             "options": []
                                         },
                                         "auth": {
@@ -573,7 +573,7 @@
                                         },
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 4,\n        \"year\": 6,\n        \"labid\": 4,\n        \"labno\": \"sample_text\"\n    }\n}",
+                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 10,\n        \"year\": 4,\n        \"labid\": 5,\n        \"labno\": \"sample_text\"\n    }\n}",
                                             "options": []
                                         },
                                         "auth": {
@@ -736,6 +736,232 @@
                                     ]
                                 }
                             ]
+                        },
+                        {
+                            "name": "dynamic",
+                            "item": [
+                                {
+                                    "name": "options",
+                                    "item": [
+                                        {
+                                            "name": "[GET] api/v1/export/dynamic/options",
+                                            "request": {
+                                                "method": "GET",
+                                                "header": [
+                                                    {
+                                                        "key": "Accept",
+                                                        "value": "application/json",
+                                                        "type": "text"
+                                                    },
+                                                    {
+                                                        "key": "Content-Type",
+                                                        "value": "application/json",
+                                                        "type": "text"
+                                                    }
+                                                ],
+                                                "url": {
+                                                    "raw": "{{base_url}}/api/v1/export/dynamic/options",
+                                                    "host": [
+                                                        "{{base_url}}"
+                                                    ],
+                                                    "path": [
+                                                        "api",
+                                                        "v1",
+                                                        "export",
+                                                        "dynamic",
+                                                        "options"
+                                                    ]
+                                                },
+                                                "auth": {
+                                                    "type": "bearer",
+                                                    "bearer": [
+                                                        {
+                                                            "key": "token",
+                                                            "value": "{{auth_token}}"
+                                                        }
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    ]
+                                },
+                                {
+                                    "name": "count",
+                                    "item": [
+                                        {
+                                            "name": "[POST] api/v1/export/dynamic/count",
+                                            "request": {
+                                                "method": "POST",
+                                                "header": [
+                                                    {
+                                                        "key": "Accept",
+                                                        "value": "application/json",
+                                                        "type": "text"
+                                                    },
+                                                    {
+                                                        "key": "Content-Type",
+                                                        "value": "application/json",
+                                                        "type": "text"
+                                                    }
+                                                ],
+                                                "url": {
+                                                    "raw": "{{base_url}}/api/v1/export/dynamic/count",
+                                                    "host": [
+                                                        "{{base_url}}"
+                                                    ],
+                                                    "path": [
+                                                        "api",
+                                                        "v1",
+                                                        "export",
+                                                        "dynamic",
+                                                        "count"
+                                                    ]
+                                                },
+                                                "auth": {
+                                                    "type": "bearer",
+                                                    "bearer": [
+                                                        {
+                                                            "key": "token",
+                                                            "value": "{{auth_token}}"
+                                                        }
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    ]
+                                },
+                                {
+                                    "name": "[POST] api/v1/export/dynamic",
+                                    "request": {
+                                        "method": "POST",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/export/dynamic",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "export",
+                                                "dynamic"
+                                            ]
+                                        },
+                                        "auth": {
+                                            "type": "bearer",
+                                            "bearer": [
+                                                {
+                                                    "key": "token",
+                                                    "value": "{{auth_token}}"
+                                                }
+                                            ]
+                                        }
+                                    }
+                                },
+                                {
+                                    "name": "queue",
+                                    "item": [
+                                        {
+                                            "name": "[POST] api/v1/export/dynamic/queue",
+                                            "request": {
+                                                "method": "POST",
+                                                "header": [
+                                                    {
+                                                        "key": "Accept",
+                                                        "value": "application/json",
+                                                        "type": "text"
+                                                    },
+                                                    {
+                                                        "key": "Content-Type",
+                                                        "value": "application/json",
+                                                        "type": "text"
+                                                    }
+                                                ],
+                                                "url": {
+                                                    "raw": "{{base_url}}/api/v1/export/dynamic/queue",
+                                                    "host": [
+                                                        "{{base_url}}"
+                                                    ],
+                                                    "path": [
+                                                        "api",
+                                                        "v1",
+                                                        "export",
+                                                        "dynamic",
+                                                        "queue"
+                                                    ]
+                                                },
+                                                "auth": {
+                                                    "type": "bearer",
+                                                    "bearer": [
+                                                        {
+                                                            "key": "token",
+                                                            "value": "{{auth_token}}"
+                                                        }
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    ]
+                                },
+                                {
+                                    "name": "status",
+                                    "item": [
+                                        {
+                                            "name": "[GET] api/v1/export/dynamic/status/{uuid}",
+                                            "request": {
+                                                "method": "GET",
+                                                "header": [
+                                                    {
+                                                        "key": "Accept",
+                                                        "value": "application/json",
+                                                        "type": "text"
+                                                    },
+                                                    {
+                                                        "key": "Content-Type",
+                                                        "value": "application/json",
+                                                        "type": "text"
+                                                    }
+                                                ],
+                                                "url": {
+                                                    "raw": "{{base_url}}/api/v1/export/dynamic/status/:uuid",
+                                                    "host": [
+                                                        "{{base_url}}"
+                                                    ],
+                                                    "path": [
+                                                        "api",
+                                                        "v1",
+                                                        "export",
+                                                        "dynamic",
+                                                        "status",
+                                                        ":uuid"
+                                                    ],
+                                                    "variable": []
+                                                },
+                                                "auth": {
+                                                    "type": "bearer",
+                                                    "bearer": [
+                                                        {
+                                                            "key": "token",
+                                                            "value": "{{auth_token}}"
+                                                        }
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
                         }
                     ]
                 },
@@ -775,7 +1001,7 @@
                                         },
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 2,\n        \"year\": 9,\n        \"labid\": 0,\n        \"labno\": \"sample_text\"\n    }\n}",
+                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 2,\n        \"year\": 7,\n        \"labid\": 0,\n        \"labno\": \"sample_text\"\n    }\n}",
                                             "options": []
                                         },
                                         "auth": {
@@ -824,7 +1050,7 @@
                                         },
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 6,\n        \"year\": 5,\n        \"labid\": 3,\n        \"labno\": \"sample_text\"\n    }\n}",
+                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 0,\n        \"year\": 6,\n        \"labid\": 10,\n        \"labno\": \"sample_text\"\n    }\n}",
                                             "options": []
                                         },
                                         "auth": {
@@ -873,7 +1099,7 @@
                                         },
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 5,\n        \"year\": 10,\n        \"labid\": 5,\n        \"labno\": \"sample_text\"\n    }\n}",
+                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 3,\n        \"year\": 5,\n        \"labid\": 10,\n        \"labno\": \"sample_text\"\n    }\n}",
                                             "options": []
                                         },
                                         "auth": {
@@ -924,7 +1150,7 @@
                                         },
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 9,\n        \"year\": 0,\n        \"labid\": 5,\n        \"labno\": \"sample_text\"\n    }\n}",
+                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 4,\n        \"year\": 4,\n        \"labid\": 7,\n        \"labno\": \"sample_text\"\n    }\n}",
                                             "options": []
                                         },
                                         "auth": {
@@ -973,7 +1199,7 @@
                                         },
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 0,\n        \"year\": 9,\n        \"labid\": 2,\n        \"labno\": \"sample_text\"\n    }\n}",
+                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 5,\n        \"year\": 3,\n        \"labid\": 2,\n        \"labno\": \"sample_text\"\n    }\n}",
                                             "options": []
                                         },
                                         "auth": {
@@ -1022,7 +1248,7 @@
                                         },
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 2,\n        \"year\": 9,\n        \"labid\": 8,\n        \"labno\": \"sample_text\"\n    }\n}",
+                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 1,\n        \"year\": 5,\n        \"labid\": 3,\n        \"labno\": \"sample_text\"\n    }\n}",
                                             "options": []
                                         },
                                         "auth": {
@@ -1115,7 +1341,7 @@
                                         },
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 4,\n        \"year\": 8,\n        \"labid\": 5,\n        \"labno\": \"sample_text\"\n    }\n}",
+                                            "raw": "{\n    \"*\": {\n        \"icno\": \"sample_text\",\n        \"refid\": \"sample_text\",\n        \"month\": 2,\n        \"year\": 8,\n        \"labid\": 8,\n        \"labno\": \"sample_text\"\n    }\n}",
                                             "options": []
                                         },
                                         "auth": {
@@ -1261,6 +1487,99 @@
                                                 ":uuid"
                                             ],
                                             "variable": []
+                                        },
+                                        "auth": {
+                                            "type": "bearer",
+                                            "bearer": [
+                                                {
+                                                    "key": "token",
+                                                    "value": "{{auth_token}}"
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "name": "nexus",
+                    "item": [
+                        {
+                            "name": "icno",
+                            "item": [
+                                {
+                                    "name": "[POST] api/v1/nexus/icno",
+                                    "request": {
+                                        "method": "POST",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/nexus/icno",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "nexus",
+                                                "icno"
+                                            ]
+                                        },
+                                        "auth": {
+                                            "type": "bearer",
+                                            "bearer": [
+                                                {
+                                                    "key": "token",
+                                                    "value": "{{auth_token}}"
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "id",
+                            "item": [
+                                {
+                                    "name": "[POST] api/v1/nexus/id",
+                                    "request": {
+                                        "method": "POST",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/nexus/id",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "nexus",
+                                                "id"
+                                            ]
                                         },
                                         "auth": {
                                             "type": "bearer",
@@ -1436,6 +1755,111 @@
                                                         "auth",
                                                         "verify"
                                                     ]
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "name": "clinical-conditions",
+                            "item": [
+                                {
+                                    "name": "[GET] api/v1/consult-call/clinical-conditions",
+                                    "request": {
+                                        "method": "GET",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/consult-call/clinical-conditions",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "consult-call",
+                                                "clinical-conditions"
+                                            ]
+                                        }
+                                    }
+                                },
+                                {
+                                    "name": "[PUT] api/v1/consult-call/clinical-conditions/{id}",
+                                    "request": {
+                                        "method": "PUT",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/consult-call/clinical-conditions/:id",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "consult-call",
+                                                "clinical-conditions",
+                                                ":id"
+                                            ],
+                                            "variable": []
+                                        }
+                                    }
+                                },
+                                {
+                                    "name": "toggle",
+                                    "item": [
+                                        {
+                                            "name": "[PATCH] api/v1/consult-call/clinical-conditions/{id}/toggle",
+                                            "request": {
+                                                "method": "PATCH",
+                                                "header": [
+                                                    {
+                                                        "key": "Accept",
+                                                        "value": "application/json",
+                                                        "type": "text"
+                                                    },
+                                                    {
+                                                        "key": "Content-Type",
+                                                        "value": "application/json",
+                                                        "type": "text"
+                                                    }
+                                                ],
+                                                "url": {
+                                                    "raw": "{{base_url}}/api/v1/consult-call/clinical-conditions/:id/toggle",
+                                                    "host": [
+                                                        "{{base_url}}"
+                                                    ],
+                                                    "path": [
+                                                        "api",
+                                                        "v1",
+                                                        "consult-call",
+                                                        "clinical-conditions",
+                                                        ":id",
+                                                        "toggle"
+                                                    ],
+                                                    "variable": []
                                                 }
                                             }
                                         }
@@ -1628,6 +2052,43 @@
                                     "variable": []
                                 }
                             }
+                        },
+                        {
+                            "name": "pdf",
+                            "item": [
+                                {
+                                    "name": "[GET] api/v1/consult-call/{id}/pdf",
+                                    "request": {
+                                        "method": "GET",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/consult-call/:id/pdf",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "consult-call",
+                                                ":id",
+                                                "pdf"
+                                            ],
+                                            "variable": []
+                                        }
+                                    }
+                                }
+                            ]
                         },
                         {
                             "name": "details",
@@ -1828,6 +2289,82 @@
                                                 ":id",
                                                 "follow-up",
                                                 ":followUpId"
+                                            ],
+                                            "variable": []
+                                        }
+                                    }
+                                },
+                                {
+                                    "name": "link-referral",
+                                    "item": [
+                                        {
+                                            "name": "[PATCH] api/v1/consult-call/{id}/follow-up/{followUpId}/link-referral",
+                                            "request": {
+                                                "method": "PATCH",
+                                                "header": [
+                                                    {
+                                                        "key": "Accept",
+                                                        "value": "application/json",
+                                                        "type": "text"
+                                                    },
+                                                    {
+                                                        "key": "Content-Type",
+                                                        "value": "application/json",
+                                                        "type": "text"
+                                                    }
+                                                ],
+                                                "url": {
+                                                    "raw": "{{base_url}}/api/v1/consult-call/:id/follow-up/:followUpId/link-referral",
+                                                    "host": [
+                                                        "{{base_url}}"
+                                                    ],
+                                                    "path": [
+                                                        "api",
+                                                        "v1",
+                                                        "consult-call",
+                                                        ":id",
+                                                        "follow-up",
+                                                        ":followUpId",
+                                                        "link-referral"
+                                                    ],
+                                                    "variable": []
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "name": "link-referral-by-call",
+                            "item": [
+                                {
+                                    "name": "[PATCH] api/v1/consult-call/{id}/link-referral-by-call",
+                                    "request": {
+                                        "method": "PATCH",
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            },
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json",
+                                                "type": "text"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/v1/consult-call/:id/link-referral-by-call",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "v1",
+                                                "consult-call",
+                                                ":id",
+                                                "link-referral-by-call"
                                             ],
                                             "variable": []
                                         }
@@ -2156,42 +2693,6 @@
                                                         "consult-call",
                                                         "statuses",
                                                         "next-follow-ups"
-                                                    ]
-                                                }
-                                            }
-                                        }
-                                    ]
-                                },
-                                {
-                                    "name": "referral-statuses",
-                                    "item": [
-                                        {
-                                            "name": "[GET] api/v1/consult-call/statuses/referral-statuses",
-                                            "request": {
-                                                "method": "GET",
-                                                "header": [
-                                                    {
-                                                        "key": "Accept",
-                                                        "value": "application/json",
-                                                        "type": "text"
-                                                    },
-                                                    {
-                                                        "key": "Content-Type",
-                                                        "value": "application/json",
-                                                        "type": "text"
-                                                    }
-                                                ],
-                                                "url": {
-                                                    "raw": "{{base_url}}/api/v1/consult-call/statuses/referral-statuses",
-                                                    "host": [
-                                                        "{{base_url}}"
-                                                    ],
-                                                    "path": [
-                                                        "api",
-                                                        "v1",
-                                                        "consult-call",
-                                                        "statuses",
-                                                        "referral-statuses"
                                                     ]
                                                 }
                                             }

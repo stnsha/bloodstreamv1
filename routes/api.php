@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\Fixes\HotFixController;
+use App\Http\Controllers\API\Nexus\IntegrationController;
 use App\Http\Controllers\API\General\LabResultsController;
 use App\Http\Controllers\API\Innoquest\PanelResultsController;
 use App\Http\Controllers\API\ODB\BloodTestController;
@@ -112,6 +113,11 @@ Route::middleware(['api.auth', 'throttle:api'])->group(function () {
         Route::get('/migration-status/{uuid}', 'migrationStatus')->name('odb.migration.status');
     });
 
+    Route::prefix('nexus')->controller(IntegrationController::class)->group(function () {
+        Route::post('/icno', 'getResultByICNo')->name('nexus.result-by-icno');
+        Route::post('/id', 'getResultById')->name('nexus.result-by-id');
+    });
+
     Route::prefix('fixes')->controller(HotFixController::class)->group(function () {
         Route::post('/normalize-refid', 'normalizeRefId')->name('fixes.normalizeRefId');
     });
@@ -168,7 +174,6 @@ Route::middleware(['consult-call.auth', 'throttle:api'])->group(function () {
         Route::get('process-statuses', 'processStatuses')->name('consult-call.statuses.process-statuses');
         Route::get('follow-up-types', 'followUpTypes')->name('consult-call.statuses.follow-up-types');
         Route::get('next-follow-ups', 'nextFollowUps')->name('consult-call.statuses.next-follow-ups');
-        Route::get('referral-statuses', 'referralStatuses')->name('consult-call.statuses.referral-statuses');
-        Route::get('follow-up-reminders', 'followUpReminders')->name('consult-call.statuses.follow-up-reminders');
+Route::get('follow-up-reminders', 'followUpReminders')->name('consult-call.statuses.follow-up-reminders');
     });
 });
