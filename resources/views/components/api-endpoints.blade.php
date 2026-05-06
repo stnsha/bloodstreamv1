@@ -1,6 +1,6 @@
     <!-- API Endpoints Documentation - Each API per row -->
     <div class="space-y-4 sm:space-y-6">
-        <!-- Authentication Endpoints Section -->
+        <!-- Login Endpoint -->
         <div class="print-section bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden">
             <div class="p-4 sm:p-6 border-b border-[#003049]/10">
                 <div class="flex items-center gap-3">
@@ -10,44 +10,42 @@
                                 d="M9 12l2 2 4-4m5.5-2A8.5 8.5 0 119.5 3a8.5 8.5 0 010 17 8.5 8.5 0 01-.5-17z" />
                         </svg>
                     </div>
-                    <h2 class="text-lg sm:text-xl font-semibold text-[#003049]">Authentication Endpoints</h2>
+                    <h2 class="text-lg sm:text-xl font-semibold text-[#003049]">Login</h2>
                 </div>
             </div>
             <div class="p-4 sm:p-6">
-                <!-- Login Endpoint -->
-                <div>
-                    <div class="flex items-center mb-2">
-                        <span class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold mr-2">POST</span>
-                        <span class="font-mono text-sm">/api/v1/login</span>
-                    </div>
-                    <span class="font-normal text-sm tracking-wide block mb-3">Authenticate lab user and return JWT
-                        token.</span>
+                <div class="flex items-center mb-2">
+                    <span class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold mr-2">POST</span>
+                    <span class="font-mono text-sm">/api/v1/login</span>
+                </div>
+                <span class="font-normal text-sm tracking-wide block mb-3">Authenticate lab user and return JWT
+                    token.</span>
 
-                    <div class="mb-3">
-                        <span class="font-semibold text-sm pb-1 tracking-wide block">Request Body:</span>
-                        <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049]"><code>{
+                <div class="mb-3">
+                    <span class="font-semibold text-sm pb-1 tracking-wide block">Request Body:</span>
+                    <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049]"><code>{
   "username": "LAB001user",     // Required: string
   "password": "password123"     // Required: string
 }</code></pre>
-                    </div>
+                </div>
 
-                    <div class="mb-3">
-                        <span class="font-semibold text-sm pb-1 tracking-wide block">CURL Example:</span>
-                        <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049]"><code>curl -X POST "https://mytotalhealth.com.my/staging/api/v1/login" \
+                <div class="mb-3">
+                    <span class="font-semibold text-sm pb-1 tracking-wide block">CURL Example:</span>
+                    <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049]"><code>curl -X POST "https://mytotalhealth.com.my/staging/api/v1/login" \
      -H "Content-Type: application/json" \
      -d '{
        "username": "LAB001user",
        "password": "password123"
      }'</code></pre>
-                    </div>
+                </div>
 
+                <div class="mb-2">
+                    <span class="font-semibold text-sm pb-1 tracking-wide block">Response Examples:</span>
                     <div class="mb-2">
-                        <span class="font-semibold text-sm pb-1 tracking-wide block">Response Examples:</span>
-                        <div class="mb-2">
-                            <span
-                                class="bg-[#991B1B]/10 text-[#991B1B] px-3 py-1 rounded text-xs font-bold mr-2 border border-[#991B1B]/20">200
-                                Success</span>
-                            <pre class="bg-[#003049]/5 border border-[#003049]/10 p-2 rounded text-xs font-mono mt-2 text-[#003049]"><code>{
+                        <span
+                            class="bg-[#991B1B]/10 text-[#991B1B] px-3 py-1 rounded text-xs font-bold mr-2 border border-[#991B1B]/20">200
+                            Success</span>
+                        <pre class="bg-[#003049]/5 border border-[#003049]/10 p-2 rounded text-xs font-mono mt-2 text-[#003049]"><code>{
   "success": true,
   "data": {
     "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
@@ -56,38 +54,50 @@
   },
   "message": "Login successful"
 }</code></pre>
-                        </div>
-                        <div>
-                            <span class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold mr-2">401
-                                Unauthorized</span>
-                            <pre class="bg-[#003049]/5 border border-[#003049]/10 p-2 rounded text-xs font-mono mt-2 text-[#003049]"><code>{
+                    </div>
+                    <div>
+                        <span class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold mr-2">401
+                            Unauthorized</span>
+                        <pre class="bg-[#003049]/5 border border-[#003049]/10 p-2 rounded text-xs font-mono mt-2 text-[#003049]"><code>{
   "success": false,
   "message": "Invalid credentials",
   "error": "Unauthorized"
 }</code></pre>
-                        </div>
                     </div>
                 </div>
+            </div>
+        </div>
 
-                <!-- Logout Endpoint -->
-                <div>
-                    <div class="flex items-center mb-2">
-                        <span class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold mr-2">POST</span>
-                        <span class="font-mono text-sm">/api/v1/logout</span>
+        <!-- Logout Endpoint -->
+        <div class="print-page-break print-section bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden">
+            <div class="p-4 sm:p-6 border-b border-[#003049]/10">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
+                        <svg class="w-6 h-6 text-[#003049]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
                     </div>
-                    <span class="font-normal text-sm tracking-wide block mb-3">Logout the authenticated lab user and
-                        invalidate the JWT token.</span>
+                    <h2 class="text-lg sm:text-xl font-semibold text-[#003049]">Logout</h2>
+                </div>
+            </div>
+            <div class="p-4 sm:p-6">
+                <div class="flex items-center mb-2">
+                    <span class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold mr-2">POST</span>
+                    <span class="font-mono text-sm">/api/v1/logout</span>
+                </div>
+                <span class="font-normal text-sm tracking-wide block mb-3">Logout the authenticated lab user and
+                    invalidate the JWT token.</span>
 
-                    <div class="mb-3">
-                        <span class="font-semibold text-sm pb-1 tracking-wide block">Headers:</span>
-                        <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049]"><code>Authorization: Bearer {your_jwt_token}</code></pre>
-                    </div>
+                <div class="mb-3">
+                    <span class="font-semibold text-sm pb-1 tracking-wide block">Headers:</span>
+                    <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049]"><code>Authorization: Bearer {your_jwt_token}</code></pre>
+                </div>
 
-                    <div class="mb-2">
-                        <span class="font-semibold text-sm pb-1 tracking-wide block">CURL Example:</span>
-                        <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049]"><code>curl -X POST "https://mytotalhealth.com.my/staging/api/v1/logout" \
+                <div class="mb-2">
+                    <span class="font-semibold text-sm pb-1 tracking-wide block">CURL Example:</span>
+                    <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049]"><code>curl -X POST "https://mytotalhealth.com.my/staging/api/v1/logout" \
      -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."</code></pre>
-                    </div>
                 </div>
             </div>
         </div>
@@ -751,7 +761,7 @@ Accept: application/json</code></pre>
 
         @if ($lab_id == 1 || $lab_id == 3)
             <!-- Patient Results Endpoint -->
-            <div class="print-section bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden">
+            <div class="print-hide print-section bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden">
                 <div class="p-4 sm:p-6 border-b border-[#003049]/10">
                     <div class="flex items-center gap-3 mb-4">
                         <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
@@ -1508,7 +1518,7 @@ Accept: application/json</code></pre>
         @endif
 
         <!-- Other Endpoints -->
-        <div class="print-section bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden">
+        <div class="print-hide print-section bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden">
             <div class="p-4 sm:p-6 border-b border-[#003049]/10">
                 <div class="flex items-center gap-3 mb-4">
                     <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
@@ -1569,152 +1579,4 @@ Accept: application/json</code></pre>
             </div>
         </div>
 
-        <!-- Error Responses & Data Formats -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- Error Responses -->
-            <div class="print-section bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden">
-                <div class="p-4 sm:p-6 border-b border-[#003049]/10">
-                    <div class="flex items-center gap-3 mb-4">
-                        <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
-                            <svg class="w-6 h-6 text-[#003049]" fill="none" stroke="currentColor"
-                                viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                        </div>
-                        <span class="text-lg sm:text-xl font-semibold text-[#003049]">Error Responses</span>
-                    </div>
-                </div>
-                <div class="p-4 sm:p-6">
-                    <div>
-                        <span class="font-semibold text-sm pb-1 tracking-wide block">All error responses follow this
-                            standardized format:</span>
-                        <pre class="bg-gray-100 p-2 rounded text-xs font-mono mb-3"><code>{
-  "success": false,
-  "message": "User-friendly error description",
-  "error": "Error category or technical details"
-}</code></pre>
-                        <span class="font-semibold text-sm pb-1 tracking-wide block">Common Error Status Codes:</span>
-                        <div class="overflow-x-auto">
-                            <table class="w-full">
-                                <thead class="bg-[#003049]/5 border-b border-[#003049]/10">
-                                    <tr>
-                                        <th
-                                            class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-semibold text-[#003049] uppercase tracking-wider">
-                                            Status Code</th>
-                                        <th
-                                            class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-semibold text-[#003049] uppercase tracking-wider">
-                                            Description</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200">
-                                    <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
-                                        <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
-                                            <span
-                                                class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold">400</span>
-                                        </td>
-                                        <td class="px-3 sm:px-6 py-2 sm:py-3">
-                                            <div class="text-xs sm:text-sm text-gray-700">Bad Request - Malformed
-                                                request or invalid data</div>
-                                        </td>
-                                    </tr>
-                                    <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
-                                        <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
-                                            <span
-                                                class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold">401</span>
-                                        </td>
-                                        <td class="px-3 sm:px-6 py-2 sm:py-3">
-                                            <div class="text-xs sm:text-sm text-gray-700">Unauthorized - Invalid or
-                                                missing authentication token</div>
-                                        </td>
-                                    </tr>
-                                    <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
-                                        <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
-                                            <span
-                                                class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold">404</span>
-                                        </td>
-                                        <td class="px-3 sm:px-6 py-2 sm:py-3">
-                                            <div class="text-xs sm:text-sm text-gray-700">Not Found - Requested
-                                                resource not found</div>
-                                        </td>
-                                    </tr>
-                                    <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
-                                        <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
-                                            <span
-                                                class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-bold">422</span>
-                                        </td>
-                                        <td class="px-3 sm:px-6 py-2 sm:py-3">
-                                            <div class="text-xs sm:text-sm text-gray-700">Unprocessable Entity -
-                                                Validation errors in request data</div>
-                                        </td>
-                                    </tr>
-                                    <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
-                                        <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
-                                            <span
-                                                class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold">500</span>
-                                        </td>
-                                        <td class="px-3 sm:px-6 py-2 sm:py-3">
-                                            <div class="text-xs sm:text-sm text-gray-700">Internal Server Error -
-                                                Server-side errors</div>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Data Formats -->
-            <div class="print-section bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden h-full">
-                <div class="p-4 sm:p-6 border-b border-[#003049]/10">
-                    <div class="flex items-center gap-3 mb-4">
-                        <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
-                            <svg class="w-6 h-6 text-[#003049]" fill="none" stroke="currentColor"
-                                viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                        </div>
-                        <span class="text-lg sm:text-xl font-semibold text-[#003049]">Data Formats</span>
-                    </div>
-                </div>
-                <div class="p-4 sm:p-6">
-                    <div>
-                        <div class="mb-3">
-                            <span class="font-semibold text-sm pb-1 tracking-wide block">Date/Time Format:</span>
-                            <ul class="list-disc pl-5">
-                                <li class="font-normal text-sm tracking-wide pb-1">
-                                    <strong>Date fields:</strong> <span class="font-mono text-sm">YYYYMMDD</span>
-                                    (e.g.,
-                                    "20250808")
-                                </li>
-                                <li class="font-normal text-sm tracking-wide pb-1">
-                                    <strong>DateTime fields:</strong> <span class="font-mono text-sm">YYYY-MM-DD
-                                        HH:mm:ss</span> (e.g., "2025-08-08 14:30:00")
-                                </li>
-                                <li class="font-normal text-sm tracking-wide">
-                                    <strong>DateTime responses:</strong> <span class="font-mono text-sm">ISO
-                                        8601</span>
-                                    format with timezone (e.g., "2025-08-08T14:30:00.000000Z")
-                                </li>
-                            </ul>
-                        </div>
-                        <div>
-                            <span class="font-semibold text-sm pb-1 tracking-wide block">Field Requirements:</span>
-                            <ul class="list-disc pl-5">
-                                <li class="font-normal text-sm tracking-wide pb-1"><strong>Required:</strong> Field
-                                    must be
-                                    present and not empty</li>
-                                <li class="font-normal text-sm tracking-wide pb-1"><strong>Nullable:</strong> Field can
-                                    be
-                                    omitted or set to null</li>
-                                <li class="font-normal text-sm tracking-wide"><strong>Optional:</strong> Field can be
-                                    omitted but if present must have valid value</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>

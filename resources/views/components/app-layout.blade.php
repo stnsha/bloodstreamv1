@@ -8,7 +8,7 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 
-<body class="antialiased bg-gray-50 min-h-screen">
+<body class="antialiased min-h-screen">
     <nav class="bg-white border-b-2 border-[#003049]/10 shadow-md">
         <div class="flex justify-between items-center px-4 py-3 mx-auto max-w-7xl">
             <!-- Left side: Logo only -->

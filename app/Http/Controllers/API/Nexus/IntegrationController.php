@@ -36,7 +36,7 @@ class IntegrationController extends Controller
                 }
 
                 $results = $patient->testResults()
-                    ->select(['id', 'lab_no', 'collected_date', 'is_completed', 'is_reviewed'])
+                    ->select(['id', 'lab_no', 'ref_id', 'collected_date', 'is_completed', 'is_reviewed'])
                     ->orderBy('collected_date', 'desc')
                     ->get();
 
@@ -49,6 +49,7 @@ class IntegrationController extends Controller
 
                     return [
                         'test_result_id' => $result->id,
+                        'ref_id'         => $result->ref_id,
                         'collected_date' => $result->collected_date
                             ? $result->collected_date->format('dmY')
                             : null,

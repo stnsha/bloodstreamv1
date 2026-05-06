@@ -12,6 +12,7 @@ use App\Http\Controllers\API\ConsultCall\ConsultCallAuthController;
 use App\Http\Controllers\API\ConsultCall\ConsultCallController;
 use App\Http\Controllers\API\ConsultCall\ConsultCallFollowUpController;
 use App\Http\Controllers\API\ConsultCall\StatusLibraryController;
+use App\Http\Controllers\API\Lab\LabController;
 use App\Http\Controllers\API\Testing\SpecialTestController;
 use App\Http\Controllers\API\Webhook\AIResultController;
 use App\Http\Controllers\API\Export\DynamicExportController;
@@ -124,6 +125,14 @@ Route::middleware(['api.auth', 'throttle:api'])->group(function () {
 
     Route::prefix('special-test')->controller(SpecialTestController::class)->group(function () {
         Route::get('/', 'index')->name('special-test.index');
+    });
+
+    Route::prefix('lab')->controller(LabController::class)->group(function () {
+        Route::get('/', 'index')->name('lab.index');
+        Route::post('/', 'store')->name('lab.store');
+        Route::get('/{id}', 'show')->whereNumber('id')->name('lab.show');
+        Route::put('/{id}', 'update')->whereNumber('id')->name('lab.update');
+        Route::delete('/{id}', 'destroy')->whereNumber('id')->name('lab.destroy');
     });
 
 });

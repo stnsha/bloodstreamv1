@@ -467,4 +467,371 @@
     </div>-->
 
     @include('components.api-endpoints')
+
+    <!-- Nexus: Get Results by IC Number -->
+    <div class="print-page-break print-section bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden mt-6 sm:mt-8">
+        <div class="p-4 sm:p-6 border-b border-[#003049]/10">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
+                    <svg class="w-6 h-6 text-[#003049]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                </div>
+                <h2 class="text-lg sm:text-xl font-semibold text-[#003049]">Get Results by IC Number</h2>
+            </div>
+        </div>
+        <div class="p-4 sm:p-6">
+            <div class="flex items-center mb-2">
+                <span class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold mr-2">POST</span>
+                <span class="font-mono text-sm">/api/v1/nexus/icno</span>
+            </div>
+
+            <div class="mb-3">
+                <span class="font-semibold text-sm pb-1 tracking-wide block">Key Required Fields:</span>
+                <div class="overflow-x-auto">
+                    <table class="w-full border border-gray-200 rounded-md shadow-sm">
+                        <thead class="bg-[#003049]/5 border-b border-[#003049]/10">
+                            <tr>
+                                <th class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-semibold text-[#003049] uppercase tracking-wider">Field</th>
+                                <th class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-semibold text-[#003049] uppercase tracking-wider">Type</th>
+                                <th class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-semibold text-[#003049] uppercase tracking-wider">Required</th>
+                                <th class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-semibold text-[#003049] uppercase tracking-wider">Description</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                    <div class="text-xs sm:text-sm font-mono text-[#003049]">icno</div>
+                                </td>
+                                <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                    <div class="text-xs sm:text-sm text-gray-700">array of strings</div>
+                                </td>
+                                <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#991B1B]/10 text-[#991B1B] border border-[#991B1B]/20">Yes</span>
+                                </td>
+                                <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                    <div class="text-xs sm:text-sm text-gray-700">Non-empty array of patient IC numbers to query</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <span class="font-semibold text-sm pb-1 tracking-wide block">Headers:</span>
+                <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049]"><code>Authorization: Bearer {your_jwt_token}
+Content-Type: application/json
+Accept: application/json</code></pre>
+            </div>
+
+            <div class="mb-3">
+                <span class="font-semibold text-sm pb-1 tracking-wide block">Request Body Example:</span>
+                <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049]"><code>{
+  "icno": ["901231045678", "880515126543"]
+}</code></pre>
+            </div>
+
+            <div class="mb-3">
+                <span class="font-semibold text-sm pb-1 tracking-wide block">CURL Example:</span>
+                <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049]"><code>curl -X POST "https://mytotalhealth.com.my/staging/api/v1/nexus/icno" \
+     -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..." \
+     -H "Content-Type: application/json" \
+     -H "Accept: application/json" \
+     -d '{"icno": ["901231045678", "880515126543"]}'</code></pre>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Nexus: Get Results by IC Number — Response Examples -->
+    <div class="print-page-break print-section bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden mt-6 sm:mt-8">
+        <div class="p-4 sm:p-6 border-b border-[#003049]/10">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
+                    <svg class="w-6 h-6 text-[#003049]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                </div>
+                <h2 class="text-lg sm:text-xl font-semibold text-[#003049]">Response Examples</h2>
+            </div>
+        </div>
+        <div class="p-4 sm:p-6">
+            <div class="mb-2">
+                <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold mr-2">200 Success</span>
+                <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049] mt-2"><code>{
+  "success": true,
+  "data": {
+    "901231045678": [
+      {
+        "test_result_id": 1042,
+        "ref_id": "INN7568",
+        "collected_date": "15052024",
+        "lab_no": "75-875356",
+        "status": "Completed"
+      }
+    ],
+    "880515126543": []
+  }
+}</code></pre>
+            </div>
+            <div>
+                <span class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold mr-2">500 Server Error</span>
+                <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049] mt-2"><code>{
+  "success": false,
+  "message": "Failed to retrieve results"
+}</code></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- Nexus: Get PDF Result by ID -->
+    <div class="print-page-break print-section bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden mt-6 sm:mt-8">
+        <div class="p-4 sm:p-6 border-b border-[#003049]/10">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
+                    <svg class="w-6 h-6 text-[#003049]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                </div>
+                <h2 class="text-lg sm:text-xl font-semibold text-[#003049]">Get PDF Result by ID</h2>
+            </div>
+        </div>
+        <div class="p-4 sm:p-6">
+            <div class="flex items-center mb-2">
+                <span class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold mr-2">POST</span>
+                <span class="font-mono text-sm">/api/v1/nexus/id</span>
+            </div>
+
+            <div class="mb-3">
+                <span class="font-semibold text-sm pb-1 tracking-wide block">Key Required Fields:</span>
+                <div class="overflow-x-auto">
+                    <table class="w-full border border-gray-200 rounded-md shadow-sm">
+                        <thead class="bg-[#003049]/5 border-b border-[#003049]/10">
+                            <tr>
+                                <th class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-semibold text-[#003049] uppercase tracking-wider">Field</th>
+                                <th class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-semibold text-[#003049] uppercase tracking-wider">Type</th>
+                                <th class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-semibold text-[#003049] uppercase tracking-wider">Required</th>
+                                <th class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-semibold text-[#003049] uppercase tracking-wider">Description</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                    <div class="text-xs sm:text-sm font-mono text-[#003049]">test_result_id</div>
+                                </td>
+                                <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                    <div class="text-xs sm:text-sm text-gray-700">integer</div>
+                                </td>
+                                <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#991B1B]/10 text-[#991B1B] border border-[#991B1B]/20">Yes</span>
+                                </td>
+                                <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                    <div class="text-xs sm:text-sm text-gray-700">ID of the test result to export.</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <span class="font-semibold text-sm pb-1 tracking-wide block">Headers:</span>
+                <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049]"><code>Authorization: Bearer {your_jwt_token}
+Content-Type: application/json
+Accept: application/json</code></pre>
+            </div>
+
+            <div class="mb-3">
+                <span class="font-semibold text-sm pb-1 tracking-wide block">Request Body Example:</span>
+                <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049]"><code>{
+  "test_result_id": 1042
+}</code></pre>
+            </div>
+
+            <div class="mb-3">
+                <span class="font-semibold text-sm pb-1 tracking-wide block">CURL Example:</span>
+                <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049]"><code>curl -X POST "https://mytotalhealth.com.my/staging/api/v1/nexus/id" \
+     -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..." \
+     -H "Content-Type: application/json" \
+     -H "Accept: application/json" \
+     -d '{"test_result_id": 1042}'</code></pre>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Nexus: Get PDF Result by ID — Response Examples -->
+    <div class="print-page-break print-section bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden mt-6 sm:mt-8">
+        <div class="p-4 sm:p-6 border-b border-[#003049]/10">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
+                    <svg class="w-6 h-6 text-[#003049]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                </div>
+                <h2 class="text-lg sm:text-xl font-semibold text-[#003049]">Response Examples</h2>
+            </div>
+        </div>
+        <div class="p-4 sm:p-6">
+            <div class="mb-2">
+                <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold mr-2">200 Success</span>
+                <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049] mt-2"><code>{
+  "success": true,
+  "report_id": 35194,
+  "pdf": "JVBERi0xLjQKJeLjz9MKMyAwIG9iago8PC9UeXBlIC9QYWdlCi9QYXJlbnQgMSAwIFIK..."
+}</code></pre>
+            </div>
+            <div class="mb-2">
+                <span class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold mr-2">404 Not Found</span>
+                <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049] mt-2"><code>{
+  "success": false,
+  "message": "Test result not found."
+}</code></pre>
+            </div>
+            <div class="mb-2">
+                <span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-bold mr-2">422 Unprocessable</span>
+                <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049] mt-2"><code>{
+  "success": false,
+  "message": "PDF export is not supported for this lab."
+}</code></pre>
+            </div>
+            <div>
+                <span class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold mr-2">500 Server Error</span>
+                <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049] mt-2"><code>{
+  "success": false,
+  "message": "Failed to retrieve result."
+}</code></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Responses & Data Formats -->
+    <div class="print-page-break grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 sm:mt-8">
+        <!-- Error Responses -->
+        <div class="print-section bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden">
+            <div class="p-4 sm:p-6 border-b border-[#003049]/10">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
+                        <svg class="w-6 h-6 text-[#003049]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <span class="text-lg sm:text-xl font-semibold text-[#003049]">Error Responses</span>
+                </div>
+            </div>
+            <div class="p-4 sm:p-6">
+                <div>
+                    <span class="font-semibold text-sm pb-1 tracking-wide block">All error responses follow this
+                        standardized format:</span>
+                    <pre class="bg-gray-100 p-2 rounded text-xs font-mono mb-3"><code>{
+  "success": false,
+  "message": "User-friendly error description"
+}</code></pre>
+                    <span class="font-semibold text-sm pb-1 tracking-wide block">Common Error Status Codes:</span>
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead class="bg-[#003049]/5 border-b border-[#003049]/10">
+                                <tr>
+                                    <th class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-semibold text-[#003049] uppercase tracking-wider">Status Code</th>
+                                    <th class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-semibold text-[#003049] uppercase tracking-wider">Description</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                    <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                        <span class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold">400</span>
+                                    </td>
+                                    <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                        <div class="text-xs sm:text-sm text-gray-700">Bad Request - Malformed request or invalid data</div>
+                                    </td>
+                                </tr>
+                                <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                    <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                        <span class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold">401</span>
+                                    </td>
+                                    <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                        <div class="text-xs sm:text-sm text-gray-700">Unauthorized - Invalid or missing authentication token</div>
+                                    </td>
+                                </tr>
+                                <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                    <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                        <span class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold">404</span>
+                                    </td>
+                                    <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                        <div class="text-xs sm:text-sm text-gray-700">Not Found - Requested resource not found</div>
+                                    </td>
+                                </tr>
+                                <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                    <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                        <span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-bold">422</span>
+                                    </td>
+                                    <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                        <div class="text-xs sm:text-sm text-gray-700">Unprocessable Entity - Validation errors in request data</div>
+                                    </td>
+                                </tr>
+                                <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                    <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                        <span class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold">500</span>
+                                    </td>
+                                    <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                        <div class="text-xs sm:text-sm text-gray-700">Internal Server Error - Server-side errors</div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Formats -->
+        <div class="print-section bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden h-full">
+            <div class="p-4 sm:p-6 border-b border-[#003049]/10">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
+                        <svg class="w-6 h-6 text-[#003049]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                    </div>
+                    <span class="text-lg sm:text-xl font-semibold text-[#003049]">Data Formats</span>
+                </div>
+            </div>
+            <div class="p-4 sm:p-6">
+                <div>
+                    <div class="mb-3">
+                        <span class="font-semibold text-sm pb-1 tracking-wide block">Date/Time Format:</span>
+                        <ul class="list-disc pl-5">
+                            <li class="font-normal text-sm tracking-wide pb-1">
+                                <strong>Date fields:</strong> <span class="font-mono text-sm">YYYYMMDD</span>
+                                (e.g., "20250808")
+                            </li>
+                            <li class="font-normal text-sm tracking-wide pb-1">
+                                <strong>DateTime fields:</strong> <span class="font-mono text-sm">YYYY-MM-DD HH:mm:ss</span>
+                                (e.g., "2025-08-08 14:30:00")
+                            </li>
+                            <li class="font-normal text-sm tracking-wide">
+                                <strong>DateTime responses:</strong> <span class="font-mono text-sm">ISO 8601</span>
+                                format with timezone (e.g., "2025-08-08T14:30:00.000000Z")
+                            </li>
+                        </ul>
+                    </div>
+                    <div>
+                        <span class="font-semibold text-sm pb-1 tracking-wide block">Field Requirements:</span>
+                        <ul class="list-disc pl-5">
+                            <li class="font-normal text-sm tracking-wide pb-1"><strong>Required:</strong> Field must be present and not empty</li>
+                            <li class="font-normal text-sm tracking-wide pb-1"><strong>Nullable:</strong> Field can be omitted or set to null</li>
+                            <li class="font-normal text-sm tracking-wide"><strong>Optional:</strong> Field can be omitted but if present must have valid value</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </x-app-layout>

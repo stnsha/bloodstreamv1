@@ -1172,10 +1172,9 @@ class PDFController extends Controller
         $base64Pdf = base64_encode($pdfContent);
 
         return response()->json([
-            'success' => true,
+            'success'   => true,
             'report_id' => $result['test_result_id'],
-            'pdf' => $base64Pdf,
-            'message' => 'PDF generated successfully',
+            'pdf'       => $base64Pdf,
         ], 200);
     }
 
