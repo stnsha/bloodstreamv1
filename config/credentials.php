@@ -30,6 +30,10 @@ return [
             'username' => env('CREDENTIALS_LAB_3_USERNAME', 'username'),
             'password' => env('CREDENTIALS_LAB_3_PASSWORD', 'password'),
         ],
+        'lab_4' => [
+            'username' => env('CREDENTIALS_LAB_4_USERNAME', 'username'),
+            'password' => env('CREDENTIALS_LAB_4_PASSWORD', 'password'),
+        ],
     ],
 
     /*
