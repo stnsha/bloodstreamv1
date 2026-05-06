@@ -72,7 +72,6 @@ class StorePatientResultRequest extends FormRequest
 
             'results.*.tests.*.test_name' => 'required|string',
             'results.*.tests.*.test_code' => 'nullable|string',
-            'results.*.panel_code' => 'nullable|string',
             'results.*.tests.*.result_value' => 'nullable|string',
             'results.*.tests.*.decimal_point' => 'nullable|string',
             'results.*.tests.*.result_flag' => 'nullable|string',

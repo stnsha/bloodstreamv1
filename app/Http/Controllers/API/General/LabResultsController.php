@@ -512,6 +512,7 @@ class LabResultsController extends BaseResultsController
                                     'reference_range_id' => $ref_range_id,
                                     'value' => $test['result_value'],
                                     'flag' => $test['result_flag'],
+                                    'sequence' => $test['report_sequence'],
                                     'has_amended' => false
                                 ]
                             );
