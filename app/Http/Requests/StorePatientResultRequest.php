@@ -56,7 +56,7 @@ class StorePatientResultRequest extends FormRequest
 
             'patient' => 'required|array',
             'patient.icno' => 'required|string',
-            'patient.gender' => 'nullable|in:Female,Male',
+            'patient.gender' => 'nullable|in:F,M',
             'patient.age' => 'nullable|string',
             'patient.name' => 'nullable|string',
             'patient.tel' => 'nullable|string',
