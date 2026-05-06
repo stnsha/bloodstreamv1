@@ -694,7 +694,7 @@ class LabResultsController extends BaseResultsController
             })->with([
                 'doctor',
                 'patient',
-                'panelProfile',
+                'profiles',
                 'testResultItems' => function ($query) use ($lab_id) {
                     $query->with([
                         'panelItem' => function ($query) use ($lab_id) {
@@ -809,9 +809,9 @@ class LabResultsController extends BaseResultsController
                     'gender' => $testResult->patient->gender,
                     'tel' => $testResult->patient->tel
                 ] : null,
-                'package' => $testResult->panelProfile ? [
-                    'name' => $testResult->panelProfile->name,
-                    'code' => $testResult->panelProfile->code
+                'package' => $testResult->profiles->first() ? [
+                    'name' => $testResult->profiles->first()->name,
+                    'code' => $testResult->profiles->first()->code
                 ] : null,
                 'results' => array_values($groupedResults)
             ];
