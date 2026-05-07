@@ -140,21 +140,19 @@ class ProcessPanelResults implements ShouldQueue
         $lab_id = $this->labId;
         $test_result = null;
         $deliveryFile = null;
-        $sending_facility = null;
-        $batch_id = null;
+        $sending_facility = filled($validated['SendingFacility']) ? $validated['SendingFacility'] : null;
+        $batch_id = $validated['MessageControlID'] ?? null;
         $orders_count = 0;
         $observations_count = 0;
         $patient_id = null;
         $panel = null;
         $customerId = null;
 
+        // Capture every raw JSON on arrival, before any processing or transaction
+        $this->trackDeliveryFile($lab_id, $sending_facility, $batch_id, $validated);
+
         try {
             DB::beginTransaction();
-
-            if (filled($validated['SendingFacility'])) {
-                $sending_facility = $validated['SendingFacility'];
-                $batch_id = $validated['MessageControlID'] ?? null;
-            }
 
             $patient_id = $this->findOrCreatePatient($validated['patient'], $batch_id);
 
@@ -532,11 +530,6 @@ class ProcessPanelResults implements ShouldQueue
                         'line' => $e->getLine(),
                     ]);
                 }
-            }
-
-            // DeliveryFile tracking OUTSIDE main transaction (non-critical)
-            if ($test_result) {
-                $this->trackDeliveryFile($lab_id, $sending_facility, $batch_id, $validated);
             }
 
             // Dispatch to AI server queue if PDF was received
