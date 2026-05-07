@@ -646,17 +646,13 @@ class ProcessPanelResults implements ShouldQueue
     protected function trackDeliveryFile(int $lab_id, ?string $sending_facility, ?string $batch_id, array $validated): void
     {
         try {
-            DeliveryFile::firstOrCreate(
-                [
-                    'lab_id' => $lab_id,
-                    'sending_facility' => $sending_facility,
-                    'batch_id' => $batch_id,
-                ],
-                [
-                    'json_content' => json_encode($validated),
-                    'status' => DeliveryFile::compl,
-                ]
-            );
+            DeliveryFile::create([
+                'lab_id' => $lab_id,
+                'sending_facility' => $sending_facility,
+                'batch_id' => $batch_id,
+                'json_content' => json_encode($validated),
+                'status' => DeliveryFile::compl,
+            ]);
         } catch (Throwable $e) {
             Log::warning('Failed to create DeliveryFile record', [
                 'error' => $e->getMessage(),
