@@ -5,7 +5,6 @@ namespace App\Http\Controllers\API\General;
 use App\Http\Controllers\API\BaseResultsController;
 use App\Http\Requests\StorePatientResultRequest;
 use App\Models\DeliveryFile;
-use App\Models\DeliveryFileHistory;
 use App\Models\Doctor;
 use App\Models\MasterPanel;
 use App\Models\MasterPanelItem;
@@ -33,12 +32,15 @@ class LabResultsController extends BaseResultsController
      *     operationId="labResults",
      *     tags={"Result"},
      *     security={{"bearerAuth": {}}},
+     *
      *     @OA\RequestBody(
      *         required=true,
      *         description="Lab results data",
+     *
      *         @OA\JsonContent(
      *             type="object",
      *             required={"lab_no", "doctor", "patient", "results"},
+     *
      *             @OA\Property(
      *                 property="reference_id",
      *                 type="string",
@@ -174,7 +176,7 @@ class LabResultsController extends BaseResultsController
      *                         nullable=true,
      *                         description="Panel remarks",
      *                         example=null
-     *                     ), 
+     *                     ),
      *                      @OA\Property(
      *                         property="result_status",
      *                         type="integer",
@@ -184,9 +186,11 @@ class LabResultsController extends BaseResultsController
      *                     @OA\Property(
      *                         property="tests",
      *                         type="array",
+     *
      *                         @OA\Items(
      *                             type="object",
      *                             required={"test_name", "report_sequence"},
+     *
      *                             @OA\Property(property="test_name", type="string", example="Haemoglobin"),
      *                             @OA\Property(property="result_value", type="string", example="15.7"),
      *                             @OA\Property(property="result_flag", type="string", nullable=true, example=null),
@@ -206,8 +210,10 @@ class LabResultsController extends BaseResultsController
      *                     @OA\Property(
      *                         property="tests",
      *                         type="array",
+     *
      *                         @OA\Items(
      *                             type="object",
+     *
      *                             @OA\Property(property="test_name", type="string", example="Total Bilirubin"),
      *                             @OA\Property(property="result_value", type="string", example="9.7"),
      *                             @OA\Property(property="result_flag", type="string", nullable=true, example=null),
@@ -227,8 +233,10 @@ class LabResultsController extends BaseResultsController
      *                     @OA\Property(
      *                         property="tests",
      *                         type="array",
+     *
      *                         @OA\Items(
      *                             type="object",
+     *
      *                             @OA\Property(property="test_name", type="string", example="Erythrocytes (Red blood cells)"),
      *                             @OA\Property(property="result_value", type="string", example="Nil"),
      *                             @OA\Property(property="result_flag", type="string", nullable=true, example=null),
@@ -242,10 +250,13 @@ class LabResultsController extends BaseResultsController
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Lab results processed successfully",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="success", type="boolean", example=true),
      *             @OA\Property(property="message", type="string", example="Lab results processed successfully"),
      *             @OA\Property(
@@ -255,19 +266,25 @@ class LabResultsController extends BaseResultsController
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=401,
      *         description="Unauthorized - Invalid or missing authentication token",
+     *
      *         @OA\JsonContent(
      *             type="object",
+     *
      *             @OA\Property(property="message", type="string", example="Unauthenticated.")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=422,
      *         description="Validation error - Invalid input data",
+     *
      *         @OA\JsonContent(
      *             type="object",
+     *
      *             @OA\Property(property="message", type="string", example="The given data was invalid."),
      *             @OA\Property(
      *                 property="errors",
@@ -275,15 +292,19 @@ class LabResultsController extends BaseResultsController
      *                 @OA\Property(
      *                     property="patient.icno",
      *                     type="array",
+     *
      *                     @OA\Items(type="string", example="The patient.icno field is required.")
      *                 )
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=500,
      *         description="Internal server error",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="success", type="boolean", example=false),
      *             @OA\Property(property="message", type="string", example="Failed to process lab results"),
      *             @OA\Property(property="error", type="string", example="Internal server error")
@@ -303,224 +324,237 @@ class LabResultsController extends BaseResultsController
             Log::info('Lab results submission started', [
                 'lab_id' => Auth::guard('lab')->user()->lab_id ?? null,
                 'lab_no' => $validated['lab_no'] ?? null,
-                'patient_icno' => $validated['patient']['icno'] ?? null
+                'patient_icno' => $validated['patient']['icno'] ?? null,
             ]);
 
             if ($validated) {
-                //get current user role
+                // get current user role
                 $user = Auth::guard('lab')->user();
                 $lab_id = $user->lab_id;
 
                 DB::transaction(function () use ($validated, $lab_id, $user, &$test_result_id, &$deliveryFile, &$sending_facility, &$batch_id, &$patient_id) {
 
-                    //checking for batch file
+                    // checking for batch file
                     if (filled($validated['sending_facility']) && $validated['sending_facility'] === 'INN') {
-                    $sending_facility = $validated['sending_facility'];
-                    $batch_id = $validated['batch_id'] ?? null;
-                } else {
-                    //create new batch if not exist
-                    $sending_facility = $user->lab->code . 'API';
-                    $batch_id = now()->format('YmdHis') . $user->lab->code;
-                }
+                        $sending_facility = $validated['sending_facility'];
+                        $batch_id = $validated['batch_id'] ?? null;
+                    } else {
+                        // create new batch if not exist
+                        $sending_facility = $user->lab->code.'API';
+                        $batch_id = now()->format('YmdHis').$user->lab->code;
+                    }
 
-                //set validated data to variable
-                $doctor_code = $validated['doctor']['code'];
-                $doctor_name = $validated['doctor']['name'];
-                $doctor_address = $validated['doctor']['address'];
-                $doctor_phone = $validated['doctor']['phone'];
-                $doctor_type = $validated['doctor']['type'];
+                    // set validated data to variable
+                    $doctor_code = $validated['doctor']['code'];
+                    $doctor_name = $validated['doctor']['name'];
+                    $doctor_address = $validated['doctor']['address'];
+                    $doctor_phone = $validated['doctor']['phone'];
+                    $doctor_type = $validated['doctor']['type'];
 
-                $patient_icno = $validated['patient']['icno'];
-                $ic_type = $validated['patient']['ic_type'];
-                $patient_age = $validated['patient']['age'];
-                $patient_gender = $validated['patient']['gender'];
-                $patient_tel = $validated['patient']['tel'];
-                $patient_name = $validated['patient']['name'];
+                    $patient_icno = $validated['patient']['icno'];
+                    $ic_type = $validated['patient']['ic_type'];
+                    $patient_age = $validated['patient']['age'];
+                    $patient_gender = $validated['patient']['gender'];
+                    $patient_tel = $validated['patient']['tel'];
+                    $patient_name = $validated['patient']['name'];
 
-                $reference_id = $validated['reference_id'];
-                $bill_code = $validated['bill_code'];
-                $lab_no = $validated['lab_no'];
-                $collected_date = $validated['collected_date'];
-                $received_date = $validated['received_date'];
-                $reported_date = $validated['reported_date'];
-                $validated_by = $validated['validated_by'];
-                $package_name = $validated['package_name'];
-                $results = $validated['results'];
+                    $reference_id = $validated['reference_id'];
+                    $bill_code = $validated['bill_code'];
+                    $lab_no = $validated['lab_no'];
+                    $collected_date = $validated['collected_date'];
+                    $received_date = $validated['received_date'];
+                    $reported_date = $validated['reported_date'];
+                    $validated_by = $validated['validated_by'];
+                    $package_name = $validated['package_name'];
+                    $results = $validated['results'];
 
-                // Generate doctor code if not provided
-                $finalDoctorCode = !empty($doctor_code) ? $doctor_code : $this->generateDoctorCode($doctor_name);
+                    // Generate doctor code if not provided
+                    $finalDoctorCode = ! empty($doctor_code) ? $doctor_code : $this->generateDoctorCode($doctor_name);
 
-                $doctor = Doctor::firstOrCreate(
-                    [
-                        'lab_id' => $lab_id,
-                        'code' => $finalDoctorCode,
-                    ],
-                    [
-                        'name' => $doctor_name,
-                        'type' => $doctor_type ?? 'PHARMACY',
-                        'outlet_name' => $doctor_name,
-                        'outlet_address' => $doctor_address,
-                        'outlet_phone' => $doctor_phone,
-                    ]
-                );
-
-                //get doctor code id
-                $doctor_id = $doctor->id;
-
-                //create patient
-                $patient = Patient::firstOrCreate(
-                    [
-                        'icno' => $patient_icno
-                    ],
-                    [
-                        'ic_type' => $ic_type,
-                        'name' => $patient_name,
-                        'dob' => null,
-                        'age' => $patient_age,
-                        'gender' => $patient_gender,
-                        'tel' => $patient_tel,
-                    ]
-                );
-
-                //get patient id
-                $patient_id = $patient->id;
-
-                //get package name
-                $panel_profile_id = null;
-                if (filled($package_name)) {
-                    $panel_profile = PanelProfile::firstOrCreate(
-                        ['lab_id' => $lab_id, 'name' => $package_name]
-                    );
-
-                    $package_code = strtoupper(substr(str_replace(' ', '', $package_name), 0, 3));
-
-                    $panel_profile->update(['code' => $package_code]);
-
-                    $panel_profile_id = $panel_profile->id;
-                }
-
-                //create test result 
-                $test_result = TestResult::updateOrCreate(
-                    [
-                        'doctor_id' => $doctor_id,
-                        'patient_id' => $patient_id,
-                        'lab_no' => $lab_no,
-                    ],
-                    [
-                        'ref_id' => $reference_id,
-                        'collected_date' => $collected_date,
-                        'received_date' => $received_date,
-                        'reported_date' => $reported_date,
-                        'is_completed' => true,
-                        'validated_by' => $validated_by,
-                    ]
-                );
-
-                //get test result id
-                $test_result_id = $test_result->id;
-
-                if ($panel_profile_id) {
-                    //create test result profile
-                    TestResultProfile::firstOrCreate(
+                    $doctor = Doctor::firstOrCreate(
                         [
-                            'test_result_id' => $test_result_id,
-                            'panel_profile_id' => $panel_profile_id,
+                            'lab_id' => $lab_id,
+                            'code' => $finalDoctorCode,
+                        ],
+                        [
+                            'name' => $doctor_name,
+                            'type' => $doctor_type ?? 'PHARMACY',
+                            'outlet_name' => $doctor_name,
+                            'outlet_address' => $doctor_address,
+                            'outlet_phone' => $doctor_phone,
                         ]
                     );
-                }
 
-                //loop through results
-                foreach ($results as $key => $item) {
-                    //assign array key as panel name
-                    $panel_name = $key;
-                    // Generate panel code from panel name if not provided
-                    $panel_code = $this->generatePanelCode($panel_name);
-                    $panel_sequence = $item['panel_sequence'] ?? null;
-                    $overall_notes = $item['panel_remarks'];
-                    $result_status = $item['result_status'];
+                    // get doctor code id
+                    $doctor_id = $doctor->id;
 
-                    // 1. First, create or find master panel
-                    $masterPanel = MasterPanel::firstOrCreate([
-                        'name' => $panel_name
-                    ]);
+                    // create patient
+                    $patient = Patient::firstOrCreate(
+                        [
+                            'icno' => $patient_icno,
+                        ],
+                        [
+                            'ic_type' => $ic_type,
+                            'name' => $patient_name,
+                            'dob' => null,
+                            'age' => $patient_age,
+                            'gender' => $patient_gender,
+                            'tel' => $patient_tel,
+                        ]
+                    );
 
-                    // 2. Create or get Panel with master panel reference
-                    $panel = Panel::firstOrCreate([
-                        'lab_id' => $lab_id,
-                        'master_panel_id' => $masterPanel->id
-                    ], [
-                        'name' => $panel_name,
-                        'code' => $panel_code,
-                        'sequence' => $panel_sequence
-                    ]);
+                    // get patient id
+                    $patient_id = $patient->id;
 
-                    //check if array tests available
-                    if (filled($item['tests'])) {
-                        //loop through tests
-                        foreach ($item['tests'] as $index => $test) {
-                            // Generate test code and identifier from test name if not provided
-                            $test_code = $this->generateTestCode($test['test_name']);
-                            $identifier = $panel_code . '#' . $test_code;
+                    // get package name
+                    $panel_profile_id = null;
+                    if (filled($package_name)) {
+                        $panel_profile = PanelProfile::firstOrCreate(
+                            ['lab_id' => $lab_id, 'name' => $package_name]
+                        );
 
-                            // 1. Create or find master panel item
-                            $masterPanelItem = MasterPanelItem::firstOrCreate([
-                                'name' => $test['test_name'],
-                                'unit' => $test['unit'],
-                            ]);
+                        $package_code = strtoupper(substr(str_replace(' ', '', $package_name), 0, 3));
 
-                            // 2. Create panel item with master panel item reference
-                            $panel_item = PanelItem::firstOrCreate([
-                                'lab_id' => $lab_id,
-                                'master_panel_item_id' => $masterPanelItem->id
-                            ], [
-                                'name' => $test['test_name'],
-                                'identifier' => $identifier,
-                                'unit' => $masterPanelItem->unit,
-                            ]);
+                        $panel_profile->update(['code' => $package_code]);
 
-                            // 3. Link panel item to panel through pivot table
-                            $panel->panelItems()->syncWithoutDetaching([$panel_item->id]);
+                        $panel_profile_id = $panel_profile->id;
+                    }
 
-                            //get panel item id
-                            $panel_item_id = $panel_item->id;
+                    // create test result
+                    $test_result = TestResult::updateOrCreate(
+                        [
+                            'doctor_id' => $doctor_id,
+                            'patient_id' => $patient_id,
+                            'lab_no' => $lab_no,
+                        ],
+                        [
+                            'ref_id' => $reference_id,
+                            'collected_date' => $collected_date,
+                            'received_date' => $received_date,
+                            'reported_date' => $reported_date,
+                            'is_completed' => true,
+                            'validated_by' => $validated_by,
+                        ]
+                    );
 
-                            //get panel panel item id
-                            $panel_panel_item_id = PanelPanelItem::where('panel_id', $panel->id)->where('panel_item_id', $panel_item_id)->first()?->id;
+                    // get test result id
+                    $test_result_id = $test_result->id;
 
-                            //check if panel item has reference range
-                            $ref_range_id = null;
-                            if (filled($test['ref_range'])) {
-                                //create reference range
-                                $ref_range = ReferenceRange::firstOrCreate(
+                    if ($panel_profile_id) {
+                        // create test result profile
+                        TestResultProfile::firstOrCreate(
+                            [
+                                'test_result_id' => $test_result_id,
+                                'panel_profile_id' => $panel_profile_id,
+                            ]
+                        );
+                    }
+
+                    // loop through results
+                    foreach ($results as $key => $item) {
+                        // assign array key as panel name
+                        $panel_name = $key;
+                        // Generate panel code from panel name if not provided
+                        $panel_code = $this->generatePanelCode($panel_name);
+                        $panel_sequence = $item['panel_sequence'] ?? null;
+                        $overall_notes = $item['panel_remarks'];
+                        $result_status = $item['result_status'];
+
+                        // 1. First, create or find master panel
+                        $masterPanel = MasterPanel::firstOrCreate([
+                            'name' => $panel_name,
+                        ]);
+
+                        // 2. Create or get Panel with master panel reference
+                        $panel = Panel::firstOrCreate([
+                            'lab_id' => $lab_id,
+                            'master_panel_id' => $masterPanel->id,
+                        ], [
+                            'name' => $panel_name,
+                            'code' => $panel_code,
+                            'sequence' => $panel_sequence,
+                        ]);
+
+                        // check if array tests available
+                        if (filled($item['tests'])) {
+                            // loop through tests
+                            foreach ($item['tests'] as $index => $test) {
+                                // Separate English and Chinese parts from the raw test name
+                                $rawTestName = $test['test_name'];
+                                if (preg_match('/^([^\x{4e00}-\x{9fff}]*)([\x{4e00}-\x{9fff}].*)$/u', $rawTestName, $nameParts)) {
+                                    $englishName = trim($nameParts[1]);
+                                    $chineseName = trim($nameParts[2]);
+                                } else {
+                                    $englishName = trim($rawTestName);
+                                    $chineseName = null;
+                                }
+
+                                // Generate test code and identifier from English name only
+                                $test_code = $this->generateTestCode($englishName);
+                                $identifier = $panel_code.'#'.$test_code;
+
+                                // 1. Create or find master panel item
+                                $masterPanelItem = MasterPanelItem::firstOrCreate([
+                                    'name' => $englishName,
+                                    'unit' => $test['unit'],
+                                ], [
+                                    'chi_character' => $chineseName,
+                                ]);
+
+                                // 2. Create panel item with master panel item reference
+                                $panel_item = PanelItem::firstOrCreate([
+                                    'lab_id' => $lab_id,
+                                    'master_panel_item_id' => $masterPanelItem->id,
+                                ], [
+                                    'name' => $englishName,
+                                    'chi_character' => $chineseName,
+                                    'identifier' => $identifier,
+                                    'unit' => $masterPanelItem->unit,
+                                ]);
+
+                                // 3. Link panel item to panel through pivot table
+                                $panel->panelItems()->syncWithoutDetaching([$panel_item->id]);
+
+                                // get panel item id
+                                $panel_item_id = $panel_item->id;
+
+                                // get panel panel item id
+                                $panel_panel_item_id = PanelPanelItem::where('panel_id', $panel->id)->where('panel_item_id', $panel_item_id)->first()?->id;
+
+                                // check if panel item has reference range
+                                $ref_range_id = null;
+                                if (filled($test['ref_range'])) {
+                                    // create reference range
+                                    $ref_range = ReferenceRange::firstOrCreate(
+                                        [
+                                            'value' => $test['ref_range'],
+                                            'panel_panel_item_id' => $panel_panel_item_id,
+                                        ]
+                                    );
+
+                                    // get reference range id
+                                    $ref_range_id = $ref_range->id;
+                                }
+
+                                // create test result item (with result value)
+                                TestResultItem::firstOrCreate(
                                     [
-                                        'value' => $test['ref_range'],
+                                        'test_result_id' => $test_result_id,
                                         'panel_panel_item_id' => $panel_panel_item_id,
+                                    ],
+                                    [
+                                        'reference_range_id' => $ref_range_id,
+                                        'value' => $test['result_value'],
+                                        'flag' => $test['result_flag'],
+                                        'sequence' => $test['report_sequence'],
+                                        'has_amended' => false,
                                     ]
                                 );
-
-                                //get reference range id
-                                $ref_range_id = $ref_range->id;
                             }
-
-                            //create test result item (with result value)
-                            TestResultItem::firstOrCreate(
-                                [
-                                    'test_result_id' => $test_result_id,
-                                    'panel_panel_item_id' => $panel_panel_item_id,
-                                ],
-                                [
-                                    'reference_range_id' => $ref_range_id,
-                                    'value' => $test['result_value'],
-                                    'flag' => $test['result_flag'],
-                                    'sequence' => $test['report_sequence'],
-                                    'has_amended' => false
-                                ]
-                            );
                         }
                     }
-                }
 
-                    //create delivery file for tracking purposes
+                    // create delivery file for tracking purposes
                     $deliveryFile = DeliveryFile::firstOrCreate(
                         [
                             'lab_id' => $lab_id,
@@ -537,15 +571,15 @@ class LabResultsController extends BaseResultsController
                 Log::info('Lab results processed successfully', [
                     'test_result_id' => $test_result_id,
                     'lab_id' => $lab_id,
-                    'patient_id' => $patient_id
+                    'patient_id' => $patient_id,
                 ]);
 
                 return response()->json([
                     'success' => true,
                     'data' => [
-                        'test_result_id' => $test_result_id
+                        'test_result_id' => $test_result_id,
                     ],
-                    'message' => 'Lab results processed successfully'
+                    'message' => 'Lab results processed successfully',
                 ], 200);
             }
         } catch (Throwable $e) {
@@ -561,7 +595,7 @@ class LabResultsController extends BaseResultsController
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to process results',
-                'error' => 'Internal server error'
+                'error' => 'Internal server error',
             ], 500);
         }
     }
@@ -573,17 +607,22 @@ class LabResultsController extends BaseResultsController
      *     summary="Retrieve test result by ID",
      *     description="Get a specific test result with all associated data including patient, doctor, panel results and test items",
      *     security={{"bearerAuth":{}}},
+     *
      *     @OA\Parameter(
      *         name="id",
      *         in="path",
      *         required=true,
      *         description="Test result ID",
+     *
      *         @OA\Schema(type="integer", example=123)
      *     ),
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Test result retrieved successfully",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="success", type="boolean", example=true),
      *             @OA\Property(property="message", type="string", example="Test result retrieved successfully"),
      *             @OA\Property(
@@ -629,8 +668,10 @@ class LabResultsController extends BaseResultsController
      *             @OA\Property(
      *                 property="results",
      *                 type="array",
+     *
      *                 @OA\Items(
      *                     type="object",
+     *
      *                     @OA\Property(property="panel_name", type="string", example="Haematology"),
      *                     @OA\Property(property="panel_code", type="string", nullable=true, example="HAE"),
      *                     @OA\Property(property="panel_sequence", type="integer", nullable=true, example=1),
@@ -638,8 +679,10 @@ class LabResultsController extends BaseResultsController
      *                     @OA\Property(
      *                         property="tests",
      *                         type="array",
+     *
      *                         @OA\Items(
      *                             type="object",
+     *
      *                             @OA\Property(property="test_name", type="string", example="Haemoglobin"),
      *                             @OA\Property(property="test_code", type="string", nullable=true, example="HGB"),
      *                             @OA\Property(property="result_value", type="string", nullable=true, example="15.7"),
@@ -657,15 +700,19 @@ class LabResultsController extends BaseResultsController
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=404,
      *         description="Test result not found",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="success", type="boolean", example=false),
      *             @OA\Property(property="message", type="string", example="Test result not found"),
      *             @OA\Property(property="error", type="string", example="Not found")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=401,
      *         description="Unauthorized - Invalid or missing authentication token"
@@ -673,7 +720,9 @@ class LabResultsController extends BaseResultsController
      *     @OA\Response(
      *         response=500,
      *         description="Internal server error",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="success", type="boolean", example=false),
      *             @OA\Property(property="message", type="string", example="Failed to retrieve test result"),
      *             @OA\Property(property="error", type="string", example="Internal server error")
@@ -702,24 +751,24 @@ class LabResultsController extends BaseResultsController
                                 'masterPanelItem',
                                 'panels' => function ($query) use ($lab_id) {
                                     $query->where('lab_id', $lab_id)->with('masterPanel');
-                                }
+                                },
                             ]);
                         },
-                        'referenceRange'
+                        'referenceRange',
                     ]);
-                }
+                },
             ])->find($id);
 
-            if (!$testResult) {
+            if (! $testResult) {
                 Log::warning('Test result not found', [
                     'test_result_id' => $id,
-                    'lab_id' => $lab_id
+                    'lab_id' => $lab_id,
                 ]);
 
                 return response()->json([
                     'success' => false,
                     'message' => 'Test result not found',
-                    'error' => 'Not found'
+                    'error' => 'Not found',
                 ], 404);
             }
 
@@ -744,13 +793,13 @@ class LabResultsController extends BaseResultsController
                     $overallNotes = $panel->overall_notes;
                 }
 
-                if (!isset($groupedResults[$panelName])) {
+                if (! isset($groupedResults[$panelName])) {
                     $groupedResults[$panelName] = [
                         'panel_name' => $panelName,
                         'panel_code' => $panelCode,
                         'panel_sequence' => $panelSequence,
                         'overall_notes' => $overallNotes,
-                        'tests' => []
+                        'tests' => [],
                     ];
                 }
 
@@ -765,9 +814,9 @@ class LabResultsController extends BaseResultsController
                     'reference_range' => $item->referenceRange ? $item->referenceRange->value : null,
                     'result_flag' => $item->flag,
                     'test_notes' => null, // Removed from new structure
-                    'status' => null, // Removed from new structure  
+                    'status' => null, // Removed from new structure
                     'is_completed' => (bool) $item->is_completed,
-                    'sequence' => $item->sequence ?? null
+                    'sequence' => $item->sequence ?? null,
                 ];
             }
 
@@ -787,9 +836,9 @@ class LabResultsController extends BaseResultsController
             $responseData = [
                 'reference_id' => $testResult->ref_id,
                 'lab_no' => $testResult->lab_no,
-                'collected_date' => $testResult->collected_date,
-                'received_date' => $testResult->received_date,
-                'reported_date' => $testResult->reported_date,
+                'collected_date' => $testResult->getRawOriginal('collected_date'),
+                'received_date' => $testResult->getRawOriginal('received_date'),
+                'reported_date' => $testResult->getRawOriginal('reported_date'),
                 'validated_by' => $testResult->validated_by,
                 'is_completed' => (bool) $testResult->is_completed,
                 'doctor' => $testResult->doctor ? [
@@ -798,7 +847,7 @@ class LabResultsController extends BaseResultsController
                     'type' => $testResult->doctor->type,
                     'outlet_name' => $testResult->doctor->outlet_name,
                     'outlet_address' => $testResult->doctor->outlet_address,
-                    'outlet_phone' => $testResult->doctor->outlet_phone
+                    'outlet_phone' => $testResult->doctor->outlet_phone,
                 ] : null,
                 'patient' => $testResult->patient ? [
                     'icno' => $testResult->patient->icno,
@@ -807,24 +856,24 @@ class LabResultsController extends BaseResultsController
                     'dob' => $testResult->patient->dob,
                     'age' => $testResult->patient->age,
                     'gender' => $testResult->patient->gender,
-                    'tel' => $testResult->patient->tel
+                    'tel' => $testResult->patient->tel,
                 ] : null,
                 'package' => $testResult->profiles->first() ? [
                     'name' => $testResult->profiles->first()->name,
-                    'code' => $testResult->profiles->first()->code
+                    'code' => $testResult->profiles->first()->code,
                 ] : null,
-                'results' => array_values($groupedResults)
+                'results' => array_values($groupedResults),
             ];
 
             Log::info('Test result retrieved successfully', [
                 'test_result_id' => $id,
-                'lab_id' => $lab_id
+                'lab_id' => $lab_id,
             ]);
 
             return response()->json([
                 'success' => true,
                 'data' => $responseData,
-                'message' => 'Test result retrieved successfully'
+                'message' => 'Test result retrieved successfully',
             ], 200);
         } catch (Throwable $e) {
             Log::error('Failed to retrieve test result', [
@@ -832,13 +881,13 @@ class LabResultsController extends BaseResultsController
                 'exception' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to retrieve test result',
-                'error' => 'Internal server error'
+                'error' => 'Internal server error',
             ], 500);
         }
     }
