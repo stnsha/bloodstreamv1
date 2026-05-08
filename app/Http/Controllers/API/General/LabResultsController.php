@@ -809,6 +809,7 @@ class LabResultsController extends BaseResultsController
                 $groupedResults[$panelName]['tests'][] = [
                     'test_name' => $masterPanelItem ? $masterPanelItem->name : ($panelItem ? $panelItem->identifier : null),
                     'test_code' => $masterPanelItem ? $masterPanelItem->code : null,
+                    'chinese_character' => $masterPanelItem ? $masterPanelItem->chi_character : null,
                     'result_value' => $item->value,
                     'unit' => $masterPanelItem ? $masterPanelItem->unit : null,
                     'reference_range' => $item->referenceRange ? $item->referenceRange->value : null,
