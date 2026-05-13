@@ -52,6 +52,7 @@ class StorePatientResultRequest extends FormRequest
             'reported_date' => 'nullable',
             'collected_date' => 'nullable',
             'validated_by' => 'nullable|string',
+            'report_status' => 'required|boolean',
             'package_name' => 'nullable|string',
 
             'patient' => 'required|array',
@@ -67,7 +68,7 @@ class StorePatientResultRequest extends FormRequest
             'results.*.panel_code' => 'nullable|string',
             'results.*.panel_sequence' => 'nullable|integer',
             'results.*.panel_remarks' => 'nullable|string',
-            'results.*.result_status' => 'required|integer',
+            'results.*.result_status' => 'required|boolean',
             'results.*.tests' => 'required|array',
 
             'results.*.tests.*.test_name' => 'required|string',
