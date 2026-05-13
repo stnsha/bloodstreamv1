@@ -894,6 +894,20 @@ Accept: application/json</code></pre>
                                         </tr>
                                         <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
                                             <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm font-mono text-[#003049]">report_status</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <div class="text-xs sm:text-sm text-gray-700">boolean</div>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#991B1B]/10 text-[#991B1B] border border-[#991B1B]/20">Yes</span>
+                                            </td>
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                                <div class="text-xs sm:text-sm text-gray-700">Indicates whether the report is finalized (true = final, false = partial)</div>
+                                            </td>
+                                        </tr>
+                                        <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                            <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
                                                 <div class="text-xs sm:text-sm font-mono text-[#003049]">package_name</div>
                                             </td>
                                             <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
@@ -1231,7 +1245,7 @@ Accept: application/json</code></pre>
                                                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">No</span>
                                             </td>
                                             <td class="px-3 sm:px-6 py-2 sm:py-3">
-                                                <div class="text-xs sm:text-sm text-gray-700">Short code for the individual test</div>
+                                                <div class="text-xs sm:text-sm text-gray-700">Short code for the individual test. If provided, used directly as the test identifier; if null, one is auto-generated from the test name.</div>
                                             </td>
                                         </tr>
                                         <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
@@ -1383,6 +1397,7 @@ Accept: application/json</code></pre>
   "received_date": "2025-08-08 10:00:00",
   "reported_date": "2025-08-08 14:30:00",
   "validated_by": "Dr. Richard Roe, Bsc in Biomedical",
+  "report_status": true,
   "package_name": "COMPREHENSIVE HEALTH PACKAGE",
   "results": {
     "Haematology": {
@@ -1451,6 +1466,15 @@ Accept: application/json</code></pre>
          }
        }
      }'</code></pre>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                <div class="text-xs font-semibold text-blue-800 uppercase tracking-wide mb-1">Amendment Behaviour</div>
+                                <div class="text-xs text-blue-800">
+                                    Submitting the same lab number more than once is supported. If test result items for the same lab number already exist, new records are created alongside the originals with <span class="font-mono">has_amended = true</span> to indicate the values were corrected. Previous records are preserved for audit purposes.
+                                </div>
+                            </div>
                         </div>
 
                         <div class="mb-2">
@@ -1557,24 +1581,6 @@ Accept: application/json</code></pre>
                         </div>
                     </div>
 
-                    <!-- Test Panel Endpoint -->
-                    <div>
-                        <div class="flex items-center mb-2">
-                            <span class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold mr-2">POST</span>
-                            <span class="font-mono text-sm">/api/v1/testPanel</span>
-                        </div>
-                        <span class="font-normal text-sm tracking-wide block mb-3">Test endpoint that logs and returns
-                            the request data.</span>
-
-                        <div class="mb-2">
-                            <span class="font-semibold text-sm pb-1 tracking-wide block">CURL Example:</span>
-                            <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049]"><code>curl -X POST "https://mytotalhealth.com.my/staging/api/v1/testPanel" \
-     -H "accept: application/json" \
-     -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..." \
-     -H "Content-Type: application/json" \
-     -d '{"test": "data"}'</code></pre>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>

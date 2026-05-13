@@ -421,6 +421,13 @@ class LabResultsController extends BaseResultsController
                         $panel_profile_id = $panel_profile->id;
                     }
 
+                    // capture previous finalization state before upsert
+                    $existingTestResult = TestResult::where('doctor_id', $doctor_id)
+                        ->where('patient_id', $patient_id)
+                        ->where('lab_no', $lab_no)
+                        ->first();
+                    $previouslyFinal = $existingTestResult && $existingTestResult->is_completed;
+
                     // create test result
                     $test_result = TestResult::updateOrCreate(
                         [
@@ -538,20 +545,36 @@ class LabResultsController extends BaseResultsController
                                     $ref_range_id = $ref_range->id;
                                 }
 
-                                // create test result item (with result value)
-                                TestResultItem::firstOrCreate(
-                                    [
+                                // create or replace test result item depending on previous finalization state
+                                $existingItem = TestResultItem::where('test_result_id', $test_result_id)
+                                    ->where('panel_panel_item_id', $panel_panel_item_id)
+                                    ->first();
+
+                                $itemData = [
+                                    'reference_range_id' => $ref_range_id,
+                                    'value' => $test['result_value'],
+                                    'flag' => $test['result_flag'],
+                                    'sequence' => $test['report_sequence'],
+                                ];
+
+                                if ($existingItem && $previouslyFinal) {
+                                    // previous result was final — create new record as amendment
+                                    TestResultItem::create(array_merge($itemData, [
                                         'test_result_id' => $test_result_id,
                                         'panel_panel_item_id' => $panel_panel_item_id,
-                                    ],
-                                    [
-                                        'reference_range_id' => $ref_range_id,
-                                        'value' => $test['result_value'],
-                                        'flag' => $test['result_flag'],
-                                        'sequence' => $test['report_sequence'],
+                                        'has_amended' => true,
+                                    ]));
+                                } elseif ($existingItem) {
+                                    // previous result was partial — replace in place
+                                    $existingItem->update(array_merge($itemData, ['has_amended' => false]));
+                                } else {
+                                    // no existing record — create fresh
+                                    TestResultItem::create(array_merge($itemData, [
+                                        'test_result_id' => $test_result_id,
+                                        'panel_panel_item_id' => $panel_panel_item_id,
                                         'has_amended' => false,
-                                    ]
-                                );
+                                    ]));
+                                }
                             }
                         }
                     }
