@@ -359,12 +359,13 @@ class LabResultsController extends BaseResultsController
                     $patient_name = $validated['patient']['name'];
 
                     $reference_id = $validated['reference_id'];
-                    $bill_code = $validated['bill_code'];
+                    //$bill_code = $validated['bill_code'];
                     $lab_no = $validated['lab_no'];
                     $collected_date = $validated['collected_date'];
                     $received_date = $validated['received_date'];
                     $reported_date = $validated['reported_date'];
                     $validated_by = $validated['validated_by'];
+                    $report_status = (bool) $validated['report_status'];
                     $package_name = $validated['package_name'];
                     $results = $validated['results'];
 
@@ -432,7 +433,7 @@ class LabResultsController extends BaseResultsController
                             'collected_date' => $collected_date,
                             'received_date' => $received_date,
                             'reported_date' => $reported_date,
-                            'is_completed' => true,
+                            'is_completed' => $report_status,
                             'validated_by' => $validated_by,
                         ]
                     );
@@ -458,7 +459,7 @@ class LabResultsController extends BaseResultsController
                         $panel_code = $this->generatePanelCode($panel_name);
                         $panel_sequence = $item['panel_sequence'] ?? null;
                         $overall_notes = $item['panel_remarks'];
-                        $result_status = $item['result_status'];
+                        $result_status = (bool) $item['result_status'];
 
                         // 1. First, create or find master panel
                         $masterPanel = MasterPanel::firstOrCreate([
@@ -635,7 +636,7 @@ class LabResultsController extends BaseResultsController
      *                 @OA\Property(property="received_date", type="string", nullable=true, example="2025-01-19 00:00:00"),
      *                 @OA\Property(property="reported_date", type="string", nullable=true, example="2025-01-19 00:00:00"),
      *                 @OA\Property(property="validated_by", type="string", nullable=true, example="Richard Roe, Bsc in Biomedical"),
-     *                 @OA\Property(property="is_completed", type="boolean", example=true),
+     *                 @OA\Property(property="report_status", type="boolean", example=true),
      *                 @OA\Property(property="is_tagon", type="boolean", example=false),
      *                 @OA\Property(
      *                     property="doctor",
@@ -839,7 +840,7 @@ class LabResultsController extends BaseResultsController
                 'received_date' => $testResult->getRawOriginal('received_date'),
                 'reported_date' => $testResult->getRawOriginal('reported_date'),
                 'validated_by' => $testResult->validated_by,
-                'is_completed' => (bool) $testResult->is_completed,
+                'report_status' => (bool) $testResult->is_completed,
                 'doctor' => $testResult->doctor ? [
                     'name' => $testResult->doctor->name,
                     'code' => $testResult->doctor->code,
