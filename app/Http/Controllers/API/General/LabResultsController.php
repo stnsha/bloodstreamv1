@@ -761,20 +761,35 @@ class LabResultsController extends BaseResultsController
             $user = Auth::guard('lab')->user();
             $lab_id = $user->lab_id;
 
+            // lab_id 1 is superadmin — no lab filter applied
+            $isSuperAdmin = $lab_id === 1;
+
             // Find test result with lab_id constraint through doctor relationship using Eloquent
-            $testResult = TestResult::whereHas('doctor', function ($query) use ($lab_id) {
-                $query->where('lab_id', $lab_id);
-            })->with([
+            $query = TestResult::query();
+
+            if (! $isSuperAdmin) {
+                $query->whereHas('doctor', function ($q) use ($lab_id) {
+                    $q->where('lab_id', $lab_id);
+                });
+            }
+
+            $testResult = $query->with([
                 'doctor',
                 'patient',
                 'profiles',
-                'testResultItems' => function ($query) use ($lab_id) {
-                    $query->with([
-                        'panelItem' => function ($query) use ($lab_id) {
-                            $query->where('lab_id', $lab_id)->with([
+                'testResultItems' => function ($q) use ($lab_id, $isSuperAdmin) {
+                    $q->with([
+                        'panelItem' => function ($q) use ($lab_id, $isSuperAdmin) {
+                            if (! $isSuperAdmin) {
+                                $q->where('lab_id', $lab_id);
+                            }
+                            $q->with([
                                 'masterPanelItem',
-                                'panels' => function ($query) use ($lab_id) {
-                                    $query->where('lab_id', $lab_id)->with('masterPanel');
+                                'panels' => function ($q) use ($lab_id, $isSuperAdmin) {
+                                    if (! $isSuperAdmin) {
+                                        $q->where('lab_id', $lab_id);
+                                    }
+                                    $q->with('masterPanel');
                                 },
                             ]);
                         },
