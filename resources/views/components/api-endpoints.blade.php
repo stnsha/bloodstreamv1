@@ -1472,7 +1472,12 @@ Accept: application/json</code></pre>
                             <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
                                 <div class="text-xs font-semibold text-blue-800 uppercase tracking-wide mb-1">Amendment Behaviour</div>
                                 <div class="text-xs text-blue-800">
-                                    Submitting the same lab number more than once is supported. If test result items for the same lab number already exist, new records are created alongside the originals with <span class="font-mono">has_amended = true</span> to indicate the values were corrected. Previous records are preserved for audit purposes.
+                                    Submitting the same lab number more than once is supported. Behaviour depends on the previous <span class="font-mono">report_status</span>:
+                                    <ul class="list-disc pl-4 mt-1 space-y-1">
+                                        <li><strong>No existing record</strong> — created fresh.</li>
+                                        <li><strong>Existing record, previous <span class="font-mono">report_status = false</span> (partial)</strong> — replaced in place. No amendment flag set.</li>
+                                        <li><strong>Existing record, previous <span class="font-mono">report_status = true</span> (final)</strong> — a new record is created alongside the original with <span class="font-mono">has_amended = true</span>. The original is preserved for audit purposes.</li>
+                                    </ul>
                                 </div>
                             </div>
                         </div>

@@ -838,8 +838,9 @@ class LabResultsController extends BaseResultsController
                     'unit' => $masterPanelItem ? $masterPanelItem->unit : null,
                     'reference_range' => $item->referenceRange ? $item->referenceRange->value : null,
                     'result_flag' => $item->flag,
-                    'test_notes' => null, // Removed from new structure
-                    'status' => null, // Removed from new structure
+                    'test_notes' => null,
+                    'has_amended' => (bool) $item->has_amended,
+                    'status' => $item->has_amended ? 'amended' : 'original',
                     'sequence' => $item->sequence ?? null,
                 ];
             }
