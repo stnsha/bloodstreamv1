@@ -489,8 +489,8 @@ class LabResultsController extends BaseResultsController
                                     $chineseName = null;
                                 }
 
-                                // Generate test code and identifier from English name only
-                                $test_code = $this->generateTestCode($englishName);
+                                // Use provided test_code if available, otherwise generate from English name
+                                $test_code = filled($test['test_code']) ? $test['test_code'] : $this->generateTestCode($englishName);
                                 $identifier = $panel_code.'#'.$test_code;
 
                                 // 1. Create or find master panel item
@@ -691,7 +691,6 @@ class LabResultsController extends BaseResultsController
      *                             @OA\Property(property="result_flag", type="string", nullable=true, example=null),
      *                             @OA\Property(property="test_notes", type="string", nullable=true, example=null),
      *                             @OA\Property(property="status", type="string", nullable=true, example="F"),
-     *                             @OA\Property(property="is_completed", type="boolean", example=true),
      *                             @OA\Property(property="sequence", type="integer", nullable=true, example=1)
      *                         )
      *                     )
@@ -816,7 +815,6 @@ class LabResultsController extends BaseResultsController
                     'result_flag' => $item->flag,
                     'test_notes' => null, // Removed from new structure
                     'status' => null, // Removed from new structure
-                    'is_completed' => (bool) $item->is_completed,
                     'sequence' => $item->sequence ?? null,
                 ];
             }
