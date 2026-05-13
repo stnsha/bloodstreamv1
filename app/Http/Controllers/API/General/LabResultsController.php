@@ -499,7 +499,6 @@ class LabResultsController extends BaseResultsController
                                     'name' => $englishName,
                                     'unit' => $test['unit'],
                                 ], [
-                                    'code' => filled($test['test_code']) ? $test['test_code'] : null,
                                     'chi_character' => $chineseName,
                                 ]);
 
@@ -509,6 +508,7 @@ class LabResultsController extends BaseResultsController
                                     'master_panel_item_id' => $masterPanelItem->id,
                                 ], [
                                     'name' => $englishName,
+                                    'code' => filled($test['test_code']) ? $test['test_code'] : null,
                                     'chi_character' => $chineseName,
                                     'identifier' => $identifier,
                                     'unit' => $masterPanelItem->unit,
