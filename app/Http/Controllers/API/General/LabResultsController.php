@@ -16,6 +16,7 @@ use App\Models\Patient;
 use App\Models\ReferenceRange;
 use App\Models\TestResult;
 use App\Models\TestResultItem;
+use App\Models\TestResultItemAmendment;
 use App\Models\TestResultProfile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -410,7 +411,7 @@ class LabResultsController extends BaseResultsController
                     // get package name
                     $panel_profile_id = null;
                     if (filled($package_name)) {
-                        $panel_profile = PanelProfile::firstOrCreate(
+                        $panel_profile = PanelProfile::updateOrCreate(
                             ['lab_id' => $lab_id, 'name' => $package_name]
                         );
 
@@ -450,7 +451,7 @@ class LabResultsController extends BaseResultsController
 
                     if ($panel_profile_id) {
                         // create test result profile
-                        TestResultProfile::firstOrCreate(
+                        TestResultProfile::updateOrCreate(
                             [
                                 'test_result_id' => $test_result_id,
                                 'panel_profile_id' => $panel_profile_id,
@@ -469,12 +470,12 @@ class LabResultsController extends BaseResultsController
                         $result_status = (bool) $item['result_status'];
 
                         // 1. First, create or find master panel
-                        $masterPanel = MasterPanel::firstOrCreate([
+                        $masterPanel = MasterPanel::updateOrCreate([
                             'name' => $panel_name,
                         ]);
 
                         // 2. Create or get Panel with master panel reference
-                        $panel = Panel::firstOrCreate([
+                        $panel = Panel::updateOrCreate([
                             'lab_id' => $lab_id,
                             'master_panel_id' => $masterPanel->id,
                         ], [
@@ -502,7 +503,7 @@ class LabResultsController extends BaseResultsController
                                 $identifier = $panel_code.'#'.$test_code;
 
                                 // 1. Create or find master panel item
-                                $masterPanelItem = MasterPanelItem::firstOrCreate([
+                                $masterPanelItem = MasterPanelItem::updateOrCreate([
                                     'name' => $englishName,
                                     'unit' => $test['unit'],
                                 ], [
@@ -510,7 +511,7 @@ class LabResultsController extends BaseResultsController
                                 ]);
 
                                 // 2. Create panel item with master panel item reference
-                                $panel_item = PanelItem::firstOrCreate([
+                                $panel_item = PanelItem::updateOrCreate([
                                     'lab_id' => $lab_id,
                                     'master_panel_item_id' => $masterPanelItem->id,
                                 ], [
@@ -534,7 +535,7 @@ class LabResultsController extends BaseResultsController
                                 $ref_range_id = null;
                                 if (filled($test['ref_range'])) {
                                     // create reference range
-                                    $ref_range = ReferenceRange::firstOrCreate(
+                                    $ref_range = ReferenceRange::updateOrCreate(
                                         [
                                             'value' => $test['ref_range'],
                                             'panel_panel_item_id' => $panel_panel_item_id,
@@ -558,14 +559,19 @@ class LabResultsController extends BaseResultsController
                                 ];
 
                                 if ($existingItem && $previouslyFinal) {
-                                    // previous result was final — create new record as amendment
-                                    TestResultItem::create(array_merge($itemData, [
-                                        'test_result_id' => $test_result_id,
-                                        'panel_panel_item_id' => $panel_panel_item_id,
-                                        'has_amended' => true,
-                                    ]));
+                                    // previous result was final — archive old value, update in place as amended
+                                    TestResultItemAmendment::create([
+                                        'test_result_item_id' => $existingItem->id,
+                                        'test_result_id' => $existingItem->test_result_id,
+                                        'panel_panel_item_id' => $existingItem->panel_panel_item_id,
+                                        'reference_range_id' => $existingItem->reference_range_id,
+                                        'value' => $existingItem->value,
+                                        'flag' => $existingItem->flag,
+                                        'sequence' => $existingItem->sequence,
+                                    ]);
+                                    $existingItem->update(array_merge($itemData, ['has_amended' => true]));
                                 } elseif ($existingItem) {
-                                    // previous result was partial — replace in place
+                                    // previous result was partial — replace in place, no history
                                     $existingItem->update(array_merge($itemData, ['has_amended' => false]));
                                 } else {
                                     // no existing record — create fresh
@@ -709,14 +715,28 @@ class LabResultsController extends BaseResultsController
      *                             type="object",
      *
      *                             @OA\Property(property="test_name", type="string", example="Haemoglobin"),
-     *                             @OA\Property(property="test_code", type="string", nullable=true, example="HGB"),
+     *                             @OA\Property(property="test_code", type="string", nullable=true, example="HAE"),
+     *                             @OA\Property(property="chinese_character", type="string", nullable=true, example="血红蛋白"),
      *                             @OA\Property(property="result_value", type="string", nullable=true, example="15.7"),
      *                             @OA\Property(property="unit", type="string", nullable=true, example="g/dL"),
-     *                             @OA\Property(property="reference_range", type="string", nullable=true, example="M: 13.0 - 18.0; F: 11.5 - 16.0"),
+     *                             @OA\Property(property="reference_range", type="string", nullable=true, example="13.0 - 18.0"),
      *                             @OA\Property(property="result_flag", type="string", nullable=true, example=null),
      *                             @OA\Property(property="test_notes", type="string", nullable=true, example=null),
-     *                             @OA\Property(property="status", type="string", nullable=true, example="F"),
-     *                             @OA\Property(property="sequence", type="integer", nullable=true, example=1)
+     *                             @OA\Property(property="has_amended", type="boolean", example=false),
+     *                             @OA\Property(property="status", type="string", example="original", description="'original' or 'amended'"),
+     *                             @OA\Property(property="sequence", type="integer", nullable=true, example=1),
+     *                             @OA\Property(
+     *                                 property="history",
+     *                                 type="array",
+     *                                 description="Previous values archived when the result was amended after being marked final",
+     *                                 @OA\Items(
+     *                                     type="object",
+     *                                     @OA\Property(property="value", type="string", nullable=true, example="14.3"),
+     *                                     @OA\Property(property="flag", type="string", nullable=true, example=null),
+     *                                     @OA\Property(property="sequence", type="integer", nullable=true, example=1),
+     *                                     @OA\Property(property="amended_at", type="string", format="date-time", example="2026-05-13 10:00:00")
+     *                                 )
+     *                             )
      *                         )
      *                     )
      *                 )
@@ -794,6 +814,7 @@ class LabResultsController extends BaseResultsController
                             ]);
                         },
                         'referenceRange',
+                        'amendments',
                     ]);
                 },
             ])->find($id);
@@ -855,8 +876,13 @@ class LabResultsController extends BaseResultsController
                     'result_flag' => $item->flag,
                     'test_notes' => null,
                     'has_amended' => (bool) $item->has_amended,
-                    'status' => $item->has_amended ? 'amended' : 'original',
                     'sequence' => $item->sequence ?? null,
+                    'history' => $item->amendments->map(fn ($a) => [
+                        'value' => $a->value,
+                        'flag' => $a->flag,
+                        'sequence' => $a->sequence,
+                        'amended_at' => $a->getRawOriginal('created_at'),
+                    ])->values(),
                 ];
             }
 
