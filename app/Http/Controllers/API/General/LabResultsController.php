@@ -559,17 +559,27 @@ class LabResultsController extends BaseResultsController
                                 ];
 
                                 if ($existingItem && $previouslyFinal) {
-                                    // previous result was final — archive old value, update in place as amended
-                                    TestResultItemAmendment::create([
-                                        'test_result_item_id' => $existingItem->id,
-                                        'test_result_id' => $existingItem->test_result_id,
-                                        'panel_panel_item_id' => $existingItem->panel_panel_item_id,
-                                        'reference_range_id' => $existingItem->reference_range_id,
-                                        'value' => $existingItem->value,
-                                        'flag' => $existingItem->flag,
-                                        'sequence' => $existingItem->sequence,
-                                    ]);
-                                    $existingItem->update(array_merge($itemData, ['has_amended' => true]));
+                                    $valueChanged = $existingItem->value != $itemData['value']
+                                        || $existingItem->flag != $itemData['flag']
+                                        || $existingItem->sequence != $itemData['sequence']
+                                        || $existingItem->reference_range_id != $itemData['reference_range_id'];
+
+                                    if ($valueChanged) {
+                                        // value changed after finalisation — archive old value
+                                        TestResultItemAmendment::create([
+                                            'test_result_item_id' => $existingItem->id,
+                                            'test_result_id' => $existingItem->test_result_id,
+                                            'panel_panel_item_id' => $existingItem->panel_panel_item_id,
+                                            'reference_range_id' => $existingItem->reference_range_id,
+                                            'value' => $existingItem->value,
+                                            'flag' => $existingItem->flag,
+                                            'sequence' => $existingItem->sequence,
+                                        ]);
+                                        $existingItem->update(array_merge($itemData, ['has_amended' => true]));
+                                    } else {
+                                        // no change after finalisation — update metadata only, no history
+                                        $existingItem->update($itemData);
+                                    }
                                 } elseif ($existingItem) {
                                     // previous result was partial — replace in place, no history
                                     $existingItem->update(array_merge($itemData, ['has_amended' => false]));
