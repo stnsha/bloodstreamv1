@@ -98,13 +98,23 @@ class ConsultCallEligibilityService
         }
 
         $patientData = [
-            'tc' => $this->getPanelValue($items, 'tc'),
-            'ldlc' => $this->getPanelValue($items, 'ldlc'),
-            'egfr' => $this->getPanelValue($items, 'egfr'),
+            'tc'            => $this->getPanelValue($items, 'tc'),
+            'ldlc'          => $this->getPanelValue($items, 'ldlc'),
+            'egfr'          => $this->getPanelValue($items, 'egfr'),
             'hba1c_percent' => $this->getPanelValue($items, 'hba1c_percent'),
-            'alt' => $this->getPanelValue($items, 'alt'),
-            'age' => $age,
-            'bmi' => $bmi,
+            'alt'           => $this->getPanelValue($items, 'alt'),
+            'age'           => $age,
+            'bmi'           => $bmi,
+            'gender'        => $patient->gender,
+            'hae'           => $this->getPanelValue($items, 'hae'),
+            'rcc'           => $this->getPanelValue($items, 'rcc'),
+            'pcv'           => $this->getPanelValue($items, 'pcv'),
+            'mcv'           => $this->getPanelValue($items, 'mcv'),
+            'mch'           => $this->getPanelValue($items, 'mch'),
+            'mchc'          => $this->getPanelValue($items, 'mchc'),
+            'rdw'           => $this->getPanelValue($items, 'rdw'),
+            's_iron'        => $this->getPanelValue($items, 's_iron'),
+            'ferritin'      => $this->getPanelValue($items, 'ferritin'),
         ];
 
         // Evaluate against all conditions
@@ -225,7 +235,7 @@ class ConsultCallEligibilityService
     {
         $panelItemIds = $items->pluck('panel_panel_item_id')->toArray();
 
-        foreach (PanelPanelItem::REQUIRED_CATEGORIES as $category => $ids) {
+        foreach (PanelPanelItem::BASE_REQUIRED_CATEGORIES as $category => $ids) {
             $found = false;
             foreach ($ids as $id) {
                 if (in_array($id, $panelItemIds)) {

@@ -564,7 +564,6 @@ class ProcessPanelResults implements ShouldQueue
 
                             $octopusApi = app(OctopusApiService::class);
 
-                            // Multi-outlet: Melaka, Johor, Kelantan
                             $eligibleCustomer = $octopusApi->eligibleConsultCallByOutlet($refIdForConsult, $labCodeForConsult);
 
                             if (! $eligibleCustomer) {

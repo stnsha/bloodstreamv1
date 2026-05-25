@@ -18,6 +18,7 @@ class ClinicalCondition extends Model
         'risk_tier',
         'criteria_count',
         'is_active',
+        'active_from',
     ];
 
     protected $casts = [
@@ -25,6 +26,7 @@ class ClinicalCondition extends Model
         'risk_tier' => 'integer',
         'criteria_count' => 'integer',
         'is_active' => 'boolean',
+        'active_from' => 'date',
     ];
 
     /**
@@ -72,7 +74,7 @@ class ClinicalCondition extends Model
     }
 
     /**
-     * Get condition IDs sorted by priority (highest criteria_count first).
+     * Get condition IDs sorted by priority (highest risk_tier first, then highest criteria_count).
      * Excludes the healthy condition (criteria_count = 0) so it is never
      * passed into the evaluator loop.
      */
@@ -81,6 +83,11 @@ class ClinicalCondition extends Model
         return Cache::remember('clinical_conditions_sorted_evaluable', 3600, function () {
             return self::active()
                 ->where('criteria_count', '>', 0)
+                ->where(function ($q) {
+                    $q->whereNull('active_from')
+                        ->orWhere('active_from', '<=', now()->toDateString());
+                })
+                ->orderByDesc('risk_tier')
                 ->orderByDesc('criteria_count')
                 ->orderBy('id')
                 ->pluck('id')

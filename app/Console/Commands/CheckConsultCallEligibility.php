@@ -140,7 +140,9 @@ class CheckConsultCallEligibility extends Command
 
         $extractedValues = [];
 
-        foreach (PanelPanelItem::REQUIRED_CATEGORIES as $category => $ids) {
+        $this->line('  Required categories (gate check):');
+
+        foreach (PanelPanelItem::BASE_REQUIRED_CATEGORIES as $category => $ids) {
             $value     = null;
             $foundId   = null;
 
@@ -186,6 +188,37 @@ class CheckConsultCallEligibility extends Command
         }
 
         $this->line('  [PASS] All required panel categories present.');
+
+        // Anemia panel values — informational only, not a gate requirement
+        $anemiaActive = now()->toDateString() >= PanelPanelItem::ANEMIA_ACTIVE_DATE;
+        $this->line('');
+        $this->line('  Anemia categories (active from ' . PanelPanelItem::ANEMIA_ACTIVE_DATE . ', currently ' . ($anemiaActive ? 'ACTIVE' : 'INACTIVE') . '):');
+
+        $anemiaCategories = array_diff_key(PanelPanelItem::REQUIRED_CATEGORIES, PanelPanelItem::BASE_REQUIRED_CATEGORIES);
+
+        foreach ($anemiaCategories as $category => $ids) {
+            $value   = null;
+            $foundId = null;
+
+            foreach ($ids as $panelItemId) {
+                $item = $items->firstWhere('panel_panel_item_id', $panelItemId);
+                if ($item && $item->value !== null && $item->value !== '') {
+                    $value   = (float) $item->value;
+                    $foundId = $panelItemId;
+                    break;
+                }
+            }
+
+            $idList = implode(', ', $ids);
+
+            if ($value !== null) {
+                $this->line("  [INFO] {$category} (IDs: {$idList}) = {$value} (item #{$foundId})");
+            } else {
+                $this->line("  [INFO] {$category} (IDs: {$idList}) — not present");
+            }
+
+            $extractedValues[$category] = $value;
+        }
         $this->line('');
 
         // ── Deep diagnostic: patient data ───────────────────────────────────
@@ -207,6 +240,7 @@ class CheckConsultCallEligibility extends Command
         $this->line('  icno       : ' . ($patient->icno ?? 'null'));
         $this->line('  dob        : ' . ($patient->dob ?? 'null'));
         $this->line('  age        : ' . ($age ?? 'null (could not be resolved)'));
+        $this->line('  gender     : ' . ($patient->gender ?? 'null'));
 
         $bmi = null;
 
@@ -229,6 +263,16 @@ class CheckConsultCallEligibility extends Command
             'alt'           => $extractedValues['alt'],
             'age'           => $age,
             'bmi'           => $bmi,
+            'gender'        => $patient->gender,
+            'hae'           => $extractedValues['hae'] ?? null,
+            'rcc'           => $extractedValues['rcc'] ?? null,
+            'pcv'           => $extractedValues['pcv'] ?? null,
+            'mcv'           => $extractedValues['mcv'] ?? null,
+            'mch'           => $extractedValues['mch'] ?? null,
+            'mchc'          => $extractedValues['mchc'] ?? null,
+            'rdw'           => $extractedValues['rdw'] ?? null,
+            's_iron'        => $extractedValues['s_iron'] ?? null,
+            'ferritin'      => $extractedValues['ferritin'] ?? null,
         ];
 
         $this->line('');
