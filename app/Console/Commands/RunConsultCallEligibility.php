@@ -20,7 +20,7 @@ class RunConsultCallEligibility extends Command
         {--offset=0 : Skip first N records}
         {--dry-run : Simulate eligibility checks without writing to the database}';
 
-    protected $description = 'Run consult call eligibility checks on existing completed test results (Melaka, Johor, Kelantan outlets)';
+    protected $description = 'Run consult call eligibility checks on existing completed test results (all eligible outlets)';
 
     public function handle(): int
     {
@@ -164,7 +164,7 @@ class RunConsultCallEligibility extends Command
     /**
      * Process a single test result for consult call eligibility.
      *
-     * Uses outlet-based lookup (eligibleConsultCallByOutlet) — Melaka, Johor, Kelantan.
+     * Uses outlet-based lookup (eligibleConsultCallByOutlet) — all eligible outlets.
      *
      * @return array{0: string, 1: int|null} Counter key and outlet ID
      */
