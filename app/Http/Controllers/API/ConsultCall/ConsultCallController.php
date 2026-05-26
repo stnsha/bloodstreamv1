@@ -503,14 +503,16 @@ class ConsultCallController extends Controller
 
             $detailData = $validator->validated();
 
-            // Auto-set process_status: Refer External, End Process, or No Show all force Closed;
+            // Auto-set process_status: Refer External, End Process, No Show, or Cancelled all force Closed;
             // default to Active when not explicitly provided
             $actionForcesClose = isset($detailData['action']) && (
                 $detailData['action'] === ConsultCallDetails::ACTION_REFER_EXTERNAL ||
                 $detailData['action'] === ConsultCallDetails::ACTION_END_PROCESS
             );
-            $statusForcesClose = isset($detailData['consult_status']) &&
-                $detailData['consult_status'] === ConsultCallDetails::CONSULT_STATUS_NO_SHOW;
+            $statusForcesClose = isset($detailData['consult_status']) && (
+                $detailData['consult_status'] === ConsultCallDetails::CONSULT_STATUS_NO_SHOW ||
+                $detailData['consult_status'] === ConsultCallDetails::CONSULT_STATUS_CANCELLED
+            );
             if ($actionForcesClose || $statusForcesClose) {
                 $detailData['process_status'] = ConsultCallDetails::PROCESS_STATUS_CLOSED;
             }
@@ -662,14 +664,16 @@ class ConsultCallController extends Controller
 
             $detailData = $validator->validated();
 
-            // Auto-set process_status: Refer External, End Process, or No Show all force Closed;
+            // Auto-set process_status: Refer External, End Process, No Show, or Cancelled all force Closed;
             // default to Active when not explicitly provided
             $actionForcesClose = isset($detailData['action']) && (
                 $detailData['action'] === ConsultCallDetails::ACTION_REFER_EXTERNAL ||
                 $detailData['action'] === ConsultCallDetails::ACTION_END_PROCESS
             );
-            $statusForcesClose = isset($detailData['consult_status']) &&
-                $detailData['consult_status'] === ConsultCallDetails::CONSULT_STATUS_NO_SHOW;
+            $statusForcesClose = isset($detailData['consult_status']) && (
+                $detailData['consult_status'] === ConsultCallDetails::CONSULT_STATUS_NO_SHOW ||
+                $detailData['consult_status'] === ConsultCallDetails::CONSULT_STATUS_CANCELLED
+            );
             if ($actionForcesClose || $statusForcesClose) {
                 $detailData['process_status'] = ConsultCallDetails::PROCESS_STATUS_CLOSED;
             }
