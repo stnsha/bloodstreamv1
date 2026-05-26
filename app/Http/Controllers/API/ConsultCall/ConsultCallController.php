@@ -517,6 +517,12 @@ class ConsultCallController extends Controller
                 $detailData['process_status'] = ConsultCallDetails::PROCESS_STATUS_CLOSED;
             }
 
+            // Cancelled consultation means the patient withdrew — mark the parent ConsultCall consent as Refused.
+            if (isset($detailData['consult_status']) &&
+                $detailData['consult_status'] === ConsultCallDetails::CONSULT_STATUS_CANCELLED) {
+                $consultCall->update(['consent_call_status' => ConsultCall::CONSENT_STATUS_REFUSED]);
+            }
+
             // Smart update-or-create: if consult_date matches the scheduled date on a
             // primary-enrollment CC, update the original auto-created detail instead of
             // inserting a duplicate. For follow-up enrollment, always create.
@@ -676,6 +682,12 @@ class ConsultCallController extends Controller
             );
             if ($actionForcesClose || $statusForcesClose) {
                 $detailData['process_status'] = ConsultCallDetails::PROCESS_STATUS_CLOSED;
+            }
+
+            // Cancelled consultation means the patient withdrew — mark the parent ConsultCall consent as Refused.
+            if (isset($detailData['consult_status']) &&
+                $detailData['consult_status'] === ConsultCallDetails::CONSULT_STATUS_CANCELLED) {
+                $detail->consultCall->update(['consent_call_status' => ConsultCall::CONSENT_STATUS_REFUSED]);
             }
 
             $detail->update($detailData);
