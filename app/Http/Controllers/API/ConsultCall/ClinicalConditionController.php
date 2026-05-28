@@ -43,6 +43,7 @@ class ClinicalConditionController extends Controller
         $validated = $request->validate([
             'description' => 'required|string|max:500',
             'risk_tier'   => 'required|integer|in:0,1,2,3',
+            'active_from' => 'nullable|date',
         ]);
 
         try {
@@ -51,6 +52,7 @@ class ClinicalConditionController extends Controller
             $condition->update([
                 'description' => $validated['description'],
                 'risk_tier'   => $validated['risk_tier'],
+                'active_from' => $validated['active_from'] ?? null,
             ]);
 
             DB::commit();
