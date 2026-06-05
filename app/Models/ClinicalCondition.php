@@ -26,7 +26,7 @@ class ClinicalCondition extends Model
         'risk_tier' => 'integer',
         'criteria_count' => 'integer',
         'is_active' => 'boolean',
-        'active_from' => 'date',
+        'active_from' => 'date:Y-m-d',
     ];
 
     /**
