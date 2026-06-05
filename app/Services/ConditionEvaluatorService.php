@@ -1266,4 +1266,77 @@ class ConditionEvaluatorService
             && $data['mcv'] < 80
             && $data['rcc'] > 5.0;
     }
+
+    /**
+     * Condition 76: TC > 5.9 mmol/L
+     */
+    private function condition76(array $data): bool
+    {
+        if ($data['tc'] === null) {
+            return false;
+        }
+
+        return $data['tc'] > 5.9;
+    }
+
+    /**
+     * Condition 77: LDL > 3.39 mmol/L
+     */
+    private function condition77(array $data): bool
+    {
+        if ($data['ldlc'] === null) {
+            return false;
+        }
+
+        return $data['ldlc'] > 3.39;
+    }
+
+    /**
+     * Condition 78: LDL > 3.0 mmol/L AND TC > 5.5 mmol/L
+     */
+    private function condition78(array $data): bool
+    {
+        if ($data['ldlc'] === null || $data['tc'] === null) {
+            return false;
+        }
+
+        return $data['ldlc'] > 3.0
+            && $data['tc'] > 5.5;
+    }
+
+    /**
+     * Condition 79: HbA1c >= 6.1 %
+     */
+    private function condition79(array $data): bool
+    {
+        if ($data['hba1c_percent'] === null) {
+            return false;
+        }
+
+        return $data['hba1c_percent'] >= 6.1;
+    }
+
+    /**
+     * Condition 80: Hb 100-115 g/L
+     */
+    private function condition80(array $data): bool
+    {
+        if ($data['hae'] === null) {
+            return false;
+        }
+
+        return $data['hae'] >= 100 && $data['hae'] <= 115;
+    }
+
+    /**
+     * Condition 81: Ferritin < 20 ug/L
+     */
+    private function condition81(array $data): bool
+    {
+        if ($data['ferritin'] === null) {
+            return false;
+        }
+
+        return $data['ferritin'] < 20;
+    }
 }
