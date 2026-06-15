@@ -304,7 +304,6 @@ class CheckConsultCallEligibility extends Command
             if ($passes) {
                 $this->info("  [MATCH] Condition {$conditionId}: {$label}");
                 $matched = true;
-                break;
             } else {
                 $this->line("  [    ] Condition {$conditionId}: {$label}");
             }
