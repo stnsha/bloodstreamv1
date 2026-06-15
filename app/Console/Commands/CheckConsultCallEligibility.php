@@ -117,13 +117,18 @@ class CheckConsultCallEligibility extends Command
         $existedBefore = ConsultCallDetails::where('test_result_id', $id)->exists();
 
         if ($existedBefore) {
-            $this->info('ALREADY EXISTS: a ConsultCallDetails record already exists for this test result.');
+            $this->info('NOTE: a ConsultCallDetails record already exists for this test result.');
             Log::info('CheckConsultCallEligibility: Already exists', ['test_result_id' => $id]);
 
-            return self::SUCCESS;
-        }
+            if (! $dryRun) {
+                return self::SUCCESS;
+            }
 
-        $this->line('  [PASS] No existing ConsultCallDetails record found.');
+            $this->warn('Continuing in dry-run mode to show diagnostic info for the existing record.');
+            $this->line('');
+        } else {
+            $this->line('  [PASS] No existing ConsultCallDetails record found.');
+        }
         $this->line('');
 
         // ── Deep diagnostic: panel items ────────────────────────────────────
