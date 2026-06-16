@@ -8,6 +8,7 @@ use App\Http\Requests\ODB\ODBRequest;
 use App\Jobs\ProcessMigrationBatch;
 use App\Models\MigrationBatch;
 use App\Models\MigrationBatchItem;
+use App\Models\ConsultCall;
 use App\Models\TestResult;
 use App\Services\AIReviewService;
 use App\Services\ApiTokenService;
@@ -965,6 +966,44 @@ class BloodTestController extends Controller
                 'success' => false,
                 'message' => 'An error occurred while processing the request',
                 'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function checkConsultCall(ODBRequest $request)
+    {
+        $validated = $request->all();
+
+        try {
+            $response = [];
+            foreach ($validated as $item) {
+                $icno  = $item['icno'];
+                $refid = $item['refid'] ?? null;
+
+                $consultCall = ConsultCall::whereHas('patient', function ($q) use ($icno) {
+                    $q->where('icno', $icno);
+                })->first();
+
+                $response[] = [
+                    'icno'            => $icno,
+                    'refid'           => $refid,
+                    'is_enrolled'     => $consultCall !== null,
+                    'consult_call_id' => $consultCall ? $consultCall->id : null,
+                ];
+            }
+
+            return response()->json($response);
+        } catch (Throwable $e) {
+            Log::channel($this->getLogChannel())->error('checkConsultCall: Critical error', [
+                'error_message' => $e->getMessage(),
+                'error_file'    => $e->getFile(),
+                'error_line'    => $e->getLine(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while processing the request',
+                'error'   => $e->getMessage()
             ], 500);
         }
     }

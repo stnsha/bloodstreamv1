@@ -105,6 +105,7 @@ Route::middleware(['api.auth', 'throttle:api'])->group(function () {
         Route::post('/regenerateReviewById', 'regenerateReviewById')->name('odb.regenerateReviewById');
         Route::post('/updateReportId/{reportId}', 'updateReportId')->name('odb.updateReportId');
         Route::post('/checkVitals', 'checkVitals')->name('checkVitals');
+        Route::post('/checkConsultCall', 'checkConsultCall')->name('odb.checkConsultCall');
         Route::post('/searchReportId', 'searchReportId')->name('searchReportId');
         Route::post('/searchLabNo', 'searchLabNo')->name('searchLabNo');
         Route::post('/updateLabNo', 'updateLabNo')->name('updateLabNo');
