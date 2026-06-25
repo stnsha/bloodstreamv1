@@ -191,7 +191,7 @@ class DispatchUnreviewedResultsAsync extends Command
                         ->where('ai_reviews.processing_status', 'COMPLETED')
                         ->whereNull('ai_reviews.deleted_at');
                 })
-                ->orderBy('id', 'asc')
+                ->orderBy('id', 'desc')
                 ->limit(10)
                 ->lockForUpdate()
                 ->pluck('id')
