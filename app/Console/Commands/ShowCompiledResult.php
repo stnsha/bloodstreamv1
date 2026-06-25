@@ -5,7 +5,6 @@ namespace App\Console\Commands;
 use App\Models\TestResult;
 use App\Services\MyHealthService;
 use App\Services\TestResultCompilerService;
-use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -74,87 +73,7 @@ class ShowCompiledResult extends Command
             return self::FAILURE;
         }
 
-        // ── Health History ────────────────────────────────────────────────────
-        $this->line('--- Health History (MyHealth) ---');
-
-        $healthHistory = $compiled['Health History'] ?? [];
-
-        $this->line('  Age    : ' . ($healthHistory['Age'] ?? 'null'));
-        $this->line('  Gender : ' . ($healthHistory['Gender'] ?? 'null'));
-
-        foreach ($healthHistory as $key => $value) {
-            if ($key === 'Age' || $key === 'Gender') {
-                continue;
-            }
-
-            // Date-keyed vitals block
-            $this->line('');
-            $this->line("  Vitals on {$key}:");
-
-            if (empty($value)) {
-                $this->line('    (none)');
-                continue;
-            }
-
-            $rows = [];
-            foreach ($value as $paramName => $detail) {
-                try {
-                    $rows[] = [
-                        $paramName,
-                        $detail->result ?? 'null',
-                        $detail->unit ?? '',
-                        $detail->range ?? ($detail->min_range . ' - ' . $detail->max_range),
-                    ];
-                } catch (Exception $e) {
-                    $rows[] = [$paramName, 'error reading value', '', ''];
-                }
-            }
-
-            $this->table(['Parameter', 'Result', 'Unit', 'Range'], $rows);
-        }
-
-        if (count(array_diff_key($healthHistory, ['Age' => true, 'Gender' => true])) === 0) {
-            $this->line('  (no MyHealth vitals found within the last 14 days)');
-        }
-
-        $this->line('');
-
-        // ── Blood Test Results ────────────────────────────────────────────────
-        $this->line('--- Blood Test Results ---');
-
-        $bloodTestResults = $compiled['Blood Test Results'] ?? [];
-
-        if (empty($bloodTestResults)) {
-            $this->warn('  (no blood test result data compiled)');
-        }
-
-        foreach ($bloodTestResults as $reportDate => $panels) {
-            $this->line('');
-            $this->line("  Report Date: {$reportDate}");
-
-            foreach ($panels as $panelName => $items) {
-                $this->line('');
-                $this->line("  Panel: {$panelName}");
-
-                $rows = [];
-                foreach ($items as $item) {
-                    $comments = ! empty($item['comments']) ? implode('; ', $item['comments']) : '';
-                    $rows[] = [
-                        $item['panel_item_name'] ?? '',
-                        $item['result_value'] ?? '',
-                        $item['panel_item_unit'] ?? '',
-                        $item['result_status'] ?? '',
-                        $item['reference_range'] ?? '',
-                        $comments,
-                    ];
-                }
-
-                $this->table(
-                    ['Test', 'Value', 'Unit', 'Status', 'Reference Range', 'Comments'],
-                    $rows
-                );
-            }
-        }
+        $this->line(json_encode($compiled, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
         $this->line('');
         $this->info("Compiled result displayed for lab_no: {$labNo} (test_result_id: {$testResult->id})");
