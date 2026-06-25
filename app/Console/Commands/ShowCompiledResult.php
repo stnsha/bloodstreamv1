@@ -59,6 +59,35 @@ class ShowCompiledResult extends Command
         $this->line('  reported_date : ' . ($testResult->reported_date?->format('Y-m-d H:i:s') ?? 'null'));
         $this->line('');
 
+        $this->line('Recalculating special tests...');
+        Log::channel('ai-command')->info('ShowCompiledResult: Recalculating special tests', [
+            'lab_no' => $labNo,
+            'test_result_id' => $testResult->id,
+        ]);
+
+        $recalcExitCode = $this->callSilently('special-tests:recalculate', ['ids' => (string) $testResult->id]);
+
+        if ($recalcExitCode !== self::SUCCESS) {
+            $this->warn('Special test recalculation encountered errors. Results may be incomplete.');
+            Log::channel('ai-command')->warning('ShowCompiledResult: Special test recalculation reported failure', [
+                'lab_no' => $labNo,
+                'test_result_id' => $testResult->id,
+            ]);
+        } else {
+            $this->line('Special tests recalculated.');
+            Log::channel('ai-command')->info('ShowCompiledResult: Special tests recalculated', [
+                'lab_no' => $labNo,
+                'test_result_id' => $testResult->id,
+            ]);
+        }
+
+        $testResult->load([
+            'testResultSpecialTests.panelPanelItem.panelItem',
+            'testResultSpecialTests.panelInterpretation',
+        ]);
+
+        $this->line('');
+
         try {
             $compiler = app(TestResultCompilerService::class);
             $compiled = $compiler->compileTestResultData($testResult);
