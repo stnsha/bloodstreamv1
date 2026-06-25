@@ -82,14 +82,30 @@ class ManualReviewByIds extends Command
                 ->value('processing_status');
 
             if ($dryRun) {
-                $this->line("ID {$id}:");
-                $this->line("  is_completed  : true");
-                $this->line("  is_reviewed   : " . ($testResult->is_reviewed ? 'true (will overwrite)' : 'false'));
-                $this->line("  existing review status : " . ($existingStatus ?? 'none'));
-                $this->line("  action        : INSERT/UPDATE ai_reviews (processing_status=COMPLETED, ai_response=compiled_data)");
-                $this->line("  action        : SET test_results.is_reviewed = true");
-                $this->newLine();
-                $processed++;
+                try {
+                    $testResultModel = $this->compiler->fetchTestResult($id);
+                    $compiledData = $this->compiler->compileTestResultData($testResultModel, 'MANUAL');
+
+                    $this->line("ID {$id}:");
+                    $this->line("  is_completed         : true");
+                    $this->line("  is_reviewed          : " . ($testResult->is_reviewed ? 'true (will overwrite)' : 'false'));
+                    $this->line("  existing review      : " . ($existingStatus ?? 'none'));
+                    $this->line("  action               : INSERT/UPDATE ai_reviews with processing_status=COMPLETED");
+                    $this->line("  action               : SET test_results.is_reviewed = true");
+                    $this->newLine();
+                    $this->line("  --- compiled_data / ai_response preview ---");
+                    $this->line(json_encode($compiledData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+                    $this->newLine();
+
+                    $processed++;
+                } catch (Throwable $e) {
+                    $this->error("ID {$id}: compile failed — {$e->getMessage()}");
+                    Log::channel('ai-command')->error('Dry run compile failed', [
+                        'test_result_id' => $id,
+                        'error'          => $e->getMessage(),
+                    ]);
+                    $failed++;
+                }
                 continue;
             }
 
