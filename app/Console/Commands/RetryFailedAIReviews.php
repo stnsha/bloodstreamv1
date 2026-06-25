@@ -41,6 +41,7 @@ class RetryFailedAIReviews extends Command
             $failedErrors = AIError::where('processing_status', 'FAILED')
                 ->where('created_at', '>=', now()->subHours($hours))
                 ->where('attempt_count', '<', 3)  // Limit to less than 3 attempts
+                ->orderBy('id', 'asc')
                 ->limit($limit)
                 ->get();
 
