@@ -10,6 +10,7 @@ use App\Services\ApiTokenService;
 use App\Services\TestResultCompilerService;
 use Exception;
 use Illuminate\Bus\Queueable;
+use Illuminate\Support\Facades\Artisan;
 use Throwable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -106,6 +107,33 @@ class SendToAIServer implements ShouldQueue, ShouldBeUnique
 
             // Fetch and compile test result data
             $testResult = $compiler->fetchTestResult($this->testResultId);
+
+            // Recalculate special tests if missing before compiling for AI dispatch
+            if ($testResult->testResultSpecialTests->isEmpty()) {
+                Log::channel('job')->info('SendToAIServer: Special tests missing, recalculating before dispatch', [
+                    'test_result_id' => $this->testResultId,
+                ]);
+
+                try {
+                    Artisan::call('special-tests:recalculate', ['ids' => (string) $this->testResultId]);
+
+                    $testResult->load([
+                        'testResultSpecialTests.panelPanelItem.panelItem',
+                        'testResultSpecialTests.panelInterpretation',
+                    ]);
+
+                    Log::channel('job')->info('SendToAIServer: Special tests recalculated successfully', [
+                        'test_result_id' => $this->testResultId,
+                        'count' => $testResult->testResultSpecialTests->count(),
+                    ]);
+                } catch (Throwable $e) {
+                    Log::channel('job')->warning('SendToAIServer: Special tests recalculation failed, proceeding without', [
+                        'test_result_id' => $this->testResultId,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
             $compiledData = $compiler->compileTestResultData($testResult, 'MHJOB');
 
             // Create or update ai_reviews record with pending status (idempotent)
