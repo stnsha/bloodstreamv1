@@ -58,7 +58,8 @@ class FixNullSpecialTestsAndResetReviews extends Command
 
         $query = TestResult::whereBetween('collected_date', [$fromDate, $toDate])
             ->where('is_completed', true)
-            ->whereHas('testResultSpecialTests', fn ($q) => $q->whereNull('value'));
+            ->whereHas('testResultSpecialTests')
+            ->whereDoesntHave('testResultSpecialTests', fn ($q) => $q->whereNotNull('value'));
 
         foreach ($requiredItemIds as $panelPanelItemId) {
             $query->whereHas('testResultItems', fn ($q) => $q
