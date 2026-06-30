@@ -108,10 +108,15 @@ class SendToAIServer implements ShouldQueue, ShouldBeUnique
             // Fetch and compile test result data
             $testResult = $compiler->fetchTestResult($this->testResultId);
 
-            // Recalculate special tests if missing before compiling for AI dispatch
-            if ($testResult->testResultSpecialTests->isEmpty()) {
-                Log::channel('job')->info('SendToAIServer: Special tests missing, recalculating before dispatch', [
+            // Recalculate special tests if missing or all values are null before compiling for AI dispatch
+            $specialTests = $testResult->testResultSpecialTests;
+            $needsRecalculation = $specialTests->isEmpty()
+                || $specialTests->every(fn ($st) => is_null($st->value));
+
+            if ($needsRecalculation) {
+                Log::channel('job')->info('SendToAIServer: Special tests missing or all null, recalculating before dispatch', [
                     'test_result_id' => $this->testResultId,
+                    'existing_count' => $specialTests->count(),
                 ]);
 
                 try {
@@ -125,6 +130,7 @@ class SendToAIServer implements ShouldQueue, ShouldBeUnique
                     Log::channel('job')->info('SendToAIServer: Special tests recalculated successfully', [
                         'test_result_id' => $this->testResultId,
                         'count' => $testResult->testResultSpecialTests->count(),
+                        'non_null_count' => $testResult->testResultSpecialTests->whereNotNull('value')->count(),
                     ]);
                 } catch (Throwable $e) {
                     Log::channel('job')->warning('SendToAIServer: Special tests recalculation failed, proceeding without', [
