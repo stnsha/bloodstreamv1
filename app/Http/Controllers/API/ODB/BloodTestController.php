@@ -1074,7 +1074,8 @@ class BloodTestController extends Controller
                     'collected_date' => $testResult->collected_date ? Carbon::parse($testResult->collected_date)->format('Y-m-d') : null,
                     'reported_date' => $testResult->reported_date ? Carbon::parse($testResult->reported_date)->format('Y-m-d') : null,
                     'report_id' => $testResult->id,
-                    'is_reviewed' => $testResult->is_reviewed
+                    'is_reviewed' => $testResult->is_reviewed,
+                    'review' => $testResult->aiReview ? $testResult->aiReview->ai_response : null
                 ];
 
                 Log::channel($this->getLogChannel())->debug('searchReportId: Processing test result', [
@@ -1312,7 +1313,8 @@ class BloodTestController extends Controller
                 'collected_date' => $testResult->collected_date ? Carbon::parse($testResult->collected_date)->format('Y-m-d') : null,
                 'reported_date' => $testResult->reported_date ? Carbon::parse($testResult->reported_date)->format('Y-m-d') : null,
                 'report_id' => $testResult->id,
-                'is_reviewed' => $testResult->is_reviewed
+                'is_reviewed' => $testResult->is_reviewed,
+                'review' => $testResult->aiReview ? $testResult->aiReview->ai_response : null
             ];
 
             $processingTime = now()->diffInSeconds($processingStartTime);
