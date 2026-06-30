@@ -18,14 +18,16 @@ class FixNullSpecialTestsAndResetReviews extends Command
     protected $signature = 'special-tests:fix-null-reviews
                             {--from= : Start of collected_date range (Y-m-d), defaults to 2026-06-01}
                             {--to=   : End of collected_date range (Y-m-d), defaults to 2026-06-30}
+                            {--limit= : Maximum number of records to process (omit to process all)}
                             {--dry-run : Preview affected records without making any changes}';
 
     protected $description = 'Recalculate null special tests, reset is_reviewed=false, and soft-delete AI reviews for affected records in a collected_date range';
 
     public function handle(): int
     {
-        $from = $this->option('from') ?? '2026-06-01';
-        $to   = $this->option('to') ?? '2026-06-30';
+        $from   = $this->option('from') ?? '2026-06-01';
+        $to     = $this->option('to') ?? '2026-06-30';
+        $limit  = $this->option('limit') ? (int) $this->option('limit') : null;
         $dryRun = $this->option('dry-run');
 
         $fromDate = Carbon::parse($from)->startOfDay();
@@ -34,6 +36,7 @@ class FixNullSpecialTestsAndResetReviews extends Command
         Log::channel('ai-command')->info('FixNullSpecialTestsAndResetReviews started', [
             'from'    => $fromDate->toDateTimeString(),
             'to'      => $toDate->toDateTimeString(),
+            'limit'   => $limit ?? 'all',
             'dry_run' => $dryRun,
         ]);
 
@@ -79,12 +82,15 @@ class FixNullSpecialTestsAndResetReviews extends Command
             ->whereNotNull('value')
         );
 
+        $totalMatched = $query->count();
+
         $testResults = $query
             ->with([
                 'patient:id,icno',
                 'testResultSpecialTests',
             ])
             ->orderBy('collected_date')
+            ->when($limit, fn ($q) => $q->limit($limit))
             ->get();
 
         $count = $testResults->count();
@@ -98,7 +104,7 @@ class FixNullSpecialTestsAndResetReviews extends Command
             return Command::SUCCESS;
         }
 
-        $this->info("Found {$count} test result(s) with null special tests.");
+        $this->info("Total matched: {$totalMatched} record(s). Will process: {$count}" . ($limit ? " (limited by --limit={$limit})" : '') . '.');
         $this->line('');
 
         // Always show preview table
