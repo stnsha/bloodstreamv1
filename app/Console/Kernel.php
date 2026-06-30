@@ -32,9 +32,9 @@ class Kernel extends ConsoleKernel
 
         // Phase 2C: Dispatch any unreviewed results to the AI server
         $schedule->command('ai:dispatch-unreviewed-async')
-            ->everyFifteenMinutes()
+            ->everyTenMinutes()
             ->environments(['production'])
-            ->withoutOverlapping(18);
+            ->withoutOverlapping(8);
 
         // Dynamic CSV export queue worker — processes jobs from the 'exports' queue, exits when empty
         $schedule->command('queue:work --queue=exports --stop-when-empty --timeout=3600 --tries=1')
