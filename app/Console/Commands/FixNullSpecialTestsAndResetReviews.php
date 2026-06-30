@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Constants\Innoquest\PanelPanelItem as PanelPanelItemConstants;
 use App\Models\AIReview;
 use App\Models\TestResult;
 use Carbon\Carbon;
@@ -38,9 +39,44 @@ class FixNullSpecialTestsAndResetReviews extends Command
 
         $this->info('Querying affected test results...');
 
-        $testResults = TestResult::whereBetween('collected_date', [$fromDate, $toDate])
+        // All of these panel_panel_item_ids must exist in test_result_items with a non-null value.
+        // This excludes records where special tests are null simply because the lab parameters
+        // were not collected (incomplete panel). NFS also requires BMI from the external
+        // MyHealth service, which cannot be verified here — NFS may remain null for patients
+        // without a BMI on file even after recalculation.
+        $requiredItemIds = [
+            PanelPanelItemConstants::CRI_I,                // 32 - Tot.Chol./HDL ratio
+            PanelPanelItemConstants::CRI_II,               // 34 - LDL/HDL ratio
+            PanelPanelItemConstants::AIP,                  // 33 - Atherogenic Index of Plasma
+            PanelPanelItemConstants::TOTAL_CHOLESTEROL,    // 28 - Total Cholesterol
+            PanelPanelItemConstants::HDL,                  // 30 - HDL Cholesterol
+            PanelPanelItemConstants::AST,                  // 8  - AST
+            PanelPanelItemConstants::ALT,                  // 9  - ALT
+            PanelPanelItemConstants::ALBUMIN,              // 2  - Albumin
+            PanelPanelItemConstants::GLUCOSE_FASTING_TYPE, // 53 - Glucose collection type
+        ];
+
+        $query = TestResult::whereBetween('collected_date', [$fromDate, $toDate])
             ->where('is_completed', true)
-            ->whereHas('testResultSpecialTests', fn ($q) => $q->whereNull('value'))
+            ->whereHas('testResultSpecialTests', fn ($q) => $q->whereNull('value'));
+
+        foreach ($requiredItemIds as $panelPanelItemId) {
+            $query->whereHas('testResultItems', fn ($q) => $q
+                ->where('panel_panel_item_id', $panelPanelItemId)
+                ->whereNotNull('value')
+            );
+        }
+
+        // At least one platelet item must exist (primary 61 or alternate 166)
+        $query->whereHas('testResultItems', fn ($q) => $q
+            ->whereIn('panel_panel_item_id', [
+                PanelPanelItemConstants::PLATELETS,
+                PanelPanelItemConstants::PLATELETS_ALT,
+            ])
+            ->whereNotNull('value')
+        );
+
+        $testResults = $query
             ->with([
                 'patient:id,icno',
                 'testResultSpecialTests',
