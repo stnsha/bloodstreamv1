@@ -19,25 +19,28 @@ class FixNullSpecialTestsAndResetReviews extends Command
                             {--from= : Start of collected_date range (Y-m-d), defaults to 2026-06-01}
                             {--to=   : End of collected_date range (Y-m-d), defaults to 2026-06-30}
                             {--limit= : Maximum number of records to process (omit to process all)}
+                            {--prioritize-ref-id : Process records with a non-null ref_id first}
                             {--dry-run : Preview affected records without making any changes}';
 
     protected $description = 'Recalculate null special tests, reset is_reviewed=false, and soft-delete AI reviews for affected records in a collected_date range';
 
     public function handle(): int
     {
-        $from   = $this->option('from') ?? '2026-06-01';
-        $to     = $this->option('to') ?? '2026-06-30';
-        $limit  = $this->option('limit') ? (int) $this->option('limit') : null;
-        $dryRun = $this->option('dry-run');
+        $from            = $this->option('from') ?? '2026-06-01';
+        $to              = $this->option('to') ?? '2026-06-30';
+        $limit           = $this->option('limit') ? (int) $this->option('limit') : null;
+        $prioritizeRefId = $this->option('prioritize-ref-id');
+        $dryRun          = $this->option('dry-run');
 
         $fromDate = Carbon::parse($from)->startOfDay();
         $toDate   = Carbon::parse($to)->endOfDay();
 
         Log::channel('ai-command')->info('FixNullSpecialTestsAndResetReviews started', [
-            'from'    => $fromDate->toDateTimeString(),
-            'to'      => $toDate->toDateTimeString(),
-            'limit'   => $limit ?? 'all',
-            'dry_run' => $dryRun,
+            'from'              => $fromDate->toDateTimeString(),
+            'to'                => $toDate->toDateTimeString(),
+            'limit'             => $limit ?? 'all',
+            'prioritize_ref_id' => $prioritizeRefId,
+            'dry_run'           => $dryRun,
         ]);
 
         $this->info('Querying affected test results...');
@@ -89,6 +92,7 @@ class FixNullSpecialTestsAndResetReviews extends Command
                 'patient:id,icno',
                 'testResultSpecialTests',
             ])
+            ->when($prioritizeRefId, fn ($q) => $q->orderByRaw('ref_id IS NULL ASC'))
             ->orderBy('collected_date', 'desc')
             ->when($limit, fn ($q) => $q->limit($limit))
             ->get();
