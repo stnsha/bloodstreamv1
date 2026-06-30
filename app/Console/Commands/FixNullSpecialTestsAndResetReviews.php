@@ -58,6 +58,7 @@ class FixNullSpecialTestsAndResetReviews extends Command
 
         $query = TestResult::whereBetween('collected_date', [$fromDate, $toDate])
             ->where('is_completed', true)
+            ->where('updated_at', '<', Carbon::parse('2026-06-30 16:30:00'))
             ->whereHas('testResultSpecialTests')
             ->whereDoesntHave('testResultSpecialTests', fn ($q) => $q->whereNotNull('value'));
 
