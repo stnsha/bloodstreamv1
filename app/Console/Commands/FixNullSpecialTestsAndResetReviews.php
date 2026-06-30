@@ -89,7 +89,7 @@ class FixNullSpecialTestsAndResetReviews extends Command
                 'patient:id,icno',
                 'testResultSpecialTests',
             ])
-            ->orderBy('collected_date')
+            ->orderBy('collected_date', 'desc')
             ->when($limit, fn ($q) => $q->limit($limit))
             ->get();
 
