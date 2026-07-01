@@ -1039,9 +1039,11 @@ class BloodTestController extends Controller
             $testResults = TestResult::whereHas('patient', function ($p) use ($icno) {
                 $p->where('icno', $icno);
             })
-                ->whereHas('doctor', function ($d) use ($labId) {
-                    $d->where('lab_id', $labId);
-            })
+                ->when($labId !== null, function ($q) use ($labId) {
+                    $q->whereHas('doctor', function ($d) use ($labId) {
+                        $d->where('lab_id', $labId);
+                    });
+                })
                 ->with('aiReview')  // Eager load AI review relationship
                 ->orderBy('collected_date', 'desc')
                 ->get();
