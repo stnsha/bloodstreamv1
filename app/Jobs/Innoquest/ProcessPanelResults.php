@@ -7,6 +7,7 @@ use App\Jobs\SendToAIServer;
 use App\Models\AIReview;
 use App\Models\DeliveryFile;
 use App\Models\Doctor;
+use App\Models\IncompleteTestResult;
 use App\Models\Lab;
 use App\Models\MasterPanel;
 use App\Models\MasterPanelComment;
@@ -409,6 +410,7 @@ class ProcessPanelResults implements ShouldQueue
             if ($hasPdf && $test_result) {
                 $completeness = app(PanelCompletenessService::class)->evaluate($test_result);
                 $isPanelComplete = $completeness['is_complete'];
+                $wasReviewed = $test_result->is_reviewed;
 
                 $test_result->is_completed = $isPanelComplete;
                 $test_result->is_reviewed = false;
@@ -417,7 +419,26 @@ class ProcessPanelResults implements ShouldQueue
                 if ($isPanelComplete) {
                     // Clear any stale AI review so SendToAIServer dispatches a fresh one
                     AIReview::where('test_result_id', $test_result->id)->forceDelete();
+
+                    // If a prior delivery had flagged this incomplete, it's resolved now
+                    IncompleteTestResult::where('test_result_id', $test_result->id)->delete();
                 } else {
+                    $existingAiReview = AIReview::where('test_result_id', $test_result->id)->first();
+
+                    if ($existingAiReview) {
+                        $existingAiReview->delete();
+                    }
+
+                    IncompleteTestResult::updateOrCreate(
+                        ['test_result_id' => $test_result->id],
+                        [
+                            'expected_panel_count' => $completeness['expected_panel_count'],
+                            'actual_panel_count' => $completeness['actual_panel_count'],
+                            'was_reviewed' => $wasReviewed,
+                            'ai_review_id' => $existingAiReview->id ?? null,
+                        ]
+                    );
+
                     Log::warning('ProcessPanelResults: PDF received but panel count incomplete, is_completed set to false', [
                         'test_result_id' => $test_result->id,
                         'lab_no' => $test_result->lab_no,
