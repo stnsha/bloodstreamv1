@@ -25,6 +25,7 @@ use App\Models\TestResultProfile;
 use App\Services\ConsultCallEligibilityService;
 use App\Services\MyHealthService;
 use App\Services\OctopusApiService;
+use App\Services\PanelCompletenessService;
 use App\Services\PanelInterpretationService;
 use Carbon\Carbon;
 use DateTime;
@@ -402,15 +403,28 @@ class ProcessPanelResults implements ShouldQueue
                 }
             }
 
-            // Mark as completed if PDF received (inside transaction)
+            // Mark as completed if PDF received AND panel data is sufficient (inside transaction)
             $hasPdf = isset($validated['EncodedBase64pdf']) && filled($validated['EncodedBase64pdf']);
+            $isPanelComplete = false;
             if ($hasPdf && $test_result) {
-                $test_result->is_completed = true;
+                $completeness = app(PanelCompletenessService::class)->evaluate($test_result);
+                $isPanelComplete = $completeness['is_complete'];
+
+                $test_result->is_completed = $isPanelComplete;
                 $test_result->is_reviewed = false;
                 $test_result->save();
 
-                // Clear any stale AI review so SendToAIServer dispatches a fresh one
-                AIReview::where('test_result_id', $test_result->id)->forceDelete();
+                if ($isPanelComplete) {
+                    // Clear any stale AI review so SendToAIServer dispatches a fresh one
+                    AIReview::where('test_result_id', $test_result->id)->forceDelete();
+                } else {
+                    Log::warning('ProcessPanelResults: PDF received but panel count incomplete, is_completed set to false', [
+                        'test_result_id' => $test_result->id,
+                        'lab_no' => $test_result->lab_no,
+                        'expected_panel_count' => $completeness['expected_panel_count'],
+                        'actual_panel_count' => $completeness['actual_panel_count'],
+                    ]);
+                }
             }
 
             DB::commit();
@@ -509,7 +523,7 @@ class ProcessPanelResults implements ShouldQueue
             }
 
             // Calculate special tests OUTSIDE transaction (queries external DB)
-            if ($hasPdf && $test_result) {
+            if ($hasPdf && $isPanelComplete && $test_result) {
                 try {
                     Log::info('Starting special test calculation', [
                         'test_result_id' => $test_result->id,
@@ -530,15 +544,25 @@ class ProcessPanelResults implements ShouldQueue
                         'line' => $e->getLine(),
                     ]);
                 }
+            } elseif ($hasPdf && ! $isPanelComplete && $test_result) {
+                Log::info('Special test calculation skipped: incomplete panel count', [
+                    'test_result_id' => $test_result->id,
+                    'lab_no' => $test_result->lab_no,
+                ]);
             }
 
-            // Dispatch to AI server queue if PDF was received
-            if (isset($validated['EncodedBase64pdf']) && filled($validated['EncodedBase64pdf']) && $test_result && $test_result->id) {
+            // Dispatch to AI server queue if PDF was received and panel data is sufficient
+            if ($hasPdf && $isPanelComplete && $test_result && $test_result->id) {
                 $this->dispatchAIReview($test_result);
+            } elseif ($hasPdf && ! $isPanelComplete && $test_result && $test_result->id) {
+                Log::info('AI dispatch skipped: incomplete panel count', [
+                    'test_result_id' => $test_result->id,
+                    'lab_no' => $test_result->lab_no,
+                ]);
             }
 
             // Consult call eligibility check (requires completed result with PDF)
-            if ($hasPdf && $test_result && $test_result->id && $patient_id) {
+            if ($hasPdf && $isPanelComplete && $test_result && $test_result->id && $patient_id) {
                 try {
                     // Gate 1: collected_date must be on or after 2026-03-08
                     $collectedDateForConsult = $test_result->collected_date ?? $test_result->reported_date;
@@ -591,6 +615,11 @@ class ProcessPanelResults implements ShouldQueue
                         'line' => $e->getLine(),
                     ]);
                 }
+            } elseif ($hasPdf && ! $isPanelComplete && $test_result && $test_result->id && $patient_id) {
+                Log::info('Consult call eligibility check skipped: incomplete panel count', [
+                    'test_result_id' => $test_result->id,
+                    'lab_no' => $test_result->lab_no,
+                ]);
             }
 
             return [

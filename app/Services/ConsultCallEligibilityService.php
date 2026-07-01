@@ -21,10 +21,16 @@ class ConsultCallEligibilityService
 
     protected MyHealthService $myHealthService;
 
-    public function __construct(ConditionEvaluatorService $conditionEvaluator, MyHealthService $myHealthService)
-    {
+    protected PanelCompletenessService $panelCompletenessService;
+
+    public function __construct(
+        ConditionEvaluatorService $conditionEvaluator,
+        MyHealthService $myHealthService,
+        PanelCompletenessService $panelCompletenessService
+    ) {
         $this->conditionEvaluator = $conditionEvaluator;
         $this->myHealthService = $myHealthService;
+        $this->panelCompletenessService = $panelCompletenessService;
     }
 
     /**
@@ -48,6 +54,33 @@ class ConsultCallEligibilityService
         if (ConsultCallDetails::where('test_result_id', $testResult->id)->exists()) {
             Log::info('ConsultCallEligibilityService: Skipping, ConsultCallDetails already exists for test result', [
                 'test_result_id' => $testResult->id,
+            ]);
+
+            return;
+        }
+
+        // Panel completeness guard: do not enroll if the panel count is incomplete
+        $completeness = $this->panelCompletenessService->evaluate($testResult);
+
+        if ($completeness['applicable'] && ! $completeness['is_complete']) {
+            Log::info('ConsultCallEligibilityService: Skipping, incomplete panel count', [
+                'test_result_id' => $testResult->id,
+                'expected_panel_count' => $completeness['expected_panel_count'],
+                'actual_panel_count' => $completeness['actual_panel_count'],
+            ]);
+
+            return;
+        }
+
+        // Special test guard: do not enroll if special tests have not been recalculated (all null)
+        $specialTests = $testResult->testResultSpecialTests;
+        $specialTestsNotRecalculated = $specialTests->isEmpty()
+            || $specialTests->every(fn ($st) => is_null($st->value));
+
+        if ($specialTestsNotRecalculated) {
+            Log::info('ConsultCallEligibilityService: Skipping, special tests not recalculated', [
+                'test_result_id' => $testResult->id,
+                'special_tests_count' => $specialTests->count(),
             ]);
 
             return;
