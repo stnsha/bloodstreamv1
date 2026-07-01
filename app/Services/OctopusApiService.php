@@ -481,6 +481,69 @@ class OctopusApiService
     }
 
     /**
+     * Get the count of blood_test_item rows for the invoice linked to a test result.
+     * Looked up either by blood_test_sales.id (ref_id, lab code prefix already stripped)
+     * or, when ref_id is unavailable, by patient IC + campaign month/year.
+     *
+     * @param string|null $refId Numeric blood_test_sales.id with lab code prefix stripped, or null
+     * @param string $icno Patient IC number (used when $refId is null)
+     * @param int $month Collected date month (1-12), used when $refId is null
+     * @param int $year Collected date year, used when $refId is null
+     * @return int|null Item count, or null if no matching invoice was found
+     * @throws Exception
+     */
+    public function getBloodTestItemCount(?string $refId, string $icno, int $month, int $year): ?int
+    {
+        Log::info('OctopusApiService: Fetching blood test item count', [
+            'ref_id' => $refId,
+            'icno' => $icno,
+            'month' => $month,
+            'year' => $year,
+        ]);
+
+        $data = [
+            'username' => $this->username,
+            'password' => $this->password,
+            'ref_id' => $refId ?? '',
+            'icno' => $icno,
+            'month' => $month,
+            'year' => $year,
+        ];
+
+        try {
+            $result = $this->callAPI('POST', '/bloodTestItemCount.php', $data);
+
+            if (($result['status'] ?? '') !== 'success' || !isset($result['count'])) {
+                Log::info('OctopusApiService: Blood test item count not found', [
+                    'ref_id' => $refId,
+                    'icno' => $icno,
+                    'message' => $result['message'] ?? null,
+                ]);
+
+                return null;
+            }
+
+            Log::info('OctopusApiService: Blood test item count fetched successfully', [
+                'ref_id' => $refId,
+                'icno' => $icno,
+                'count' => $result['count'],
+                'blood_test_sales_id' => $result['blood_test_sales_id'] ?? null,
+            ]);
+
+            return (int) $result['count'];
+
+        } catch (Exception $e) {
+            Log::error('OctopusApiService: Blood test item count lookup exception', [
+                'error' => $e->getMessage(),
+                'ref_id' => $refId,
+                'icno' => $icno,
+            ]);
+
+            throw $e;
+        }
+    }
+
+    /**
      * Test API connection.
      *
      * @return bool True if connection is successful

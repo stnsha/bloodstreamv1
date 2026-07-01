@@ -5,36 +5,45 @@ namespace App\Services;
 use App\Models\AIReview;
 use App\Models\IncompleteTestResult;
 use App\Models\PanelPanelProfile;
+use App\Models\PanelProfilesCount;
 use App\Models\TestResult;
 use App\Models\TestResultItem;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class PanelCompletenessService
 {
-    /**
-     * Minimum number of distinct panels that must be present in
-     * test_result_items for a TestResult to be considered truly complete,
-     * regardless of how many panels its linked profiles expect.
-     */
-    private const COMPLETE_PANEL_THRESHOLD = 8;
+    protected OctopusApiService $octopusApi;
+
+    public function __construct(OctopusApiService $octopusApi)
+    {
+        $this->octopusApi = $octopusApi;
+    }
 
     /**
      * Compare the panels a TestResult is expected to have (via its linked
      * panel profiles) against the panels actually present in its
      * test_result_items, without making any changes.
      *
-     * Completeness is decided by a flat threshold on actual_panel_count
-     * (>= 8 is considered complete), not by matching every expected panel —
-     * expected_panel_count/missing_panel_ids are returned for diagnostics
-     * only.
+     * First cross-checks test_result_profiles count against ODB's invoice
+     * item count (blood_test_sales/blood_test_item) — a mismatch means a
+     * whole profile never arrived, regardless of panel count. If that check
+     * matches (or can't be performed — fail-open), completeness is decided
+     * by comparing actual_panel_count against expected_panel_count, where
+     * expected_panel_count is the sum of panel_profiles_count.count for
+     * every linked panel_profile_id (0 for any profile with no row there —
+     * that table is manually maintained/correctable, not derived live from
+     * panel_panel_profiles on every call). missing_panel_ids is still
+     * derived from panel_panel_profiles for diagnostic purposes only.
      *
-     * @return array{applicable: bool, is_complete: bool, expected_panel_count: int, actual_panel_count: int, missing_panel_ids: \Illuminate\Support\Collection}
+     * @return array{applicable: bool, is_complete: bool, expected_panel_count: int, actual_panel_count: int, missing_panel_ids: \Illuminate\Support\Collection, invoice_item_count: int|null, test_result_profiles_count: int}
      */
     public function evaluate(TestResult $testResult): array
     {
         $panelProfileIds = $testResult->testResultProfiles()->pluck('panel_profile_id')->unique();
+        $testResultProfilesCount = $panelProfileIds->count();
 
         if ($panelProfileIds->isEmpty()) {
             return [
@@ -43,6 +52,8 @@ class PanelCompletenessService
                 'expected_panel_count' => 0,
                 'actual_panel_count' => 0,
                 'missing_panel_ids' => collect(),
+                'invoice_item_count' => null,
+                'test_result_profiles_count' => $testResultProfilesCount,
             ];
         }
 
@@ -59,14 +70,71 @@ class PanelCompletenessService
 
         $missingPanelIds = $expectedPanelIds->diff($actualPanelIds)->values();
         $actualPanelCount = $actualPanelIds->count();
+        $expectedPanelCount = (int) PanelProfilesCount::whereIn('panel_profile_id', $panelProfileIds)->sum('count');
 
+        $invoiceItemCount = $this->fetchInvoiceItemCount($testResult);
+
+        if ($invoiceItemCount !== null && $invoiceItemCount !== $testResultProfilesCount) {
+            return [
+                'applicable' => true,
+                'is_complete' => false,
+                'expected_panel_count' => $expectedPanelCount,
+                'actual_panel_count' => $actualPanelCount,
+                'missing_panel_ids' => $missingPanelIds,
+                'invoice_item_count' => $invoiceItemCount,
+                'test_result_profiles_count' => $testResultProfilesCount,
+            ];
+        }
+
+        // expected_panel_count = 0 means panel_profiles_count has no row for this
+        // profile yet (not manually populated) — treat as incomplete rather than
+        // trivially "satisfied" by any actual count, so it surfaces for review.
         return [
             'applicable' => true,
-            'is_complete' => $actualPanelCount >= self::COMPLETE_PANEL_THRESHOLD,
-            'expected_panel_count' => $expectedPanelIds->count(),
+            'is_complete' => $expectedPanelCount > 0 && $actualPanelCount >= $expectedPanelCount,
+            'expected_panel_count' => $expectedPanelCount,
             'actual_panel_count' => $actualPanelCount,
             'missing_panel_ids' => $missingPanelIds,
+            'invoice_item_count' => $invoiceItemCount,
+            'test_result_profiles_count' => $testResultProfilesCount,
         ];
+    }
+
+    /**
+     * Fetch the ODB invoice item count for this TestResult via OctopusApiService.
+     * Fail-open: any lookup failure (no ref_id/icno, ODB unreachable, no match)
+     * returns null so evaluate() falls back to the panel-count threshold alone.
+     */
+    private function fetchInvoiceItemCount(TestResult $testResult): ?int
+    {
+        try {
+            $labCode = $testResult->doctor->lab->code ?? null;
+            $rawRefId = $testResult->ref_id;
+            $refId = null;
+
+            if ($rawRefId && $labCode && stripos($rawRefId, $labCode) === 0) {
+                $refId = substr($rawRefId, strlen($labCode));
+            }
+
+            $icno = $testResult->patient->icno ?? '';
+            $referenceDate = $testResult->collected_date ?? $testResult->reported_date;
+
+            if (!$refId && !$icno) {
+                return null;
+            }
+
+            $month = $referenceDate ? Carbon::parse($referenceDate)->month : 0;
+            $year = $referenceDate ? Carbon::parse($referenceDate)->year : 0;
+
+            return $this->octopusApi->getBloodTestItemCount($refId, $icno, $month, $year);
+        } catch (Throwable $e) {
+            Log::warning('PanelCompletenessService: invoice item count lookup failed, falling back to panel-count threshold only', [
+                'test_result_id' => $testResult->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
     }
 
     /**
