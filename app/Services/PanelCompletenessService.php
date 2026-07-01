@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AIReview;
 use App\Models\IncompleteTestResult;
 use App\Models\PanelPanelProfile;
 use App\Models\TestResult;
@@ -92,6 +93,8 @@ class PanelCompletenessService
                     'actual_panel_count' => $actualPanelCount,
                 ]
             );
+
+            AIReview::where('test_result_id', $testResult->id)->delete();
 
             DB::commit();
 
