@@ -10,7 +10,6 @@ use App\Services\ApiTokenService;
 use App\Services\TestResultCompilerService;
 use Exception;
 use Illuminate\Bus\Queueable;
-use Illuminate\Support\Facades\Artisan;
 use Throwable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -109,36 +108,7 @@ class SendToAIServer implements ShouldQueue, ShouldBeUnique
             $testResult = $compiler->fetchTestResult($this->testResultId);
 
             // Recalculate special tests if missing or all values are null before compiling for AI dispatch
-            $specialTests = $testResult->testResultSpecialTests;
-            $needsRecalculation = $specialTests->isEmpty()
-                || $specialTests->every(fn ($st) => is_null($st->value));
-
-            if ($needsRecalculation) {
-                Log::channel('job')->info('SendToAIServer: Special tests missing or all null, recalculating before dispatch', [
-                    'test_result_id' => $this->testResultId,
-                    'existing_count' => $specialTests->count(),
-                ]);
-
-                try {
-                    Artisan::call('special-tests:recalculate', ['ids' => (string) $this->testResultId]);
-
-                    $testResult->load([
-                        'testResultSpecialTests.panelPanelItem.panelItem',
-                        'testResultSpecialTests.panelInterpretation',
-                    ]);
-
-                    Log::channel('job')->info('SendToAIServer: Special tests recalculated successfully', [
-                        'test_result_id' => $this->testResultId,
-                        'count' => $testResult->testResultSpecialTests->count(),
-                        'non_null_count' => $testResult->testResultSpecialTests->whereNotNull('value')->count(),
-                    ]);
-                } catch (Throwable $e) {
-                    Log::channel('job')->warning('SendToAIServer: Special tests recalculation failed, proceeding without', [
-                        'test_result_id' => $this->testResultId,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            }
+            $testResult = $compiler->ensureSpecialTestsCalculated($testResult);
 
             $compiledData = $compiler->compileTestResultData($testResult, 'MHJOB');
 

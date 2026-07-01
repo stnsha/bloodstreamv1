@@ -72,6 +72,10 @@ class SendToAIServerTesting implements ShouldQueue
             }
 
             $testResult = $compiler->fetchTestResult($this->testResultId);
+
+            // Recalculate special tests if missing or all values are null before compiling for AI dispatch
+            $testResult = $compiler->ensureSpecialTestsCalculated($testResult);
+
             $compiledData = $compiler->compileTestResultData($testResult, 'LOCAL_TESTING');
 
             $aiReview = DB::transaction(function () use ($compiledData) {

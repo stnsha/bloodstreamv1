@@ -7,8 +7,10 @@ use App\Models\ResultLibrary;
 use App\Models\TestResult;
 use Carbon\Carbon;
 use Exception;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
+use Throwable;
 
 class TestResultCompilerService
 {
@@ -57,6 +59,48 @@ class TestResultCompilerService
         }
 
         return $tr;
+    }
+
+    /**
+     * Recalculate special tests if the record is missing rows or all values are null,
+     * so a 7/7-null special tests payload is never sent to the AI server.
+     */
+    public function ensureSpecialTestsCalculated(TestResult $testResult): TestResult
+    {
+        $specialTests = $testResult->testResultSpecialTests;
+        $needsRecalculation = $specialTests->isEmpty()
+            || $specialTests->every(fn ($st) => is_null($st->value));
+
+        if (!$needsRecalculation) {
+            return $testResult;
+        }
+
+        Log::channel($this->logChannel)->info('Special tests missing or all null, recalculating before AI dispatch', [
+            'test_result_id' => $testResult->id,
+            'existing_count' => $specialTests->count(),
+        ]);
+
+        try {
+            Artisan::call('special-tests:recalculate', ['ids' => (string) $testResult->id]);
+
+            $testResult->load([
+                'testResultSpecialTests.panelPanelItem.panelItem',
+                'testResultSpecialTests.panelInterpretation',
+            ]);
+
+            Log::channel($this->logChannel)->info('Special tests recalculated successfully', [
+                'test_result_id' => $testResult->id,
+                'count' => $testResult->testResultSpecialTests->count(),
+                'non_null_count' => $testResult->testResultSpecialTests->whereNotNull('value')->count(),
+            ]);
+        } catch (Throwable $e) {
+            Log::channel($this->logChannel)->warning('Special tests recalculation failed, proceeding without', [
+                'test_result_id' => $testResult->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $testResult;
     }
 
     /**
