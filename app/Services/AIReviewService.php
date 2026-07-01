@@ -21,18 +21,21 @@ class AIReviewService
     protected $apiClient;
     protected $htmlGenerator;
     protected $apiTokenService;
+    protected $panelCompletenessService;
     protected $logChannel;
 
     public function __construct(
         TestResultCompilerService $compiler,
         AIApiClient $apiClient,
         ReviewHtmlGenerator $htmlGenerator,
-        ApiTokenService $apiTokenService
+        ApiTokenService $apiTokenService,
+        PanelCompletenessService $panelCompletenessService
     ) {
         $this->compiler = $compiler;
         $this->apiClient = $apiClient;
         $this->htmlGenerator = $htmlGenerator;
         $this->apiTokenService = $apiTokenService;
+        $this->panelCompletenessService = $panelCompletenessService;
         $this->logChannel = $this->determineLogChannel();
     }
 
@@ -69,6 +72,15 @@ class AIReviewService
         $compiledData = [];
 
         $source != null ? $source : 'Unknown';
+
+        $testResultCheck = TestResult::find($testResultId);
+        if ($testResultCheck && !$this->panelCompletenessService->checkAndHandle($testResultCheck)) {
+            Log::channel($this->logChannel)->warning('AIReviewService: incomplete panel data, is_completed reverted, skipping', [
+                'test_result_id' => $testResultId,
+            ]);
+
+            return new AIReviewResult($testResultId, null, false, 'Test result has incomplete panel data.');
+        }
 
         try {
             return DB::transaction(function () use ($testResultId, $source, $token, &$compiledData) {

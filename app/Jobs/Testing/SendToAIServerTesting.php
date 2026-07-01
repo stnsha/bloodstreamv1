@@ -6,6 +6,7 @@ use App\Models\AIError;
 use App\Models\AIReview;
 use App\Models\TestResult;
 use App\Services\ApiTokenService;
+use App\Services\PanelCompletenessService;
 use App\Services\TestResultCompilerService;
 use Exception;
 use Illuminate\Bus\Queueable;
@@ -36,7 +37,8 @@ class SendToAIServerTesting implements ShouldQueue
 
     public function handle(
         TestResultCompilerService $compiler,
-        ApiTokenService $apiTokenService
+        ApiTokenService $apiTokenService,
+        PanelCompletenessService $panelCompletenessService
     ): void {
         $startTime = microtime(true);
         $startMemory = memory_get_usage();
@@ -59,6 +61,14 @@ class SendToAIServerTesting implements ShouldQueue
 
             if ($testResult->is_reviewed) {
                 Log::info('SendToAIServerTesting: Test result already reviewed, skipping', [
+                    'test_result_id' => $this->testResultId,
+                ]);
+
+                return;
+            }
+
+            if (!$panelCompletenessService->checkAndHandle($testResult)) {
+                Log::warning('SendToAIServerTesting: incomplete panel data, is_completed reverted, skipping', [
                     'test_result_id' => $this->testResultId,
                 ]);
 

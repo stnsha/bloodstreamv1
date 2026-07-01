@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Constants\Innoquest\PanelPanelItem as PanelPanelItemConstants;
 use App\Models\TestResult;
 use App\Services\MyHealthService;
+use App\Services\PanelCompletenessService;
 use App\Services\PanelInterpretationService;
 use Carbon\Carbon;
 use Exception;
@@ -44,6 +45,7 @@ class RecalculateSpecialTests extends Command
 
         $panelInterpretationService = app(PanelInterpretationService::class);
         $myHealthService = app(MyHealthService::class);
+        $panelCompletenessService = app(PanelCompletenessService::class);
 
         if ($from && $to) {
             $fromDate = Carbon::parse($from)->startOfDay();
@@ -100,6 +102,14 @@ class RecalculateSpecialTests extends Command
 
         foreach ($testResults as $testResult) {
             Log::info('RecalculateSpecialTests: processing record', ['test_result_id' => $testResult->id]);
+
+            if (!$panelCompletenessService->checkAndHandle($testResult)) {
+                $rows[] = [$testResult->id, 'SKIPPED', 'Incomplete panel data'];
+
+                Log::warning('RecalculateSpecialTests: skipped incomplete record', ['test_result_id' => $testResult->id]);
+
+                continue;
+            }
 
             try {
                 DB::beginTransaction();
