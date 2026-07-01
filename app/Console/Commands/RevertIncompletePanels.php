@@ -17,7 +17,7 @@ class RevertIncompletePanels extends Command
                             {--limit= : Maximum number of records to process (omit to process all)}
                             {--dry-run : Preview affected records without making any changes}';
 
-    protected $description = 'Recheck records in incomplete_test_results; if all expected panels have since arrived, restore is_completed=true and remove them from incomplete_test_results';
+    protected $description = 'Undo a previous panels:recheck-incomplete revert: restore is_completed, is_reviewed, and the soft-deleted ai_reviews row to their original state, and remove the incomplete_test_results row. Does not re-check current panel data.';
 
     public function handle(PanelCompletenessService $panelCompletenessService): int
     {
@@ -36,7 +36,7 @@ class RevertIncompletePanels extends Command
             'dry_run' => $dryRun,
         ]);
 
-        $this->info('Querying incomplete_test_results to recheck...');
+        $this->info('Querying incomplete_test_results to revert...');
 
         $query = IncompleteTestResult::whereBetween('created_at', [$fromDate, $toDate])
             ->with(['testResult.patient:id,icno']);
@@ -60,68 +60,63 @@ class RevertIncompletePanels extends Command
             return Command::SUCCESS;
         }
 
-        $this->info("Total matched: {$totalMatched} record(s). Will check: {$count}" . ($limit ? " (limited by --limit={$limit})" : '') . '.');
+        $this->info("Total matched: {$totalMatched} record(s). Will revert: {$count}" . ($limit ? " (limited by --limit={$limit})" : '') . '.');
         $this->line('');
 
         $previewRows = [];
-        $resolvableCount = 0;
-        $testResultsById = [];
+        $revertibleRecords = [];
 
         foreach ($incompleteRecords as $record) {
             $testResult = $record->testResult;
 
             if (! $testResult) {
-                $previewRows[] = [$record->test_result_id, 'N/A', 'N/A', 'N/A', $record->expected_panel_count, $record->actual_panel_count, 'TEST RESULT NOT FOUND'];
+                $previewRows[] = [$record->test_result_id, 'N/A', 'N/A', 'N/A', $record->was_reviewed ? 'Yes' : 'No', $record->created_at->format('Y-m-d H:i'), 'TEST RESULT NOT FOUND'];
                 continue;
             }
 
-            $testResultsById[$testResult->id] = $testResult;
-            $result = $panelCompletenessService->evaluate($testResult);
-
-            if ($result['is_complete']) {
-                $resolvableCount++;
-            }
+            $revertibleRecords[] = ['record' => $record, 'testResult' => $testResult];
 
             $previewRows[] = [
                 $testResult->id,
                 $testResult->lab_no ?? 'N/A',
                 $testResult->collected_date ? $testResult->collected_date->format('Y-m-d') : 'N/A',
                 $testResult->patient->icno ?? 'N/A',
-                $result['expected_panel_count'],
-                $result['actual_panel_count'],
-                $result['is_complete'] ? 'NOW COMPLETE' : 'STILL INCOMPLETE',
+                $record->was_reviewed ? 'Yes' : 'No',
+                $record->created_at->format('Y-m-d H:i'),
+                'WILL REVERT',
             ];
         }
 
         // Always show preview table
         $this->table(
-            ['Test Result ID', 'Lab No', 'Collected Date', 'Patient IC', 'Expected Panels', 'Actual Panels', 'Status'],
+            ['Test Result ID', 'Lab No', 'Collected Date', 'Patient IC', 'Was Reviewed', 'Flagged At', 'Status'],
             $previewRows
         );
 
-        $this->info("Found {$resolvableCount} record(s) now complete out of {$count} checked.");
+        $revertibleCount = count($revertibleRecords);
+        $this->info("{$revertibleCount} record(s) will be reverted out of {$count} matched.");
 
         if ($dryRun) {
             $this->line('');
             $this->info('DRY RUN — no changes made.');
             Log::channel('ai-command')->info('RevertIncompletePanels: dry run completed', [
-                'checked_count' => $count,
-                'resolvable_count' => $resolvableCount,
+                'matched_count' => $count,
+                'revertible_count' => $revertibleCount,
             ]);
 
             return Command::SUCCESS;
         }
 
-        if ($resolvableCount === 0) {
-            Log::channel('ai-command')->info('RevertIncompletePanels: no records ready to resolve', [
-                'checked_count' => $count,
+        if ($revertibleCount === 0) {
+            Log::channel('ai-command')->info('RevertIncompletePanels: nothing revertible', [
+                'matched_count' => $count,
             ]);
 
             return Command::SUCCESS;
         }
 
         $this->line('');
-        if (!$this->confirm("Proceed with resolving {$resolvableCount} record(s)? This will set is_completed=true and remove them from incomplete_test_results.")) {
+        if (!$this->confirm("Proceed with reverting {$revertibleCount} record(s) back to their original state? This restores is_completed, is_reviewed, and any soft-deleted AI review, and removes them from incomplete_test_results.")) {
             $this->info('Operation cancelled.');
             Log::channel('ai-command')->info('RevertIncompletePanels: cancelled by user');
 
@@ -129,28 +124,30 @@ class RevertIncompletePanels extends Command
         }
 
         $startTime = microtime(true);
-        $resolved = 0;
+        $reverted = 0;
         $failed = 0;
         $resultRows = [];
 
-        foreach ($testResultsById as $testResult) {
+        foreach ($revertibleRecords as $entry) {
+            $testResult = $entry['testResult'];
+
             Log::channel('ai-command')->info('RevertIncompletePanels: processing record', [
                 'test_result_id' => $testResult->id,
             ]);
 
             try {
-                $wasResolved = $panelCompletenessService->resolve($testResult);
+                $wasUndone = $panelCompletenessService->undo($testResult);
 
-                if ($wasResolved) {
-                    $resolved++;
-                    $resultRows[] = [$testResult->id, 'RESOLVED', '-'];
+                if ($wasUndone) {
+                    $reverted++;
+                    $resultRows[] = [$testResult->id, 'REVERTED', '-'];
                 } else {
-                    $resultRows[] = [$testResult->id, 'STILL INCOMPLETE', '-'];
+                    $resultRows[] = [$testResult->id, 'SKIPPED', 'Nothing to undo'];
                 }
 
                 Log::channel('ai-command')->info('RevertIncompletePanels: record completed', [
                     'test_result_id' => $testResult->id,
-                    'resolved' => $wasResolved,
+                    'reverted' => $wasUndone,
                 ]);
             } catch (Throwable $e) {
                 $failed++;
@@ -170,19 +167,15 @@ class RevertIncompletePanels extends Command
         $this->line('');
         $this->table(['Test Result ID', 'Status', 'Error'], $resultRows);
         $this->line('');
-        $this->info("Done. Resolved: {$resolved}, Failed: {$failed}, Duration: {$duration}s.");
-
-        if ($resolved > 0) {
-            $this->info('Resolved records are now eligible for AI dispatch via ai:dispatch-unreviewed-async.');
-        }
+        $this->info("Done. Reverted: {$reverted}, Failed: {$failed}, Duration: {$duration}s.");
 
         Log::channel('ai-command')->info('RevertIncompletePanels completed', [
-            'checked_count' => $count,
-            'resolved' => $resolved,
+            'matched_count' => $count,
+            'reverted' => $reverted,
             'failed' => $failed,
             'duration_seconds' => $duration,
         ]);
 
-        return $failed > 0 && $resolved === 0 ? Command::FAILURE : Command::SUCCESS;
+        return $failed > 0 && $reverted === 0 ? Command::FAILURE : Command::SUCCESS;
     }
 }

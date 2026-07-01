@@ -14,12 +14,16 @@ class IncompleteTestResult extends Model
         'test_result_id',
         'expected_panel_count',
         'actual_panel_count',
+        'was_reviewed',
+        'ai_review_id',
     ];
 
     protected $casts = [
         'test_result_id' => 'integer',
         'expected_panel_count' => 'integer',
         'actual_panel_count' => 'integer',
+        'was_reviewed' => 'boolean',
+        'ai_review_id' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -27,5 +31,10 @@ class IncompleteTestResult extends Model
     public function testResult(): BelongsTo
     {
         return $this->belongsTo(TestResult::class);
+    }
+
+    public function aiReview(): BelongsTo
+    {
+        return $this->belongsTo(AIReview::class, 'ai_review_id')->withTrashed();
     }
 }
