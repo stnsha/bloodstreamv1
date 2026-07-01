@@ -84,6 +84,7 @@ class PanelCompletenessService
             DB::beginTransaction();
 
             $testResult->is_completed = false;
+            $testResult->is_reviewed = false;
             $testResult->save();
 
             IncompleteTestResult::updateOrCreate(
@@ -115,5 +116,48 @@ class PanelCompletenessService
         }
 
         return false;
+    }
+
+    /**
+     * Re-evaluate a TestResult previously recorded in incomplete_test_results.
+     * If all expected panels are now present, restore is_completed to true
+     * and remove the incomplete_test_results row.
+     *
+     * @return bool true if the TestResult is now complete and was restored,
+     *              false if it is still missing panels.
+     */
+    public function resolve(TestResult $testResult): bool
+    {
+        $result = $this->evaluate($testResult);
+
+        if (! $result['applicable'] || ! $result['is_complete']) {
+            return false;
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $testResult->is_completed = true;
+            $testResult->save();
+
+            IncompleteTestResult::where('test_result_id', $testResult->id)->delete();
+
+            DB::commit();
+
+            Log::info('PanelCompletenessService: test result now complete, incomplete flag cleared', [
+                'test_result_id' => $testResult->id,
+            ]);
+        } catch (Throwable $e) {
+            DB::rollBack();
+
+            Log::error('PanelCompletenessService: failed to resolve incomplete test result', [
+                'test_result_id' => $testResult->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
+
+        return true;
     }
 }
