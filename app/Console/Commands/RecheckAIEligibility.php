@@ -106,12 +106,13 @@ class RecheckAIEligibility extends Command
                 $result['actual_panel_count'],
                 $result['final_is_complete'] ? 'OK' : 'INELIGIBLE',
                 $result['reason'] ?? '-',
+                $result['missing_details'] ?? '-',
             ];
         }
 
         // Always show preview table
         $this->table(
-            ['ID', 'Lab No', 'Collected Date', 'Patient IC', 'Has Profile', 'Expected Panels', 'Actual Panels', 'Status', 'Reason'],
+            ['ID', 'Lab No', 'Collected Date', 'Patient IC', 'Has Profile', 'Expected Panels', 'Actual Panels', 'Status', 'Reason', 'Missing Details'],
             $previewRows
         );
 

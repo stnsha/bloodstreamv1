@@ -17,6 +17,7 @@ class IncompleteTestResult extends Model
         'was_reviewed',
         'ai_review_id',
         'reason',
+        'missing_details',
     ];
 
     protected $casts = [

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Constants\Innoquest\PanelPanelItem as PanelPanelItemConstants;
 use App\Models\AIReview;
 use App\Models\IncompleteTestResult;
+use App\Models\Panel;
 use App\Models\PanelPanelProfile;
 use App\Models\PanelProfilesCount;
 use App\Models\TestResult;
@@ -23,6 +24,24 @@ class PanelCompletenessService
      * never keep a genuinely complete record flagged incomplete).
      */
     public const COMPLETE_PANEL_THRESHOLD = 8;
+
+    /**
+     * Human-readable labels for the special-test formulas' raw
+     * test_result_items inputs, used to build missing_details when
+     * missingSpecialTestParameters() finds a gap. Platelets is handled
+     * separately since it has two alternate item ids.
+     */
+    private const SPECIAL_TEST_PARAMETER_LABELS = [
+        PanelPanelItemConstants::CRI_I => 'CRI-I',
+        PanelPanelItemConstants::CRI_II => 'CRI-II',
+        PanelPanelItemConstants::AIP => 'AIP',
+        PanelPanelItemConstants::TOTAL_CHOLESTEROL => 'Total Cholesterol',
+        PanelPanelItemConstants::HDL => 'HDL',
+        PanelPanelItemConstants::AST => 'AST',
+        PanelPanelItemConstants::ALT => 'ALT',
+        PanelPanelItemConstants::ALBUMIN => 'Albumin',
+        PanelPanelItemConstants::GLUCOSE_FASTING_TYPE => 'Glucose Fasting Type',
+    ];
 
     protected OctopusApiService $octopusApi;
 
@@ -197,7 +216,8 @@ class PanelCompletenessService
             return true;
         }
 
-        $this->recordIncomplete($testResult, $result, $this->resolveIncompleteReason($result));
+        $reason = $this->resolveIncompleteReason($result);
+        $this->recordIncomplete($testResult, $result, $reason, $this->missingDetailsForReason($testResult, $result, $reason));
 
         return false;
     }
@@ -217,6 +237,27 @@ class PanelCompletenessService
     }
 
     /**
+     * Build a short human-readable explanation of what's missing for a
+     * given evaluate()-derived reason. 'special_tests_missing_parameters'
+     * is built directly in evaluateFull() instead, since that's the one
+     * place with the missing-parameter list already in hand.
+     */
+    private function missingDetailsForReason(TestResult $testResult, array $result, string $reason): ?string
+    {
+        if ($reason === 'panel_count' && $result['missing_panel_ids']->isNotEmpty()) {
+            $names = Panel::whereIn('id', $result['missing_panel_ids'])->pluck('name');
+
+            return 'Missing panels: '.$names->implode(', ');
+        }
+
+        if ($reason === 'invoice_mismatch') {
+            return "ODB invoice items: {$result['invoice_item_count']}, test_result_profiles: {$result['test_result_profiles_count']}";
+        }
+
+        return null;
+    }
+
+    /**
      * Revert is_completed to false (if currently true) and record the
      * mismatch in incomplete_test_results for later investigation. Shared by
      * checkAndHandle() (demoting a previously-complete record) and resolve()
@@ -224,7 +265,7 @@ class PanelCompletenessService
      * place, including the special-test-parameters reason which has no
      * evaluate()-derived equivalent).
      */
-    private function recordIncomplete(TestResult $testResult, array $result, string $reason): void
+    private function recordIncomplete(TestResult $testResult, array $result, string $reason, ?string $missingDetails = null): void
     {
         $expectedPanelCount = $result['expected_panel_count'];
         $actualPanelCount = $result['actual_panel_count'];
@@ -251,6 +292,7 @@ class PanelCompletenessService
                     'was_reviewed' => $wasReviewed,
                     'ai_review_id' => $existingAiReview->id ?? null,
                     'reason' => $reason,
+                    'missing_details' => $missingDetails,
                 ]
             );
 
@@ -261,6 +303,7 @@ class PanelCompletenessService
                 'expected_panel_count' => $expectedPanelCount,
                 'actual_panel_count' => $actualPanelCount,
                 'reason' => $reason,
+                'missing_details' => $missingDetails,
             ]);
         } catch (Throwable $e) {
             DB::rollBack();
@@ -275,37 +318,35 @@ class PanelCompletenessService
     }
 
     /**
-     * Whether every raw test_result_items input the 7 special-test formulas
-     * need is present. BMI (used only by NFS) comes from the external
-     * MyHealth service, not test_result_items, and is deliberately excluded
-     * here — its absence must never block completeness. Platelets has two
+     * Which of the raw test_result_items inputs the 7 special-test formulas
+     * need are missing, as human-readable labels (empty array = nothing
+     * missing). BMI (used only by NFS) comes from the external MyHealth
+     * service, not test_result_items, and is deliberately excluded here —
+     * its absence must never block completeness. Platelets has two
      * alternate item ids (primary, then a fallback); either one satisfies
      * the requirement, matching getPlateletsValue()'s existing fallback.
      */
-    private function hasRequiredSpecialTestParameters(TestResult $testResult): bool
+    private function missingSpecialTestParameters(TestResult $testResult): array
     {
         $existingIds = TestResultItem::where('test_result_id', $testResult->id)
             ->whereIn('panel_panel_item_id', PanelPanelItemConstants::PANEL_PANEL_ITEM_IDS)
             ->pluck('panel_panel_item_id')
             ->unique();
 
-        $requiredSingular = [
-            PanelPanelItemConstants::CRI_I,
-            PanelPanelItemConstants::CRI_II,
-            PanelPanelItemConstants::AIP,
-            PanelPanelItemConstants::TOTAL_CHOLESTEROL,
-            PanelPanelItemConstants::HDL,
-            PanelPanelItemConstants::AST,
-            PanelPanelItemConstants::ALT,
-            PanelPanelItemConstants::ALBUMIN,
-            PanelPanelItemConstants::GLUCOSE_FASTING_TYPE,
-        ];
+        $missing = [];
 
-        $hasAllSingular = collect($requiredSingular)->diff($existingIds)->isEmpty();
-        $hasPlatelets = $existingIds->contains(PanelPanelItemConstants::PLATELETS)
-            || $existingIds->contains(PanelPanelItemConstants::PLATELETS_ALT);
+        foreach (self::SPECIAL_TEST_PARAMETER_LABELS as $id => $label) {
+            if (! $existingIds->contains($id)) {
+                $missing[] = $label;
+            }
+        }
 
-        return $hasAllSingular && $hasPlatelets;
+        if (! $existingIds->contains(PanelPanelItemConstants::PLATELETS)
+            && ! $existingIds->contains(PanelPanelItemConstants::PLATELETS_ALT)) {
+            $missing[] = 'Platelets';
+        }
+
+        return $missing;
     }
 
     /**
@@ -316,8 +357,10 @@ class PanelCompletenessService
      * tests), otherwise incomplete with reason 'special_tests_missing_parameters'
      * if a required raw parameter is missing.
      *
-     * @return array evaluate()'s array plus 'final_is_complete' (bool) and
-     *               'reason' (string|null, only set when final_is_complete is false)
+     * @return array evaluate()'s array plus 'final_is_complete' (bool),
+     *               'reason' (string|null), and 'missing_details'
+     *               (string|null) — the latter two only set when
+     *               final_is_complete is false
      */
     public function evaluateFull(TestResult $testResult): array
     {
@@ -326,19 +369,26 @@ class PanelCompletenessService
         if (! $result['applicable'] || ! $result['is_complete']) {
             $result['final_is_complete'] = false;
             $result['reason'] = $this->resolveIncompleteReason($result);
+            $result['missing_details'] = $this->missingDetailsForReason($testResult, $result, $result['reason']);
 
             return $result;
         }
 
-        if ($result['test_result_profiles_count'] > 0 && ! $this->hasRequiredSpecialTestParameters($testResult)) {
-            $result['final_is_complete'] = false;
-            $result['reason'] = 'special_tests_missing_parameters';
+        if ($result['test_result_profiles_count'] > 0) {
+            $missingParams = $this->missingSpecialTestParameters($testResult);
 
-            return $result;
+            if (! empty($missingParams)) {
+                $result['final_is_complete'] = false;
+                $result['reason'] = 'special_tests_missing_parameters';
+                $result['missing_details'] = 'Missing parameters: '.implode(', ', $missingParams);
+
+                return $result;
+            }
         }
 
         $result['final_is_complete'] = true;
         $result['reason'] = null;
+        $result['missing_details'] = null;
 
         return $result;
     }
@@ -378,7 +428,7 @@ class PanelCompletenessService
         $result = $this->evaluateFull($testResult);
 
         if (! $result['final_is_complete']) {
-            $this->recordIncomplete($testResult, $result, $result['reason']);
+            $this->recordIncomplete($testResult, $result, $result['reason'], $result['missing_details']);
 
             return false;
         }
@@ -420,6 +470,64 @@ class PanelCompletenessService
         }
 
         return true;
+    }
+
+    /**
+     * Refresh reason/missing_details/expected_panel_count/actual_panel_count
+     * on an existing incomplete_test_results row from a fresh evaluateFull()
+     * of its TestResult — without touching is_completed, is_reviewed, or any
+     * other completion state. For backfilling diagnostic detail onto rows
+     * created before missing_details existed, or refreshing stale detail
+     * after data has since changed. Does nothing (no write) if the
+     * TestResult now evaluates as complete — there's nothing left to
+     * describe as missing; use resolve() or undo() separately to actually
+     * restore it in that case.
+     *
+     * @return array evaluateFull()'s result, so the caller can report status
+     */
+    public function refreshIncompleteDetails(TestResult $testResult): array
+    {
+        $result = $this->evaluateFull($testResult);
+
+        if ($result['final_is_complete']) {
+            return $result;
+        }
+
+        $incompleteRecord = IncompleteTestResult::where('test_result_id', $testResult->id)->first();
+
+        if (! $incompleteRecord) {
+            return $result;
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $incompleteRecord->update([
+                'expected_panel_count' => $result['expected_panel_count'],
+                'actual_panel_count' => $result['actual_panel_count'],
+                'reason' => $result['reason'],
+                'missing_details' => $result['missing_details'],
+            ]);
+
+            DB::commit();
+
+            Log::info('PanelCompletenessService: refreshed incomplete_test_results diagnostic details', [
+                'test_result_id' => $testResult->id,
+                'reason' => $result['reason'],
+                'missing_details' => $result['missing_details'],
+            ]);
+        } catch (Throwable $e) {
+            DB::rollBack();
+
+            Log::error('PanelCompletenessService: failed to refresh incomplete_test_results diagnostic details', [
+                'test_result_id' => $testResult->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
+
+        return $result;
     }
 
     /**
