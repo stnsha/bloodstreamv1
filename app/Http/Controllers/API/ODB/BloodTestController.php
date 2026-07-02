@@ -1495,6 +1495,82 @@ class BloodTestController extends Controller
     }
 
     /**
+     * Bulk version of markLabNoCompleted() — marks multiple lab numbers as
+     * completed in a single request, so bulk callers avoid one login()/HTTP
+     * round trip per lab no. Deliberately standalone; does not call or
+     * modify markLabNoCompleted(). A failure on one labno does not stop
+     * processing of the rest — each is reported independently in 'results'.
+     */
+    public function bulkMarkLabNoCompleted(Request $request)
+    {
+        $validated = $request->validate([
+            'labnos' => 'required|array|min:1',
+            'labnos.*' => 'string',
+        ], [
+            'labnos.required' => 'At least one labno is required.',
+        ]);
+
+        $labnos = $validated['labnos'];
+
+        Log::channel($this->getLogChannel())->info('bulkMarkLabNoCompleted: Processing started', ['count' => count($labnos)]);
+
+        $results = [];
+        $succeeded = 0;
+
+        foreach ($labnos as $labno) {
+            try {
+                $testResult = TestResult::where('lab_no', $labno)->latest()->first();
+
+                if (!$testResult) {
+                    $results[] = [
+                        'labno' => $labno,
+                        'success' => false,
+                        'message' => 'Test result not found for the given lab number',
+                    ];
+                    continue;
+                }
+
+                $testResult->is_completed = true;
+                $testResult->save();
+
+                IncompleteTestResult::where('test_result_id', $testResult->id)->delete();
+
+                $results[] = [
+                    'labno' => $labno,
+                    'success' => true,
+                    'report_id' => $testResult->id,
+                ];
+                $succeeded++;
+            } catch (Throwable $e) {
+                Log::channel($this->getLogChannel())->error('bulkMarkLabNoCompleted: Error processing labno', [
+                    'labno' => $labno,
+                    'error_message' => $e->getMessage(),
+                    'error_file' => $e->getFile(),
+                    'error_line' => $e->getLine(),
+                ]);
+
+                $results[] = [
+                    'labno' => $labno,
+                    'success' => false,
+                    'message' => 'An error occurred while processing this lab number',
+                ];
+            }
+        }
+
+        Log::channel($this->getLogChannel())->info('bulkMarkLabNoCompleted: Processing completed', [
+            'total' => count($labnos),
+            'succeeded' => $succeeded,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'results' => $results,
+            'succeeded' => $succeeded,
+            'total' => count($labnos),
+        ]);
+    }
+
+    /**
      * Update Test Result by Lab Number
      * Search by labno and update ref_id and patient icno
      */
