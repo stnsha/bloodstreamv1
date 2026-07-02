@@ -10,6 +10,7 @@ use App\Jobs\ProcessMigrationBatch;
 use App\Models\MigrationBatch;
 use App\Models\MigrationBatchItem;
 use App\Models\ConsultCall;
+use App\Models\IncompleteTestResult;
 use App\Models\TestResult;
 use App\Services\AIReviewService;
 use App\Services\ApiTokenService;
@@ -1408,12 +1409,76 @@ class BloodTestController extends Controller
                 'collected_date' => $testResult->collected_date ? Carbon::parse($testResult->collected_date)->format('Y-m-d') : null,
                 'reported_date' => $testResult->reported_date ? Carbon::parse($testResult->reported_date)->format('Y-m-d') : null,
                 'report_id' => $testResult->id,
+                'ref_id' => $testResult->ref_id,
                 'is_reviewed' => $testResult->is_reviewed,
                 'review' => ($testResult->is_reviewed && $testResult->aiReview) ? $testResult->aiReview->ai_response : null,
                 'pdf' => $pdfBase64,
             ]);
         } catch (Throwable $e) {
             Log::channel($this->getLogChannel())->error('getLabNoReport: Critical error occurred', [
+                'error_message' => $e->getMessage(),
+                'error_file' => $e->getFile(),
+                'error_line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+                'labno' => $labno ?? null,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while processing the request',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Manually force a TestResult to is_completed = 1 by lab no, clearing any
+     * stale incomplete_test_results flag. This is a plain override for staff
+     * use — it deliberately does not go through PanelCompletenessService's
+     * evaluation logic (resolve()/undo()), which re-derive completeness from
+     * panel data rather than accepting a manual decision.
+     */
+    public function markLabNoCompleted(Request $request)
+    {
+        $validated = $request->validate([
+            'labno' => 'required|string',
+        ], [
+            'labno.required' => 'Labno is required.',
+        ]);
+
+        $labno = $validated['labno'];
+
+        Log::channel($this->getLogChannel())->info('markLabNoCompleted: Processing started', ['labno' => $labno]);
+
+        try {
+            $testResult = TestResult::where('lab_no', $labno)->latest()->first();
+
+            if (!$testResult) {
+                Log::channel($this->getLogChannel())->info('markLabNoCompleted: No test result found', ['labno' => $labno]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Test result not found for the given lab number',
+                ], 404);
+            }
+
+            $testResult->is_completed = true;
+            $testResult->save();
+
+            $removedIncomplete = IncompleteTestResult::where('test_result_id', $testResult->id)->delete();
+
+            Log::channel($this->getLogChannel())->info('markLabNoCompleted: Marked completed', [
+                'labno' => $labno,
+                'report_id' => $testResult->id,
+                'removed_incomplete_row' => (bool) $removedIncomplete,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'status' => $this->determineTestResultStatus($testResult),
+                'report_id' => $testResult->id,
+            ]);
+        } catch (Throwable $e) {
+            Log::channel($this->getLogChannel())->error('markLabNoCompleted: Critical error occurred', [
                 'error_message' => $e->getMessage(),
                 'error_file' => $e->getFile(),
                 'error_line' => $e->getLine(),
