@@ -42,6 +42,12 @@ class Kernel extends ConsoleKernel
             ->environments(['production'])
             ->withoutOverlapping(60);
 
+        // Backfill: recheck panel completeness from 2026-06-16 onward, prioritizing ref_id-bearing records for higher-fidelity checks
+        // $schedule->command('panels:recheck-incomplete --from=2026-06-16 --to=today --limit=10 --prioritize-ref-id --force')
+        //     ->everyTenMinutes()
+        //     ->environments(['production'])
+        //     ->withoutOverlapping(10);
+
         // Manual backfill only — do not schedule
         // php artisan testing:run-consult-eligibility --dry-run
         // php artisan testing:run-consult-eligibility --limit=100 --offset=0

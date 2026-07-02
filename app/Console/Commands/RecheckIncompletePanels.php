@@ -15,7 +15,9 @@ class RecheckIncompletePanels extends Command
                             {--from= : Start of collected_date range (Y-m-d), defaults to 30 days ago}
                             {--to=   : End of collected_date range (Y-m-d), defaults to today}
                             {--limit= : Maximum number of records to process (omit to process all)}
-                            {--dry-run : Preview affected records without making any changes}';
+                            {--dry-run : Preview affected records without making any changes}
+                            {--force : Skip the confirmation prompt (required for unattended/scheduled runs)}
+                            {--prioritize-ref-id : Process records with a non-null ref_id before those without, for higher-fidelity ODB-based completeness checks}';
 
     protected $description = 'Recheck test results marked is_completed=true against their expected panel profiles, reverting is_completed to false and recording any with missing panels in incomplete_test_results';
 
@@ -25,6 +27,8 @@ class RecheckIncompletePanels extends Command
         $to = $this->option('to') ?? now()->toDateString();
         $limit = $this->option('limit') ? (int) $this->option('limit') : null;
         $dryRun = $this->option('dry-run');
+        $force = $this->option('force');
+        $prioritizeRefId = $this->option('prioritize-ref-id');
 
         $fromDate = Carbon::parse($from)->startOfDay();
         $toDate = Carbon::parse($to)->endOfDay();
@@ -34,6 +38,8 @@ class RecheckIncompletePanels extends Command
             'to' => $toDate->toDateTimeString(),
             'limit' => $limit ?? 'all',
             'dry_run' => $dryRun,
+            'force' => $force,
+            'prioritize_ref_id' => $prioritizeRefId,
         ]);
 
         $this->info('Querying test results to recheck...');
@@ -46,6 +52,7 @@ class RecheckIncompletePanels extends Command
 
         $testResults = $query
             ->with(['patient:id,icno', 'testResultProfiles'])
+            ->when($prioritizeRefId, fn ($q) => $q->orderByRaw('ref_id IS NULL'))
             ->orderBy('collected_date', 'desc')
             ->when($limit, fn ($q) => $q->limit($limit))
             ->get();
@@ -114,7 +121,7 @@ class RecheckIncompletePanels extends Command
         }
 
         $this->line('');
-        if (!$this->confirm("Proceed with rechecking {$count} record(s)? Records found incomplete will have is_completed reverted to false and recorded in incomplete_test_results.")) {
+        if (!$force && !$this->confirm("Proceed with rechecking {$count} record(s)? Records found incomplete will have is_completed reverted to false and recorded in incomplete_test_results.")) {
             $this->info('Operation cancelled.');
             Log::channel('ai-command')->info('RecheckIncompletePanels: cancelled by user');
 

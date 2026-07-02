@@ -15,6 +15,14 @@ use Throwable;
 
 class PanelCompletenessService
 {
+    /**
+     * A record with this many distinct actual panels or more is always
+     * treated as complete, even if its linked profiles' panel_profiles_count
+     * sum is higher (an out-of-sync/never-manually-set expected count must
+     * never keep a genuinely complete record flagged incomplete).
+     */
+    public const COMPLETE_PANEL_THRESHOLD = 8;
+
     protected OctopusApiService $octopusApi;
 
     public function __construct(OctopusApiService $octopusApi)
@@ -35,8 +43,13 @@ class PanelCompletenessService
      * expected_panel_count is the sum of panel_profiles_count.count for
      * every linked panel_profile_id (0 for any profile with no row there —
      * that table is manually maintained/correctable, not derived live from
-     * panel_panel_profiles on every call). missing_panel_ids is still
-     * derived from panel_panel_profiles for diagnostic purposes only.
+     * panel_panel_profiles on every call). A record is complete if EITHER
+     * actual_panel_count >= expected_panel_count (when expected is set) OR
+     * actual_panel_count >= COMPLETE_PANEL_THRESHOLD — the threshold acts as
+     * a ceiling so a stale/never-synced expected count higher than what's
+     * actually achievable can never keep a record incomplete forever.
+     * missing_panel_ids is still derived from panel_panel_profiles for
+     * diagnostic purposes only.
      *
      * @return array{applicable: bool, is_complete: bool, expected_panel_count: int, actual_panel_count: int, missing_panel_ids: \Illuminate\Support\Collection, invoice_item_count: int|null, test_result_profiles_count: int}
      */
@@ -87,11 +100,16 @@ class PanelCompletenessService
         }
 
         // expected_panel_count = 0 means panel_profiles_count has no row for this
-        // profile yet (not manually populated) — treat as incomplete rather than
-        // trivially "satisfied" by any actual count, so it surfaces for review.
+        // profile yet (not manually populated) — on its own that must not trivially
+        // pass, so it only counts via the >= COMPLETE_PANEL_THRESHOLD ceiling below,
+        // same as any record whose expected count is set but exceeds what's
+        // actually achievable.
+        $isComplete = $actualPanelCount >= self::COMPLETE_PANEL_THRESHOLD
+            || ($expectedPanelCount > 0 && $actualPanelCount >= $expectedPanelCount);
+
         return [
             'applicable' => true,
-            'is_complete' => $expectedPanelCount > 0 && $actualPanelCount >= $expectedPanelCount,
+            'is_complete' => $isComplete,
             'expected_panel_count' => $expectedPanelCount,
             'actual_panel_count' => $actualPanelCount,
             'missing_panel_ids' => $missingPanelIds,
