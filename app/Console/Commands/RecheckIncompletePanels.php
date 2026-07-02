@@ -15,6 +15,7 @@ class RecheckIncompletePanels extends Command
                             {--from= : Start of collected_date range (Y-m-d), defaults to 30 days ago}
                             {--to=   : End of collected_date range (Y-m-d), defaults to today}
                             {--limit= : Maximum number of records to process (omit to process all)}
+                            {--offset= : Number of matched records to skip before applying --limit, for paging through a large range in batches}
                             {--dry-run : Preview affected records without making any changes}
                             {--force : Skip the confirmation prompt (required for unattended/scheduled runs)}
                             {--prioritize-ref-id : Process records with a non-null ref_id before those without, for higher-fidelity ODB-based completeness checks}';
@@ -26,6 +27,14 @@ class RecheckIncompletePanels extends Command
         $from = $this->option('from') ?? now()->subDays(30)->toDateString();
         $to = $this->option('to') ?? now()->toDateString();
         $limit = $this->option('limit') ? (int) $this->option('limit') : null;
+        $offset = $this->option('offset') ? (int) $this->option('offset') : null;
+
+        if ($offset && ! $limit) {
+            $this->error('--offset requires --limit to be set (MySQL does not support OFFSET without LIMIT).');
+
+            return Command::FAILURE;
+        }
+
         $dryRun = $this->option('dry-run');
         $force = $this->option('force');
         $prioritizeRefId = $this->option('prioritize-ref-id');
@@ -37,6 +46,7 @@ class RecheckIncompletePanels extends Command
             'from' => $fromDate->toDateTimeString(),
             'to' => $toDate->toDateTimeString(),
             'limit' => $limit ?? 'all',
+            'offset' => $offset ?? 0,
             'dry_run' => $dryRun,
             'force' => $force,
             'prioritize_ref_id' => $prioritizeRefId,
@@ -54,6 +64,7 @@ class RecheckIncompletePanels extends Command
             ->with(['patient:id,icno', 'testResultProfiles'])
             ->when($prioritizeRefId, fn ($q) => $q->orderByRaw('ref_id IS NULL'))
             ->orderBy('collected_date', 'desc')
+            ->when($offset, fn ($q) => $q->skip($offset))
             ->when($limit, fn ($q) => $q->limit($limit))
             ->get();
 
@@ -64,12 +75,13 @@ class RecheckIncompletePanels extends Command
             Log::channel('ai-command')->info('RecheckIncompletePanels: no records found', [
                 'from' => $fromDate->toDateString(),
                 'to' => $toDate->toDateString(),
+                'offset' => $offset ?? 0,
             ]);
 
             return Command::SUCCESS;
         }
 
-        $this->info("Total matched: {$totalMatched} record(s). Will check: {$count}" . ($limit ? " (limited by --limit={$limit})" : '') . '.');
+        $this->info("Total matched: {$totalMatched} record(s). Will check: {$count}" . ($offset ? " (offset by --offset={$offset})" : '') . ($limit ? " (limited by --limit={$limit})" : '') . '.');
         $this->line('');
 
         $previewRows = [];
