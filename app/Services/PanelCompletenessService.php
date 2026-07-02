@@ -309,6 +309,41 @@ class PanelCompletenessService
     }
 
     /**
+     * Read-only a+b+c completeness verdict — everything resolve() decides,
+     * without writing anything. Layers the special-test-parameter gate (c)
+     * on top of evaluate()'s a+b result: not applicable when there's no
+     * linked profile (special tests aren't meaningful for a-la-carte
+     * tests), otherwise incomplete with reason 'special_tests_missing_parameters'
+     * if a required raw parameter is missing.
+     *
+     * @return array evaluate()'s array plus 'final_is_complete' (bool) and
+     *               'reason' (string|null, only set when final_is_complete is false)
+     */
+    public function evaluateFull(TestResult $testResult): array
+    {
+        $result = $this->evaluate($testResult);
+
+        if (! $result['applicable'] || ! $result['is_complete']) {
+            $result['final_is_complete'] = false;
+            $result['reason'] = $this->resolveIncompleteReason($result);
+
+            return $result;
+        }
+
+        if ($result['test_result_profiles_count'] > 0 && ! $this->hasRequiredSpecialTestParameters($testResult)) {
+            $result['final_is_complete'] = false;
+            $result['reason'] = 'special_tests_missing_parameters';
+
+            return $result;
+        }
+
+        $result['final_is_complete'] = true;
+        $result['reason'] = null;
+
+        return $result;
+    }
+
+    /**
      * The unified entry point for deciding a TestResult's completion state
      * from scratch, given whatever panel/profile data currently exists.
      * Innoquest delivers panels incrementally (not always with a PDF), so
@@ -316,7 +351,7 @@ class PanelCompletenessService
      * test_result_items, regardless of whether this specific delivery
      * included a PDF.
      *
-     * Order of checks:
+     * Order of checks (see evaluateFull()):
      * 1. evaluate() — ODB invoice cross-check + panel-count threshold. Not
      *    complete -> record incomplete (reason: invoice_mismatch or
      *    panel_count) and stop.
@@ -340,16 +375,10 @@ class PanelCompletenessService
      */
     public function resolve(TestResult $testResult): bool
     {
-        $result = $this->evaluate($testResult);
+        $result = $this->evaluateFull($testResult);
 
-        if (! $result['applicable'] || ! $result['is_complete']) {
-            $this->recordIncomplete($testResult, $result, $this->resolveIncompleteReason($result));
-
-            return false;
-        }
-
-        if ($result['test_result_profiles_count'] > 0 && ! $this->hasRequiredSpecialTestParameters($testResult)) {
-            $this->recordIncomplete($testResult, $result, 'special_tests_missing_parameters');
+        if (! $result['final_is_complete']) {
+            $this->recordIncomplete($testResult, $result, $result['reason']);
 
             return false;
         }
