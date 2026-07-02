@@ -6,6 +6,7 @@ use App\Http\Controllers\API\Nexus\IntegrationController;
 use App\Http\Controllers\API\General\LabResultsController;
 use App\Http\Controllers\API\Innoquest\PanelResultsController;
 use App\Http\Controllers\API\ODB\BloodTestController;
+use App\Http\Controllers\API\ODB\IncompleteTestResultsController;
 use App\Http\Controllers\API\Innoquest\PDFController;
 use App\Http\Controllers\API\ConsultCall\ClinicalConditionController;
 use App\Http\Controllers\API\ConsultCall\ConsultCallAuthController;
@@ -115,6 +116,10 @@ Route::middleware(['api.auth', 'throttle:api'])->group(function () {
         Route::post('/migrate', 'migrate')->name('odb.migrate');
         Route::post('/migrate-test', 'migrateTest')->name('odb.migrate.test');
         Route::get('/migration-status/{uuid}', 'migrationStatus')->name('odb.migration.status');
+    });
+
+    Route::prefix('odb')->controller(IncompleteTestResultsController::class)->group(function () {
+        Route::get('/incompleteTestResults', 'index')->name('odb.incompleteTestResults');
     });
 
     Route::prefix('nexus')->controller(IntegrationController::class)->group(function () {
