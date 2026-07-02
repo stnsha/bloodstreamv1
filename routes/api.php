@@ -108,6 +108,7 @@ Route::middleware(['api.auth', 'throttle:api'])->group(function () {
         Route::post('/checkConsultCall', 'checkConsultCall')->name('odb.checkConsultCall');
         Route::post('/searchReportId', 'searchReportId')->name('searchReportId');
         Route::post('/searchLabNo', 'searchLabNo')->name('searchLabNo');
+        Route::post('/getLabNoReport', 'getLabNoReport')->name('getLabNoReport');
         Route::post('/updateLabNo', 'updateLabNo')->name('updateLabNo');
 
         Route::post('/migrate', 'migrate')->name('odb.migrate');

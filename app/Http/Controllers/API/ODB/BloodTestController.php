@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\API\ODB;
 
+use App\Http\Controllers\API\Innoquest\PDFController;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ODB\MigrateRequest;
 use App\Http\Requests\ODB\ODBRequest;
@@ -1342,6 +1343,90 @@ class BloodTestController extends Controller
                 'success' => false,
                 'message' => 'An error occurred while processing the request',
                 'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Search by labno and return status, AI review, and PDF (base64) in one response.
+     */
+    public function getLabNoReport(Request $request)
+    {
+        $validated = $request->validate([
+            'labno' => 'required|string',
+        ], [
+            'labno.required' => 'Labno is required.',
+        ]);
+
+        $processingStartTime = now();
+        $labno = $validated['labno'];
+
+        Log::channel($this->getLogChannel())->info('getLabNoReport: Processing started', [
+            'labno' => $labno,
+            'timestamp' => $processingStartTime,
+        ]);
+
+        try {
+            $testResult = TestResult::with('aiReview')->where('lab_no', $labno)->latest()->first();
+
+            if (!$testResult) {
+                Log::channel($this->getLogChannel())->info('getLabNoReport: No test result found', ['labno' => $labno]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Test result not found for the given lab number',
+                ], 404);
+            }
+
+            $status = $this->determineTestResultStatus($testResult);
+
+            $pdfBase64 = null;
+            if ($status === self::complete) {
+                $pdfResponse = app(PDFController::class)->exportByTestResultId($testResult->id);
+                $pdfData = json_decode($pdfResponse->getContent(), true);
+                if (!empty($pdfData['success'])) {
+                    $pdfBase64 = $pdfData['pdf'];
+                } else {
+                    Log::channel($this->getLogChannel())->warning('getLabNoReport: PDF generation failed', [
+                        'report_id' => $testResult->id,
+                        'pdf_message' => $pdfData['message'] ?? null,
+                    ]);
+                }
+            }
+
+            $processingTime = now()->diffInSeconds($processingStartTime);
+
+            Log::channel($this->getLogChannel())->info('getLabNoReport: Processing completed', [
+                'labno' => $labno,
+                'report_id' => $testResult->id,
+                'status' => $status,
+                'has_pdf' => $pdfBase64 !== null,
+                'processing_time_seconds' => $processingTime,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'status' => $status,
+                'labno' => $testResult->lab_no,
+                'collected_date' => $testResult->collected_date ? Carbon::parse($testResult->collected_date)->format('Y-m-d') : null,
+                'reported_date' => $testResult->reported_date ? Carbon::parse($testResult->reported_date)->format('Y-m-d') : null,
+                'report_id' => $testResult->id,
+                'is_reviewed' => $testResult->is_reviewed,
+                'review' => $testResult->aiReview ? $testResult->aiReview->ai_response : null,
+                'pdf' => $pdfBase64,
+            ]);
+        } catch (Throwable $e) {
+            Log::channel($this->getLogChannel())->error('getLabNoReport: Critical error occurred', [
+                'error_message' => $e->getMessage(),
+                'error_file' => $e->getFile(),
+                'error_line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+                'labno' => $labno ?? null,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while processing the request',
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
