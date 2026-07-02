@@ -800,7 +800,8 @@ class ProcessPanelResults implements ShouldQueue
 
         // 5. NFS - requires BMI from MyHealth
         $glucoseFastingItem = $testResultItems[PanelPanelItemConstants::GLUCOSE_FASTING_TYPE] ?? null;
-        $fasting = $glucoseFastingItem && $glucoseFastingItem->value == 'Fasting';
+        $glucoseFastingValue = $glucoseFastingItem->value ?? 'Random';
+        $fasting = $glucoseFastingValue == 'Fasting';
 
         try {
             $bmi = $myHealthService->getPatientBMI($testResult->patient->icno);

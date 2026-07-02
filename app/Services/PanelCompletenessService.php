@@ -29,7 +29,9 @@ class PanelCompletenessService
      * Human-readable labels for the special-test formulas' raw
      * test_result_items inputs, used to build missing_details when
      * missingSpecialTestParameters() finds a gap. Platelets is handled
-     * separately since it has two alternate item ids.
+     * separately since it has two alternate item ids. Glucose Fasting Type
+     * is deliberately NOT required here — when absent, calculation defaults
+     * it to 'Random' (non-fasting) rather than blocking completeness.
      */
     private const SPECIAL_TEST_PARAMETER_LABELS = [
         PanelPanelItemConstants::CRI_I => 'CRI-I',
@@ -40,7 +42,6 @@ class PanelCompletenessService
         PanelPanelItemConstants::AST => 'AST',
         PanelPanelItemConstants::ALT => 'ALT',
         PanelPanelItemConstants::ALBUMIN => 'Albumin',
-        PanelPanelItemConstants::GLUCOSE_FASTING_TYPE => 'Glucose Fasting Type',
     ];
 
     protected OctopusApiService $octopusApi;
