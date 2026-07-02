@@ -60,10 +60,16 @@ class PanelCompletenessService
      * test_result_items, without making any changes.
      *
      * First cross-checks test_result_profiles count against ODB's invoice
-     * item count (blood_test_sales/blood_test_item) — a mismatch means a
-     * whole profile never arrived, regardless of panel count. If that check
-     * matches (or can't be performed — fail-open), completeness is decided
-     * by comparing actual_panel_count against expected_panel_count, where
+     * item count (blood_test_sales/blood_test_item) — a mismatch usually
+     * means a whole profile never arrived, UNLESS actual_panel_count is
+     * already at or above COMPLETE_PANEL_THRESHOLD, in which case the
+     * ceiling overrides the mismatch (ODB invoice line items can include
+     * unrelated service-charge/add-on entries that inflate the count
+     * without reflecting a real missing profile — a high actual panel
+     * count is treated as stronger evidence than a noisy invoice count).
+     * If the check matches, can't be performed (fail-open), or is
+     * overridden by the ceiling, completeness is decided by comparing
+     * actual_panel_count against expected_panel_count, where
      * expected_panel_count is the sum of panel_profiles_count.count for
      * every linked panel_profile_id (0 for any profile with no row there —
      * that table is manually maintained/correctable, not derived live from
@@ -127,8 +133,9 @@ class PanelCompletenessService
         $expectedPanelCount = (int) PanelProfilesCount::whereIn('panel_profile_id', $panelProfileIds)->sum('count');
 
         $invoiceItemCount = $this->fetchInvoiceItemCount($testResult);
+        $invoiceMismatch = $invoiceItemCount !== null && $invoiceItemCount !== $testResultProfilesCount;
 
-        if ($invoiceItemCount !== null && $invoiceItemCount !== $testResultProfilesCount) {
+        if ($invoiceMismatch && $actualPanelCount < self::COMPLETE_PANEL_THRESHOLD) {
             return [
                 'applicable' => true,
                 'is_complete' => false,
