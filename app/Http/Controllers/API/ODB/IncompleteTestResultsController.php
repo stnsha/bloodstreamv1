@@ -36,6 +36,7 @@ class IncompleteTestResultsController extends Controller
                     'expected_panel_count' => $row->expected_panel_count,
                     'actual_panel_count' => $row->actual_panel_count,
                     'reason' => $row->reason,
+                    'missing_details' => $row->missing_details,
                 ];
             })->values();
 
