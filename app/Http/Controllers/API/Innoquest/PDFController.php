@@ -1806,6 +1806,592 @@ class PDFController extends Controller
     }
 
     /**
+     * Generate a PDF for a TestResult by its primary key, ignoring completion/review status
+     * entirely — renders whatever panels/results currently exist on the TestResult.
+     *
+     * This is a standalone method (not delegating to exportByTestResultId()) so that the
+     * relaxed gating here can never affect exportByTestResultId() or any of its other callers.
+     * Used only by BloodTestController::getLabNoReport().
+     *
+     * @param int $testResultId The primary key of the TestResult record
+     * @return JsonResponse
+     */
+    public function exportByTestResultIdForLabNoReport(int $testResultId): JsonResponse
+    {
+        Log::info('exportByTestResultIdForLabNoReport: Starting', ['test_result_id' => $testResultId]);
+
+        $testResult = TestResult::with([
+            'doctor',
+            'patient',
+            'testResultProfiles',
+            'testResultItems.panelComments.masterPanelComment',
+            'profiles'
+        ])->find($testResultId);
+
+        if (!$testResult) {
+            Log::warning('exportByTestResultIdForLabNoReport: TestResult not found', ['test_result_id' => $testResultId]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Test result not found',
+                'error'   => 'PDF can only be generated for an existing test result'
+            ], 404);
+        }
+
+        Log::info('exportByTestResultIdForLabNoReport: TestResult found, building result array', ['test_result_id' => $testResultId]);
+
+        $dob = $testResult->patient->dob != null ? Carbon::createFromFormat('Ymd', str_replace('-', '', $testResult->patient->dob))->format('d/m/y') : null;
+
+        // Patient information
+        $patient_info = [
+            'name' => $testResult->patient->name,
+            'dob' => $dob,
+            'icno' => substr_replace($testResult->patient->icno, 'XXXX', -4), //censored last 4 digits for data privacy
+            'gender' => $testResult->patient->gender == 'M' ? 'Male' : 'Female',
+            'age' => $testResult->patient->age . ' Years',
+        ];
+
+        // Test dates - format to dd/mm/yy and extract time
+        $test_dates = [
+            'collected_date' => $testResult->collected_date ? date('d/m/y', strtotime($testResult->collected_date)) : '',
+            'collected_time' => $testResult->collected_date ? date('H:i', strtotime($testResult->collected_date)) : '',
+            'reported_date' => $testResult->reported_date ? date('d/m/y', strtotime($testResult->reported_date)) : '',
+            'reported_time' => $testResult->reported_date ? date('H:i', strtotime($testResult->reported_date)) : '',
+        ];
+
+        // Doctor information
+        $doctor_info = [
+            'name' => $testResult->doctor->name,
+            'outlet_name' => $testResult->doctor->outlet_name,
+            'outlet_address' => $testResult->doctor->outlet_address,
+        ];
+
+        // Lab information
+        $lab_info = [
+            'labno' => $testResult->lab_no,
+            'refid' => filled($testResult->ref_id) ? $testResult->ref_id : null,
+        ];
+
+        $profilesData = [];
+
+        // Determine sequence source based on whether test result has profiles
+        $hasProfiles = count($testResult->profiles) > 0;
+
+        if ($hasProfiles) {
+            foreach ($testResult->testResultProfiles as $trp) {
+                $ppps = PanelPanelProfile::with(['panel', 'panelProfile'])->where('panel_profile_id', $trp->panel_profile_id)->get();
+                foreach ($ppps as $ppp) {
+                    $profilesData[$testResult->id]['profiles'][$ppp->panel_profile_id]['profile_id'] = $ppp->panelProfile->id;
+                    $profilesData[$testResult->id]['profiles'][$ppp->panel_profile_id]['profile_name'] = $ppp->panelProfile->name;
+                    $profilesData[$testResult->id]['profiles'][$ppp->panel_profile_id]['panels'][$ppp->panel_id]['panel_name'] = $ppp->panel->name;
+                    $profilesData[$testResult->id]['profiles'][$ppp->panel_profile_id]['panels'][$ppp->panel_id]['panel_profile_sequence'] = $ppp->sequence;
+                }
+            }
+        }
+
+        // Build hierarchical structure: Profile > Category > Panel > Panel Item
+        $hierarchicalData = [];
+        $combinedItems = []; // Store items to combine percentage and absolute values
+
+        foreach ($testResult->testResultItems as $ri) {
+            // Extract all data from result item
+            $res_value = $ri->value;
+            $res_flag = $ri->flag != 'N' ? '*' : '';
+            $res_sequence = $ri->sequence;
+            $is_tagon = $ri->is_tagon;
+            $ref_range_id = $ri->reference_range_id;
+
+            // Find panel panel item with all related data
+            $ppi = PanelPanelItem::with([
+                'panel',
+                'panel.panelCategory',
+                'panelItem',
+                'referenceRanges' => function ($query) use ($ref_range_id) {
+                    $query->where('id', $ref_range_id);
+                }
+            ])->find($ri->panel_panel_item_id);
+
+            // Get item-specific comments from TestResultItem panelComments relationship
+            $itemComments = [];
+            foreach ($ri->panelComments as $panelComment) {
+                if ($panelComment->masterPanelComment) {
+                    $itemComments[] = [
+                        'comment' => $panelComment->masterPanelComment->comment
+                    ];
+                }
+            }
+
+            $reference_range = $ppi->referenceRanges->first()->value ?? null;
+            if ($reference_range) {
+                $reference_range = str_replace(['(', ')'], '', $reference_range);
+            }
+
+            $unit = $ppi->panelItem->unit;
+
+            if (!empty($unit)) {
+                // Convert all *digits into <sup>digits</sup>
+                $unit = preg_replace('/\*(\d+)/', '<sup>$1</sup>', $unit);
+                $unit = preg_replace('/([a-zA-Z])(\d+)/', '$1<sup>$2</sup>', $unit);
+            }
+
+            // Panel item data
+            $panelItemData = [
+                'panel_item_id' => $ppi->panel_item_id,
+                'panel_item_name' => $ppi->panelItem->name,
+                'chinese_character' => $ppi->panelItem->chi_character,
+                'panel_item_unit' => $unit,
+                'result_value' => $res_value,
+                'result_flag' => $res_flag,
+                'is_tagon' => $is_tagon,
+                'result_sequence' => $res_sequence,
+                'reference_range' => $reference_range != null ? '(' . $reference_range . ')' : '',
+                'is_percentage' => false,
+                'percentage_value' => null,
+                'item_comments' => $itemComments
+            ];
+
+            // Check if this is a combinable item (percentage or absolute)
+            $itemName = $ppi->panelItem->name;
+            $itemUnit = $ppi->panelItem->unit;
+            $isPercentage = $itemUnit === '%';
+            $isAbsolute = $itemUnit === 'x 10*9/L';
+
+            // Clean name for comparison (remove " %" suffix)
+            $cleanItemName = str_replace(' %', '', $itemName);
+            $combinableNames = ['Neutrophils', 'Lymphocytes', 'Monocytes', 'Eosinophils', 'Basophils'];
+            $isCombinable = in_array($cleanItemName, $combinableNames);
+
+            if ($isCombinable) {
+                $baseKey = $cleanItemName . '_' . $ppi->panel_id; // Use clean name for grouping
+
+                if (!isset($combinedItems[$baseKey])) {
+                    $combinedItems[$baseKey] = [];
+                }
+
+                if ($isPercentage) {
+                    $combinedItems[$baseKey]['percentage'] = $panelItemData;
+                } elseif ($isAbsolute) {
+                    $combinedItems[$baseKey]['absolute'] = $panelItemData;
+                }
+            } else {
+                // Store the panel item data with hierarchy info for processing later
+                $panelItemData['_hierarchy_info'] = [
+                    'panel_id' => $ppi->panel_id,
+                    'panel' => $ppi->panel
+                ];
+                $hierarchicalData['_temp_items'][] = $panelItemData;
+            }
+        }
+
+        // Process combined items - merge percentage and absolute values
+        foreach ($combinedItems as $baseKey => $items) {
+            if (isset($items['absolute'])) {
+                $finalItem = $items['absolute']; // Use absolute as base
+
+                if (isset($items['percentage'])) {
+                    $finalItem['is_percentage'] = true;
+                    $finalItem['percentage_value'] = $items['percentage']['result_value'];
+                    // Merge comments from both percentage and absolute items
+                    $finalItem['item_comments'] = array_merge(
+                        $finalItem['item_comments'] ?? [],
+                        $items['percentage']['item_comments'] ?? []
+                    );
+                }
+
+                // Store the final combined item with hierarchy info
+                $ppi = PanelPanelItem::with([
+                    'panel',
+                    'panel.panelCategory',
+                ])->where('panel_item_id', $finalItem['panel_item_id'])
+                    ->first();
+
+                $finalItem['_hierarchy_info'] = [
+                    'panel_id' => $ppi->panel_id,
+                    'panel' => $ppi->panel,
+                ];
+                $hierarchicalData['_temp_items'][] = $finalItem;
+            }
+        }
+
+        // Now process all items (both combined and regular) into the hierarchy
+        $processedItems = $hierarchicalData['_temp_items'] ?? [];
+        $hierarchicalData = []; // Reset to build properly
+
+        foreach ($processedItems as $panelItemData) {
+            $ppi = (object)$panelItemData['_hierarchy_info'];
+            unset($panelItemData['_hierarchy_info']); // Remove temporary hierarchy info
+
+            // Determine hierarchy based on priority: Profile > Category > Panel > Panel Item
+            $profileId = null;
+            $profileName = null;
+            $profileSequence = null;
+
+            // Check if this panel belongs to any profile
+            if ($hasProfiles && isset($profilesData[$testResult->id]['profiles'])) {
+                foreach ($profilesData[$testResult->id]['profiles'] as $profileData) {
+                    if (isset($profileData['panels'][$ppi->panel_id])) {
+                        $profileId = $profileData['profile_id'];
+                        $profileName = $profileData['profile_name'];
+                        $profileSequence = $profileData['panels'][$ppi->panel_id]['panel_profile_sequence'];
+                        break;
+                    }
+                }
+            }
+
+            // Build hierarchical structure based on available data
+            if ($hasProfiles && $profileId) {
+                // Level 1: Profile exists - group under Profile > Category > Panel > Panel Item
+                $categoryId = $ppi->panel->panel_category_id ?? 'no_category';
+                $categoryName = $ppi->panel->panelCategory->name ?? 'No Category';
+
+                if (!isset($hierarchicalData['profiles'][$profileId])) {
+                    $hierarchicalData['profiles'][$profileId] = [
+                        'profile_id' => $profileId,
+                        'profile_name' => $profileName,
+                        'profile_sequence' => $profileSequence,
+                        'categories' => []
+                    ];
+                }
+
+                if (!isset($hierarchicalData['profiles'][$profileId]['categories'][$categoryId])) {
+                    $hierarchicalData['profiles'][$profileId]['categories'][$categoryId] = [
+                        'category_id' => $categoryId,
+                        'category_name' => $categoryName,
+                        'panels' => []
+                    ];
+                }
+
+                if (!isset($hierarchicalData['profiles'][$profileId]['categories'][$categoryId]['panels'][$ppi->panel_id])) {
+                    $hierarchicalData['profiles'][$profileId]['categories'][$categoryId]['panels'][$ppi->panel_id] = [
+                        'panel_id' => $ppi->panel_id,
+                        'panel_name' => $ppi->panel->name,
+                        'panel_sequence' => $ppi->panel->sequence,
+                        'panel_profile_sequence' => $profileSequence,
+                        'panel_category_id' => $ppi->panel->panel_category_id,
+                        'panel_comments' => [], // Will be built from item comments
+                        'panel_items' => []
+                    ];
+                }
+
+                $hierarchicalData['profiles'][$profileId]['categories'][$categoryId]['panels'][$ppi->panel_id]['panel_items'][] = $panelItemData;
+            } elseif ($ppi->panel->panel_category_id) {
+                // Level 2: No Profile but Category exists - group under Category > Panel > Panel Item
+                $categoryId = $ppi->panel->panel_category_id;
+                $categoryName = $ppi->panel->panelCategory->name;
+
+                if (!isset($hierarchicalData['categories'][$categoryId])) {
+                    $hierarchicalData['categories'][$categoryId] = [
+                        'category_id' => $categoryId,
+                        'category_name' => $categoryName,
+                        'panels' => []
+                    ];
+                }
+
+                if (!isset($hierarchicalData['categories'][$categoryId]['panels'][$ppi->panel_id])) {
+                    $hierarchicalData['categories'][$categoryId]['panels'][$ppi->panel_id] = [
+                        'panel_id' => $ppi->panel_id,
+                        'panel_name' => $ppi->panel->name,
+                        'panel_sequence' => $ppi->panel->sequence,
+                        'panel_comments' => [], // Will be built from item comments
+                        'panel_items' => []
+                    ];
+                }
+
+                $hierarchicalData['categories'][$categoryId]['panels'][$ppi->panel_id]['panel_items'][] = $panelItemData;
+            } else {
+                // Level 3: No Profile and No Category - group under Panel > Panel Item
+                if (!isset($hierarchicalData['panels'][$ppi->panel_id])) {
+                    $hierarchicalData['panels'][$ppi->panel_id] = [
+                        'panel_id' => $ppi->panel_id,
+                        'panel_name' => $ppi->panel->name,
+                        'panel_sequence' => $ppi->panel->sequence,
+                        'panel_category_id' => $ppi->panel->panel_category_id,
+                        'panel_comments' => [], // Will be built from item comments
+                        'panel_items' => []
+                    ];
+                }
+
+                $hierarchicalData['panels'][$ppi->panel_id]['panel_items'][] = $panelItemData;
+            }
+        }
+
+        // Build panel comments from item comments
+        $this->buildPanelCommentsFromItems($hierarchicalData);
+
+        // Sort categories within profiles by panel_profile_sequence average
+        if (isset($hierarchicalData['profiles'])) {
+            foreach ($hierarchicalData['profiles'] as &$profile) {
+                if (isset($profile['categories'])) {
+                    // Sort categories by average sequence (lowest first)
+                    uasort($profile['categories'], function ($a, $b) {
+                        // Calculate average for category A
+                        $totalSequenceA = 0;
+                        $panelCountA = 0;
+                        foreach ($a['panels'] as $panel) {
+                            if (isset($panel['panel_profile_sequence'])) {
+                                $totalSequenceA += $panel['panel_profile_sequence'];
+                                $panelCountA++;
+                            }
+                        }
+                        $avgA = $panelCountA > 0 ? $totalSequenceA / $panelCountA : 999999;
+
+                        // Calculate average for category B
+                        $totalSequenceB = 0;
+                        $panelCountB = 0;
+                        foreach ($b['panels'] as $panel) {
+                            if (isset($panel['panel_profile_sequence'])) {
+                                $totalSequenceB += $panel['panel_profile_sequence'];
+                                $panelCountB++;
+                            }
+                        }
+                        $avgB = $panelCountB > 0 ? $totalSequenceB / $panelCountB : 999999;
+
+                        return $avgA <=> $avgB;
+                    });
+
+                    // Also sort panels within each category by panel_profile_sequence
+                    foreach ($profile['categories'] as &$category) {
+                        uasort($category['panels'], function ($a, $b) {
+                            $seqA = $a['panel_profile_sequence'] ?? 999999;
+                            $seqB = $b['panel_profile_sequence'] ?? 999999;
+                            return $seqA <=> $seqB;
+                        });
+
+                        // Sort panel items within each panel - custom sorting for panel_category_id = 4
+                        foreach ($category['panels'] as &$panel) {
+                            if (isset($panel['panel_items']) && $category['category_id'] == 4) {
+                                // EXACT HAE SEQUENCE - FORCE THIS ORDER
+                                $orderedItems = [];
+                                $haeOrder = [
+                                    'Haemoglobin',
+                                    'Red Cell Count',
+                                    'Packed Cell Volume',
+                                    'Mean Cell Volume',
+                                    'Mean Cell Haemoglobin',
+                                    'MCHC',
+                                    'Red Cell Distribution Width',
+                                    'White Cell Count',
+                                    'Neutrophils',
+                                    'Lymphocytes',
+                                    'Monocytes',
+                                    'Eosinophils',
+                                    'Basophils',
+                                    'N:L Ratio',
+                                    'Platelets',
+                                    'E.S.R',
+                                    'Blood Film'
+                                ];
+
+                                // Create a lookup array of existing items
+                                $itemsByName = [];
+                                foreach ($panel['panel_items'] as $item) {
+                                    $itemsByName[$item['panel_item_name']] = $item;
+                                }
+
+                                // Build ordered array following HAE sequence
+                                foreach ($haeOrder as $expectedName) {
+                                    if (isset($itemsByName[$expectedName])) {
+                                        $orderedItems[] = $itemsByName[$expectedName];
+                                    }
+                                }
+
+                                // Add any remaining items that weren't in our sequence
+                                foreach ($panel['panel_items'] as $item) {
+                                    $itemName = $item['panel_item_name'];
+                                    if (!in_array($itemName, $haeOrder)) {
+                                        $orderedItems[] = $item;
+                                    }
+                                }
+
+                                // Replace the panel items with our ordered items
+                                $panel['panel_items'] = $orderedItems;
+                            } elseif (isset($panel['panel_items'])) {
+                                // Default sorting by result_sequence for other panels
+                                usort($panel['panel_items'], function ($a, $b) {
+                                    return $a['result_sequence'] - $b['result_sequence'];
+                                });
+                            }
+                        }
+                        unset($panel);
+                    }
+                    unset($category);
+                }
+            }
+            unset($profile);
+        }
+
+        // Sort panel items for categories not in profiles
+        if (isset($hierarchicalData['categories'])) {
+            foreach ($hierarchicalData['categories'] as &$category) {
+                if (isset($category['panels'])) {
+                    foreach ($category['panels'] as &$panel) {
+                        if (isset($panel['panel_items']) && $category['category_id'] == 4) {
+                            // EXACT HAE SEQUENCE - FORCE THIS ORDER
+                            $orderedItems = [];
+                            $haeOrder = [
+                                'Haemoglobin',
+                                'Red Cell Count',
+                                'Packed Cell Volume',
+                                'Mean Cell Volume',
+                                'Mean Cell Haemoglobin',
+                                'MCHC',
+                                'Red Cell Distribution Width',
+                                'White Cell Count',
+                                'Neutrophils',
+                                'Lymphocytes',
+                                'Monocytes',
+                                'Eosinophils',
+                                'Basophils',
+                                'N:L Ratio',
+                                'Platelets',
+                                'E.S.R',
+                                'Blood Film'
+                            ];
+
+                            // Create a lookup array of existing items
+                            $itemsByName = [];
+                            foreach ($panel['panel_items'] as $item) {
+                                $itemsByName[$item['panel_item_name']] = $item;
+                            }
+
+                            // Build ordered array following HAE sequence
+                            foreach ($haeOrder as $expectedName) {
+                                if (isset($itemsByName[$expectedName])) {
+                                    $orderedItems[] = $itemsByName[$expectedName];
+                                }
+                            }
+
+                            // Add any remaining items that weren't in our sequence
+                            foreach ($panel['panel_items'] as $item) {
+                                $itemName = $item['panel_item_name'];
+                                if (!in_array($itemName, $haeOrder)) {
+                                    $orderedItems[] = $item;
+                                }
+                            }
+
+                            // Replace the panel items with our ordered items
+                            $panel['panel_items'] = $orderedItems;
+                        } elseif (isset($panel['panel_items'])) {
+                            usort($panel['panel_items'], function ($a, $b) {
+                                return $a['result_sequence'] - $b['result_sequence'];
+                            });
+                        }
+                    }
+                    unset($panel);
+                }
+            }
+            unset($category);
+        }
+
+        // Sort panel items for panels not in categories
+        if (isset($hierarchicalData['panels'])) {
+            foreach ($hierarchicalData['panels'] as &$panel) {
+                if (isset($panel['panel_items']) && $panel['panel_category_id'] == 4) {
+                    // EXACT HAE SEQUENCE - FORCE THIS ORDER
+                    $orderedItems = [];
+                    $haeOrder = [
+                        'Haemoglobin',
+                        'Red Cell Count',
+                        'Packed Cell Volume',
+                        'Mean Cell Volume',
+                        'Mean Cell Haemoglobin',
+                        'MCHC',
+                        'Red Cell Distribution Width',
+                        'White Cell Count',
+                        'Neutrophils',
+                        'Lymphocytes',
+                        'Monocytes',
+                        'Eosinophils',
+                        'Basophils',
+                        'N:L Ratio',
+                        'Platelets',
+                        'E.S.R',
+                        'Blood Film'
+                    ];
+
+                    // Create a lookup array of existing items
+                    $itemsByName = [];
+                    foreach ($panel['panel_items'] as $item) {
+                        $itemsByName[$item['panel_item_name']] = $item;
+                    }
+
+                    // Build ordered array following HAE sequence
+                    foreach ($haeOrder as $expectedName) {
+                        if (isset($itemsByName[$expectedName])) {
+                            $orderedItems[] = $itemsByName[$expectedName];
+                        }
+                    }
+
+                    // Add any remaining items that weren't in our sequence
+                    foreach ($panel['panel_items'] as $item) {
+                        $itemName = $item['panel_item_name'];
+                        if (!in_array($itemName, $haeOrder)) {
+                            $orderedItems[] = $item;
+                        }
+                    }
+
+                    // Replace the panel items with our ordered items
+                    $panel['panel_items'] = $orderedItems;
+                } elseif (isset($panel['panel_items'])) {
+                    usort($panel['panel_items'], function ($a, $b) {
+                        return $a['result_sequence'] - $b['result_sequence'];
+                    });
+                }
+            }
+            unset($panel);
+        }
+
+        // Remove profiles structure if no profiles exist
+        if (!$hasProfiles && isset($hierarchicalData['profiles'])) {
+            unset($hierarchicalData['profiles']);
+        }
+
+        // Convert arrays to use sequential keys while maintaining structure
+        if (isset($hierarchicalData['profiles'])) {
+            $hierarchicalData['profiles'] = array_values($hierarchicalData['profiles']);
+            foreach ($hierarchicalData['profiles'] as &$profile) {
+                if (isset($profile['categories'])) {
+                    $profile['categories'] = array_values($profile['categories']);
+                    foreach ($profile['categories'] as &$category) {
+                        if (isset($category['panels'])) {
+                            $category['panels'] = array_values($category['panels']);
+                        }
+                    }
+                    unset($category);
+                }
+            }
+            unset($profile);
+        }
+
+        if (isset($hierarchicalData['categories'])) {
+            $hierarchicalData['categories'] = array_values($hierarchicalData['categories']);
+            foreach ($hierarchicalData['categories'] as &$category) {
+                if (isset($category['panels'])) {
+                    $category['panels'] = array_values($category['panels']);
+                }
+            }
+            unset($category);
+        }
+
+        if (isset($hierarchicalData['panels'])) {
+            $hierarchicalData['panels'] = array_values($hierarchicalData['panels']);
+        }
+
+        // Assemble the result array in the same shape as processTestResult() returns
+        $result = [
+            'test_result_id' => $testResult->id,
+            'patient_info' => $patient_info,
+            'test_dates' => $test_dates,
+            'doctor_info' => $doctor_info,
+            'lab_info' => $lab_info,
+            'data' => $hierarchicalData
+        ];
+
+        Log::info('exportByTestResultIdForLabNoReport: Result array built, delegating to generatePdf', ['test_result_id' => $testResultId]);
+
+        return $this->generatePdf($result);
+    }
+
+    /**
      * Compile raw data of Test Result and its relationship by IC No and Reference ID
      */
     private function processTestResult(ODBRequest $request)

@@ -1380,17 +1380,15 @@ class BloodTestController extends Controller
             $status = $this->determineTestResultStatus($testResult);
 
             $pdfBase64 = null;
-            if ($status === self::complete) {
-                $pdfResponse = app(PDFController::class)->exportByTestResultId($testResult->id);
-                $pdfData = json_decode($pdfResponse->getContent(), true);
-                if (!empty($pdfData['success'])) {
-                    $pdfBase64 = $pdfData['pdf'];
-                } else {
-                    Log::channel($this->getLogChannel())->warning('getLabNoReport: PDF generation failed', [
-                        'report_id' => $testResult->id,
-                        'pdf_message' => $pdfData['message'] ?? null,
-                    ]);
-                }
+            $pdfResponse = app(PDFController::class)->exportByTestResultIdForLabNoReport($testResult->id);
+            $pdfData = json_decode($pdfResponse->getContent(), true);
+            if (!empty($pdfData['success'])) {
+                $pdfBase64 = $pdfData['pdf'];
+            } else {
+                Log::channel($this->getLogChannel())->warning('getLabNoReport: PDF generation failed', [
+                    'report_id' => $testResult->id,
+                    'pdf_message' => $pdfData['message'] ?? null,
+                ]);
             }
 
             $processingTime = now()->diffInSeconds($processingStartTime);
@@ -1411,7 +1409,7 @@ class BloodTestController extends Controller
                 'reported_date' => $testResult->reported_date ? Carbon::parse($testResult->reported_date)->format('Y-m-d') : null,
                 'report_id' => $testResult->id,
                 'is_reviewed' => $testResult->is_reviewed,
-                'review' => $testResult->aiReview ? $testResult->aiReview->ai_response : null,
+                'review' => ($testResult->is_reviewed && $testResult->aiReview) ? $testResult->aiReview->ai_response : null,
                 'pdf' => $pdfBase64,
             ]);
         } catch (Throwable $e) {
