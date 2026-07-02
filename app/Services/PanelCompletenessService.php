@@ -225,6 +225,63 @@ class PanelCompletenessService
     }
 
     /**
+     * Promote a TestResult to complete the moment freshly-arrived panel data
+     * satisfies completeness. Innoquest delivers panels incrementally and
+     * not every delivery includes a PDF/report, so a record already flagged
+     * incomplete (or never yet marked complete) must be re-checked on every
+     * batch that writes new test_result_items, not only ones bundled with a
+     * PDF. Unlike undo(), this does NOT restore is_reviewed or a
+     * soft-deleted ai_reviews row from a prior snapshot — fresh data makes
+     * any prior review stale, so is_reviewed is left as-is (false) and the
+     * record flows through the normal special-test/AI-review pipeline again
+     * once a PDF arrives.
+     *
+     * @return bool true if the record was just promoted to complete, false
+     *              if no change was made (already complete, not applicable,
+     *              or still incomplete).
+     */
+    public function checkAndComplete(TestResult $testResult): bool
+    {
+        if ($testResult->is_completed) {
+            return false;
+        }
+
+        $result = $this->evaluate($testResult);
+
+        if (! $result['applicable'] || ! $result['is_complete']) {
+            return false;
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $testResult->is_completed = true;
+            $testResult->save();
+
+            IncompleteTestResult::where('test_result_id', $testResult->id)->delete();
+
+            DB::commit();
+
+            Log::info('PanelCompletenessService: fresh panel data satisfied completeness, is_completed promoted', [
+                'test_result_id' => $testResult->id,
+                'expected_panel_count' => $result['expected_panel_count'],
+                'actual_panel_count' => $result['actual_panel_count'],
+            ]);
+        } catch (Throwable $e) {
+            DB::rollBack();
+
+            Log::error('PanelCompletenessService: failed to promote newly-complete test result', [
+                'test_result_id' => $testResult->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
+
+        return true;
+    }
+
+    /**
      * Undo a previous checkAndHandle() revert for a TestResult recorded in
      * incomplete_test_results. Restores is_completed=true, restores
      * is_reviewed to whatever it was before the revert, restores the

@@ -453,6 +453,24 @@ class ProcessPanelResults implements ShouldQueue
             // AFTER TRANSACTION: Non-critical operations that don't need atomicity
             // These are moved outside to reduce transaction lock hold time
 
+            // This delivery had no PDF, so the completeness block above did not run.
+            // Innoquest delivers panels incrementally and not every batch includes a
+            // PDF, so a record already flagged incomplete (or never yet completed)
+            // must still be re-checked now that fresh test_result_items may have just
+            // been written, rather than waiting for a PDF-bearing batch or the
+            // scheduled panels:recheck-incomplete sweep.
+            if (! $hasPdf && $test_result) {
+                try {
+                    app(PanelCompletenessService::class)->checkAndComplete($test_result);
+                } catch (Throwable $e) {
+                    Log::error('ProcessPanelResults: failed to check/promote completeness after non-PDF panel update', [
+                        'test_result_id' => $test_result->id,
+                        'lab_no' => $test_result->lab_no,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
             // Resolve null ref_id via exact IC match from ODB
             if ($test_result && $reference_id === null) {
                 try {

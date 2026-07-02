@@ -17,6 +17,7 @@ use App\Models\PanelPanelItem;
 use App\Models\ReferenceRange;
 use App\Models\TestResultComment;
 use App\Models\TestResultItem;
+use App\Services\PanelCompletenessService;
 use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -26,6 +27,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Throwable;
 
 class ProcessPanelComments implements ShouldQueue
 {
@@ -55,6 +57,7 @@ class ProcessPanelComments implements ShouldQueue
         $batchExistingLabNumbers = 0;
         $batchNonExistingLabNumbers = 0;
         $batchErrors = [];
+        $touchedTestResultIds = [];
 
         Log::info("Job batch {$this->batchNumber} started with " . count($this->deliveryFileIds) . " files");
 
@@ -111,6 +114,7 @@ class ProcessPanelComments implements ShouldQueue
                                 if ($testResult) {
                                     $batchExistingLabNumbers++;
                                     $test_result_id = $testResult->id;
+                                    $touchedTestResultIds[$test_result_id] = true;
 
                                     if ($panel_profile_id) {
                                         //create test result profile
@@ -289,6 +293,30 @@ class ProcessPanelComments implements ShouldQueue
                 'trace' => $e->getTraceAsString()
             ]);
             throw $e; // Rethrow to trigger retry
+        }
+
+        // AFTER TRANSACTION: re-check completeness for every test result touched in
+        // this batch. Innoquest delivers panels incrementally and these comment
+        // batches carry no PDF/report flag at all, so a record already flagged
+        // incomplete (or never yet completed) must be promoted here the moment it
+        // now satisfies completeness, rather than waiting on a PDF-bearing delivery
+        // or the scheduled panels:recheck-incomplete sweep.
+        $panelCompletenessService = app(PanelCompletenessService::class);
+
+        foreach (array_keys($touchedTestResultIds) as $touchedTestResultId) {
+            try {
+                $touchedTestResult = TestResult::find($touchedTestResultId);
+
+                if ($touchedTestResult) {
+                    $panelCompletenessService->checkAndComplete($touchedTestResult);
+                }
+            } catch (Throwable $e) {
+                Log::error('ProcessPanelComments: failed to check/promote completeness after panel comment batch', [
+                    'test_result_id' => $touchedTestResultId,
+                    'batch' => $this->batchNumber,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         // Record batch statistics
