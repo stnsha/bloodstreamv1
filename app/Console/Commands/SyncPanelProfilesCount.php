@@ -11,6 +11,7 @@ use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class SyncPanelProfilesCount extends Command
 {
@@ -24,7 +25,7 @@ class SyncPanelProfilesCount extends Command
                             {--dry-run : Preview the derived counts without making any changes}
                             {--fallback-cutoff-date=2026-05-31 : For lab_id=2 profiles with no panel_panel_profiles mapping, only consider test_results with collected_date on or before this date}';
 
-    protected $description = 'Derive panel_profiles_count.count from panel_panel_profiles (distinct panel_id per panel_profile_id). For lab_id=2 profiles with no panel_panel_profiles mapping, falls back to counting distinct panels present in the latest qualifying test_result\'s test_result_items. Existing rows can be manually corrected afterward for profiles whose mapping is incomplete.';
+    protected $description = 'Derive panel_profiles_count.count from panel_panel_profiles (distinct panel_id per panel_profile_id). For lab_id=2 profiles with no panel_panel_profiles mapping, falls back to counting distinct panels present in the latest qualifying test_result\'s test_result_items, and backfills panel_panel_profiles with those pairs. Existing rows can be manually corrected afterward for profiles whose mapping is incomplete.';
 
     public function handle(): int
     {
@@ -44,7 +45,7 @@ class SyncPanelProfilesCount extends Command
 
         $this->info('Deriving fallback counts for lab_id=' . self::FALLBACK_LAB_ID . ' profiles without a panel_panel_profiles mapping...');
 
-        $fallbackRows = $this->deriveFallbackCounts($derivedCounts->pluck('panel_profile_id'), $cutoffDate);
+        $fallbackRows = $this->deriveFallbackCounts($derivedCounts->pluck('panel_profile_id'), $cutoffDate, $dryRun);
 
         if ($derivedCounts->isEmpty() && empty($fallbackRows)) {
             $this->info('No panel_panel_profiles rows and no eligible fallback profiles found — nothing to sync.');
@@ -124,13 +125,16 @@ class SyncPanelProfilesCount extends Command
     /**
      * For lab_id=2 profiles with no panel_panel_profiles mapping, derive a count
      * from the distinct panels present in the latest qualifying test_result's
-     * test_result_items (collected_date <= cutoff). Profiles with no qualifying
-     * test_result are logged and skipped, leaving any existing count untouched.
+     * test_result_items (collected_date <= cutoff), and — unless dry-run —
+     * backfill panel_panel_profiles with those panel_id/panel_profile_id pairs
+     * so future runs pick this profile up via the primary derivation instead.
+     * Profiles with no qualifying test_result are logged and skipped, leaving
+     * any existing count untouched.
      *
      * @param  \Illuminate\Support\Collection  $mappedProfileIds
      * @return array<int, array{panel_profile_id: int, derived_count: int, source: string}>
      */
-    private function deriveFallbackCounts($mappedProfileIds, Carbon $cutoffDate): array
+    private function deriveFallbackCounts($mappedProfileIds, Carbon $cutoffDate, bool $dryRun): array
     {
         $fallbackProfileIds = PanelProfile::where('lab_id', self::FALLBACK_LAB_ID)
             ->whereNotIn('id', $mappedProfileIds)
@@ -158,21 +162,67 @@ class SyncPanelProfilesCount extends Command
                 continue;
             }
 
-            $derivedCount = TestResultItem::where('test_result_id', $latestTestResultId)
+            $panelIds = TestResultItem::where('test_result_id', $latestTestResultId)
                 ->with('panelPanelItem')
                 ->get()
                 ->pluck('panelPanelItem.panel_id')
                 ->filter()
                 ->unique()
-                ->count();
+                ->values();
+
+            if (! $dryRun && $panelIds->isNotEmpty()) {
+                $this->createFallbackPanelPanelProfiles($panelProfileId, $panelIds);
+            }
 
             $fallbackRows[] = [
                 'panel_profile_id' => $panelProfileId,
-                'derived_count' => $derivedCount,
+                'derived_count' => $panelIds->count(),
                 'source' => 'fallback (lab_id=' . self::FALLBACK_LAB_ID . ", test_result_id={$latestTestResultId})",
             ];
         }
 
         return $fallbackRows;
+    }
+
+    /**
+     * Backfill panel_panel_profiles with the panel_id/panel_profile_id pairs
+     * derived from test_result_items, so this profile is picked up by the
+     * primary derivation on subsequent runs instead of the fallback.
+     *
+     * @param  \Illuminate\Support\Collection  $panelIds
+     */
+    private function createFallbackPanelPanelProfiles(int $panelProfileId, $panelIds): void
+    {
+        Log::info('SyncPanelProfilesCount: backfilling panel_panel_profiles from fallback derivation', [
+            'panel_profile_id' => $panelProfileId,
+            'panel_ids' => $panelIds->all(),
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            foreach ($panelIds as $panelId) {
+                PanelPanelProfile::firstOrCreate([
+                    'panel_id' => $panelId,
+                    'panel_profile_id' => $panelProfileId,
+                ]);
+            }
+
+            DB::commit();
+
+            Log::info('SyncPanelProfilesCount: panel_panel_profiles backfill succeeded', [
+                'panel_profile_id' => $panelProfileId,
+                'panel_count' => $panelIds->count(),
+            ]);
+        } catch (Throwable $e) {
+            DB::rollBack();
+
+            Log::error('SyncPanelProfilesCount: panel_panel_profiles backfill failed', [
+                'panel_profile_id' => $panelProfileId,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
     }
 }
