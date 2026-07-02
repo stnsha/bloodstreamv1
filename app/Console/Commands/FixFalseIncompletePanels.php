@@ -47,6 +47,10 @@ class FixFalseIncompletePanels extends Command
             ->where('test_results.is_completed', false)
             ->where('test_results.is_reviewed', false)
             ->where(function ($q) {
+                $q->whereNull('incomplete_test_results.reason')
+                    ->orWhere('incomplete_test_results.reason', 'panel_count');
+            })
+            ->where(function ($q) {
                 $q->where('incomplete_test_results.actual_panel_count', '>=', PanelCompletenessService::COMPLETE_PANEL_THRESHOLD)
                     ->orWhere(function ($q2) {
                         $q2->where('incomplete_test_results.expected_panel_count', '>', 0)

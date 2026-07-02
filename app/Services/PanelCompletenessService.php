@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Constants\Innoquest\PanelPanelItem as PanelPanelItemConstants;
 use App\Models\AIReview;
 use App\Models\IncompleteTestResult;
 use App\Models\PanelPanelProfile;
@@ -25,9 +26,12 @@ class PanelCompletenessService
 
     protected OctopusApiService $octopusApi;
 
-    public function __construct(OctopusApiService $octopusApi)
+    protected TestResultCompilerService $testResultCompilerService;
+
+    public function __construct(OctopusApiService $octopusApi, TestResultCompilerService $testResultCompilerService)
     {
         $this->octopusApi = $octopusApi;
+        $this->testResultCompilerService = $testResultCompilerService;
     }
 
     /**
@@ -51,6 +55,12 @@ class PanelCompletenessService
      * missing_panel_ids is still derived from panel_panel_profiles for
      * diagnostic purposes only.
      *
+     * If the record has no linked panel_profile at all (Innoquest sent no
+     * PackageCode), there's no expected count to compare against — this is
+     * the normal shape of an a-la-carte single test, not necessarily a
+     * defect. It's still only complete if actual_panel_count >= 1, so a PDF
+     * arriving with zero actual panels can never be marked complete.
+     *
      * @return array{applicable: bool, is_complete: bool, expected_panel_count: int, actual_panel_count: int, missing_panel_ids: \Illuminate\Support\Collection, invoice_item_count: int|null, test_result_profiles_count: int}
      */
     public function evaluate(TestResult $testResult): array
@@ -59,11 +69,22 @@ class PanelCompletenessService
         $testResultProfilesCount = $panelProfileIds->count();
 
         if ($panelProfileIds->isEmpty()) {
+            // No linked panel_profile (Innoquest sent no PackageCode) means there's
+            // no expected count to compare against — but a record with a PDF and
+            // zero actual panels is still never complete. Require at least 1.
+            $actualPanelCount = TestResultItem::where('test_result_id', $testResult->id)
+                ->with('panelPanelItem')
+                ->get()
+                ->pluck('panelPanelItem.panel_id')
+                ->filter()
+                ->unique()
+                ->count();
+
             return [
-                'applicable' => false,
-                'is_complete' => true,
+                'applicable' => true,
+                'is_complete' => $actualPanelCount >= 1,
                 'expected_panel_count' => 0,
-                'actual_panel_count' => 0,
+                'actual_panel_count' => $actualPanelCount,
                 'missing_panel_ids' => collect(),
                 'invoice_item_count' => null,
                 'test_result_profiles_count' => $testResultProfilesCount,
@@ -137,7 +158,7 @@ class PanelCompletenessService
             $icno = $testResult->patient->icno ?? '';
             $referenceDate = $testResult->collected_date ?? $testResult->reported_date;
 
-            if (!$refId && !$icno) {
+            if (! $refId && ! $icno) {
                 return null;
             }
 
@@ -176,6 +197,35 @@ class PanelCompletenessService
             return true;
         }
 
+        $this->recordIncomplete($testResult, $result, $this->resolveIncompleteReason($result));
+
+        return false;
+    }
+
+    /**
+     * Derive why a record is incomplete from evaluate()'s result, so every
+     * caller that records an incomplete_test_results row classifies the
+     * reason identically.
+     */
+    private function resolveIncompleteReason(array $result): string
+    {
+        if ($result['invoice_item_count'] !== null && $result['invoice_item_count'] !== $result['test_result_profiles_count']) {
+            return 'invoice_mismatch';
+        }
+
+        return 'panel_count';
+    }
+
+    /**
+     * Revert is_completed to false (if currently true) and record the
+     * mismatch in incomplete_test_results for later investigation. Shared by
+     * checkAndHandle() (demoting a previously-complete record) and resolve()
+     * (recording why a record never reached completeness in the first
+     * place, including the special-test-parameters reason which has no
+     * evaluate()-derived equivalent).
+     */
+    private function recordIncomplete(TestResult $testResult, array $result, string $reason): void
+    {
         $expectedPanelCount = $result['expected_panel_count'];
         $actualPanelCount = $result['actual_panel_count'];
         $wasReviewed = $testResult->is_reviewed;
@@ -200,6 +250,7 @@ class PanelCompletenessService
                     'actual_panel_count' => $actualPanelCount,
                     'was_reviewed' => $wasReviewed,
                     'ai_review_id' => $existingAiReview->id ?? null,
+                    'reason' => $reason,
                 ]
             );
 
@@ -209,6 +260,7 @@ class PanelCompletenessService
                 'test_result_id' => $testResult->id,
                 'expected_panel_count' => $expectedPanelCount,
                 'actual_panel_count' => $actualPanelCount,
+                'reason' => $reason,
             ]);
         } catch (Throwable $e) {
             DB::rollBack();
@@ -220,35 +272,85 @@ class PanelCompletenessService
 
             throw $e;
         }
-
-        return false;
     }
 
     /**
-     * Promote a TestResult to complete the moment freshly-arrived panel data
-     * satisfies completeness. Innoquest delivers panels incrementally and
-     * not every delivery includes a PDF/report, so a record already flagged
-     * incomplete (or never yet marked complete) must be re-checked on every
-     * batch that writes new test_result_items, not only ones bundled with a
-     * PDF. Unlike undo(), this does NOT restore is_reviewed or a
-     * soft-deleted ai_reviews row from a prior snapshot — fresh data makes
-     * any prior review stale, so is_reviewed is left as-is (false) and the
-     * record flows through the normal special-test/AI-review pipeline again
-     * once a PDF arrives.
-     *
-     * @return bool true if the record was just promoted to complete, false
-     *              if no change was made (already complete, not applicable,
-     *              or still incomplete).
+     * Whether every raw test_result_items input the 7 special-test formulas
+     * need is present. BMI (used only by NFS) comes from the external
+     * MyHealth service, not test_result_items, and is deliberately excluded
+     * here — its absence must never block completeness. Platelets has two
+     * alternate item ids (primary, then a fallback); either one satisfies
+     * the requirement, matching getPlateletsValue()'s existing fallback.
      */
-    public function checkAndComplete(TestResult $testResult): bool
+    private function hasRequiredSpecialTestParameters(TestResult $testResult): bool
     {
-        if ($testResult->is_completed) {
-            return false;
-        }
+        $existingIds = TestResultItem::where('test_result_id', $testResult->id)
+            ->whereIn('panel_panel_item_id', PanelPanelItemConstants::PANEL_PANEL_ITEM_IDS)
+            ->pluck('panel_panel_item_id')
+            ->unique();
 
+        $requiredSingular = [
+            PanelPanelItemConstants::CRI_I,
+            PanelPanelItemConstants::CRI_II,
+            PanelPanelItemConstants::AIP,
+            PanelPanelItemConstants::TOTAL_CHOLESTEROL,
+            PanelPanelItemConstants::HDL,
+            PanelPanelItemConstants::AST,
+            PanelPanelItemConstants::ALT,
+            PanelPanelItemConstants::ALBUMIN,
+            PanelPanelItemConstants::GLUCOSE_FASTING_TYPE,
+        ];
+
+        $hasAllSingular = collect($requiredSingular)->diff($existingIds)->isEmpty();
+        $hasPlatelets = $existingIds->contains(PanelPanelItemConstants::PLATELETS)
+            || $existingIds->contains(PanelPanelItemConstants::PLATELETS_ALT);
+
+        return $hasAllSingular && $hasPlatelets;
+    }
+
+    /**
+     * The unified entry point for deciding a TestResult's completion state
+     * from scratch, given whatever panel/profile data currently exists.
+     * Innoquest delivers panels incrementally (not always with a PDF), so
+     * this must be safe to call on every batch that writes new
+     * test_result_items, regardless of whether this specific delivery
+     * included a PDF.
+     *
+     * Order of checks:
+     * 1. evaluate() — ODB invoice cross-check + panel-count threshold. Not
+     *    complete -> record incomplete (reason: invoice_mismatch or
+     *    panel_count) and stop.
+     * 2. If the record has no linked panel_profile, special tests aren't
+     *    applicable (they're only meaningful for profiled packages) -> skip
+     *    straight to finalizing.
+     * 3. If it has a linked profile, all raw test_result_items inputs the 7
+     *    special-test formulas need must be present -> if not, record
+     *    incomplete (reason: special_tests_missing_parameters) and stop.
+     *    MyHealth is never called and no calculation is attempted in this
+     *    branch.
+     * 4. Finalize: is_completed=true, is_reviewed=false, clear any
+     *    incomplete_test_results row. Only after this is committed,
+     *    fire-and-forget (outside the transaction, own try/catch) trigger
+     *    the actual special-test calculation — this is where MyHealth gets
+     *    called; its failure can no longer affect completeness at this
+     *    point, matching "MyHealth failure just continues".
+     *
+     * @return bool true if the record is now complete (whether it already
+     *              was, or was just promoted), false if it's incomplete.
+     */
+    public function resolve(TestResult $testResult): bool
+    {
         $result = $this->evaluate($testResult);
 
         if (! $result['applicable'] || ! $result['is_complete']) {
+            $this->recordIncomplete($testResult, $result, $this->resolveIncompleteReason($result));
+
+            return false;
+        }
+
+        if ($result['test_result_profiles_count'] > 0 && ! $this->hasRequiredSpecialTestParameters($testResult)) {
+            $this->recordIncomplete($testResult, $result, 'special_tests_missing_parameters');
+
             return false;
         }
 
@@ -256,13 +358,14 @@ class PanelCompletenessService
             DB::beginTransaction();
 
             $testResult->is_completed = true;
+            $testResult->is_reviewed = false;
             $testResult->save();
 
             IncompleteTestResult::where('test_result_id', $testResult->id)->delete();
 
             DB::commit();
 
-            Log::info('PanelCompletenessService: fresh panel data satisfied completeness, is_completed promoted', [
+            Log::info('PanelCompletenessService: panel and special-test completeness satisfied, is_completed promoted', [
                 'test_result_id' => $testResult->id,
                 'expected_panel_count' => $result['expected_panel_count'],
                 'actual_panel_count' => $result['actual_panel_count'],
@@ -276,6 +379,15 @@ class PanelCompletenessService
             ]);
 
             throw $e;
+        }
+
+        try {
+            $this->testResultCompilerService->ensureSpecialTestsCalculated($testResult);
+        } catch (Throwable $e) {
+            Log::error('PanelCompletenessService: special test calculation failed after completion', [
+                'test_result_id' => $testResult->id,
+                'error' => $e->getMessage(),
+            ]);
         }
 
         return true;

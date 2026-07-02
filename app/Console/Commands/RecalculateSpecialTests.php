@@ -12,6 +12,7 @@ use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class RecalculateSpecialTests extends Command
 {
@@ -33,13 +34,15 @@ class RecalculateSpecialTests extends Command
         $to = $this->option('to');
 
         // Validate: must provide either ids or both --from and --to
-        if (!$rawIds && (!$from || !$to)) {
+        if (! $rawIds && (! $from || ! $to)) {
             $this->error('Provide either ids argument or both --from and --to options.');
+
             return Command::FAILURE;
         }
 
-        if (($from && !$to) || (!$from && $to)) {
+        if (($from && ! $to) || (! $from && $to)) {
             $this->error('Both --from and --to must be provided together.');
+
             return Command::FAILURE;
         }
 
@@ -77,6 +80,7 @@ class RecalculateSpecialTests extends Command
 
             if (empty($ids)) {
                 $this->error('No valid test_result_id values provided.');
+
                 return Command::FAILURE;
             }
 
@@ -85,7 +89,7 @@ class RecalculateSpecialTests extends Command
                 'count' => count($ids),
             ]);
 
-            $this->info('Recalculating special tests for ' . count($ids) . ' record(s)...');
+            $this->info('Recalculating special tests for '.count($ids).' record(s)...');
 
             $testResults = TestResult::with(['patient'])->whereIn('id', $ids)->get();
 
@@ -103,7 +107,7 @@ class RecalculateSpecialTests extends Command
         foreach ($testResults as $testResult) {
             Log::info('RecalculateSpecialTests: processing record', ['test_result_id' => $testResult->id]);
 
-            if (!$panelCompletenessService->checkAndHandle($testResult)) {
+            if (! $panelCompletenessService->checkAndHandle($testResult)) {
                 $rows[] = [$testResult->id, 'SKIPPED', 'Incomplete panel data'];
 
                 Log::warning('RecalculateSpecialTests: skipped incomplete record', ['test_result_id' => $testResult->id]);
@@ -202,7 +206,16 @@ class RecalculateSpecialTests extends Command
         // 5. NFS - requires BMI from MyHealth
         $glucoseFastingItem = $testResultItems[PanelPanelItemConstants::GLUCOSE_FASTING_TYPE] ?? null;
         $fasting = $glucoseFastingItem && $glucoseFastingItem->value == 'Fasting';
-        $bmi = $myHealthService->getPatientBMI($testResult->patient->icno);
+
+        try {
+            $bmi = $myHealthService->getPatientBMI($testResult->patient->icno);
+        } catch (Throwable $e) {
+            Log::warning('RecalculateSpecialTests: MyHealth BMI lookup failed, proceeding with null BMI (NFS only affected)', [
+                'test_result_id' => $testResult->id,
+                'error' => $e->getMessage(),
+            ]);
+            $bmi = null;
+        }
 
         $nfs = $panelInterpretationService->calculateNFS(
             age: $age,

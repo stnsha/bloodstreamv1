@@ -3,11 +3,8 @@
 namespace App\Jobs\Innoquest;
 
 use App\Constants\Innoquest\PanelPanelItem as PanelPanelItemConstants;
-use App\Jobs\SendToAIServer;
-use App\Models\AIReview;
 use App\Models\DeliveryFile;
 use App\Models\Doctor;
-use App\Models\IncompleteTestResult;
 use App\Models\Lab;
 use App\Models\MasterPanel;
 use App\Models\MasterPanelComment;
@@ -23,11 +20,11 @@ use App\Models\TestResult;
 use App\Models\TestResultComment;
 use App\Models\TestResultItem;
 use App\Models\TestResultProfile;
-use App\Services\ConsultCallEligibilityService;
 use App\Services\MyHealthService;
 use App\Services\OctopusApiService;
 use App\Services\PanelCompletenessService;
 use App\Services\PanelInterpretationService;
+use App\Services\TestResultCompletionDispatcher;
 use Carbon\Carbon;
 use DateTime;
 use Exception;
@@ -404,72 +401,10 @@ class ProcessPanelResults implements ShouldQueue
                 }
             }
 
-            // Mark as completed if PDF received AND panel data is sufficient (inside transaction)
-            $hasPdf = isset($validated['EncodedBase64pdf']) && filled($validated['EncodedBase64pdf']);
-            $isPanelComplete = false;
-            if ($hasPdf && $test_result) {
-                $completeness = app(PanelCompletenessService::class)->evaluate($test_result);
-                $isPanelComplete = $completeness['is_complete'];
-                $wasReviewed = $test_result->is_reviewed;
-
-                $test_result->is_completed = $isPanelComplete;
-                $test_result->is_reviewed = false;
-                $test_result->save();
-
-                if ($isPanelComplete) {
-                    // Clear any stale AI review so SendToAIServer dispatches a fresh one
-                    AIReview::where('test_result_id', $test_result->id)->forceDelete();
-
-                    // If a prior delivery had flagged this incomplete, it's resolved now
-                    IncompleteTestResult::where('test_result_id', $test_result->id)->delete();
-                } else {
-                    $existingAiReview = AIReview::where('test_result_id', $test_result->id)->first();
-
-                    if ($existingAiReview) {
-                        $existingAiReview->delete();
-                    }
-
-                    IncompleteTestResult::updateOrCreate(
-                        ['test_result_id' => $test_result->id],
-                        [
-                            'expected_panel_count' => $completeness['expected_panel_count'],
-                            'actual_panel_count' => $completeness['actual_panel_count'],
-                            'was_reviewed' => $wasReviewed,
-                            'ai_review_id' => $existingAiReview->id ?? null,
-                        ]
-                    );
-
-                    Log::warning('ProcessPanelResults: PDF received but panel count incomplete, is_completed set to false', [
-                        'test_result_id' => $test_result->id,
-                        'lab_no' => $test_result->lab_no,
-                        'expected_panel_count' => $completeness['expected_panel_count'],
-                        'actual_panel_count' => $completeness['actual_panel_count'],
-                    ]);
-                }
-            }
-
             DB::commit();
 
             // AFTER TRANSACTION: Non-critical operations that don't need atomicity
             // These are moved outside to reduce transaction lock hold time
-
-            // This delivery had no PDF, so the completeness block above did not run.
-            // Innoquest delivers panels incrementally and not every batch includes a
-            // PDF, so a record already flagged incomplete (or never yet completed)
-            // must still be re-checked now that fresh test_result_items may have just
-            // been written, rather than waiting for a PDF-bearing batch or the
-            // scheduled panels:recheck-incomplete sweep.
-            if (! $hasPdf && $test_result) {
-                try {
-                    app(PanelCompletenessService::class)->checkAndComplete($test_result);
-                } catch (Throwable $e) {
-                    Log::error('ProcessPanelResults: failed to check/promote completeness after non-PDF panel update', [
-                        'test_result_id' => $test_result->id,
-                        'lab_no' => $test_result->lab_no,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            }
 
             // Resolve null ref_id via exact IC match from ODB
             if ($test_result && $reference_id === null) {
@@ -510,7 +445,7 @@ class ProcessPanelResults implements ShouldQueue
 
                                 if ($recentSales->count() === 1) {
                                     $sale = $recentSales->first();
-                                    $resolvedRefId = strtoupper($labCode . $sale['id']);
+                                    $resolvedRefId = strtoupper($labCode.$sale['id']);
                                     $test_result->update(['ref_id' => $resolvedRefId]);
 
                                     Log::info('Resolved null ref_id via exact IC match', [
@@ -561,104 +496,28 @@ class ProcessPanelResults implements ShouldQueue
                 }
             }
 
-            // Calculate special tests OUTSIDE transaction (queries external DB)
-            if ($hasPdf && $isPanelComplete && $test_result) {
+            // Decide completion (panel/invoice/special-test completeness) and, if
+            // satisfied, dispatch consult-call eligibility + AI review. Runs on every
+            // delivery regardless of whether this one included a PDF — Innoquest
+            // delivers panels incrementally, and ref_id may have just been resolved
+            // above, so this must always re-check rather than only on PDF-bearing
+            // batches.
+            if ($test_result) {
                 try {
-                    Log::info('Starting special test calculation', [
-                        'test_result_id' => $test_result->id,
-                        'lab_no' => $test_result->lab_no,
-                    ]);
+                    $panelCompletenessService = app(PanelCompletenessService::class);
 
-                    $this->calculateSpecialTests($test_result);
-
-                    Log::info('Special test calculation completed', [
-                        'test_result_id' => $test_result->id,
-                    ]);
-                } catch (Throwable $e) {
-                    // Log error but DO NOT rethrow - allow main job to complete
-                    Log::error('Special test calculation failed', [
-                        'test_result_id' => $test_result->id,
-                        'error' => $e->getMessage(),
-                        'file' => $e->getFile(),
-                        'line' => $e->getLine(),
-                    ]);
-                }
-            } elseif ($hasPdf && ! $isPanelComplete && $test_result) {
-                Log::info('Special test calculation skipped: incomplete panel count', [
-                    'test_result_id' => $test_result->id,
-                    'lab_no' => $test_result->lab_no,
-                ]);
-            }
-
-            // Dispatch to AI server queue if PDF was received and panel data is sufficient
-            if ($hasPdf && $isPanelComplete && $test_result && $test_result->id) {
-                $this->dispatchAIReview($test_result);
-            } elseif ($hasPdf && ! $isPanelComplete && $test_result && $test_result->id) {
-                Log::info('AI dispatch skipped: incomplete panel count', [
-                    'test_result_id' => $test_result->id,
-                    'lab_no' => $test_result->lab_no,
-                ]);
-            }
-
-            // Consult call eligibility check (requires completed result with PDF)
-            if ($hasPdf && $isPanelComplete && $test_result && $test_result->id && $patient_id) {
-                try {
-                    // Gate 1: collected_date must be on or after 2026-03-08
-                    $collectedDateForConsult = $test_result->collected_date ?? $test_result->reported_date;
-                    $consultCutoffDate = Carbon::parse('2026-03-08')->startOfDay();
-
-                    if (! $collectedDateForConsult || Carbon::parse($collectedDateForConsult)->lt($consultCutoffDate)) {
-                        Log::info('Consult call skipped: collected date before 2026-03-08', [
-                            'test_result_id' => $test_result->id,
-                            'collected_date' => $collectedDateForConsult,
-                        ]);
-                    } else {
-                        // Gate 2: verify outlet eligibility via ref_id (Melaka, Johor, Kelantan).
-                        $refIdForConsult = $test_result->ref_id;
-
-                        if (! $refIdForConsult) {
-                            Log::info('Consult call skipped: no ref_id to verify eligible outlet', [
-                                'test_result_id' => $test_result->id,
-                                'patient_id'     => $patient_id,
-                            ]);
-                        } else {
-                            $labForConsult     = isset($lab) ? $lab : Lab::find($lab_id);
-                            $labCodeForConsult = $labForConsult->code ?? null;
-
-                            $octopusApi = app(OctopusApiService::class);
-
-                            $eligibleCustomer = $octopusApi->eligibleConsultCallByOutlet($refIdForConsult, $labCodeForConsult);
-
-                            if (! $eligibleCustomer) {
-                                Log::info('Consult call skipped: not an eligible outlet or customer not found by ref_id', [
-                                    'test_result_id' => $test_result->id,
-                                    'ref_id'         => $refIdForConsult,
-                                    'patient_id'     => $patient_id,
-                                ]);
-                            } else {
-                                $consultCustomerId = (int) $eligibleCustomer['customer_id'];
-                                $consultOutletId   = isset($eligibleCustomer['outlet_id']) ? (int) $eligibleCustomer['outlet_id'] : null;
-
-                                app(ConsultCallEligibilityService::class)->checkAndCreate(
-                                    $test_result, $patient_id, $consultCustomerId, $consultOutletId
-                                );
-                            }
+                    if (! ($test_result->is_completed && $test_result->is_reviewed)) {
+                        if ($panelCompletenessService->resolve($test_result)) {
+                            app(TestResultCompletionDispatcher::class)->dispatch($test_result);
                         }
                     }
                 } catch (Throwable $e) {
-                    Log::error('Consult call eligibility check failed', [
+                    Log::error('ProcessPanelResults: failed to resolve panel completeness', [
                         'test_result_id' => $test_result->id,
-                        'patient_id' => $patient_id,
+                        'lab_no' => $test_result->lab_no,
                         'error' => $e->getMessage(),
-                        'file' => $e->getFile(),
-                        'line' => $e->getLine(),
                     ]);
                 }
-            } elseif ($hasPdf && ! $isPanelComplete && $test_result && $test_result->id && $patient_id) {
-                Log::info('Consult call eligibility check skipped: incomplete panel count', [
-                    'test_result_id' => $test_result->id,
-                    'lab_no' => $test_result->lab_no,
-                ]);
             }
 
             return [
@@ -692,22 +551,6 @@ class ProcessPanelResults implements ShouldQueue
             'error' => $exception->getMessage(),
             'trace' => $exception->getTraceAsString(),
         ]);
-    }
-
-    protected function dispatchAIReview(TestResult $test_result): void
-    {
-        try {
-            SendToAIServer::dispatch($test_result->id);
-            Log::info('Dispatched test result to AI server queue', [
-                'test_result_id' => $test_result->id,
-                'lab_no' => $test_result->lab_no ?? null,
-            ]);
-        } catch (Throwable $e) {
-            Log::error('Failed to dispatch test result to AI server queue', [
-                'test_result_id' => $test_result->id,
-                'error' => $e->getMessage(),
-            ]);
-        }
     }
 
     protected function trackDeliveryFile(int $lab_id, ?string $sending_facility, ?string $batch_id, array $validated): void
@@ -958,7 +801,16 @@ class ProcessPanelResults implements ShouldQueue
         // 5. NFS - requires BMI from MyHealth
         $glucoseFastingItem = $testResultItems[PanelPanelItemConstants::GLUCOSE_FASTING_TYPE] ?? null;
         $fasting = $glucoseFastingItem && $glucoseFastingItem->value == 'Fasting';
-        $bmi = $myHealthService->getPatientBMI($testResult->patient->icno);
+
+        try {
+            $bmi = $myHealthService->getPatientBMI($testResult->patient->icno);
+        } catch (Throwable $e) {
+            Log::warning('ProcessPanelResults: MyHealth BMI lookup failed, proceeding with null BMI (NFS only affected)', [
+                'test_result_id' => $testResult->id,
+                'error' => $e->getMessage(),
+            ]);
+            $bmi = null;
+        }
 
         $nfs = $panelInterpretationService->calculateNFS(
             age: $age,

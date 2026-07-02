@@ -4,20 +4,21 @@ namespace App\Jobs;
 
 use App\Http\Requests\InnoquestResultRequest;
 use App\Models\DeliveryFile;
-use App\Models\PanelProfile;
-use App\Models\TestResult;
-use App\Models\TestResultProfile;
+use App\Models\MasterPanel;
 use App\Models\MasterPanelComment;
 use App\Models\MasterPanelItem;
-use App\Models\MasterPanel;
 use App\Models\Panel;
 use App\Models\PanelComment;
 use App\Models\PanelItem;
 use App\Models\PanelPanelItem;
+use App\Models\PanelProfile;
 use App\Models\ReferenceRange;
+use App\Models\TestResult;
 use App\Models\TestResultComment;
 use App\Models\TestResultItem;
+use App\Models\TestResultProfile;
 use App\Services\PanelCompletenessService;
+use App\Services\TestResultCompletionDispatcher;
 use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -34,11 +35,15 @@ class ProcessPanelComments implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     protected $batchNumber;
+
     protected $deliveryFileIds;
+
     protected $labId;
 
     public $timeout = 600; // 10 minutes per job
+
     public $tries = 3;
+
     public $backoff = [60, 300, 900]; // Retry after 1min, 5min, 15min
 
     public function __construct($batchNumber, $deliveryFileIds, $labId)
@@ -59,7 +64,7 @@ class ProcessPanelComments implements ShouldQueue
         $batchErrors = [];
         $touchedTestResultIds = [];
 
-        Log::info("Job batch {$this->batchNumber} started with " . count($this->deliveryFileIds) . " files");
+        Log::info("Job batch {$this->batchNumber} started with ".count($this->deliveryFileIds).' files');
 
         try {
             DB::beginTransaction();
@@ -73,17 +78,19 @@ class ProcessPanelComments implements ShouldQueue
                     // Decode JSON content to array
                     $jsonData = json_decode($file->json_content, true);
                     if (json_last_error() !== JSON_ERROR_NONE) {
-                        $batchErrors[] = 'Invalid JSON content: ' . json_last_error_msg();
+                        $batchErrors[] = 'Invalid JSON content: '.json_last_error_msg();
                         $batchFailedFiles++;
+
                         continue;
                     }
 
-                    $request = new InnoquestResultRequest();
+                    $request = new InnoquestResultRequest;
                     $validator = Validator::make($jsonData, $request->rules());
 
                     if ($validator->fails()) {
-                        $batchErrors[] = 'Validation failed: ' . json_encode($validator->errors());
+                        $batchErrors[] = 'Validation failed: '.json_encode($validator->errors());
                         $batchFailedFiles++;
+
                         continue;
                     }
 
@@ -105,7 +112,7 @@ class ProcessPanelComments implements ShouldQueue
                                 $panel = $this->findOrCreatePanel($this->labId, $panel_code, $panel_name);
                                 $panel_id = $panel->id;
 
-                                //get profile code (optional)
+                                // get profile code (optional)
                                 $panel_profile_id = $this->findOrCreateProfile($this->labId, $obv['PackageCode']);
 
                                 $testResult = TestResult::with(['testResultItems', 'testResultProfiles'])
@@ -117,7 +124,7 @@ class ProcessPanelComments implements ShouldQueue
                                     $touchedTestResultIds[$test_result_id] = true;
 
                                     if ($panel_profile_id) {
-                                        //create test result profile
+                                        // create test result profile
                                         TestResultProfile::firstOrCreate(
                                             [
                                                 'test_result_id' => $test_result_id,
@@ -126,24 +133,24 @@ class ProcessPanelComments implements ShouldQueue
                                         );
                                     }
 
-                                    //results
+                                    // results
                                     $results = $obv['Results'];
 
                                     // Track last created TestResultItem for comments
                                     $lastTestResultItem = null;
 
-                                    //check if results exist
+                                    // check if results exist
                                     if (filled($results)) {
                                         foreach ($results as $key => $res) {
-                                            //check if value exist and store to variable
+                                            // check if value exist and store to variable
                                             $result_value = filled($res['Value']) ? $res['Value'] : null;
                                             $unit = filled($res['Units']) ? $res['Units'] : null;
                                             $result_flag = filled($res['Flags']) ? $res['Flags'] : null;
 
-                                            //store field value to variable
+                                            // store field value to variable
                                             $identifier = $res['Identifier'];
 
-                                            //result items 
+                                            // result items
                                             if (filled($res['Text']) && ($res['Text'] != 'COMMENT' && $res['Text'] != 'NOTE')) {
                                                 // 1. Create or find master panel item - Skip translation
                                                 $masterPanelItem = MasterPanelItem::updateOrCreate(
@@ -161,7 +168,7 @@ class ProcessPanelComments implements ShouldQueue
                                                 $panel_item = PanelItem::updateOrCreate([
                                                     'lab_id' => $this->labId,
                                                     'master_panel_item_id' => $masterPanelItem->id,
-                                                    'identifier' => $identifier
+                                                    'identifier' => $identifier,
                                                 ], [
                                                     'name' => $res['Text'],
                                                     'unit' => $masterPanelItem->unit,
@@ -173,10 +180,10 @@ class ProcessPanelComments implements ShouldQueue
                                                 // 3. Link panel item to panel through pivot table
                                                 $panel->panelItems()->syncWithoutDetaching([$panel_item_id]);
 
-                                                //get panel panel item id
+                                                // get panel panel item id
                                                 $panel_panel_item_id = PanelPanelItem::where('panel_id', $panel_id)->where('panel_item_id', $panel_item_id)->first()?->id;
 
-                                                //create reference range
+                                                // create reference range
                                                 $ref_range_id = null;
                                                 if (filled($res['ReferenceRange'])) {
                                                     $ref_range = ReferenceRange::firstOrCreate(
@@ -188,7 +195,7 @@ class ProcessPanelComments implements ShouldQueue
                                                     $ref_range_id = $ref_range->id;
                                                 }
 
-                                                //check for existing result item to determine hasAmended
+                                                // check for existing result item to determine hasAmended
                                                 $existing_test_result_item = TestResultItem::where('test_result_id', $test_result_id)
                                                     ->where('panel_panel_item_id', $panel_panel_item_id)
                                                     ->first();
@@ -206,7 +213,7 @@ class ProcessPanelComments implements ShouldQueue
                                                     $hasAmended = $normalized_existing !== $normalized_new;
                                                 }
 
-                                                //final insert/update result item
+                                                // final insert/update result item
                                                 $lastTestResultItem = TestResultItem::updateOrCreate(
                                                     [
                                                         'test_result_id' => $test_result_id,
@@ -218,17 +225,17 @@ class ProcessPanelComments implements ShouldQueue
                                                         'flag' => $result_flag,
                                                         'sequence' => $key,
                                                         'is_tagon' => $isTagOn,
-                                                        'has_amended' => $hasAmended
+                                                        'has_amended' => $hasAmended,
                                                     ]
                                                 );
                                             }
 
-                                            //panel comments - create both master and panel-specific comments
+                                            // panel comments - create both master and panel-specific comments
                                             if (($res['Text'] == 'NOTE' || $res['Text'] == 'COMMENT') && isset($panel_id) && $lastTestResultItem) {
                                                 // Create master panel comment if doesn't exist
                                                 $masterPanelComment = MasterPanelComment::firstOrCreate(
                                                     [
-                                                        'comment' => $result_value
+                                                        'comment' => $result_value,
                                                     ]
                                                 );
 
@@ -238,7 +245,7 @@ class ProcessPanelComments implements ShouldQueue
                                                     'master_panel_comment_id' => $masterPanelComment->id,
                                                 ])->first();
 
-                                                if (!$existingPanelComment) {
+                                                if (! $existingPanelComment) {
                                                     // Create new panel comment
                                                     $panelComment = PanelComment::create([
                                                         'panel_id' => $panel_id,
@@ -263,7 +270,7 @@ class ProcessPanelComments implements ShouldQueue
                                     Log::warning('Lab number not found in TestResult', [
                                         'lab_no' => $lab_no,
                                         'panel_code' => $panel_code,
-                                        'panel_name' => $panel_name
+                                        'panel_name' => $panel_name,
                                     ]);
                                     $batchNonExistingLabNumbers++;
                                 }
@@ -277,9 +284,9 @@ class ProcessPanelComments implements ShouldQueue
                     Log::error('Error processing delivery file in job', [
                         'error' => $e->getMessage(),
                         'file_id' => $file->id,
-                        'batch' => $this->batchNumber
+                        'batch' => $this->batchNumber,
                     ]);
-                    $batchErrors[] = 'File processing error: ' . $e->getMessage();
+                    $batchErrors[] = 'File processing error: '.$e->getMessage();
                     $batchFailedFiles++;
                 }
             }
@@ -290,7 +297,7 @@ class ProcessPanelComments implements ShouldQueue
             DB::rollBack();
             Log::error("Job batch {$this->batchNumber} failed", [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
             throw $e; // Rethrow to trigger retry
         }
@@ -298,20 +305,23 @@ class ProcessPanelComments implements ShouldQueue
         // AFTER TRANSACTION: re-check completeness for every test result touched in
         // this batch. Innoquest delivers panels incrementally and these comment
         // batches carry no PDF/report flag at all, so a record already flagged
-        // incomplete (or never yet completed) must be promoted here the moment it
+        // incomplete (or never yet completed) must be resolved here the moment it
         // now satisfies completeness, rather than waiting on a PDF-bearing delivery
         // or the scheduled panels:recheck-incomplete sweep.
         $panelCompletenessService = app(PanelCompletenessService::class);
+        $dispatcher = app(TestResultCompletionDispatcher::class);
 
         foreach (array_keys($touchedTestResultIds) as $touchedTestResultId) {
             try {
                 $touchedTestResult = TestResult::find($touchedTestResultId);
 
-                if ($touchedTestResult) {
-                    $panelCompletenessService->checkAndComplete($touchedTestResult);
+                if ($touchedTestResult && ! ($touchedTestResult->is_completed && $touchedTestResult->is_reviewed)) {
+                    if ($panelCompletenessService->resolve($touchedTestResult)) {
+                        $dispatcher->dispatch($touchedTestResult);
+                    }
                 }
             } catch (Throwable $e) {
-                Log::error('ProcessPanelComments: failed to check/promote completeness after panel comment batch', [
+                Log::error('ProcessPanelComments: failed to resolve panel completeness after panel comment batch', [
                     'test_result_id' => $touchedTestResultId,
                     'batch' => $this->batchNumber,
                     'error' => $e->getMessage(),
@@ -328,8 +338,8 @@ class ProcessPanelComments implements ShouldQueue
             'comments_created' => $batchComments,
             'existing_lab_numbers' => $batchExistingLabNumbers,
             'non_existing_lab_numbers' => $batchNonExistingLabNumbers,
-            'processing_time' => $batchTime . 's',
-            'memory_usage' => round(memory_get_peak_usage(true) / 1024 / 1024, 2) . 'MB'
+            'processing_time' => $batchTime.'s',
+            'memory_usage' => round(memory_get_peak_usage(true) / 1024 / 1024, 2).'MB',
         ];
 
         Log::info("Job batch {$this->batchNumber} completed", $batchStat);
@@ -358,7 +368,7 @@ class ProcessPanelComments implements ShouldQueue
     {
         // 1. First, create or find master panel
         $masterPanel = MasterPanel::firstOrCreate([
-            'name' => $panel_name
+            'name' => $panel_name,
         ]);
 
         // 2. Create or get Panel with master panel reference
@@ -367,7 +377,7 @@ class ProcessPanelComments implements ShouldQueue
             'master_panel_id' => $masterPanel->id,
             'code' => $panel_code,
         ], [
-            'name' => $panel_name
+            'name' => $panel_name,
         ]);
 
         return $panel;
@@ -379,7 +389,7 @@ class ProcessPanelComments implements ShouldQueue
         $tagOnPatterns = [
             '/tag.*on/i',
             '/ton/i',
-            '/qon/i'
+            '/qon/i',
         ];
 
         foreach ($tagOnPatterns as $pattern) {

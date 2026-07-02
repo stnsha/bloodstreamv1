@@ -39,6 +39,9 @@ class RevertIncompletePanels extends Command
         $this->info('Querying incomplete_test_results to revert...');
 
         $query = IncompleteTestResult::whereBetween('created_at', [$fromDate, $toDate])
+            ->where(function ($q) {
+                $q->whereNull('reason')->orWhere('reason', 'panel_count');
+            })
             ->with(['testResult.patient:id,icno']);
 
         $totalMatched = $query->count();
@@ -60,7 +63,7 @@ class RevertIncompletePanels extends Command
             return Command::SUCCESS;
         }
 
-        $this->info("Total matched: {$totalMatched} record(s). Will revert: {$count}" . ($limit ? " (limited by --limit={$limit})" : '') . '.');
+        $this->info("Total matched: {$totalMatched} record(s). Will revert: {$count}".($limit ? " (limited by --limit={$limit})" : '').'.');
         $this->line('');
 
         $previewRows = [];
@@ -71,6 +74,7 @@ class RevertIncompletePanels extends Command
 
             if (! $testResult) {
                 $previewRows[] = [$record->test_result_id, 'N/A', 'N/A', 'N/A', $record->was_reviewed ? 'Yes' : 'No', $record->created_at->format('Y-m-d H:i'), 'TEST RESULT NOT FOUND'];
+
                 continue;
             }
 
@@ -116,7 +120,7 @@ class RevertIncompletePanels extends Command
         }
 
         $this->line('');
-        if (!$this->confirm("Proceed with reverting {$revertibleCount} record(s) back to their original state? This restores is_completed, is_reviewed, and any soft-deleted AI review, and removes them from incomplete_test_results.")) {
+        if (! $this->confirm("Proceed with reverting {$revertibleCount} record(s) back to their original state? This restores is_completed, is_reviewed, and any soft-deleted AI review, and removes them from incomplete_test_results.")) {
             $this->info('Operation cancelled.');
             Log::channel('ai-command')->info('RevertIncompletePanels: cancelled by user');
 

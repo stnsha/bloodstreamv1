@@ -16,6 +16,7 @@ class IncompleteTestResult extends Model
         'actual_panel_count',
         'was_reviewed',
         'ai_review_id',
+        'reason',
     ];
 
     protected $casts = [
