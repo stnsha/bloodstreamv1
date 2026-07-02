@@ -44,7 +44,7 @@ class Kernel extends ConsoleKernel
 
         // Daily snapshot of incomplete_test_results (ref_id, lab_no) to CSV for operational review
         $schedule->command('export:incomplete-test-results')
-            ->dailyAt('18:00')
+            ->dailyAt('08:00')
             ->environments(['production'])
             ->withoutOverlapping(30);
 
