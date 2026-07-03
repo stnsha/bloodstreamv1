@@ -55,8 +55,7 @@ class RecheckIncompletePanels extends Command
         $this->info('Querying test results to recheck...');
 
         $query = TestResult::whereBetween('collected_date', [$fromDate, $toDate])
-            ->where('is_completed', true)
-            ->whereHas('testResultProfiles');
+            ->where('is_completed', true);
 
         $totalMatched = $query->count();
 
@@ -71,7 +70,7 @@ class RecheckIncompletePanels extends Command
         $count = $testResults->count();
 
         if ($count === 0) {
-            $this->info('No test results found in range with linked panel profiles.');
+            $this->info('No test results found in range.');
             Log::channel('ai-command')->info('RecheckIncompletePanels: no records found', [
                 'from' => $fromDate->toDateString(),
                 'to' => $toDate->toDateString(),

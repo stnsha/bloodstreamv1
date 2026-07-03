@@ -85,7 +85,11 @@ class PanelCompletenessService
      * PackageCode), there's no expected count to compare against — this is
      * the normal shape of an a-la-carte single test, not necessarily a
      * defect. It's still only complete if actual_panel_count >= 1, so a PDF
-     * arriving with zero actual panels can never be marked complete.
+     * arriving with zero actual panels can never be marked complete. This
+     * shape is also cross-checked against ODB's invoice item count: more
+     * than one billed item alongside zero linked profiles means a package
+     * was almost certainly ordered and its profile link was simply never
+     * created, not a genuine a-la-carte order.
      *
      * @return array{applicable: bool, is_complete: bool, expected_panel_count: int, actual_panel_count: int, missing_panel_ids: \Illuminate\Support\Collection, invoice_item_count: int|null, test_result_profiles_count: int}
      */
@@ -98,6 +102,11 @@ class PanelCompletenessService
             // No linked panel_profile (Innoquest sent no PackageCode) means there's
             // no expected count to compare against — but a record with a PDF and
             // zero actual panels is still never complete. Require at least 1.
+            // Still cross-check ODB's invoice: more than one billed item for this
+            // visit means a package was almost certainly ordered and its profile
+            // link simply never arrived, which a single-panel a-la-carte order can
+            // never produce — so >1 invoice items with 0 linked profiles is treated
+            // as incomplete rather than trivially passing on actual_panel_count alone.
             $actualPanelCount = TestResultItem::where('test_result_id', $testResult->id)
                 ->with('panelPanelItem')
                 ->get()
@@ -106,13 +115,15 @@ class PanelCompletenessService
                 ->unique()
                 ->count();
 
+            $invoiceItemCount = $this->fetchInvoiceItemCount($testResult);
+
             return [
                 'applicable' => true,
-                'is_complete' => $actualPanelCount >= 1,
+                'is_complete' => $actualPanelCount >= 1 && ($invoiceItemCount === null || $invoiceItemCount <= 1),
                 'expected_panel_count' => 0,
                 'actual_panel_count' => $actualPanelCount,
                 'missing_panel_ids' => collect(),
-                'invoice_item_count' => null,
+                'invoice_item_count' => $invoiceItemCount,
                 'test_result_profiles_count' => $testResultProfilesCount,
             ];
         }
