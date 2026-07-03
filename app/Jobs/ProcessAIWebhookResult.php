@@ -180,7 +180,8 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
 
     /**
      * Handle permanent job failure after all retries exhausted.
-     * Deletes any non-COMPLETED ai_review record so the result can be re-dispatched.
+     * Removes any non-COMPLETED ai_review record (force- or soft-deleted, see handleError())
+     * so the result can be re-dispatched.
      */
     public function failed(Exception $exception): void
     {
@@ -197,18 +198,28 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
     }
 
     /**
-     * Handle error by soft-deleting any non-COMPLETED ai_review record and creating an ai_errors entry.
-     * Soft-delete (not force-delete) so a late-arriving webhook can still find and restore the row.
+     * Handle error by removing any non-COMPLETED ai_review record and creating an ai_errors entry.
+     *
+     * If the webhook itself reported a confirmed failure (processing_status FAILED / non-DONE),
+     * the AI service has already given its final verdict — no future webhook will complete this
+     * request, so the record is force-deleted. For any other error (our own bug, DB failure, etc.)
+     * the AI service may still complete the request asynchronously, so the record is soft-deleted
+     * instead, allowing a later webhook to find and restore it.
      */
     protected function handleError(int $testResultId, Exception $e): void
     {
+        $isConfirmedAiFailure = $this->isConfirmedFailureWebhook();
+
         try {
-            DB::transaction(function () use ($testResultId, $e) {
-                // Soft-delete any non-COMPLETED record — hidden from default queries so callers
-                // still see "only COMPLETED rows", but recoverable if a late webhook arrives
-                AIReview::where('test_result_id', $testResultId)
-                    ->where('processing_status', '!=', 'COMPLETED')
-                    ->delete();
+            DB::transaction(function () use ($testResultId, $e, $isConfirmedAiFailure) {
+                $query = AIReview::where('test_result_id', $testResultId)
+                    ->where('processing_status', '!=', 'COMPLETED');
+
+                if ($isConfirmedAiFailure) {
+                    $query->forceDelete();
+                } else {
+                    $query->delete();
+                }
 
                 // Create error record for recovery
                 AIError::create([
@@ -227,6 +238,15 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
                 'storage_error' => $dbError->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Whether the incoming webhook payload itself reported a confirmed processing failure
+     * (success = false, or status/processing_status not DONE) rather than some other local error.
+     */
+    private function isConfirmedFailureWebhook(): bool
+    {
+        return ! ($this->webhookData['success'] ?? true) || ($this->webhookData['status'] ?? null) !== 'DONE';
     }
 
     /**
