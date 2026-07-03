@@ -61,14 +61,16 @@ class PanelCompletenessService
      *
      * First cross-checks test_result_profiles count against ODB's invoice
      * item count (blood_test_sales/blood_test_item) — a mismatch usually
-     * means a whole profile never arrived, UNLESS actual_panel_count is
-     * already at or above COMPLETE_PANEL_THRESHOLD, in which case the
-     * ceiling overrides the mismatch (ODB invoice line items can include
-     * unrelated service-charge/add-on entries that inflate the count
-     * without reflecting a real missing profile — a high actual panel
-     * count is treated as stronger evidence than a noisy invoice count).
+     * means a whole profile never arrived, UNLESS actual_panel_count
+     * already satisfies the panel-count completeness check below (>=
+     * expected_panel_count, when set, OR >= COMPLETE_PANEL_THRESHOLD), in
+     * which case that overrides the mismatch (ODB invoice line items can
+     * include unrelated service-charge/add-on entries that inflate the
+     * count without reflecting a real missing profile — a record that
+     * already has as many panels as expected, or enough to clear the
+     * ceiling, is treated as stronger evidence than a noisy invoice count).
      * If the check matches, can't be performed (fail-open), or is
-     * overridden by the ceiling, completeness is decided by comparing
+     * overridden by the panel-count check, completeness is decided by comparing
      * actual_panel_count against expected_panel_count, where
      * expected_panel_count is the sum of panel_profiles_count.count for
      * every linked panel_profile_id (0 for any profile with no row there —
@@ -146,7 +148,15 @@ class PanelCompletenessService
         $invoiceItemCount = $this->fetchInvoiceItemCount($testResult);
         $invoiceMismatch = $invoiceItemCount !== null && $invoiceItemCount !== $testResultProfilesCount;
 
-        if ($invoiceMismatch && $actualPanelCount < self::COMPLETE_PANEL_THRESHOLD) {
+        // expected_panel_count = 0 means panel_profiles_count has no row for this
+        // profile yet (not manually populated) — on its own that must not trivially
+        // pass, so it only counts via the >= COMPLETE_PANEL_THRESHOLD ceiling below,
+        // same as any record whose expected count is set but exceeds what's
+        // actually achievable.
+        $meetsPanelThreshold = $actualPanelCount >= self::COMPLETE_PANEL_THRESHOLD
+            || ($expectedPanelCount > 0 && $actualPanelCount >= $expectedPanelCount);
+
+        if ($invoiceMismatch && ! $meetsPanelThreshold) {
             return [
                 'applicable' => true,
                 'is_complete' => false,
@@ -158,17 +168,9 @@ class PanelCompletenessService
             ];
         }
 
-        // expected_panel_count = 0 means panel_profiles_count has no row for this
-        // profile yet (not manually populated) — on its own that must not trivially
-        // pass, so it only counts via the >= COMPLETE_PANEL_THRESHOLD ceiling below,
-        // same as any record whose expected count is set but exceeds what's
-        // actually achievable.
-        $isComplete = $actualPanelCount >= self::COMPLETE_PANEL_THRESHOLD
-            || ($expectedPanelCount > 0 && $actualPanelCount >= $expectedPanelCount);
-
         return [
             'applicable' => true,
-            'is_complete' => $isComplete,
+            'is_complete' => $meetsPanelThreshold,
             'expected_panel_count' => $expectedPanelCount,
             'actual_panel_count' => $actualPanelCount,
             'missing_panel_ids' => $missingPanelIds,
