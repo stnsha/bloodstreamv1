@@ -4,11 +4,10 @@ namespace App\Http\Requests;
 
 use App\Models\AIError;
 use App\Models\AIReview;
-use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
+use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
-
 
 class AIResultRequest extends FormRequest
 {
@@ -72,9 +71,10 @@ class AIResultRequest extends FormRequest
             // The original code force-deleted ANY review unconditionally, which destroyed completed
             // reviews when the AI server sent a failure or non-DONE webhook (e.g. status != "DONE"),
             // leaving test_results.is_reviewed = 1 with no corresponding ai_reviews record.
+            // Soft-delete (not force-delete) so a late-arriving valid webhook can still restore it.
             AIReview::where('test_result_id', $testResultId)
                 ->where('processing_status', '!=', 'COMPLETED')
-                ->forceDelete();
+                ->delete();
 
             AIError::create([
                 'test_result_id' => $testResultId,
@@ -93,5 +93,4 @@ class AIResultRequest extends FormRequest
 
         throw new ValidationException($validator);
     }
-
 }

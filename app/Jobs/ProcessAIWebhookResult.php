@@ -6,6 +6,7 @@ use App\Models\AIError;
 use App\Models\AIReview;
 use App\Models\TestResult;
 use App\Services\ReviewHtmlGenerator;
+use App\Services\TestResultCompilerService;
 use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -56,7 +57,7 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
      * Execute the job.
      * Safe to retry - includes idempotency checks and non-destructive error handling
      */
-    public function handle(ReviewHtmlGenerator $htmlGenerator): void
+    public function handle(ReviewHtmlGenerator $htmlGenerator, TestResultCompilerService $compiler): void
     {
         $startTime = microtime(true);
         $startMemory = memory_get_usage();
@@ -88,22 +89,33 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
             $htmlReview = $htmlGenerator->convertToHtml($aiAnalysis['answer']);
 
             // Update ai_reviews and test_result in transaction
-            DB::transaction(function () use ($testResultId, $aiAnalysis, $htmlReview, $idempotencyKey) {
+            DB::transaction(function () use ($testResultId, $aiAnalysis, $htmlReview, $idempotencyKey, $compiler) {
                 // Get most recent AIReview record for this test result (including soft-deleted)
                 $aiReview = AIReview::where('test_result_id', $testResultId)
                     ->withTrashed()
                     ->orderBy('id', 'desc')
                     ->first();
 
-                if (! $aiReview) {
-                    // No prior record — create a new instance to be saved as COMPLETED below
-                    // This is expected when the job's intermediate record was cleaned up or never existed
-                    Log::channel('webhook')->info('No prior AI review record found for webhook - will create COMPLETED record directly', [
+                if ($aiReview && $aiReview->trashed()) {
+                    // Row was soft-deleted after an earlier local failure, but the AI service had
+                    // already accepted the request and is now completing it. Restore it so its
+                    // original compiled_results (untouched by the soft delete) is kept intact.
+                    Log::channel('webhook')->info('Restoring soft-deleted AI review record for webhook', [
+                        'test_result_id' => $testResultId,
+                        'ai_review_id' => $aiReview->id,
+                    ]);
+
+                    $aiReview->deleted_at = null;
+                } elseif (! $aiReview) {
+                    // No prior record at all (e.g. manual cleanup) — recompile compiled_results
+                    // so the NOT NULL column is still satisfied with real data.
+                    Log::channel('webhook')->info('No prior AI review record found for webhook - recompiling compiled_results', [
                         'test_result_id' => $testResultId,
                     ]);
 
-                    $aiReview = new AIReview();
+                    $aiReview = new AIReview;
                     $aiReview->test_result_id = $testResultId;
+                    $aiReview->compiled_results = $this->recompileResults($testResultId, $compiler);
                 }
 
                 // IDEMPOTENCY CHECK: Skip if already processed with same webhook
@@ -122,7 +134,6 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
                 $aiReview->ai_response = $htmlReview;
                 $aiReview->raw_response = $aiAnalysis;
                 $aiReview->webhook_idempotency_key = $idempotencyKey;
-                // Preserve existing compiled_results
                 $aiReview->save();
 
                 // Update test_result.is_reviewed flag (only on first successful webhook)
@@ -186,17 +197,18 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
     }
 
     /**
-     * Handle error by deleting any non-COMPLETED ai_review record and creating an ai_errors entry.
-     * ai_reviews must only contain COMPLETED rows.
+     * Handle error by soft-deleting any non-COMPLETED ai_review record and creating an ai_errors entry.
+     * Soft-delete (not force-delete) so a late-arriving webhook can still find and restore the row.
      */
     protected function handleError(int $testResultId, Exception $e): void
     {
         try {
             DB::transaction(function () use ($testResultId, $e) {
-                // Delete any non-COMPLETED record — ai_reviews must only contain COMPLETED rows
+                // Soft-delete any non-COMPLETED record — hidden from default queries so callers
+                // still see "only COMPLETED rows", but recoverable if a late webhook arrives
                 AIReview::where('test_result_id', $testResultId)
                     ->where('processing_status', '!=', 'COMPLETED')
-                    ->forceDelete();
+                    ->delete();
 
                 // Create error record for recovery
                 AIError::create([
@@ -215,5 +227,19 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
                 'storage_error' => $dbError->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Recompile compiled_results from scratch for the rare case where no AIReview row
+     * (not even a soft-deleted one) exists for this test result. Mirrors the same calls
+     * SendToAIServer::handle() makes, so the recompiled data matches what would have
+     * originally been sent to the AI service.
+     */
+    protected function recompileResults(int $testResultId, TestResultCompilerService $compiler): array
+    {
+        $testResult = $compiler->fetchTestResult($testResultId);
+        $testResult = $compiler->ensureSpecialTestsCalculated($testResult);
+
+        return $compiler->compileTestResultData($testResult, 'MHJOB');
     }
 }
