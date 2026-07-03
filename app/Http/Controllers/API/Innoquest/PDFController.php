@@ -2653,7 +2653,7 @@ class PDFController extends Controller
             ->latest('created_at')
             ->first();
 
-            Log::channel($this->getLogChannel())->error('processTestResult [FINAL]: ALL STEPS FAILED', [
+            Log::channel($this->getLogChannel())->warning('processTestResult [FINAL]: ALL STEPS FAILED', [
                 'success' => false,
                 'input' => [
                     'icno' => $icno,

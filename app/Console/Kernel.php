@@ -43,8 +43,22 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping(60);
 
         // Daily snapshot of incomplete_test_results (ref_id, lab_no) to CSV for operational review
-        $schedule->command('export:incomplete-test-results')
-            ->dailyAt('08:00')
+        // $schedule->command('export:incomplete-test-results')
+        //     ->dailyAt('08:00')
+        //     ->environments(['production'])
+        //     ->withoutOverlapping(30);
+
+        // Phase 2E: Keep panel_profiles_count in sync with panel_panel_profiles so
+        // PanelCompletenessService has accurate expected-panel-count data
+        $schedule->command('panels:sync-profile-counts')
+            ->dailyAt('00:00')
+            ->environments(['production'])
+            ->withoutOverlapping(30);
+
+        // Phase 2D: Reconcile incomplete_test_results — promote records that now
+        // resolve, refresh reason/missing_details for the rest
+        $schedule->command('panels:reconcile-incomplete --limit=200 --force')
+            ->hourlyAt(35)
             ->environments(['production'])
             ->withoutOverlapping(30);
 
@@ -58,7 +72,7 @@ class Kernel extends ConsoleKernel
      */
     protected function commands(): void
     {
-        $this->load(__DIR__ . '/Commands');
+        $this->load(__DIR__.'/Commands');
 
         require base_path('routes/console.php');
     }
