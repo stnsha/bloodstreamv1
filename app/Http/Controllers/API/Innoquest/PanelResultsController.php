@@ -3,30 +3,14 @@
 namespace App\Http\Controllers\API\Innoquest;
 
 use App\Http\Controllers\API\BaseResultsController;
-use App\Http\Requests\InnoquestResultRequest;
-use App\Services\AIReviewService;
-use App\Models\DeliveryFile;
-use App\Models\Doctor;
-use App\Models\MasterPanel;
-use App\Models\MasterPanelComment;
-use App\Models\MasterPanelItem;
+use App\Jobs\Innoquest\ProcessPanelResults;
 use App\Models\Panel;
-use App\Models\PanelComment;
-use App\Models\PanelItem;
-use App\Models\PanelPanelItem;
-use App\Models\PanelProfile;
 use App\Models\Patient;
 use App\Models\ReferenceRange;
-use App\Models\TestResult;
-use App\Models\TestResultComment;
-use App\Models\TestResultItem;
-use App\Models\TestResultProfile;
+use App\Services\AIReviewService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Jobs\Innoquest\ProcessPanelResults;
-use Throwable;
-use App\Jobs\SendToAIServer;
 
 class PanelResultsController extends BaseResultsController
 {
@@ -44,12 +28,15 @@ class PanelResultsController extends BaseResultsController
      *     summary="Submit Innoquest panel results",
      *     description="Process lab results from Innoquest system in HL7-like format",
      *     security={{"bearerAuth":{}}},
+     *
      *     @OA\RequestBody(
      *         required=true,
      *         description="Innoquest panel results data",
+     *
      *         @OA\JsonContent(
      *             type="object",
      *             required={"patient", "Orders"},
+     *
      *             @OA\Property(property="SendingFacility", type="string", example="BIOMARK"),
      *             @OA\Property(property="MessageControlID", type="string", example="169126507"),
      *             @OA\Property(
@@ -70,8 +57,10 @@ class PanelResultsController extends BaseResultsController
      *             @OA\Property(
      *                 property="Orders",
      *                 type="array",
+     *
      *                 @OA\Items(
      *                     type="object",
+     *
      *                     @OA\Property(property="PlacerOrderNumber", type="string", example="INN12345"),
      *                     @OA\Property(property="FillerOrderNumber", type="string", example="25-8888861"),
      *                     @OA\Property(property="PlacerGroupNumber", type="string", example=""),
@@ -88,8 +77,10 @@ class PanelResultsController extends BaseResultsController
      *                     @OA\Property(
      *                         property="Observations",
      *                         type="array",
+     *
      *                         @OA\Items(
      *                             type="object",
+     *
      *                             @OA\Property(property="PlacerOrderNumber", type="string", example=""),
      *                             @OA\Property(property="FillerOrderNumber", type="string", example="25-8888861"),
      *                             @OA\Property(property="ProcedureCode", type="string", example="FBC"),
@@ -113,8 +104,10 @@ class PanelResultsController extends BaseResultsController
      *                             @OA\Property(
      *                                 property="Results",
      *                                 type="array",
+     *
      *                                 @OA\Items(
      *                                     type="object",
+     *
      *                                     @OA\Property(property="ID", type="string", example="1"),
      *                                     @OA\Property(property="Type", type="string", example="NM"),
      *                                     @OA\Property(property="Identifier", type="string", example="718-7"),
@@ -135,10 +128,13 @@ class PanelResultsController extends BaseResultsController
      *             @OA\Property(property="EncodedBase64pdf", type="string", nullable=true, description="Base64 encoded PDF report")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=200,
      *         description="Panel results processed successfully",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="success", type="boolean", example=true),
      *             @OA\Property(property="message", type="string", example="Panel results processed successfully"),
      *             @OA\Property(
@@ -149,10 +145,13 @@ class PanelResultsController extends BaseResultsController
      *             )
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=500,
      *         description="Internal server error",
+     *
      *         @OA\JsonContent(
+     *
      *             @OA\Property(property="success", type="boolean", example=false),
      *             @OA\Property(property="message", type="string", example="Failed to process panel results"),
      *             @OA\Property(property="error", type="string", example="Internal server error")
@@ -160,7 +159,7 @@ class PanelResultsController extends BaseResultsController
      *     )
      * )
      */
-    public function panelResults(InnoquestResultRequest $request)
+    public function panelResults(Request $request)
     {
         set_time_limit(300);
         ini_set('max_execution_time', 300);
@@ -168,18 +167,18 @@ class PanelResultsController extends BaseResultsController
         // Generate request ID early for tracking
         $requestId = uniqid('panel_', true);
 
-        // Get validated data and user info (minimal processing)
-        $validated = $request->validated();
+        // Validation now happens inside ProcessPanelResults; queue unconditionally
+        $data = $request->all();
         $user = Auth::guard('lab')->user();
         $lab_id = $user->lab_id;
 
         // Dispatch to queue immediately - this is the fastest path
-        ProcessPanelResults::dispatch($validated, $requestId, $lab_id);
+        ProcessPanelResults::dispatch($data, $requestId, $lab_id);
 
         // Minimal logging - only essential info
         Log::channel('performance')->info('Panel request queued', [
             'request_id' => $requestId,
-            'orders_count' => count($validated['Orders'] ?? []),
+            'orders_count' => is_array($data['Orders'] ?? null) ? count($data['Orders']) : 0,
         ]);
 
         return response()->json([
@@ -188,5 +187,4 @@ class PanelResultsController extends BaseResultsController
             'request_id' => $requestId,
         ], 202);
     }
-
 }

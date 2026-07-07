@@ -22,11 +22,20 @@ class IncompleteTestResultsController extends Controller
     public function index(Request $request)
     {
         $page = max(1, (int) $request->input('page', 1));
+        $search = trim((string) $request->input('search', ''));
 
         try {
-            $paginator = IncompleteTestResult::with('testResult')
-                ->orderBy('id', 'desc')
-                ->paginate(30, ['*'], 'page', $page);
+            $query = IncompleteTestResult::with('testResult')
+                ->orderBy('id', 'desc');
+
+            if ($search !== '') {
+                $query->whereHas('testResult', function ($q) use ($search) {
+                    $q->where('lab_no', 'like', "%{$search}%")
+                        ->orWhere('ref_id', 'like', "%{$search}%");
+                });
+            }
+
+            $paginator = $query->paginate(30, ['*'], 'page', $page);
 
             $data = $paginator->getCollection()->map(function ($row) {
                 return [

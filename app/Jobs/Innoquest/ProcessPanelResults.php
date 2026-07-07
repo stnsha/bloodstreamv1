@@ -3,8 +3,10 @@
 namespace App\Jobs\Innoquest;
 
 use App\Constants\Innoquest\PanelPanelItem as PanelPanelItemConstants;
+use App\Http\Requests\InnoquestResultRequest;
 use App\Models\DeliveryFile;
 use App\Models\Doctor;
+use App\Models\FailedValidation;
 use App\Models\Lab;
 use App\Models\MasterPanel;
 use App\Models\MasterPanelComment;
@@ -36,6 +38,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 use Throwable;
 
 class ProcessPanelResults implements ShouldQueue
@@ -78,6 +81,24 @@ class ProcessPanelResults implements ShouldQueue
         });
     }
 
+    /**
+     * Best-effort extraction of a lab_no from the raw payload, without assuming
+     * any of it validated cleanly -- used to tag failed_validations rows even
+     * when Orders/Observations are missing or malformed.
+     */
+    private function extractLabNo(): ?string
+    {
+        foreach ($this->validatedData['Orders'] ?? [] as $order) {
+            foreach ($order['Observations'] ?? [] as $observation) {
+                if (! empty($observation['FillerOrderNumber'])) {
+                    return $observation['FillerOrderNumber'];
+                }
+            }
+        }
+
+        return null;
+    }
+
     public function handle()
     {
         $startTime = microtime(true);
@@ -88,6 +109,32 @@ class ProcessPanelResults implements ShouldQueue
             'queue_delay_seconds' => now()->diffInSeconds($this->receivedAt),
             'attempt' => $this->attempts(),
         ]);
+
+        $validator = Validator::make($this->validatedData, (new InnoquestResultRequest)->rules());
+
+        if ($validator->fails()) {
+            $errors = $validator->errors()->toArray();
+
+            Log::channel('job')->error('Panel job validation failed', [
+                'request_id' => $this->requestId,
+                'lab_id' => $this->labId,
+                'attempt' => $this->attempts(),
+                'errors' => $errors,
+            ]);
+
+            FailedValidation::create([
+                'request_id' => $this->requestId,
+                'lab_id' => $this->labId,
+                'lab_no' => $this->extractLabNo(),
+                'reason' => 'validation_error',
+                'missing_details' => collect($errors)
+                    ->map(fn ($messages, $field) => "{$field}: ".implode(' ', $messages))
+                    ->implode('; '),
+                'payload' => $this->validatedData,
+            ]);
+
+            return;
+        }
 
         try {
             $result = $this->processPanel();
