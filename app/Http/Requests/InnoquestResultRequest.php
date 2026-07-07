@@ -69,7 +69,7 @@ class InnoquestResultRequest extends FormRequest
             'patient.PatientFirstName' => 'nullable|string', // Present in JSON
             // 'patient.PatientMiddleName' => 'nullable|string', // not used - COMMENTED OUT (not in JSON)
             'patient.PatientDOB' => 'nullable|string', // Always Expected (YYYYMMDD)
-            'patient.PatientGender' => 'required|string|in:M,F', // Always Expected (M/F)
+            'patient.PatientGender' => 'nullable|string|in:M,F', // Always Expected (M/F)
             'patient.PatientAddress' => 'nullable|string', // Optional
             // 'patient.PatientNationality' => 'nullable|string', // Optional - COMMENTED OUT (not in JSON)
 
