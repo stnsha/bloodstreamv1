@@ -88,10 +88,14 @@ class PanelCompletenessService
      * the normal shape of an a-la-carte single test, not necessarily a
      * defect. It's still only complete if actual_panel_count >= 1, so a PDF
      * arriving with zero actual panels can never be marked complete. This
-     * shape is also cross-checked against ODB's invoice item count: more
-     * than one billed item alongside zero linked profiles means a package
-     * was almost certainly ordered and its profile link was simply never
-     * created, not a genuine a-la-carte order.
+     * shape is also cross-checked against ODB's invoice item count using the
+     * same invoice_item_count !== test_result_profiles_count equality the
+     * profiled branch below uses (here, test_result_profiles_count is always
+     * 0) — ANY billed item alongside zero linked profiles is treated as a
+     * dropped package link, not just >1. A package can be billed as a single
+     * line item, so "exactly 1 invoice item" does not prove a genuine
+     * a-la-carte order; only invoice_item_count === 0 (or unreachable/null,
+     * fail-open) is trusted as truly no package.
      *
      * @return array{applicable: bool, is_complete: bool, expected_panel_count: int, actual_panel_count: int, missing_panel_ids: \Illuminate\Support\Collection, invoice_item_count: int|null, test_result_profiles_count: int}
      */
@@ -118,10 +122,11 @@ class PanelCompletenessService
                 ->count();
 
             $invoiceItemCount = $this->fetchInvoiceItemCount($testResult);
+            $invoiceMismatch = $invoiceItemCount !== null && $invoiceItemCount !== $testResultProfilesCount;
 
             return [
                 'applicable' => true,
-                'is_complete' => $actualPanelCount >= 1 && ($invoiceItemCount === null || $invoiceItemCount <= 1),
+                'is_complete' => $actualPanelCount >= 1 && ! $invoiceMismatch,
                 'expected_panel_count' => 0,
                 'actual_panel_count' => $actualPanelCount,
                 'missing_panel_ids' => collect(),
