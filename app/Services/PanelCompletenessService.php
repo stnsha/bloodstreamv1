@@ -59,19 +59,23 @@ class PanelCompletenessService
      * panel profiles) against the panels actually present in its
      * test_result_items, without making any changes.
      *
-     * First cross-checks test_result_profiles count against ODB's invoice
-     * item count (blood_test_sales/blood_test_item) — a mismatch usually
-     * means a whole profile never arrived, UNLESS actual_panel_count
-     * already satisfies the panel-count completeness check below (>=
-     * expected_panel_count, when set, OR >= COMPLETE_PANEL_THRESHOLD), in
-     * which case that overrides the mismatch (ODB invoice line items can
-     * include unrelated service-charge/add-on entries that inflate the
-     * count without reflecting a real missing profile — a record that
-     * already has as many panels as expected, or enough to clear the
-     * ceiling, is treated as stronger evidence than a noisy invoice count).
-     * If the check matches, can't be performed (fail-open), or is
-     * overridden by the panel-count check, completeness is decided by comparing
-     * actual_panel_count against expected_panel_count, where
+     * ODB's blood_test_item rows for an invoice mix two kinds of line item:
+     * standalone panel purchases (a fixed, known item_code list — see
+     * bloodTestItemCount.php) and package/profile purchases (everything
+     * else). fetchInvoiceBreakdown() splits the invoice into
+     * panel_item_count and profile_item_count so each branch below compares
+     * against the right one instead of one combined raw count.
+     *
+     * First cross-checks test_result_profiles count against
+     * profile_item_count — a mismatch usually means a whole profile never
+     * arrived, UNLESS actual_panel_count already satisfies the panel-count
+     * completeness check below (>= expected_panel_count, when set, OR >=
+     * COMPLETE_PANEL_THRESHOLD), in which case that overrides the mismatch
+     * (a record that already has as many panels as expected, or enough to
+     * clear the ceiling, is treated as stronger evidence than a noisy
+     * invoice count). If the check matches, can't be performed (fail-open),
+     * or is overridden by the panel-count check, completeness is decided by
+     * comparing actual_panel_count against expected_panel_count, where
      * expected_panel_count is the sum of panel_profiles_count.count for
      * every linked panel_profile_id (0 for any profile with no row there —
      * that table is manually maintained/correctable, not derived live from
@@ -84,18 +88,15 @@ class PanelCompletenessService
      * diagnostic purposes only.
      *
      * If the record has no linked panel_profile at all (Innoquest sent no
-     * PackageCode), there's no expected count to compare against — this is
-     * the normal shape of an a-la-carte single test, not necessarily a
-     * defect. It's still only complete if actual_panel_count >= 1, so a PDF
-     * arriving with zero actual panels can never be marked complete. This
-     * shape is also cross-checked against ODB's invoice item count using the
-     * same invoice_item_count !== test_result_profiles_count equality the
-     * profiled branch below uses (here, test_result_profiles_count is always
-     * 0) — ANY billed item alongside zero linked profiles is treated as a
-     * dropped package link, not just >1. A package can be billed as a single
-     * line item, so "exactly 1 invoice item" does not prove a genuine
-     * a-la-carte order; only invoice_item_count === 0 (or unreachable/null,
-     * fail-open) is trusted as truly no package.
+     * PackageCode), there's no expected count from PanelProfilesCount to
+     * compare against. If profile_item_count > 0, a package/profile item was
+     * billed but its profile link never arrived — incomplete, same as the
+     * profiled branch's mismatch. Otherwise (profile_item_count === 0) this
+     * is a genuine a-la-carte order — possibly more than one standalone
+     * panel bought in the same visit — so panel_item_count itself becomes
+     * expected_panel_count, and the record is complete iff actual_panel_count
+     * >= max(expected_panel_count, 1) (a PDF arriving with zero actual
+     * panels can never be marked complete).
      *
      * @return array{applicable: bool, is_complete: bool, expected_panel_count: int, actual_panel_count: int, missing_panel_ids: \Illuminate\Support\Collection, invoice_item_count: int|null, test_result_profiles_count: int}
      */
@@ -105,14 +106,6 @@ class PanelCompletenessService
         $testResultProfilesCount = $panelProfileIds->count();
 
         if ($panelProfileIds->isEmpty()) {
-            // No linked panel_profile (Innoquest sent no PackageCode) means there's
-            // no expected count to compare against — but a record with a PDF and
-            // zero actual panels is still never complete. Require at least 1.
-            // Still cross-check ODB's invoice: more than one billed item for this
-            // visit means a package was almost certainly ordered and its profile
-            // link simply never arrived, which a single-panel a-la-carte order can
-            // never produce — so >1 invoice items with 0 linked profiles is treated
-            // as incomplete rather than trivially passing on actual_panel_count alone.
             $actualPanelCount = TestResultItem::where('test_result_id', $testResult->id)
                 ->with('panelPanelItem')
                 ->get()
@@ -121,16 +114,41 @@ class PanelCompletenessService
                 ->unique()
                 ->count();
 
-            $invoiceItemCount = $this->fetchInvoiceItemCount($testResult);
-            $invoiceMismatch = $invoiceItemCount !== null && $invoiceItemCount !== $testResultProfilesCount;
+            $breakdown = $this->fetchInvoiceBreakdown($testResult);
+
+            if ($breakdown === null) {
+                return [
+                    'applicable' => true,
+                    'is_complete' => $actualPanelCount >= 1,
+                    'expected_panel_count' => 0,
+                    'actual_panel_count' => $actualPanelCount,
+                    'missing_panel_ids' => collect(),
+                    'invoice_item_count' => null,
+                    'test_result_profiles_count' => $testResultProfilesCount,
+                ];
+            }
+
+            if ($breakdown['profile_item_count'] > 0) {
+                return [
+                    'applicable' => true,
+                    'is_complete' => false,
+                    'expected_panel_count' => 0,
+                    'actual_panel_count' => $actualPanelCount,
+                    'missing_panel_ids' => collect(),
+                    'invoice_item_count' => $breakdown['profile_item_count'],
+                    'test_result_profiles_count' => $testResultProfilesCount,
+                ];
+            }
+
+            $expectedPanelCount = $breakdown['panel_item_count'];
 
             return [
                 'applicable' => true,
-                'is_complete' => $actualPanelCount >= 1 && ! $invoiceMismatch,
-                'expected_panel_count' => 0,
+                'is_complete' => $actualPanelCount >= max($expectedPanelCount, 1),
+                'expected_panel_count' => $expectedPanelCount,
                 'actual_panel_count' => $actualPanelCount,
                 'missing_panel_ids' => collect(),
-                'invoice_item_count' => $invoiceItemCount,
+                'invoice_item_count' => $breakdown['profile_item_count'],
                 'test_result_profiles_count' => $testResultProfilesCount,
             ];
         }
@@ -150,7 +168,8 @@ class PanelCompletenessService
         $actualPanelCount = $actualPanelIds->count();
         $expectedPanelCount = (int) PanelProfilesCount::whereIn('panel_profile_id', $panelProfileIds)->sum('count');
 
-        $invoiceItemCount = $this->fetchInvoiceItemCount($testResult);
+        $breakdown = $this->fetchInvoiceBreakdown($testResult);
+        $invoiceItemCount = $breakdown['profile_item_count'] ?? null;
         $invoiceMismatch = $invoiceItemCount !== null && $invoiceItemCount !== $testResultProfilesCount;
 
         // expected_panel_count = 0 means panel_profiles_count has no row for this
@@ -185,11 +204,14 @@ class PanelCompletenessService
     }
 
     /**
-     * Fetch the ODB invoice item count for this TestResult via OctopusApiService.
-     * Fail-open: any lookup failure (no ref_id/icno, ODB unreachable, no match)
-     * returns null so evaluate() falls back to the panel-count threshold alone.
+     * Fetch the ODB invoice breakdown (panel_item_count/profile_item_count) for
+     * this TestResult via OctopusApiService. Fail-open: any lookup failure (no
+     * ref_id/icno, ODB unreachable, no match) returns null so evaluate() falls
+     * back to the panel-count threshold alone.
+     *
+     * @return array{panel_item_count: int, profile_item_count: int}|null
      */
-    private function fetchInvoiceItemCount(TestResult $testResult): ?int
+    private function fetchInvoiceBreakdown(TestResult $testResult): ?array
     {
         try {
             $labCode = $testResult->doctor->lab->code ?? null;
@@ -210,9 +232,9 @@ class PanelCompletenessService
             $month = $referenceDate ? Carbon::parse($referenceDate)->month : 0;
             $year = $referenceDate ? Carbon::parse($referenceDate)->year : 0;
 
-            return $this->octopusApi->getBloodTestItemCount($refId, $icno, $month, $year);
+            return $this->octopusApi->getBloodTestItemBreakdown($refId, $icno, $month, $year);
         } catch (Throwable $e) {
-            Log::warning('PanelCompletenessService: invoice item count lookup failed, falling back to panel-count threshold only', [
+            Log::warning('PanelCompletenessService: invoice breakdown lookup failed, falling back to panel-count threshold only', [
                 'test_result_id' => $testResult->id,
                 'error' => $e->getMessage(),
             ]);
@@ -277,7 +299,7 @@ class PanelCompletenessService
         }
 
         if ($reason === 'invoice_mismatch') {
-            return "ODB invoice items: {$result['invoice_item_count']}, test_result_profiles: {$result['test_result_profiles_count']}";
+            return "ODB profile/package items: {$result['invoice_item_count']}, test_result_profiles: {$result['test_result_profiles_count']}";
         }
 
         return null;
