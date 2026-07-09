@@ -42,12 +42,6 @@ class Kernel extends ConsoleKernel
             ->environments(['production'])
             ->withoutOverlapping(60);
 
-        // Daily snapshot of incomplete_test_results (ref_id, lab_no) to CSV for operational review
-        // $schedule->command('export:incomplete-test-results')
-        //     ->dailyAt('08:00')
-        //     ->environments(['production'])
-        //     ->withoutOverlapping(30);
-
         // Phase 2E: Keep panel_profiles_count in sync with panel_panel_profiles so
         // PanelCompletenessService has accurate expected-panel-count data
         $schedule->command('panels:sync-profile-counts')
@@ -59,6 +53,17 @@ class Kernel extends ConsoleKernel
         // resolve, refresh reason/missing_details for the rest
         $schedule->command('panels:reconcile-incomplete --limit=200 --force')
             ->hourlyAt(35)
+            ->environments(['production'])
+            ->withoutOverlapping(30);
+
+        // Phase 2G: Recheck today's is_completed=true test results against current
+        // panel/invoice completeness rules, reverting any that no longer qualify.
+        // No --limit: the "today" window is self-bounding by daily volume, and a
+        // --limit here would only reselect the same newest-N records every run
+        // (ordered by collected_date desc) since verified-OK records keep
+        // is_completed=true and never drop out of the query.
+        $schedule->command('panels:recheck-incomplete --from=today --force')
+            ->hourlyAt(50)
             ->environments(['production'])
             ->withoutOverlapping(30);
 
