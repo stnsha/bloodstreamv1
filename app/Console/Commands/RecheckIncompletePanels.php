@@ -18,16 +18,25 @@ class RecheckIncompletePanels extends Command
                             {--offset= : Number of matched records to skip before applying --limit, for paging through a large range in batches}
                             {--dry-run : Preview affected records without making any changes}
                             {--force : Skip the confirmation prompt (required for unattended/scheduled runs)}
-                            {--prioritize-ref-id : Process records with a non-null ref_id before those without, for higher-fidelity ODB-based completeness checks}';
+                            {--prioritize-ref-id : Process records with a non-null ref_id before those without, for higher-fidelity ODB-based completeness checks}
+                            {--test-result-id= : Comma-separated test_result_id values to recheck directly, bypassing --from/--to/--limit/--offset/--prioritize-ref-id and the is_completed=true filter}';
 
     protected $description = 'Recheck test results marked is_completed=true against their expected panel profiles, reverting is_completed to false and recording any with missing panels in incomplete_test_results';
 
     public function handle(PanelCompletenessService $panelCompletenessService): int
     {
-        $from = $this->option('from') ?? now()->subDays(30)->toDateString();
-        $to = $this->option('to') ?? now()->toDateString();
+        $testResultIdOption = $this->option('test-result-id');
+        $rawFrom = $this->option('from');
+        $rawTo = $this->option('to');
         $limit = $this->option('limit') ? (int) $this->option('limit') : null;
         $offset = $this->option('offset') ? (int) $this->option('offset') : null;
+        $prioritizeRefId = $this->option('prioritize-ref-id');
+
+        if ($testResultIdOption && ($rawFrom || $rawTo || $limit || $offset || $prioritizeRefId)) {
+            $this->error('--test-result-id cannot be combined with --from/--to/--limit/--offset/--prioritize-ref-id.');
+
+            return Command::FAILURE;
+        }
 
         if ($offset && ! $limit) {
             $this->error('--offset requires --limit to be set (MySQL does not support OFFSET without LIMIT).');
@@ -37,14 +46,29 @@ class RecheckIncompletePanels extends Command
 
         $dryRun = $this->option('dry-run');
         $force = $this->option('force');
-        $prioritizeRefId = $this->option('prioritize-ref-id');
 
-        $fromDate = Carbon::parse($from)->startOfDay();
-        $toDate = Carbon::parse($to)->endOfDay();
+        $testResultIds = null;
+        $fromDate = null;
+        $toDate = null;
+
+        if ($testResultIdOption) {
+            $testResultIds = array_values(array_unique(array_filter(array_map('intval', explode(',', $testResultIdOption)))));
+
+            if (empty($testResultIds)) {
+                $this->error('No valid test_result_id values provided in --test-result-id.');
+
+                return Command::FAILURE;
+            }
+        } else {
+            $fromDate = Carbon::parse($rawFrom ?? now()->subDays(30)->toDateString())->startOfDay();
+            $toDate = Carbon::parse($rawTo ?? now()->toDateString())->endOfDay();
+        }
 
         Log::channel('ai-command')->info('RecheckIncompletePanels started', [
-            'from' => $fromDate->toDateTimeString(),
-            'to' => $toDate->toDateTimeString(),
+            'mode' => $testResultIds ? 'id' : 'range',
+            'test_result_ids' => $testResultIds,
+            'from' => $fromDate?->toDateTimeString(),
+            'to' => $toDate?->toDateTimeString(),
             'limit' => $limit ?? 'all',
             'offset' => $offset ?? 0,
             'dry_run' => $dryRun,
@@ -54,33 +78,53 @@ class RecheckIncompletePanels extends Command
 
         $this->info('Querying test results to recheck...');
 
-        $query = TestResult::whereBetween('collected_date', [$fromDate, $toDate])
-            ->where('is_completed', true);
+        if ($testResultIds) {
+            $testResults = TestResult::whereIn('id', $testResultIds)
+                ->with(['patient:id,icno', 'testResultProfiles'])
+                ->get();
 
-        $totalMatched = $query->count();
+            $totalMatched = $testResults->count();
 
-        $testResults = $query
-            ->with(['patient:id,icno', 'testResultProfiles'])
-            ->when($prioritizeRefId, fn ($q) => $q->orderByRaw('ref_id IS NULL'))
-            ->orderBy('collected_date', 'desc')
-            ->when($offset, fn ($q) => $q->skip($offset))
-            ->when($limit, fn ($q) => $q->limit($limit))
-            ->get();
+            $notFound = array_diff($testResultIds, $testResults->pluck('id')->toArray());
+            foreach ($notFound as $missingId) {
+                $this->warn("TestResult ID {$missingId} not found, skipping.");
+                Log::channel('ai-command')->warning('RecheckIncompletePanels: TestResult not found', [
+                    'test_result_id' => $missingId,
+                ]);
+            }
+        } else {
+            $query = TestResult::whereBetween('collected_date', [$fromDate, $toDate])
+                ->where('is_completed', true);
+
+            $totalMatched = $query->count();
+
+            $testResults = $query
+                ->with(['patient:id,icno', 'testResultProfiles'])
+                ->when($prioritizeRefId, fn ($q) => $q->orderByRaw('ref_id IS NULL'))
+                ->orderBy('collected_date', 'desc')
+                ->when($offset, fn ($q) => $q->skip($offset))
+                ->when($limit, fn ($q) => $q->limit($limit))
+                ->get();
+        }
 
         $count = $testResults->count();
 
         if ($count === 0) {
-            $this->info('No test results found in range.');
+            $this->info($testResultIds ? 'No matching test results found for the given --test-result-id values.' : 'No test results found in range.');
             Log::channel('ai-command')->info('RecheckIncompletePanels: no records found', [
-                'from' => $fromDate->toDateString(),
-                'to' => $toDate->toDateString(),
+                'mode' => $testResultIds ? 'id' : 'range',
+                'test_result_ids' => $testResultIds,
+                'from' => $fromDate?->toDateString(),
+                'to' => $toDate?->toDateString(),
                 'offset' => $offset ?? 0,
             ]);
 
             return Command::SUCCESS;
         }
 
-        $this->info("Total matched: {$totalMatched} record(s). Will check: {$count}" . ($offset ? " (offset by --offset={$offset})" : '') . ($limit ? " (limited by --limit={$limit})" : '') . '.');
+        $this->info($testResultIds
+            ? "Total matched: {$totalMatched} record(s) out of ".count($testResultIds).' requested ID(s).'
+            : "Total matched: {$totalMatched} record(s). Will check: {$count}" . ($offset ? " (offset by --offset={$offset})" : '') . ($limit ? " (limited by --limit={$limit})" : '') . '.');
         $this->line('');
 
         $previewRows = [];
