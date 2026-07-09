@@ -16,6 +16,7 @@ use App\Services\AIReviewService;
 use App\Services\ApiTokenService;
 use App\Services\MyHealthService;
 use App\Services\ODB\MigrationService;
+use App\Services\PanelCompletenessService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -1568,6 +1569,77 @@ class BloodTestController extends Controller
             'succeeded' => $succeeded,
             'total' => count($labnos),
         ]);
+    }
+
+    /**
+     * Revert a lab no's incomplete_test_results record back to its original
+     * state via PanelCompletenessService::undo() — restores is_completed,
+     * is_reviewed, and the soft-deleted AIReview row exactly as they were
+     * before the record was demoted to incomplete. Deliberately standalone;
+     * does not call or modify markLabNoCompleted()/bulkMarkLabNoCompleted().
+     * Unlike ReconcileIncompletePanels's automated "promote" path, this does
+     * NOT recalculate special tests or dispatch a new AI review afterward —
+     * the goal is restoring exactly what was there before, not generating
+     * fresh review data.
+     */
+    public function revertIncompleteTestResult(Request $request, PanelCompletenessService $panelCompletenessService)
+    {
+        $validated = $request->validate([
+            'labno' => 'required|string',
+        ], [
+            'labno.required' => 'Labno is required.',
+        ]);
+
+        $labno = $validated['labno'];
+
+        Log::channel($this->getLogChannel())->info('revertIncompleteTestResult: Processing started', ['labno' => $labno]);
+
+        try {
+            $testResult = TestResult::where('lab_no', $labno)->latest()->first();
+
+            if (!$testResult) {
+                Log::channel($this->getLogChannel())->info('revertIncompleteTestResult: No test result found', ['labno' => $labno]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Test result not found for the given lab number',
+                ], 404);
+            }
+
+            $wasReverted = $panelCompletenessService->undo($testResult);
+
+            if (!$wasReverted) {
+                Log::channel($this->getLogChannel())->info('revertIncompleteTestResult: Nothing to revert', ['labno' => $labno]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No incomplete record found to revert for this lab number',
+                ], 404);
+            }
+
+            Log::channel($this->getLogChannel())->info('revertIncompleteTestResult: Reverted', [
+                'labno' => $labno,
+                'report_id' => $testResult->id,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'status' => $this->determineTestResultStatus($testResult->fresh()),
+                'report_id' => $testResult->id,
+            ]);
+        } catch (Throwable $e) {
+            Log::channel($this->getLogChannel())->error('revertIncompleteTestResult: Critical error occurred', [
+                'error_message' => $e->getMessage(),
+                'error_file' => $e->getFile(),
+                'error_line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+                'labno' => $labno ?? null,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while processing the request',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**

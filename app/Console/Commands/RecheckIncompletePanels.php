@@ -19,7 +19,8 @@ class RecheckIncompletePanels extends Command
                             {--dry-run : Preview affected records without making any changes}
                             {--force : Skip the confirmation prompt (required for unattended/scheduled runs)}
                             {--prioritize-ref-id : Process records with a non-null ref_id before those without, for higher-fidelity ODB-based completeness checks}
-                            {--test-result-id= : Comma-separated test_result_id values to recheck directly, bypassing --from/--to/--limit/--offset/--prioritize-ref-id and the is_completed=true filter}';
+                            {--test-result-id= : Comma-separated test_result_id values to recheck directly, bypassing --from/--to/--limit/--offset/--prioritize-ref-id and the is_completed=true filter}
+                            {--batch-size= : Process and display the matched records in chunks of this size instead of one large table/run, for backlogs of hundreds+ records}';
 
     protected $description = 'Recheck test results marked is_completed=true against their expected panel profiles, reverting is_completed to false and recording any with missing panels in incomplete_test_results';
 
@@ -31,15 +32,22 @@ class RecheckIncompletePanels extends Command
         $limit = $this->option('limit') ? (int) $this->option('limit') : null;
         $offset = $this->option('offset') ? (int) $this->option('offset') : null;
         $prioritizeRefId = $this->option('prioritize-ref-id');
+        $batchSize = $this->option('batch-size') ? (int) $this->option('batch-size') : null;
 
-        if ($testResultIdOption && ($rawFrom || $rawTo || $limit || $offset || $prioritizeRefId)) {
-            $this->error('--test-result-id cannot be combined with --from/--to/--limit/--offset/--prioritize-ref-id.');
+        if ($testResultIdOption && ($rawFrom || $rawTo || $limit || $offset || $prioritizeRefId || $batchSize)) {
+            $this->error('--test-result-id cannot be combined with --from/--to/--limit/--offset/--prioritize-ref-id/--batch-size.');
 
             return Command::FAILURE;
         }
 
         if ($offset && ! $limit) {
             $this->error('--offset requires --limit to be set (MySQL does not support OFFSET without LIMIT).');
+
+            return Command::FAILURE;
+        }
+
+        if ($batchSize !== null && $batchSize < 1) {
+            $this->error('--batch-size must be a positive integer.');
 
             return Command::FAILURE;
         }
@@ -74,6 +82,7 @@ class RecheckIncompletePanels extends Command
             'dry_run' => $dryRun,
             'force' => $force,
             'prioritize_ref_id' => $prioritizeRefId,
+            'batch_size' => $batchSize ?? 'none',
         ]);
 
         $this->info('Querying test results to recheck...');
@@ -125,34 +134,52 @@ class RecheckIncompletePanels extends Command
         $this->info($testResultIds
             ? "Total matched: {$totalMatched} record(s) out of ".count($testResultIds).' requested ID(s).'
             : "Total matched: {$totalMatched} record(s). Will check: {$count}" . ($offset ? " (offset by --offset={$offset})" : '') . ($limit ? " (limited by --limit={$limit})" : '') . '.');
-        $this->line('');
 
-        $previewRows = [];
-        $incompleteCount = 0;
-
-        foreach ($testResults as $testResult) {
-            $result = $panelCompletenessService->evaluate($testResult);
-
-            if (!$result['is_complete']) {
-                $incompleteCount++;
-            }
-
-            $previewRows[] = [
-                $testResult->id,
-                $testResult->lab_no ?? 'N/A',
-                $testResult->collected_date ? $testResult->collected_date->format('Y-m-d') : 'N/A',
-                $testResult->patient->icno ?? 'N/A',
-                $result['expected_panel_count'],
-                $result['actual_panel_count'],
-                $result['is_complete'] ? 'OK' : 'INCOMPLETE',
-            ];
+        if (! $batchSize && $count > 500) {
+            $this->warn("Large result set ({$count} records) — consider re-running with --batch-size=100 to process/display it in manageable chunks instead of one large table.");
         }
 
-        // Always show preview table
-        $this->table(
-            ['ID', 'Lab No', 'Collected Date', 'Patient IC', 'Expected Panels', 'Actual Panels', 'Status'],
-            $previewRows
-        );
+        $this->line('');
+
+        $chunks = $testResults->chunk($batchSize ?? $count)->values();
+        $totalChunks = $chunks->count();
+        $incompleteCount = 0;
+
+        foreach ($chunks as $chunkIndex => $chunk) {
+            if ($batchSize) {
+                $this->line('Batch '.($chunkIndex + 1)."/{$totalChunks} (".$chunk->count().' record(s)):');
+            }
+
+            $previewRows = [];
+
+            foreach ($chunk as $testResult) {
+                $result = $panelCompletenessService->evaluate($testResult);
+
+                if (!$result['is_complete']) {
+                    $incompleteCount++;
+                }
+
+                $previewRows[] = [
+                    $testResult->id,
+                    $testResult->lab_no ?? 'N/A',
+                    $testResult->collected_date ? $testResult->collected_date->format('Y-m-d') : 'N/A',
+                    $testResult->patient->icno ?? 'N/A',
+                    $result['expected_panel_count'],
+                    $result['actual_panel_count'],
+                    $result['is_complete'] ? 'OK' : 'INCOMPLETE',
+                ];
+            }
+
+            // Always show preview table
+            $this->table(
+                ['ID', 'Lab No', 'Collected Date', 'Patient IC', 'Expected Panels', 'Actual Panels', 'Status'],
+                $previewRows
+            );
+
+            if ($batchSize) {
+                $this->line('');
+            }
+        }
 
         $this->info("Found {$incompleteCount} incomplete record(s) out of {$count} checked.");
 
@@ -186,44 +213,56 @@ class RecheckIncompletePanels extends Command
         $startTime = microtime(true);
         $reverted = 0;
         $failed = 0;
-        $resultRows = [];
 
-        foreach ($testResults as $testResult) {
-            Log::channel('ai-command')->info('RecheckIncompletePanels: processing record', [
-                'test_result_id' => $testResult->id,
-            ]);
+        foreach ($chunks as $chunkIndex => $chunk) {
+            if ($batchSize) {
+                $this->line('Processing batch '.($chunkIndex + 1)."/{$totalChunks}...");
+            }
 
-            try {
-                $isComplete = $panelCompletenessService->checkAndHandle($testResult);
+            $resultRows = [];
 
-                if ($isComplete) {
-                    $resultRows[] = [$testResult->id, 'OK', '-'];
-                } else {
-                    $reverted++;
-                    $resultRows[] = [$testResult->id, 'REVERTED', '-'];
+            foreach ($chunk as $testResult) {
+                Log::channel('ai-command')->info('RecheckIncompletePanels: processing record', [
+                    'test_result_id' => $testResult->id,
+                ]);
+
+                try {
+                    $isComplete = $panelCompletenessService->checkAndHandle($testResult);
+
+                    if ($isComplete) {
+                        $resultRows[] = [$testResult->id, 'OK', '-'];
+                    } else {
+                        $reverted++;
+                        $resultRows[] = [$testResult->id, 'REVERTED', '-'];
+                    }
+
+                    Log::channel('ai-command')->info('RecheckIncompletePanels: record completed', [
+                        'test_result_id' => $testResult->id,
+                        'is_complete' => $isComplete,
+                    ]);
+                } catch (Throwable $e) {
+                    $failed++;
+                    $resultRows[] = [$testResult->id, 'FAILED', $e->getMessage()];
+
+                    Log::channel('ai-command')->error('RecheckIncompletePanels: record failed', [
+                        'test_result_id' => $testResult->id,
+                        'error' => $e->getMessage(),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine(),
+                    ]);
                 }
+            }
 
-                Log::channel('ai-command')->info('RecheckIncompletePanels: record completed', [
-                    'test_result_id' => $testResult->id,
-                    'is_complete' => $isComplete,
-                ]);
-            } catch (Throwable $e) {
-                $failed++;
-                $resultRows[] = [$testResult->id, 'FAILED', $e->getMessage()];
+            $this->table(['ID', 'Status', 'Error'], $resultRows);
 
-                Log::channel('ai-command')->error('RecheckIncompletePanels: record failed', [
-                    'test_result_id' => $testResult->id,
-                    'error' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                ]);
+            if ($batchSize) {
+                $this->info('Batch '.($chunkIndex + 1)."/{$totalChunks} done. Running total — Reverted: {$reverted}, Failed: {$failed}.");
+                $this->line('');
             }
         }
 
         $duration = round(microtime(true) - $startTime, 2);
 
-        $this->line('');
-        $this->table(['ID', 'Status', 'Error'], $resultRows);
         $this->line('');
         $this->info("Done. Reverted: {$reverted}, Failed: {$failed}, Duration: {$duration}s.");
 
