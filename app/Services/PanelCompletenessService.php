@@ -44,6 +44,13 @@ class PanelCompletenessService
         PanelPanelItemConstants::ALBUMIN => 'Albumin',
     ];
 
+    /**
+     * Total number of distinct special-test parameter slots checked by
+     * missingSpecialTestParameters(): the 8 labeled entries above plus
+     * Platelets (its two alternate item ids count as a single slot).
+     */
+    private const SPECIAL_TEST_TOTAL_PARAMETERS = 9;
+
     protected OctopusApiService $octopusApi;
 
     protected TestResultCompilerService $testResultCompilerService;
@@ -368,11 +375,18 @@ class PanelCompletenessService
     /**
      * Which of the raw test_result_items inputs the 7 special-test formulas
      * need are missing, as human-readable labels (empty array = nothing
-     * missing). BMI (used only by NFS) comes from the external MyHealth
+     * missing, full list = none of the SPECIAL_TEST_TOTAL_PARAMETERS slots
+     * matched). BMI (used only by NFS) comes from the external MyHealth
      * service, not test_result_items, and is deliberately excluded here —
      * its absence must never block completeness. Platelets has two
      * alternate item ids (primary, then a fallback); either one satisfies
      * the requirement, matching getPlateletsValue()'s existing fallback.
+     *
+     * Callers must not treat a full missing list on its own as blocking:
+     * see evaluateFull(), which only blocks completeness on a *partial*
+     * match (at least one parameter present, but not all) — a profile with
+     * zero matched parameters (e.g. ALEMO) simply isn't special-test
+     * eligible.
      */
     private function missingSpecialTestParameters(TestResult $testResult): array
     {
@@ -402,13 +416,20 @@ class PanelCompletenessService
      * without writing anything. Layers the special-test-parameter gate (c)
      * on top of evaluate()'s a+b result: not applicable when there's no
      * linked profile (special tests aren't meaningful for a-la-carte
-     * tests), otherwise incomplete with reason 'special_tests_missing_parameters'
-     * if a required raw parameter is missing.
+     * tests). When a profile is linked, the gate only blocks completeness
+     * on a *partial* match — at least one of the SPECIAL_TEST_TOTAL_PARAMETERS
+     * slots present but not all of them (reason
+     * 'special_tests_missing_parameters'). A profile with zero matched
+     * parameters (e.g. ALEMO) is never blocked here — it simply isn't a
+     * profile special tests apply to, so panel-count completeness alone
+     * decides it.
      *
      * @return array evaluate()'s array plus 'final_is_complete' (bool),
-     *               'reason' (string|null), and 'missing_details'
+     *               'reason' (string|null), 'missing_details'
      *               (string|null) — the latter two only set when
-     *               final_is_complete is false
+     *               final_is_complete is false — and 'special_tests_eligible'
+     *               (bool, true only when a profile is linked AND at least
+     *               one special-test parameter is present)
      */
     public function evaluateFull(TestResult $testResult): array
     {
@@ -418,17 +439,22 @@ class PanelCompletenessService
             $result['final_is_complete'] = false;
             $result['reason'] = $this->resolveIncompleteReason($result);
             $result['missing_details'] = $this->missingDetailsForReason($testResult, $result, $result['reason']);
+            $result['special_tests_eligible'] = false;
 
             return $result;
         }
 
+        $matchedCount = 0;
+
         if ($result['test_result_profiles_count'] > 0) {
             $missingParams = $this->missingSpecialTestParameters($testResult);
+            $matchedCount = self::SPECIAL_TEST_TOTAL_PARAMETERS - count($missingParams);
 
-            if (! empty($missingParams)) {
+            if ($matchedCount > 0 && ! empty($missingParams)) {
                 $result['final_is_complete'] = false;
                 $result['reason'] = 'special_tests_missing_parameters';
                 $result['missing_details'] = 'Missing parameters: '.implode(', ', $missingParams);
+                $result['special_tests_eligible'] = true;
 
                 return $result;
             }
@@ -437,6 +463,7 @@ class PanelCompletenessService
         $result['final_is_complete'] = true;
         $result['reason'] = null;
         $result['missing_details'] = null;
+        $result['special_tests_eligible'] = $matchedCount > 0;
 
         return $result;
     }
@@ -456,16 +483,22 @@ class PanelCompletenessService
      * 2. If the record has no linked panel_profile, special tests aren't
      *    applicable (they're only meaningful for profiled packages) -> skip
      *    straight to finalizing.
-     * 3. If it has a linked profile, all raw test_result_items inputs the 7
-     *    special-test formulas need must be present -> if not, record
-     *    incomplete (reason: special_tests_missing_parameters) and stop.
-     *    MyHealth is never called and no calculation is attempted in this
-     *    branch.
+     * 3. If it has a linked profile and at least one special-test parameter
+     *    is already present (a partial match), all raw test_result_items
+     *    inputs the 7 special-test formulas need must be present -> if not,
+     *    record incomplete (reason: special_tests_missing_parameters) and
+     *    stop. MyHealth is never called and no calculation is attempted in
+     *    this branch. If zero parameters are present (e.g. an ALEMO
+     *    profile), special tests simply don't apply -> skip straight to
+     *    finalizing, same as step 2.
      * 4. Finalize: is_completed=true, is_reviewed=false, clear any
      *    incomplete_test_results row. Only after this is committed,
      *    fire-and-forget (outside the transaction, own try/catch) trigger
-     *    the actual special-test calculation — this is where MyHealth gets
-     *    called; its failure can no longer affect completeness at this
+     *    the actual special-test calculation — but only when
+     *    special_tests_eligible is true (a linked profile with at least one
+     *    matched parameter); otherwise there's nothing to calculate, so the
+     *    call is skipped. This is where MyHealth gets called when
+     *    eligible; its failure can no longer affect completeness at this
      *    point, matching "MyHealth failure just continues".
      *
      * @return bool true if the record is now complete (whether it already
@@ -506,6 +539,14 @@ class PanelCompletenessService
             ]);
 
             throw $e;
+        }
+
+        if (! $result['special_tests_eligible']) {
+            Log::info('PanelCompletenessService: no special-test parameters matched, skipping calculation', [
+                'test_result_id' => $testResult->id,
+            ]);
+
+            return true;
         }
 
         try {
