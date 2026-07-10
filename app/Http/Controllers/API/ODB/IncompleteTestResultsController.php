@@ -44,6 +44,7 @@ class IncompleteTestResultsController extends Controller
                     'ref_id' => $row->testResult->ref_id ?? null,
                     'expected_panel_count' => $row->expected_panel_count,
                     'actual_panel_count' => $row->actual_panel_count,
+                    'was_reviewed' => $row->was_reviewed,
                     'reason' => $row->reason,
                     'missing_details' => $row->missing_details,
                 ];
