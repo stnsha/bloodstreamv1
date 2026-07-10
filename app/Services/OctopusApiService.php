@@ -550,6 +550,72 @@ class OctopusApiService
     }
 
     /**
+     * Get the human-readable package/profile names billed on the invoice linked to
+     * a test result, for the same invoice bloodTestItemBreakdown() looks up. This is
+     * a separate endpoint (bloodTestItemPackageNames.php) from getBloodTestItemBreakdown()
+     * deliberately: it does an extra `simple` table join per item_code, and is only
+     * ever needed on demand (CSV export of invoice_mismatch rows), not on every
+     * panel completeness check.
+     *
+     * @param string|null $refId Numeric blood_test_sales.id with lab code prefix stripped, or null
+     * @param string $icno Patient IC number (used when $refId is null)
+     * @param int $month Collected date month (1-12), used when $refId is null
+     * @param int $year Collected date year, used when $refId is null
+     * @return array<string> Package/profile names, or [] if no matching invoice was found
+     * @throws Exception
+     */
+    public function getBloodTestItemPackageNames(?string $refId, string $icno, int $month, int $year): array
+    {
+        Log::info('OctopusApiService: Fetching blood test item package names', [
+            'ref_id' => $refId,
+            'icno' => $icno,
+            'month' => $month,
+            'year' => $year,
+        ]);
+
+        $data = [
+            'username' => $this->username,
+            'password' => $this->password,
+            'ref_id' => $refId ?? '',
+            'icno' => $icno,
+            'month' => $month,
+            'year' => $year,
+        ];
+
+        try {
+            $result = $this->callAPI('POST', '/bloodTestItemPackageNames.php', $data);
+
+            if (($result['status'] ?? '') !== 'success' || !isset($result['package_names'])) {
+                Log::info('OctopusApiService: Blood test item package names not found', [
+                    'ref_id' => $refId,
+                    'icno' => $icno,
+                    'message' => $result['message'] ?? null,
+                ]);
+
+                return [];
+            }
+
+            Log::info('OctopusApiService: Blood test item package names fetched successfully', [
+                'ref_id' => $refId,
+                'icno' => $icno,
+                'package_names_count' => count($result['package_names']),
+                'blood_test_sales_id' => $result['blood_test_sales_id'] ?? null,
+            ]);
+
+            return $result['package_names'];
+
+        } catch (Exception $e) {
+            Log::error('OctopusApiService: Blood test item package names lookup exception', [
+                'error' => $e->getMessage(),
+                'ref_id' => $refId,
+                'icno' => $icno,
+            ]);
+
+            throw $e;
+        }
+    }
+
+    /**
      * Test API connection.
      *
      * @return bool True if connection is successful

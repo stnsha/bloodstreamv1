@@ -221,25 +221,13 @@ class PanelCompletenessService
     private function fetchInvoiceBreakdown(TestResult $testResult): ?array
     {
         try {
-            $labCode = $testResult->doctor->lab->code ?? null;
-            $rawRefId = $testResult->ref_id;
-            $refId = null;
+            $params = $this->resolveInvoiceLookupParams($testResult);
 
-            if ($rawRefId && $labCode && stripos($rawRefId, $labCode) === 0) {
-                $refId = substr($rawRefId, strlen($labCode));
-            }
-
-            $icno = $testResult->patient->icno ?? '';
-            $referenceDate = $testResult->collected_date ?? $testResult->reported_date;
-
-            if (! $refId && ! $icno) {
+            if ($params === null) {
                 return null;
             }
 
-            $month = $referenceDate ? Carbon::parse($referenceDate)->month : 0;
-            $year = $referenceDate ? Carbon::parse($referenceDate)->year : 0;
-
-            return $this->octopusApi->getBloodTestItemBreakdown($refId, $icno, $month, $year);
+            return $this->octopusApi->getBloodTestItemBreakdown($params['ref_id'], $params['icno'], $params['month'], $params['year']);
         } catch (Throwable $e) {
             Log::warning('PanelCompletenessService: invoice breakdown lookup failed, falling back to panel-count threshold only', [
                 'test_result_id' => $testResult->id,
@@ -248,6 +236,70 @@ class PanelCompletenessService
 
             return null;
         }
+    }
+
+    /**
+     * Fetch the ODB package/profile names billed on the invoice linked to this
+     * TestResult, for display in the invoice_mismatch missing_details column of
+     * the incomplete-results CSV export. Deliberately not called during
+     * evaluate()/resolve() - it hits a separate ODB endpoint
+     * (bloodTestItemPackageNames.php) with an extra `simple` table join per
+     * item_code, which is only worth paying for on demand (CSV export),
+     * not on every panel completeness check. Fail-open: any lookup failure
+     * returns [].
+     *
+     * @return array<string>
+     */
+    public function getInvoicePackageNames(TestResult $testResult): array
+    {
+        try {
+            $params = $this->resolveInvoiceLookupParams($testResult);
+
+            if ($params === null) {
+                return [];
+            }
+
+            return $this->octopusApi->getBloodTestItemPackageNames($params['ref_id'], $params['icno'], $params['month'], $params['year']);
+        } catch (Throwable $e) {
+            Log::warning('PanelCompletenessService: invoice package names lookup failed', [
+                'test_result_id' => $testResult->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
+    }
+
+    /**
+     * Build the ref_id/icno/month/year params used to look up a TestResult's
+     * ODB invoice, shared by fetchInvoiceBreakdown() and
+     * getInvoicePackageNames() so both hit the same invoice.
+     *
+     * @return array{ref_id: string|null, icno: string, month: int, year: int}|null null when neither ref_id nor icno is available
+     */
+    private function resolveInvoiceLookupParams(TestResult $testResult): ?array
+    {
+        $labCode = $testResult->doctor->lab->code ?? null;
+        $rawRefId = $testResult->ref_id;
+        $refId = null;
+
+        if ($rawRefId && $labCode && stripos($rawRefId, $labCode) === 0) {
+            $refId = substr($rawRefId, strlen($labCode));
+        }
+
+        $icno = $testResult->patient->icno ?? '';
+        $referenceDate = $testResult->collected_date ?? $testResult->reported_date;
+
+        if (! $refId && ! $icno) {
+            return null;
+        }
+
+        return [
+            'ref_id' => $refId,
+            'icno' => $icno,
+            'month' => $referenceDate ? Carbon::parse($referenceDate)->month : 0,
+            'year' => $referenceDate ? Carbon::parse($referenceDate)->year : 0,
+        ];
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Exports\IncompleteTestResultsExport;
+use App\Services\PanelCompletenessService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -14,9 +15,9 @@ class ExportIncompleteTestResultsCommand extends Command
 {
     protected $signature = 'export:incomplete-test-results';
 
-    protected $description = 'Export incomplete_test_results (ref_id, lab_no) to a timestamped CSV file in storage/app/public/csv';
+    protected $description = 'Export incomplete_test_results (ref_id, lab_no, reason, missing_details) to a timestamped CSV file in storage/app/public/csv';
 
-    public function handle(): int
+    public function handle(PanelCompletenessService $panelCompletenessService): int
     {
         Log::channel('ai-command')->info('ExportIncompleteTestResultsCommand: started');
 
@@ -26,7 +27,7 @@ class ExportIncompleteTestResultsCommand extends Command
             $filename = 'incomplete_test_results_' . now()->format('Y-m-d_His') . '.csv';
             $storagePath = 'public/csv/' . $filename;
 
-            Excel::store(new IncompleteTestResultsExport(), $storagePath, null, ExcelFormat::CSV);
+            Excel::store(new IncompleteTestResultsExport($panelCompletenessService), $storagePath, null, ExcelFormat::CSV);
 
             $fullPath = storage_path('app/' . $storagePath);
 
