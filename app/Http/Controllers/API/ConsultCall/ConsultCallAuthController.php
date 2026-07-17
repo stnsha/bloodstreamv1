@@ -42,7 +42,7 @@ class ConsultCallAuthController extends Controller
             $validated = $request->validate([
                 'staff_id' => 'required|integer',
                 'staff_department_id' => 'required|integer',
-                'consult_call' => 'required|integer|in:0,1,2,3,4,5',
+                'consult_call' => 'required|integer|in:0,1,2,3,4,5,6',
             ]);
         } catch (ValidationException $e) {
             Log::warning('ConsultCallAuth: validation failed', [
