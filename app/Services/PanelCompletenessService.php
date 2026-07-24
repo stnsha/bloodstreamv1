@@ -187,7 +187,44 @@ class PanelCompletenessService
         $meetsPanelThreshold = $actualPanelCount >= self::COMPLETE_PANEL_THRESHOLD
             || ($expectedPanelCount > 0 && $actualPanelCount >= $expectedPanelCount);
 
-        if ($invoiceMismatch && ! $meetsPanelThreshold) {
+        // profile_item_count (bloodTestItemCount.php) is a raw blood_test_item ROW
+        // count and can over-count relative to the true number of distinct billed
+        // profiles when a package produces more than one line item on the invoice.
+        // Before trusting a raw-count mismatch enough to block the panel-threshold
+        // override below, confirm it against the deduplicated DISTINCT item_code
+        // package count from bloodTestItemPackageNames.php — only called here (not
+        // on every check) since it's a heavier ODB lookup. An empty result is
+        // ambiguous (lookup failure vs genuinely nothing) and is treated as
+        // inconclusive, same fail-open behavior as fetchInvoiceBreakdown().
+        $effectiveMismatch = $invoiceMismatch;
+        $confirmedMismatch = false;
+
+        if ($invoiceMismatch) {
+            $packageNames = $this->getInvoicePackageNames($testResult);
+
+            if (! empty($packageNames)) {
+                $confirmedMismatch = count($packageNames) !== $testResultProfilesCount;
+                $effectiveMismatch = $confirmedMismatch;
+            }
+        }
+
+        // A confirmed mismatch (backed by the reliable distinct package count)
+        // means a whole profile really is missing — the panel-count threshold
+        // below has no visibility into a profile that never arrived at all, so it
+        // must never be allowed to override this.
+        if ($confirmedMismatch) {
+            return [
+                'applicable' => true,
+                'is_complete' => false,
+                'expected_panel_count' => $expectedPanelCount,
+                'actual_panel_count' => $actualPanelCount,
+                'missing_panel_ids' => $missingPanelIds,
+                'invoice_item_count' => $invoiceItemCount,
+                'test_result_profiles_count' => $testResultProfilesCount,
+            ];
+        }
+
+        if ($effectiveMismatch && ! $meetsPanelThreshold) {
             return [
                 'applicable' => true,
                 'is_complete' => false,
@@ -694,13 +731,25 @@ class PanelCompletenessService
         try {
             DB::beginTransaction();
 
-            $testResult->is_completed = true;
-            $testResult->is_reviewed = $incompleteRecord->was_reviewed;
-            $testResult->save();
+            $aiReviewRestored = false;
 
             if ($incompleteRecord->ai_review_id) {
-                AIReview::withTrashed()->where('id', $incompleteRecord->ai_review_id)->restore();
+                $aiReviewRestored = (bool) AIReview::withTrashed()
+                    ->where('id', $incompleteRecord->ai_review_id)
+                    ->restore();
             }
+
+            if ($incompleteRecord->was_reviewed && !$aiReviewRestored) {
+                Log::warning('PanelCompletenessService: undo found was_reviewed=true but ai_reviews row could not be restored (missing/already hard-deleted), forcing is_reviewed=false', [
+                    'test_result_id' => $testResult->id,
+                    'incomplete_test_result_id' => $incompleteRecord->id,
+                    'ai_review_id' => $incompleteRecord->ai_review_id,
+                ]);
+            }
+
+            $testResult->is_completed = true;
+            $testResult->is_reviewed = $incompleteRecord->was_reviewed && $aiReviewRestored;
+            $testResult->save();
 
             $incompleteRecord->delete();
 
@@ -710,6 +759,7 @@ class PanelCompletenessService
                 'test_result_id' => $testResult->id,
                 'was_reviewed' => $incompleteRecord->was_reviewed,
                 'ai_review_id' => $incompleteRecord->ai_review_id,
+                'ai_review_restored' => $aiReviewRestored,
             ]);
         } catch (Throwable $e) {
             DB::rollBack();
