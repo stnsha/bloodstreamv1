@@ -344,13 +344,25 @@ class PanelCompletenessService
      * COMPLETE_PANEL_THRESHOLD distinct panels present. If not, revert
      * is_completed to false and record the mismatch for later investigation.
      *
+     * A record with manually_completed_at set was force-completed by staff
+     * via markLabNoCompleted()/bulkMarkLabNoCompleted() as a deliberate
+     * override that does not depend on panel data satisfying evaluate() —
+     * re-running that same evaluation here would just revert the override
+     * on the next scheduled panels:recheck-incomplete pass, so those records
+     * are always treated as complete and skipped.
+     *
      * @return bool true if the TestResult is complete (or not applicable/not
-     *              currently marked complete) and safe to proceed with,
-     *              false if it was found incomplete and should be skipped.
+     *              currently marked complete, or manually overridden) and
+     *              safe to proceed with, false if it was found incomplete
+     *              and should be skipped.
      */
     public function checkAndHandle(TestResult $testResult): bool
     {
         if (! $testResult->is_completed) {
+            return true;
+        }
+
+        if ($testResult->manually_completed_at) {
             return true;
         }
 
@@ -595,6 +607,10 @@ class PanelCompletenessService
      */
     public function resolve(TestResult $testResult): bool
     {
+        if ($testResult->manually_completed_at) {
+            return true;
+        }
+
         $result = $this->evaluateFull($testResult);
 
         if (! $result['final_is_complete']) {

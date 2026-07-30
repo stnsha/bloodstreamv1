@@ -1463,6 +1463,7 @@ class BloodTestController extends Controller
             }
 
             $testResult->is_completed = true;
+            $testResult->manually_completed_at = now();
             $testResult->save();
 
             $removedIncomplete = IncompleteTestResult::where('test_result_id', $testResult->id)->delete();
@@ -1532,6 +1533,7 @@ class BloodTestController extends Controller
                 }
 
                 $testResult->is_completed = true;
+                $testResult->manually_completed_at = now();
                 $testResult->save();
 
                 IncompleteTestResult::where('test_result_id', $testResult->id)->delete();

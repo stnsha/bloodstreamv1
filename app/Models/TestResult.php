@@ -26,6 +26,7 @@ class TestResult extends Model
         'is_completed',
         'is_reviewed',
         'manual_sync_date',
+        'manually_completed_at',
     ];
 
     protected $casts = [
@@ -40,6 +41,7 @@ class TestResult extends Model
         'deleted_at' => 'datetime',
         'is_reviewed' => 'boolean',
         'manual_sync_date' => 'datetime',
+        'manually_completed_at' => 'datetime',
     ];
 
     protected $attributes = [
@@ -51,6 +53,7 @@ class TestResult extends Model
         'is_completed' => false,
         'is_reviewed' => false,
         'manual_sync_date' => null,
+        'manually_completed_at' => null,
     ];
 
     public function doctor(): BelongsTo
