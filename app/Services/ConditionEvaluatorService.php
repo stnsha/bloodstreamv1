@@ -1339,4 +1339,323 @@ class ConditionEvaluatorService
 
         return $data['ferritin'] < 20;
     }
+
+    /**
+     * Condition 82: Ferritin <30 ug/L AND Serum Iron <9 umol/L
+     */
+    private function condition82(array $data): bool
+    {
+        if ($data['ferritin'] === null || $data['s_iron'] === null) {
+            return false;
+        }
+
+        return $data['ferritin'] < 30
+            && $data['s_iron'] < 9;
+    }
+
+    /**
+     * Condition 83: Hb 100-129 g/L AND Serum Iron <9 umol/L
+     */
+    private function condition83(array $data): bool
+    {
+        if ($data['hae'] === null || $data['s_iron'] === null) {
+            return false;
+        }
+
+        return $data['hae'] >= 100
+            && $data['hae'] <= 129
+            && $data['s_iron'] < 9;
+    }
+
+    /**
+     * Condition 84: Hb 100-129 g/L AND MCHC <320 g/L AND Ferritin <30 ug/L AND Serum Iron <9 umol/L
+     */
+    private function condition84(array $data): bool
+    {
+        if ($data['hae'] === null || $data['mchc'] === null || $data['ferritin'] === null || $data['s_iron'] === null) {
+            return false;
+        }
+
+        return $data['hae'] >= 100
+            && $data['hae'] <= 129
+            && $data['mchc'] < 320
+            && $data['ferritin'] < 30
+            && $data['s_iron'] < 9;
+    }
+
+    /**
+     * Condition 85: Serum Iron <9 umol/L AND MCH <27 pg
+     */
+    private function condition85(array $data): bool
+    {
+        if ($data['s_iron'] === null || $data['mch'] === null) {
+            return false;
+        }
+
+        return $data['s_iron'] < 9
+            && $data['mch'] < 27;
+    }
+
+    /**
+     * Condition 86: Serum Iron <9 umol/L AND MCV <80 fL
+     */
+    private function condition86(array $data): bool
+    {
+        if ($data['s_iron'] === null || $data['mcv'] === null) {
+            return false;
+        }
+
+        return $data['s_iron'] < 9
+            && $data['mcv'] < 80;
+    }
+
+    /**
+     * Condition 87: Serum Iron <9 umol/L AND MCHC <320 g/L
+     */
+    private function condition87(array $data): bool
+    {
+        if ($data['s_iron'] === null || $data['mchc'] === null) {
+            return false;
+        }
+
+        return $data['s_iron'] < 9
+            && $data['mchc'] < 320;
+    }
+
+    /**
+     * Condition 88: Serum Iron <9 umol/L AND RDW >14.5%
+     */
+    private function condition88(array $data): bool
+    {
+        if ($data['s_iron'] === null || $data['rdw'] === null) {
+            return false;
+        }
+
+        return $data['s_iron'] < 9
+            && $data['rdw'] > 14.5;
+    }
+
+    /**
+     * Condition 89: Serum Iron <9 umol/L AND PCV/HCT <0.36 L/L AND Female
+     */
+    private function condition89(array $data): bool
+    {
+        if ($data['s_iron'] === null || $data['pcv'] === null || $data['gender'] === null) {
+            return false;
+        }
+
+        return $data['s_iron'] < 9
+            && $data['pcv'] < 0.36
+            && $data['gender'] === 'F';
+    }
+
+    /**
+     * Condition 90: Serum Iron <9 umol/L AND PCV/HCT <0.40 L/L AND Male
+     */
+    private function condition90(array $data): bool
+    {
+        if ($data['s_iron'] === null || $data['pcv'] === null || $data['gender'] === null) {
+            return false;
+        }
+
+        return $data['s_iron'] < 9
+            && $data['pcv'] < 0.40
+            && $data['gender'] === 'M';
+    }
+
+    /**
+     * Condition 91: Serum Iron <9 umol/L AND RCC <3.9 x10^12/L AND Female
+     */
+    private function condition91(array $data): bool
+    {
+        if ($data['s_iron'] === null || $data['rcc'] === null || $data['gender'] === null) {
+            return false;
+        }
+
+        return $data['s_iron'] < 9
+            && $data['rcc'] < 3.9
+            && $data['gender'] === 'F';
+    }
+
+    /**
+     * Condition 92: Serum Iron <9 umol/L AND RCC <4.3 x10^12/L AND Male
+     */
+    private function condition92(array $data): bool
+    {
+        if ($data['s_iron'] === null || $data['rcc'] === null || $data['gender'] === null) {
+            return false;
+        }
+
+        return $data['s_iron'] < 9
+            && $data['rcc'] < 4.3
+            && $data['gender'] === 'M';
+    }
+
+    /**
+     * Condition 93: Serum Iron <9 umol/L AND Ferritin <30 ug/L
+     */
+    private function condition93(array $data): bool
+    {
+        if ($data['s_iron'] === null || $data['ferritin'] === null) {
+            return false;
+        }
+
+        return $data['s_iron'] < 9
+            && $data['ferritin'] < 30;
+    }
+
+    /**
+     * Condition 94: Hb 100-129 g/L AND Serum Iron <9 umol/L AND MCH <27 pg
+     */
+    private function condition94(array $data): bool
+    {
+        if ($data['hae'] === null || $data['s_iron'] === null || $data['mch'] === null) {
+            return false;
+        }
+
+        return $data['hae'] >= 100
+            && $data['hae'] <= 129
+            && $data['s_iron'] < 9
+            && $data['mch'] < 27;
+    }
+
+    /**
+     * Condition 95: Hb 100-129 g/L AND PCV/HCT <0.36 L/L AND Female AND Serum Iron <9 umol/L
+     */
+    private function condition95(array $data): bool
+    {
+        if ($data['hae'] === null || $data['pcv'] === null || $data['gender'] === null || $data['s_iron'] === null) {
+            return false;
+        }
+
+        return $data['hae'] >= 100
+            && $data['hae'] <= 129
+            && $data['pcv'] < 0.36
+            && $data['gender'] === 'F'
+            && $data['s_iron'] < 9;
+    }
+
+    /**
+     * Condition 96: Hb 100-129 g/L AND PCV/HCT <0.40 L/L AND Male AND Serum Iron <9 umol/L
+     */
+    private function condition96(array $data): bool
+    {
+        if ($data['hae'] === null || $data['pcv'] === null || $data['gender'] === null || $data['s_iron'] === null) {
+            return false;
+        }
+
+        return $data['hae'] >= 100
+            && $data['hae'] <= 129
+            && $data['pcv'] < 0.40
+            && $data['gender'] === 'M'
+            && $data['s_iron'] < 9;
+    }
+
+    /**
+     * Condition 97: Hb 100-129 AND Serum Iron <9 AND MCV <80 AND MCH <27 AND MCHC <320
+     *               AND RDW >14.5% AND PCV <0.36 AND Female AND RCC <3.9 AND Ferritin <30
+     */
+    private function condition97(array $data): bool
+    {
+        if (
+            $data['hae'] === null || $data['s_iron'] === null || $data['mcv'] === null ||
+            $data['mch'] === null || $data['mchc'] === null || $data['rdw'] === null ||
+            $data['pcv'] === null || $data['gender'] === null || $data['rcc'] === null ||
+            $data['ferritin'] === null
+        ) {
+            return false;
+        }
+
+        return $data['hae'] >= 100
+            && $data['hae'] <= 129
+            && $data['s_iron'] < 9
+            && $data['mcv'] < 80
+            && $data['mch'] < 27
+            && $data['mchc'] < 320
+            && $data['rdw'] > 14.5
+            && $data['pcv'] < 0.36
+            && $data['gender'] === 'F'
+            && $data['rcc'] < 3.9
+            && $data['ferritin'] < 30;
+    }
+
+    /**
+     * Condition 98: Hb 100-129 AND Serum Iron <9 AND MCV <80 AND MCH <27 AND MCHC <320
+     *               AND RDW >14.5% AND PCV <0.40 AND Male AND RCC <4.3 AND Ferritin <30
+     */
+    private function condition98(array $data): bool
+    {
+        if (
+            $data['hae'] === null || $data['s_iron'] === null || $data['mcv'] === null ||
+            $data['mch'] === null || $data['mchc'] === null || $data['rdw'] === null ||
+            $data['pcv'] === null || $data['gender'] === null || $data['rcc'] === null ||
+            $data['ferritin'] === null
+        ) {
+            return false;
+        }
+
+        return $data['hae'] >= 100
+            && $data['hae'] <= 129
+            && $data['s_iron'] < 9
+            && $data['mcv'] < 80
+            && $data['mch'] < 27
+            && $data['mchc'] < 320
+            && $data['rdw'] > 14.5
+            && $data['pcv'] < 0.40
+            && $data['gender'] === 'M'
+            && $data['rcc'] < 4.3
+            && $data['ferritin'] < 30;
+    }
+
+    /**
+     * Condition 99: Hb 100-129 AND Serum Iron <9 AND MCV <80 AND MCH <27 AND MCHC <320
+     *               AND RDW >14.5% AND PCV <0.36 AND Female AND RCC <3.9 (no Ferritin)
+     */
+    private function condition99(array $data): bool
+    {
+        if (
+            $data['hae'] === null || $data['s_iron'] === null || $data['mcv'] === null ||
+            $data['mch'] === null || $data['mchc'] === null || $data['rdw'] === null ||
+            $data['pcv'] === null || $data['gender'] === null || $data['rcc'] === null
+        ) {
+            return false;
+        }
+
+        return $data['hae'] >= 100
+            && $data['hae'] <= 129
+            && $data['s_iron'] < 9
+            && $data['mcv'] < 80
+            && $data['mch'] < 27
+            && $data['mchc'] < 320
+            && $data['rdw'] > 14.5
+            && $data['pcv'] < 0.36
+            && $data['gender'] === 'F'
+            && $data['rcc'] < 3.9;
+    }
+
+    /**
+     * Condition 100: Hb 100-129 AND Serum Iron <9 AND MCV <80 AND MCH <27 AND MCHC <320
+     *                AND RDW >14.5% AND PCV <0.40 AND Male AND RCC <4.3 (no Ferritin)
+     */
+    private function condition100(array $data): bool
+    {
+        if (
+            $data['hae'] === null || $data['s_iron'] === null || $data['mcv'] === null ||
+            $data['mch'] === null || $data['mchc'] === null || $data['rdw'] === null ||
+            $data['pcv'] === null || $data['gender'] === null || $data['rcc'] === null
+        ) {
+            return false;
+        }
+
+        return $data['hae'] >= 100
+            && $data['hae'] <= 129
+            && $data['s_iron'] < 9
+            && $data['mcv'] < 80
+            && $data['mch'] < 27
+            && $data['mchc'] < 320
+            && $data['rdw'] > 14.5
+            && $data['pcv'] < 0.40
+            && $data['gender'] === 'M'
+            && $data['rcc'] < 4.3;
+    }
 }
