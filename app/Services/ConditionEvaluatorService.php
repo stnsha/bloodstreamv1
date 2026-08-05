@@ -1658,4 +1658,16 @@ class ConditionEvaluatorService
             && $data['gender'] === 'M'
             && $data['rcc'] < 4.3;
     }
+
+    /**
+     * Condition 101: Serum Iron <9 umol/L
+     */
+    private function condition101(array $data): bool
+    {
+        if ($data['s_iron'] === null) {
+            return false;
+        }
+
+        return $data['s_iron'] < 9;
+    }
 }
