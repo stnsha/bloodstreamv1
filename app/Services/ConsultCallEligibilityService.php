@@ -50,14 +50,11 @@ class ConsultCallEligibilityService
             'outlet_id' => $outletId,
         ]);
 
-        // Duplicate guard: skip if this test_result_id already has a ConsultCallDetails record
-        if (ConsultCallDetails::where('test_result_id', $testResult->id)->exists()) {
-            Log::info('ConsultCallEligibilityService: Skipping, ConsultCallDetails already exists for test result', [
-                'test_result_id' => $testResult->id,
-            ]);
-
-            return;
-        }
+        // Re-eval guard: this test_result_id already has a ConsultCallDetails record.
+        // Data was amended after the original eligibility check ran, so recompute below
+        // and patch the existing record in place instead of creating a duplicate --
+        // handled at the bottom of this method, once the condition is (re)computed.
+        $existingDetails = ConsultCallDetails::where('test_result_id', $testResult->id)->first();
 
         // Panel completeness guard: do not enroll if the panel count is incomplete
         $completeness = $this->panelCompletenessService->evaluate($testResult);
@@ -152,6 +149,12 @@ class ConsultCallEligibilityService
 
         // Evaluate against all conditions
         $conditionId = $this->conditionEvaluator->evaluateSinglePatient($patientData);
+
+        if ($existingDetails) {
+            $this->updateExistingDetailsIfChanged($existingDetails, $testResult, $conditionId);
+
+            return;
+        }
 
         if ($conditionId === null) {
             Log::info('ConsultCallEligibilityService: Patient is healthy, no condition matched', [
@@ -405,6 +408,76 @@ class ConsultCallEligibilityService
                 'error'           => $e->getMessage(),
                 'file'            => $e->getFile(),
                 'line'            => $e->getLine(),
+            ]);
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Re-eval entry point for a TestResult that already has a
+     * ConsultCallDetails record (amended panel data triggered a fresh
+     * completeness -> AI review -> consult-call re-check). Never creates a
+     * second ConsultCallDetails/ConsultCall row for the same test_result_id
+     * -- only patches clinical_condition_id on the existing row, and only
+     * when the freshly evaluated condition actually differs from what's
+     * stored. A null $conditionId (patient now evaluates healthy) is mapped
+     * to the same risk_tier=0/evaluator=healthy ClinicalCondition used by
+     * handleHealthyReEnrollment(), so both paths represent "healthy" with
+     * the same stored value.
+     */
+    private function updateExistingDetailsIfChanged(ConsultCallDetails $existingDetails, TestResult $testResult, ?int $conditionId): void
+    {
+        $resolvedConditionId = $conditionId;
+
+        if ($resolvedConditionId === null) {
+            $resolvedConditionId = ClinicalConditionModel::where('risk_tier', 0)
+                ->where('evaluator', 'healthy')
+                ->value('id');
+
+            if ($resolvedConditionId === null) {
+                Log::warning('ConsultCallEligibilityService: re-eval found healthy but no healthy clinical condition configured, skipping update', [
+                    'test_result_id' => $testResult->id,
+                    'consult_call_details_id' => $existingDetails->id,
+                ]);
+
+                return;
+            }
+        }
+
+        if ($resolvedConditionId === $existingDetails->clinical_condition_id) {
+            Log::info('ConsultCallEligibilityService: re-eval condition unchanged, no update needed', [
+                'test_result_id' => $testResult->id,
+                'consult_call_details_id' => $existingDetails->id,
+                'clinical_condition_id' => $resolvedConditionId,
+            ]);
+
+            return;
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $previousConditionId = $existingDetails->clinical_condition_id;
+
+            $existingDetails->clinical_condition_id = $resolvedConditionId;
+            $existingDetails->save();
+
+            DB::commit();
+
+            Log::info('ConsultCallEligibilityService: re-eval updated existing consult call details after amended data', [
+                'test_result_id' => $testResult->id,
+                'consult_call_details_id' => $existingDetails->id,
+                'previous_clinical_condition_id' => $previousConditionId,
+                'new_clinical_condition_id' => $resolvedConditionId,
+            ]);
+        } catch (Throwable $e) {
+            DB::rollBack();
+
+            Log::error('ConsultCallEligibilityService: failed to update existing consult call details on re-eval', [
+                'test_result_id' => $testResult->id,
+                'consult_call_details_id' => $existingDetails->id,
+                'error' => $e->getMessage(),
             ]);
 
             throw $e;

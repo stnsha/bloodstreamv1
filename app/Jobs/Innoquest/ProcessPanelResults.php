@@ -99,6 +99,23 @@ class ProcessPanelResults implements ShouldQueue
         return null;
     }
 
+    /**
+     * Best-effort extraction of a ref_id (PlacerOrderNumber) from the raw
+     * payload, mirroring extractLabNo(). Matches the uppercasing applied to
+     * $reference_id in processPanel() so DeliveryFile.ref_id lines up with
+     * TestResult.ref_id for the same delivery.
+     */
+    private function extractRefId(): ?string
+    {
+        foreach ($this->validatedData['Orders'] ?? [] as $order) {
+            if (! empty($order['PlacerOrderNumber'])) {
+                return strtoupper($order['PlacerOrderNumber']);
+            }
+        }
+
+        return null;
+    }
+
     public function handle()
     {
         $startTime = microtime(true);
@@ -193,6 +210,7 @@ class ProcessPanelResults implements ShouldQueue
         $patient_id = null;
         $panel = null;
         $customerId = null;
+        $late_data_detected = false;
 
         // Capture every raw JSON on arrival, before any processing or transaction
         $this->trackDeliveryFile($lab_id, $sending_facility, $batch_id, $validated);
@@ -366,12 +384,21 @@ class ProcessPanelResults implements ShouldQueue
                                     }
 
                                     // Phase 4: Check amendment using pre-fetched data
+                                    $isNewItem = ! array_key_exists($panel_panel_item_id, $existingItems);
                                     $hasAmended = false;
-                                    $existingValue = $existingItems[$panel_panel_item_id] ?? null;
-                                    if ($existingValue !== null) {
+                                    if (! $isNewItem) {
+                                        $existingValue = $existingItems[$panel_panel_item_id];
                                         $normalized_existing = $existingValue === '' ? null : $existingValue;
                                         $normalized_new = $result_value === '' ? null : $result_value;
                                         $hasAmended = $normalized_existing !== $normalized_new;
+                                    }
+
+                                    // A late-arriving panel item is just as much "new data on an
+                                    // already-decided record" as a changed value -- e.g. a panel
+                                    // that missed the original completeness check and shows up in
+                                    // a later delivery. Both cases must force a recheck below.
+                                    if ($isNewItem || $hasAmended) {
+                                        $late_data_detected = true;
                                     }
 
                                     // Collect for batch upsert
@@ -553,6 +580,18 @@ class ProcessPanelResults implements ShouldQueue
                 try {
                     $panelCompletenessService = app(PanelCompletenessService::class);
 
+                    // New or amended data arrived for a record already reviewed (and
+                    // possibly already consult-called) -- covers both a value being
+                    // corrected and a panel that missed the original completeness check
+                    // and only shows up in a later delivery. The prior AI review is now
+                    // stale either way. Revert is_reviewed and soft-delete the ai_reviews
+                    // row so the completeness gate below re-opens and dispatches a fresh
+                    // AI review + consult-call re-eval (which updates the existing
+                    // consult call in place rather than enrolling a duplicate).
+                    if ($late_data_detected && $test_result->is_completed && $test_result->is_reviewed) {
+                        $panelCompletenessService->revertReviewForLateData($test_result);
+                    }
+
                     if (! ($test_result->is_completed && $test_result->is_reviewed)) {
                         if ($panelCompletenessService->resolve($test_result)) {
                             app(TestResultCompletionDispatcher::class)->dispatch($test_result);
@@ -607,6 +646,8 @@ class ProcessPanelResults implements ShouldQueue
                 'lab_id' => $lab_id,
                 'sending_facility' => $sending_facility,
                 'batch_id' => $batch_id,
+                'ref_id' => $this->extractRefId(),
+                'lab_no' => $this->extractLabNo(),
                 'json_content' => json_encode($validated),
                 'status' => DeliveryFile::compl,
             ]);

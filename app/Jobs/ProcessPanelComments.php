@@ -63,6 +63,7 @@ class ProcessPanelComments implements ShouldQueue
         $batchNonExistingLabNumbers = 0;
         $batchErrors = [];
         $touchedTestResultIds = [];
+        $lateDataDetected = [];
 
         Log::info("Job batch {$this->batchNumber} started with ".count($this->deliveryFileIds).' files');
 
@@ -200,6 +201,7 @@ class ProcessPanelComments implements ShouldQueue
                                                     ->where('panel_panel_item_id', $panel_panel_item_id)
                                                     ->first();
 
+                                                $isNewItem = ! $existing_test_result_item;
                                                 $hasAmended = false;
 
                                                 if ($existing_test_result_item) {
@@ -211,6 +213,15 @@ class ProcessPanelComments implements ShouldQueue
                                                     $normalized_new = $result_value === '' ? null : $result_value;
 
                                                     $hasAmended = $normalized_existing !== $normalized_new;
+                                                }
+
+                                                // A late-arriving panel item is just as much "new data on
+                                                // an already-decided record" as a changed value -- e.g. a
+                                                // panel that missed the original completeness check and
+                                                // shows up in a later comment batch. Both force a recheck
+                                                // below.
+                                                if ($isNewItem || $hasAmended) {
+                                                    $lateDataDetected[$test_result_id] = true;
                                                 }
 
                                                 // final insert/update result item
@@ -315,7 +326,19 @@ class ProcessPanelComments implements ShouldQueue
             try {
                 $touchedTestResult = TestResult::find($touchedTestResultId);
 
-                if ($touchedTestResult && ! ($touchedTestResult->is_completed && $touchedTestResult->is_reviewed)) {
+                if (! $touchedTestResult) {
+                    continue;
+                }
+
+                // New or amended data arrived for a record already reviewed -- the
+                // prior AI review is now stale regardless of whether it was a value
+                // correction or a late panel. Revert is_reviewed and soft-delete the
+                // ai_reviews row so the completeness gate below re-opens.
+                if (($lateDataDetected[$touchedTestResultId] ?? false) && $touchedTestResult->is_completed && $touchedTestResult->is_reviewed) {
+                    $panelCompletenessService->revertReviewForLateData($touchedTestResult);
+                }
+
+                if (! ($touchedTestResult->is_completed && $touchedTestResult->is_reviewed)) {
                     if ($panelCompletenessService->resolve($touchedTestResult)) {
                         $dispatcher->dispatch($touchedTestResult);
                     }

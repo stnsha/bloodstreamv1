@@ -21,6 +21,8 @@ class DeliveryFile extends Model
         'lab_id',
         'sending_facility',
         'batch_id', //MessageControlId
+        'ref_id',
+        'lab_no',
         'json_content',
         'status',
     ];

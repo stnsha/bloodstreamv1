@@ -790,4 +790,44 @@ class PanelCompletenessService
 
         return true;
     }
+
+    /**
+     * Force a re-review after new or amended panel data arrives for a
+     * TestResult that was already is_completed=true, is_reviewed=true --
+     * either a corrected value, or a panel that missed the original
+     * completeness check and only showed up in a later delivery. Soft-
+     * deletes the current ai_reviews row (SendToAIServer::handle() will
+     * create a fresh PENDING row on redispatch via updateOrCreate(), same as
+     * the incomplete-panel revert path in recordIncomplete()) and flips
+     * is_reviewed back to false so the caller's completed-but-not-reviewed
+     * gate lets it through to TestResultCompletionDispatcher again.
+     * is_completed is left untouched -- the record is still complete, only
+     * its prior review is now stale.
+     */
+    public function revertReviewForLateData(TestResult $testResult): void
+    {
+        try {
+            DB::beginTransaction();
+
+            $testResult->is_reviewed = false;
+            $testResult->save();
+
+            AIReview::where('test_result_id', $testResult->id)->delete();
+
+            DB::commit();
+
+            Log::info('PanelCompletenessService: new or amended data after review detected, is_reviewed reverted and ai_review soft-deleted', [
+                'test_result_id' => $testResult->id,
+            ]);
+        } catch (Throwable $e) {
+            DB::rollBack();
+
+            Log::error('PanelCompletenessService: failed to revert review for late/amended data', [
+                'test_result_id' => $testResult->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
+    }
 }
