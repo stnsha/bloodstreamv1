@@ -103,7 +103,6 @@ Route::middleware(['api.auth', 'throttle:api'])->group(function () {
     Route::prefix('odb')->controller(BloodTestController::class)->group(function () {
         Route::post('/getReportId', 'getReportId')->name('odb.getReportId');
         Route::post('/getReviewById', 'getReviewById')->name('odb.getReviewById');
-        Route::post('/regenerateReviewById', 'regenerateReviewById')->name('odb.regenerateReviewById');
         Route::post('/updateReportId/{reportId}', 'updateReportId')->name('odb.updateReportId');
         Route::post('/checkVitals', 'checkVitals')->name('checkVitals');
         Route::post('/checkConsultCall', 'checkConsultCall')->name('odb.checkConsultCall');

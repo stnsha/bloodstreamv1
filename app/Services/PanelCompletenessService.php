@@ -425,7 +425,6 @@ class PanelCompletenessService
     {
         $expectedPanelCount = $result['expected_panel_count'];
         $actualPanelCount = $result['actual_panel_count'];
-        $wasReviewed = $testResult->is_reviewed;
 
         try {
             DB::beginTransaction();
@@ -434,9 +433,24 @@ class PanelCompletenessService
             $testResult->is_reviewed = false;
             $testResult->save();
 
-            $existingAiReview = AIReview::where('test_result_id', $testResult->id)->first();
+            // withTrashed() + latest id: a caller earlier in the same request (e.g.
+            // revertReviewForLateData()) may have already soft-deleted the current
+            // ai_reviews row and flipped is_reviewed to false on this same in-memory
+            // TestResult before recordIncomplete() ever ran. Looking this up with the
+            // default scope would find nothing, silently dropping the ai_review_id
+            // reference from the incomplete_test_results row forever -- undo() would
+            // then have no id to restore and the review is permanently orphaned.
+            // Deriving was_reviewed from the review's own processing_status (rather
+            // than trusting $testResult->is_reviewed, which may already be stale)
+            // keeps the snapshot correct regardless of call order.
+            $existingAiReview = AIReview::withTrashed()
+                ->where('test_result_id', $testResult->id)
+                ->orderByDesc('id')
+                ->first();
 
-            if ($existingAiReview) {
+            $wasReviewed = $existingAiReview && $existingAiReview->processing_status === 'COMPLETED';
+
+            if ($existingAiReview && ! $existingAiReview->trashed()) {
                 $existingAiReview->delete();
             }
 
