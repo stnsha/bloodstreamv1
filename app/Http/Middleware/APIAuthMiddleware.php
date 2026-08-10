@@ -132,6 +132,12 @@ class APIAuthMiddleware
             $cacheKey = 'jwt_user:' . $tokenHash;
 
             $user = Cache::remember($cacheKey, 300, function () use ($token) {
+                // payload() throws TokenExpiredException/TokenInvalidException directly.
+                // user() alone swallows those internally and returns null for every
+                // failure type, which previously made expired/invalid tokens log as
+                // the generic 'user_not_found' reason below.
+                Auth::guard('lab')->setToken($token)->payload();
+
                 return Auth::guard('lab')->setToken($token)->user();
             });
 
