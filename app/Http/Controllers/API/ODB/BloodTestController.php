@@ -466,6 +466,52 @@ class BloodTestController extends Controller
                 }
             }
 
+            // Step 7: None of the completed+reviewed searches matched. Before declaring
+            // notfound, check whether a TestResult exists at all for this patient
+            // (regardless of is_completed/is_reviewed) - if so it's still processing
+            // in the lab, not genuinely missing. Mirrors the is_completed/is_reviewed
+            // semantics of determineTestResultStatus() used by the other endpoints.
+            if (!$testResult) {
+                $searchAttempts['step7_existence_check'] = ['attempted' => true, 'found' => false];
+
+                $existenceQuery = TestResult::whereHas('patient', function ($p) use ($icno) {
+                    $p->where('icno', $icno);
+                });
+
+                if ($refid) {
+                    $existenceQuery->where(function ($q) use ($refid) {
+                        $q->where('ref_id', $refid)->orWhereNull('ref_id');
+                    });
+                }
+
+                $unfinishedTestResult = $existenceQuery->latest()->first();
+
+                if ($unfinishedTestResult) {
+                    $searchAttempts['step7_existence_check']['found'] = true;
+                    $searchAttempts['step7_existence_check']['test_result_id'] = $unfinishedTestResult->id;
+
+                    $logSummary('info', 'PROCESSING', [
+                        'existing_test_result_id' => $unfinishedTestResult->id,
+                        'is_completed' => $unfinishedTestResult->is_completed,
+                        'is_reviewed' => $unfinishedTestResult->is_reviewed,
+                    ]);
+
+                    return response()->json([
+                        'ai_response' => null,
+                        // report_id intentionally null: the underlying lab test isn't
+                        // completed yet, so there is no real report to reference. The ODB
+                        // caller writes report_id to its local DB whenever it's non-null,
+                        // which would incorrectly mark "Report" as ready before it exists.
+                        'report_id' => null,
+                        'ref_id' => $unfinishedTestResult->ref_id,
+                        'status' => self::processing
+                    ])
+                    ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                    ->header('Pragma', 'no-cache')
+                    ->header('Expires', '0');
+                }
+            }
+
             if (!$testResult) {
                 $logSummary('warning', 'NOT_FOUND');
 
