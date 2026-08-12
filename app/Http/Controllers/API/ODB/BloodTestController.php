@@ -390,15 +390,30 @@ class BloodTestController extends Controller
                     $query->whereNull('ref_id');
                 }
 
-                $testResult = $query
-                    ->where('is_completed', true)
+                $query->where('is_completed', true)
                     ->where('is_reviewed', true)
                     ->whereNotNull('collected_date')
                     ->whereBetween('collected_date', [
                         Carbon::create($year, $month, 1)->startOfMonth(),
                         Carbon::create($year, $month, 1)->endOfMonth()
-                    ])
-                    ->latest()->first();
+                    ]);
+
+                if ($refid) {
+                    // ref_id is the only reliable way to tell a customer's invoices
+                    // apart. With no ref_id tagged yet, 2+ untagged candidates in the
+                    // same month are indistinguishable - auto-tagging "latest" would
+                    // risk attaching the wrong invoice's result. Only auto-match when
+                    // exactly one untagged candidate exists; otherwise leave it to
+                    // step 5/6/7 (or notfound) rather than guess.
+                    $candidates = $query->latest()->get();
+                    $searchAttempts['step4_ic_only']['candidate_count'] = $candidates->count();
+
+                    if ($candidates->count() === 1) {
+                        $testResult = $candidates->first();
+                    }
+                } else {
+                    $testResult = $query->latest()->first();
+                }
 
                 if ($testResult) {
                     $searchAttempts['step4_ic_only']['found'] = true;
@@ -474,14 +489,19 @@ class BloodTestController extends Controller
             if (!$testResult) {
                 $searchAttempts['step7_existence_check'] = ['attempted' => true, 'found' => false];
 
-                $existenceQuery = TestResult::whereHas('patient', function ($p) use ($icno) {
-                    $p->where('icno', $icno);
-                });
+                // Scope to the same lab and campaign month/year, and require an exact
+                // ref_id match when one is provided - matching "ref_id IS NULL" with
+                // no date bound let unrelated historical records (e.g. from a
+                // different, older campaign) falsely report "processing" for a
+                // patient/period that has no real record at all.
+                $existenceQuery = $buildBaseQuery()
+                    ->whereBetween('created_at', [
+                        Carbon::create($year, $month, 1)->startOfMonth(),
+                        Carbon::create($year, $month, 1)->endOfMonth()
+                    ]);
 
                 if ($refid) {
-                    $existenceQuery->where(function ($q) use ($refid) {
-                        $q->where('ref_id', $refid)->orWhereNull('ref_id');
-                    });
+                    $existenceQuery->where('ref_id', $refid);
                 }
 
                 $unfinishedTestResult = $existenceQuery->latest()->first();
