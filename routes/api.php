@@ -163,7 +163,12 @@ Route::middleware(['consult-call.auth', 'throttle:api'])->group(function () {
     });
 
     Route::prefix('consult-call')->controller(AddOnController::class)->group(function () {
+        // Static-path routes must be registered before wildcard {id} routes to avoid capture
+        Route::get('/add-ons/all', 'all')->name('consult-call.add-ons.all');
         Route::get('/add-ons', 'index')->name('consult-call.add-ons.index');
+        Route::post('/add-ons', 'store')->name('consult-call.add-ons.store');
+        Route::put('/add-ons/{id}', 'update')->name('consult-call.add-ons.update');
+        Route::patch('/add-ons/{id}/toggle', 'toggle')->name('consult-call.add-ons.toggle');
     });
 
     Route::prefix('consult-call')->controller(ConsultCallController::class)->group(function () {
