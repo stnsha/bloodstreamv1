@@ -8,6 +8,7 @@ use App\Http\Controllers\API\Innoquest\PanelResultsController;
 use App\Http\Controllers\API\ODB\BloodTestController;
 use App\Http\Controllers\API\ODB\IncompleteTestResultsController;
 use App\Http\Controllers\API\Innoquest\PDFController;
+use App\Http\Controllers\API\ConsultCall\AddOnController;
 use App\Http\Controllers\API\ConsultCall\ClinicalConditionController;
 use App\Http\Controllers\API\ConsultCall\ConsultCallAuthController;
 use App\Http\Controllers\API\ConsultCall\ConsultCallController;
@@ -159,6 +160,10 @@ Route::middleware(['consult-call.auth', 'throttle:api'])->group(function () {
         Route::get('/clinical-conditions', 'index')->name('consult-call.clinical-conditions.index');
         Route::put('/clinical-conditions/{id}', 'update')->name('consult-call.clinical-conditions.update');
         Route::patch('/clinical-conditions/{id}/toggle', 'toggle')->name('consult-call.clinical-conditions.toggle');
+    });
+
+    Route::prefix('consult-call')->controller(AddOnController::class)->group(function () {
+        Route::get('/add-ons', 'index')->name('consult-call.add-ons.index');
     });
 
     Route::prefix('consult-call')->controller(ConsultCallController::class)->group(function () {

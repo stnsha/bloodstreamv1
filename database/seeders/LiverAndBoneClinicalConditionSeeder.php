@@ -14,7 +14,6 @@ class LiverAndBoneClinicalConditionSeeder extends Seeder
         102 => [
             'description' => 'ALT >50 U/L',
             'type' => 'AO',
-            'add_ons' => 'Hepatitis A (HAG) + Hepatitis B Serology (HB3)',
             'evaluator' => 'condition102',
             'risk_tier' => 1,
             'criteria_count' => 1,
@@ -22,7 +21,6 @@ class LiverAndBoneClinicalConditionSeeder extends Seeder
         103 => [
             'description' => 'AST >40 U/L',
             'type' => 'AO',
-            'add_ons' => 'Hepatitis A (HAG) + Hepatitis B Serology (HB3)',
             'evaluator' => 'condition103',
             'risk_tier' => 1,
             'criteria_count' => 1,
@@ -30,7 +28,6 @@ class LiverAndBoneClinicalConditionSeeder extends Seeder
         104 => [
             'description' => 'ALP >150 U/L',
             'type' => 'AO',
-            'add_ons' => 'Hepatitis A (HAG) + Hepatitis B Serology (HB3)',
             'evaluator' => 'condition104',
             'risk_tier' => 1,
             'criteria_count' => 1,
@@ -38,7 +35,6 @@ class LiverAndBoneClinicalConditionSeeder extends Seeder
         105 => [
             'description' => 'ALT >50 U/L AND AST >40 U/L',
             'type' => 'AO',
-            'add_ons' => 'Hepatitis A (HAG) + Hepatitis B Serology (HB3)',
             'evaluator' => 'condition105',
             'risk_tier' => 2,
             'criteria_count' => 2,
@@ -46,7 +42,6 @@ class LiverAndBoneClinicalConditionSeeder extends Seeder
         106 => [
             'description' => 'ALT >50 U/L AND ALP >150 U/L',
             'type' => 'AO',
-            'add_ons' => 'Hepatitis A (HAG) + Hepatitis B Serology (HB3)',
             'evaluator' => 'condition106',
             'risk_tier' => 2,
             'criteria_count' => 2,
@@ -54,7 +49,6 @@ class LiverAndBoneClinicalConditionSeeder extends Seeder
         107 => [
             'description' => 'AST >40 U/L AND ALP >150 U/L',
             'type' => 'AO',
-            'add_ons' => 'Hepatitis A (HAG) + Hepatitis B Serology (HB3)',
             'evaluator' => 'condition107',
             'risk_tier' => 2,
             'criteria_count' => 2,
@@ -62,7 +56,6 @@ class LiverAndBoneClinicalConditionSeeder extends Seeder
         108 => [
             'description' => 'ALT >50 U/L AND AST >40 U/L AND ALP >150 U/L',
             'type' => 'AO',
-            'add_ons' => 'Hepatitis A (HAG) + Hepatitis B Serology (HB3)',
             'evaluator' => 'condition108',
             'risk_tier' => 3,
             'criteria_count' => 3,
@@ -70,7 +63,6 @@ class LiverAndBoneClinicalConditionSeeder extends Seeder
         109 => [
             'description' => 'ALP >150 U/L AND Corrected Calcium <2.10 mmol/L',
             'type' => 'AO',
-            'add_ons' => 'ALEMO Package (Vitamin D + Vitamin B12 + Magnesium)',
             'evaluator' => 'condition109',
             'risk_tier' => 2,
             'criteria_count' => 2,
@@ -78,7 +70,6 @@ class LiverAndBoneClinicalConditionSeeder extends Seeder
         110 => [
             'description' => 'ALP >150 U/L AND Corrected Calcium <2.10 mmol/L AND Hb 100-129 g/L',
             'type' => 'AO',
-            'add_ons' => 'ALEMO Package (Vitamin D + Vitamin B12 + Magnesium)',
             'evaluator' => 'condition110',
             'risk_tier' => 3,
             'criteria_count' => 3,
@@ -86,7 +77,6 @@ class LiverAndBoneClinicalConditionSeeder extends Seeder
         111 => [
             'description' => 'ALP >150 U/L AND Phosphate <0.65 mmol/L',
             'type' => 'AO',
-            'add_ons' => 'ALEMO Package (Vitamin D + Vitamin B12 + Magnesium)',
             'evaluator' => 'condition111',
             'risk_tier' => 2,
             'criteria_count' => 2,
@@ -94,7 +84,6 @@ class LiverAndBoneClinicalConditionSeeder extends Seeder
         112 => [
             'description' => 'ALP >150 U/L AND Phosphate <0.65 mmol/L AND Hb 100-129 g/L',
             'type' => 'AO',
-            'add_ons' => 'ALEMO Package (Vitamin D + Vitamin B12 + Magnesium)',
             'evaluator' => 'condition112',
             'risk_tier' => 3,
             'criteria_count' => 3,
@@ -102,7 +91,6 @@ class LiverAndBoneClinicalConditionSeeder extends Seeder
         113 => [
             'description' => 'Corrected Calcium <2.10 mmol/L AND Hb 100-129 g/L',
             'type' => 'AO',
-            'add_ons' => 'ALEMO Package (Vitamin D + Vitamin B12 + Magnesium)',
             'evaluator' => 'condition113',
             'risk_tier' => 2,
             'criteria_count' => 2,
@@ -110,7 +98,6 @@ class LiverAndBoneClinicalConditionSeeder extends Seeder
         114 => [
             'description' => 'Phosphate <0.65 mmol/L AND Hb 100-129 g/L',
             'type' => 'AO',
-            'add_ons' => 'ALEMO Package (Vitamin D + Vitamin B12 + Magnesium)',
             'evaluator' => 'condition114',
             'risk_tier' => 2,
             'criteria_count' => 2,
@@ -118,7 +105,6 @@ class LiverAndBoneClinicalConditionSeeder extends Seeder
         115 => [
             'description' => 'Corrected Calcium <2.10 mmol/L AND Phosphate <0.65 mmol/L AND Hb 100-129 g/L',
             'type' => 'AO',
-            'add_ons' => 'ALEMO Package (Vitamin D + Vitamin B12 + Magnesium)',
             'evaluator' => 'condition115',
             'risk_tier' => 3,
             'criteria_count' => 3,
@@ -126,7 +112,6 @@ class LiverAndBoneClinicalConditionSeeder extends Seeder
         116 => [
             'description' => 'ALP >150 U/L AND Corrected Calcium <2.10 mmol/L AND Phosphate <0.65 mmol/L AND Hb 100-129 g/L',
             'type' => 'AO',
-            'add_ons' => 'ALEMO Package (Vitamin D + Vitamin B12 + Magnesium)',
             'evaluator' => 'condition116',
             'risk_tier' => 3,
             'criteria_count' => 4,
@@ -151,7 +136,6 @@ class LiverAndBoneClinicalConditionSeeder extends Seeder
                     [
                         'description' => $data['description'],
                         'type' => $data['type'],
-                        'add_ons' => $data['add_ons'],
                         'evaluator' => $data['evaluator'],
                         'risk_tier' => $data['risk_tier'],
                         'criteria_count' => $data['criteria_count'],

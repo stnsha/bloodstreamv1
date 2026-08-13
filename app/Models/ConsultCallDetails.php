@@ -16,6 +16,10 @@ class ConsultCallDetails extends Model
     const ACTION_REFER_EXTERNAL = 2;
     const ACTION_END_PROCESS = 3;
 
+    // Consultation Type
+    const CONSULTATION_TYPE_NEW_CASE = 1;
+    const CONSULTATION_TYPE_FOLLOW_UP = 2;
+
     // Consult Status
     const CONSULT_STATUS_PENDING = 0;
     const CONSULT_STATUS_COMPLETED = 1;
@@ -36,6 +40,7 @@ class ConsultCallDetails extends Model
         'treatment_plan',
         'rx_issued',
         'action',
+        'consultation_type',
         'consult_status',
         'process_status',
         'consulted_by',
@@ -50,6 +55,7 @@ class ConsultCallDetails extends Model
         'test_result_id' => 'integer',
         'rx_issued' => 'boolean',
         'action' => 'integer',
+        'consultation_type' => 'integer',
         'consult_status' => 'integer',
         'process_status' => 'integer',
         'consulted_by' => 'integer',

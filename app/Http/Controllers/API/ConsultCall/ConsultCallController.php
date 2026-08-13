@@ -28,7 +28,7 @@ class ConsultCallController extends Controller
             ]),
         ]);
 
-        $query = ConsultCall::with(['patient', 'details.clinicalCondition', 'details.testResult', 'followUps']);
+        $query = ConsultCall::with(['patient', 'addOn', 'details.clinicalCondition', 'details.testResult', 'followUps']);
 
         if ($request->filled('patient_id')) {
             $query->where('patient_id', $request->input('patient_id'));
@@ -255,7 +255,7 @@ class ConsultCallController extends Controller
     {
         Log::info('ConsultCall show: retrieving consult call', ['id' => $id]);
 
-        $consultCall = ConsultCall::with(['patient', 'details.clinicalCondition', 'details.testResult', 'followUps'])
+        $consultCall = ConsultCall::with(['patient', 'addOn', 'details.clinicalCondition', 'details.testResult', 'followUps'])
             ->find($id);
 
         if (!$consultCall) {
@@ -292,6 +292,7 @@ class ConsultCallController extends Controller
             'enrollment_type' => 'nullable|integer|in:1,2',
             'consent_call_status' => 'nullable|integer|in:0,1,2,3',
             'reason' => 'nullable|string|max:255',
+            'add_on_id' => 'nullable|integer|exists:add_ons,id',
             'consent_call_date' => 'nullable|date',
             'scheduled_status' => 'nullable|integer|in:0,1,2,3',
             'scheduled_call_date' => 'nullable|date',
@@ -321,7 +322,7 @@ class ConsultCallController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $consultCall->load(['patient', 'details.clinicalCondition', 'details.testResult', 'followUps']),
+                'data' => $consultCall->load(['patient', 'addOn', 'details.clinicalCondition', 'details.testResult', 'followUps']),
                 'message' => 'Consult call created successfully.',
             ], 201);
         } catch (Throwable $e) {
@@ -364,6 +365,7 @@ class ConsultCallController extends Controller
             'enrollment_type' => 'nullable|integer|in:1,2',
             'consent_call_status' => 'nullable|integer|in:0,1,2,3',
             'reason' => 'nullable|string|max:255',
+            'add_on_id' => 'nullable|integer|exists:add_ons,id',
             'consent_call_date' => 'nullable|date',
             'scheduled_status' => 'nullable|integer|in:0,1,2,3',
             'scheduled_call_date' => 'nullable|date',
@@ -393,7 +395,7 @@ class ConsultCallController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $consultCall->fresh(['patient', 'details.clinicalCondition', 'details.testResult', 'followUps']),
+                'data' => $consultCall->fresh(['patient', 'addOn', 'details.clinicalCondition', 'details.testResult', 'followUps']),
                 'message' => 'Consult call updated successfully.',
             ]);
         } catch (Throwable $e) {
@@ -484,6 +486,7 @@ class ConsultCallController extends Controller
             'treatment_plan' => 'nullable|string',
             'rx_issued' => 'nullable|boolean',
             'action' => 'nullable|integer|in:1,2,3',
+            'consultation_type' => 'nullable|integer|in:1,2',
             'consult_status' => 'nullable|integer|in:0,1,2,3',
             'process_status' => 'nullable|integer|in:1,2,3',
             'consulted_by' => 'nullable|integer',
@@ -651,6 +654,7 @@ class ConsultCallController extends Controller
             'treatment_plan' => 'nullable|string',
             'rx_issued' => 'nullable|boolean',
             'action' => 'nullable|integer|in:1,2,3',
+            'consultation_type' => 'nullable|integer|in:1,2',
             'consult_status' => 'nullable|integer|in:0,1,2,3',
             'process_status' => 'nullable|integer|in:1,2,3',
             'consulted_by' => 'nullable|integer',
@@ -672,8 +676,15 @@ class ConsultCallController extends Controller
 
             $detailData = $validator->validated();
 
-            // Auto-set process_status: Refer External, End Process, No Show, or Cancelled all force Closed;
-            // default to Active when not explicitly provided
+            // process_status is a NOT NULL column. Callers that don't manage it explicitly
+            // (e.g. the Consultation Details form, which now leaves it to the header pill
+            // toggle's own dedicated update) may still send the key as null -- drop it so
+            // the existing value is left untouched rather than overwritten with NULL.
+            if (array_key_exists('process_status', $detailData) && $detailData['process_status'] === null) {
+                unset($detailData['process_status']);
+            }
+
+            // Auto-set process_status: Refer External, End Process, No Show, or Cancelled all force Closed.
             $actionForcesClose = isset($detailData['action']) && (
                 $detailData['action'] === ConsultCallDetails::ACTION_REFER_EXTERNAL ||
                 $detailData['action'] === ConsultCallDetails::ACTION_END_PROCESS

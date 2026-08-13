@@ -11,9 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('clinical_conditions', function (Blueprint $table) {
-            $table->string('type')->default('')->after('description');
-            $table->string('add_ons')->nullable()->after('type');
+        Schema::table('consult_call_details', function (Blueprint $table) {
+            $table->unsignedTinyInteger('consultation_type')->nullable()->after('action');
         });
     }
 
@@ -22,8 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('clinical_conditions', function (Blueprint $table) {
-            $table->dropColumn(['type', 'add_ons']);
+        Schema::table('consult_call_details', function (Blueprint $table) {
+            $table->dropColumn('consultation_type');
         });
     }
 };

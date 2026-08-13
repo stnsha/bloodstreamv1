@@ -15,7 +15,6 @@ class ClinicalCondition extends Model
         'id',
         'description',
         'type',
-        'add_ons',
         'evaluator',
         'risk_tier',
         'criteria_count',

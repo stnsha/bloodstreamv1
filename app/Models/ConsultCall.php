@@ -43,6 +43,7 @@ class ConsultCall extends Model
         'enrollment_type',
         'consent_call_status',
         'reason',
+        'add_on_id',
         'consent_call_date',
         'scheduled_status',
         'scheduled_call_date',
@@ -61,6 +62,7 @@ class ConsultCall extends Model
         'enrollment_date' => 'datetime',
         'enrollment_type' => 'integer',
         'consent_call_status' => 'integer',
+        'add_on_id' => 'integer',
         'consent_call_date' => 'date',
         'scheduled_status' => 'integer',
         'scheduled_call_date' => 'date',
@@ -86,6 +88,11 @@ class ConsultCall extends Model
     public function patient(): BelongsTo
     {
         return $this->belongsTo(Patient::class, 'patient_id', 'id');
+    }
+
+    public function addOn(): BelongsTo
+    {
+        return $this->belongsTo(AddOn::class, 'add_on_id', 'id');
     }
 
     public function details(): HasMany
