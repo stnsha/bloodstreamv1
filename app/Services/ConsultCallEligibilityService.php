@@ -145,6 +145,10 @@ class ConsultCallEligibilityService
             'rdw'           => $this->getPanelValue($items, 'rdw'),
             's_iron'        => $this->getPanelValue($items, 's_iron'),
             'ferritin'      => $this->getPanelValue($items, 'ferritin'),
+            'ast'           => $this->getPanelValue($items, 'ast'),
+            'alp'           => $this->getPanelValue($items, 'alp'),
+            'corrected_calcium' => $this->getPanelValue($items, 'corrected_calcium'),
+            'phosphate'     => $this->getPanelValue($items, 'phosphate'),
         ];
 
         // Evaluate against all conditions

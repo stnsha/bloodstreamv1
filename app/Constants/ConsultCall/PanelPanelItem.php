@@ -85,6 +85,14 @@ class PanelPanelItem
 
     public const ferritin = [266];
 
+    public const ast = [8, 203, 305, 325];
+
+    public const alp = [5, 202, 322, 1056];
+
+    public const corrected_calcium = [46, 316, 1055];
+
+    public const phosphate = [47, 317, 1057];
+
     /**
      * Date from which anemia conditions (31-75) become active.
      */
@@ -122,10 +130,14 @@ class PanelPanelItem
         'rdw'           => self::rdw,
         's_iron'        => self::s_iron,
         'ferritin'      => self::ferritin,
+        'ast'           => self::ast,
+        'alp'           => self::alp,
+        'corrected_calcium' => self::corrected_calcium,
+        'phosphate'     => self::phosphate,
     ];
 
     /**
      * All panel_panel_item IDs combined
      */
-    public const ALL_IDS = [28, 118, 31, 121, 42, 218, 49, 293, 663, 50, 294, 664, 9, 54, 55, 56, 57, 58, 59, 60, 27, 262, 266];
+    public const ALL_IDS = [28, 118, 31, 121, 42, 218, 49, 293, 663, 50, 294, 664, 9, 54, 55, 56, 57, 58, 59, 60, 27, 262, 266, 8, 203, 305, 325, 5, 202, 322, 1056, 46, 316, 1055, 47, 317, 1057];
 }

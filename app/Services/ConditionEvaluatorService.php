@@ -107,7 +107,8 @@ class ConditionEvaluatorService
      *
      * @param  array  $patientData  Patient data array with keys:
      *                              tc, ldlc, egfr, hba1c_percent, alt, age, bmi,
-     *                              gender, hae, rcc, pcv, mcv, mch, mchc, rdw, s_iron, ferritin
+     *                              gender, hae, rcc, pcv, mcv, mch, mchc, rdw, s_iron, ferritin,
+     *                              ast, alp, corrected_calcium, phosphate
      * @return int|null The matching condition ID, or null if no condition matched
      */
     public function evaluateSinglePatient(array $patientData): ?int
@@ -129,7 +130,8 @@ class ConditionEvaluatorService
      * @param  int  $conditionId  The condition ID to evaluate
      * @param  array  $patientData  Patient data array with keys:
      *                              tc, ldlc, egfr, hba1c_percent, alt, age, bmi,
-     *                              gender, hae, rcc, pcv, mcv, mch, mchc, rdw, s_iron, ferritin
+     *                              gender, hae, rcc, pcv, mcv, mch, mchc, rdw, s_iron, ferritin,
+     *                              ast, alp, corrected_calcium, phosphate
      * @return bool True if the condition is met, false otherwise
      */
     public function evaluateCondition(int $conditionId, array $patientData): bool
@@ -1669,5 +1671,212 @@ class ConditionEvaluatorService
         }
 
         return $data['s_iron'] < 9;
+    }
+
+    /**
+     * Condition 102: ALT >50 U/L
+     */
+    private function condition102(array $data): bool
+    {
+        if ($data['alt'] === null) {
+            return false;
+        }
+
+        return $data['alt'] > 50;
+    }
+
+    /**
+     * Condition 103: AST >40 U/L
+     */
+    private function condition103(array $data): bool
+    {
+        if ($data['ast'] === null) {
+            return false;
+        }
+
+        return $data['ast'] > 40;
+    }
+
+    /**
+     * Condition 104: ALP >150 U/L
+     */
+    private function condition104(array $data): bool
+    {
+        if ($data['alp'] === null) {
+            return false;
+        }
+
+        return $data['alp'] > 150;
+    }
+
+    /**
+     * Condition 105: ALT >50 U/L AND AST >40 U/L
+     */
+    private function condition105(array $data): bool
+    {
+        if ($data['alt'] === null || $data['ast'] === null) {
+            return false;
+        }
+
+        return $data['alt'] > 50
+            && $data['ast'] > 40;
+    }
+
+    /**
+     * Condition 106: ALT >50 U/L AND ALP >150 U/L
+     */
+    private function condition106(array $data): bool
+    {
+        if ($data['alt'] === null || $data['alp'] === null) {
+            return false;
+        }
+
+        return $data['alt'] > 50
+            && $data['alp'] > 150;
+    }
+
+    /**
+     * Condition 107: AST >40 U/L AND ALP >150 U/L
+     */
+    private function condition107(array $data): bool
+    {
+        if ($data['ast'] === null || $data['alp'] === null) {
+            return false;
+        }
+
+        return $data['ast'] > 40
+            && $data['alp'] > 150;
+    }
+
+    /**
+     * Condition 108: ALT >50 U/L AND AST >40 U/L AND ALP >150 U/L
+     */
+    private function condition108(array $data): bool
+    {
+        if ($data['alt'] === null || $data['ast'] === null || $data['alp'] === null) {
+            return false;
+        }
+
+        return $data['alt'] > 50
+            && $data['ast'] > 40
+            && $data['alp'] > 150;
+    }
+
+    /**
+     * Condition 109: ALP >150 U/L AND Corrected Calcium <2.10 mmol/L
+     */
+    private function condition109(array $data): bool
+    {
+        if ($data['alp'] === null || $data['corrected_calcium'] === null) {
+            return false;
+        }
+
+        return $data['alp'] > 150
+            && $data['corrected_calcium'] < 2.10;
+    }
+
+    /**
+     * Condition 110: ALP >150 U/L AND Corrected Calcium <2.10 mmol/L AND Hb 100-129 g/L
+     */
+    private function condition110(array $data): bool
+    {
+        if ($data['alp'] === null || $data['corrected_calcium'] === null || $data['hae'] === null) {
+            return false;
+        }
+
+        return $data['alp'] > 150
+            && $data['corrected_calcium'] < 2.10
+            && $data['hae'] >= 100
+            && $data['hae'] <= 129;
+    }
+
+    /**
+     * Condition 111: ALP >150 U/L AND Phosphate <0.65 mmol/L
+     */
+    private function condition111(array $data): bool
+    {
+        if ($data['alp'] === null || $data['phosphate'] === null) {
+            return false;
+        }
+
+        return $data['alp'] > 150
+            && $data['phosphate'] < 0.65;
+    }
+
+    /**
+     * Condition 112: ALP >150 U/L AND Phosphate <0.65 mmol/L AND Hb 100-129 g/L
+     */
+    private function condition112(array $data): bool
+    {
+        if ($data['alp'] === null || $data['phosphate'] === null || $data['hae'] === null) {
+            return false;
+        }
+
+        return $data['alp'] > 150
+            && $data['phosphate'] < 0.65
+            && $data['hae'] >= 100
+            && $data['hae'] <= 129;
+    }
+
+    /**
+     * Condition 113: Corrected Calcium <2.10 mmol/L AND Hb 100-129 g/L
+     */
+    private function condition113(array $data): bool
+    {
+        if ($data['corrected_calcium'] === null || $data['hae'] === null) {
+            return false;
+        }
+
+        return $data['corrected_calcium'] < 2.10
+            && $data['hae'] >= 100
+            && $data['hae'] <= 129;
+    }
+
+    /**
+     * Condition 114: Phosphate <0.65 mmol/L AND Hb 100-129 g/L
+     */
+    private function condition114(array $data): bool
+    {
+        if ($data['phosphate'] === null || $data['hae'] === null) {
+            return false;
+        }
+
+        return $data['phosphate'] < 0.65
+            && $data['hae'] >= 100
+            && $data['hae'] <= 129;
+    }
+
+    /**
+     * Condition 115: Corrected Calcium <2.10 mmol/L AND Phosphate <0.65 mmol/L AND Hb 100-129 g/L
+     */
+    private function condition115(array $data): bool
+    {
+        if ($data['corrected_calcium'] === null || $data['phosphate'] === null || $data['hae'] === null) {
+            return false;
+        }
+
+        return $data['corrected_calcium'] < 2.10
+            && $data['phosphate'] < 0.65
+            && $data['hae'] >= 100
+            && $data['hae'] <= 129;
+    }
+
+    /**
+     * Condition 116: ALP >150 U/L AND Corrected Calcium <2.10 mmol/L AND Phosphate <0.65 mmol/L AND Hb 100-129 g/L
+     */
+    private function condition116(array $data): bool
+    {
+        if (
+            $data['alp'] === null || $data['corrected_calcium'] === null ||
+            $data['phosphate'] === null || $data['hae'] === null
+        ) {
+            return false;
+        }
+
+        return $data['alp'] > 150
+            && $data['corrected_calcium'] < 2.10
+            && $data['phosphate'] < 0.65
+            && $data['hae'] >= 100
+            && $data['hae'] <= 129;
     }
 }
