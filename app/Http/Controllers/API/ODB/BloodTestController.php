@@ -390,15 +390,30 @@ class BloodTestController extends Controller
                     $query->whereNull('ref_id');
                 }
 
-                $testResult = $query
-                    ->where('is_completed', true)
+                $query->where('is_completed', true)
                     ->where('is_reviewed', true)
                     ->whereNotNull('collected_date')
                     ->whereBetween('collected_date', [
                         Carbon::create($year, $month, 1)->startOfMonth(),
                         Carbon::create($year, $month, 1)->endOfMonth()
-                    ])
-                    ->latest()->first();
+                    ]);
+
+                if ($refid) {
+                    // ref_id is the only reliable way to tell a customer's invoices
+                    // apart. With no ref_id tagged yet, 2+ untagged candidates in the
+                    // same month are indistinguishable - auto-tagging "latest" would
+                    // risk attaching the wrong invoice's result. Only auto-match when
+                    // exactly one untagged candidate exists; otherwise leave it to
+                    // step 5/6/7 (or notfound) rather than guess.
+                    $candidates = $query->latest()->get();
+                    $searchAttempts['step4_ic_only']['candidate_count'] = $candidates->count();
+
+                    if ($candidates->count() === 1) {
+                        $testResult = $candidates->first();
+                    }
+                } else {
+                    $testResult = $query->latest()->first();
+                }
 
                 if ($testResult) {
                     $searchAttempts['step4_ic_only']['found'] = true;
@@ -463,6 +478,57 @@ class BloodTestController extends Controller
                 if ($testResult) {
                     $searchAttempts['step6_manual_sync']['found'] = true;
                     $foundByStep = 'step6_manual_sync';
+                }
+            }
+
+            // Step 7: None of the completed+reviewed searches matched. Before declaring
+            // notfound, check whether a TestResult exists at all for this patient
+            // (regardless of is_completed/is_reviewed) - if so it's still processing
+            // in the lab, not genuinely missing. Mirrors the is_completed/is_reviewed
+            // semantics of determineTestResultStatus() used by the other endpoints.
+            if (!$testResult) {
+                $searchAttempts['step7_existence_check'] = ['attempted' => true, 'found' => false];
+
+                // Scope to the same lab and campaign month/year, and require an exact
+                // ref_id match when one is provided - matching "ref_id IS NULL" with
+                // no date bound let unrelated historical records (e.g. from a
+                // different, older campaign) falsely report "processing" for a
+                // patient/period that has no real record at all.
+                $existenceQuery = $buildBaseQuery()
+                    ->whereBetween('created_at', [
+                        Carbon::create($year, $month, 1)->startOfMonth(),
+                        Carbon::create($year, $month, 1)->endOfMonth()
+                    ]);
+
+                if ($refid) {
+                    $existenceQuery->where('ref_id', $refid);
+                }
+
+                $unfinishedTestResult = $existenceQuery->latest()->first();
+
+                if ($unfinishedTestResult) {
+                    $searchAttempts['step7_existence_check']['found'] = true;
+                    $searchAttempts['step7_existence_check']['test_result_id'] = $unfinishedTestResult->id;
+
+                    $logSummary('info', 'PROCESSING', [
+                        'existing_test_result_id' => $unfinishedTestResult->id,
+                        'is_completed' => $unfinishedTestResult->is_completed,
+                        'is_reviewed' => $unfinishedTestResult->is_reviewed,
+                    ]);
+
+                    return response()->json([
+                        'ai_response' => null,
+                        // report_id intentionally null: the underlying lab test isn't
+                        // completed yet, so there is no real report to reference. The ODB
+                        // caller writes report_id to its local DB whenever it's non-null,
+                        // which would incorrectly mark "Report" as ready before it exists.
+                        'report_id' => null,
+                        'ref_id' => $unfinishedTestResult->ref_id,
+                        'status' => self::processing
+                    ])
+                    ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                    ->header('Pragma', 'no-cache')
+                    ->header('Expires', '0');
                 }
             }
 
