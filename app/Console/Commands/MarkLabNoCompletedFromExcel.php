@@ -87,47 +87,31 @@ class MarkLabNoCompletedFromExcel extends Command
 
         $dataRows = array_slice($rows, 1);
 
-        // Classify every row up front so the dry-run preview and the live
-        // run share exactly the same decision logic.
-        $plan = [];
+        // Evaluate every row up front (read-only DB checks included) so the
+        // dry-run preview shows the exact same outcome the live run would
+        // produce — same lab_no lookup, same "does it have panels" check.
+        $plan = $this->evaluatePlan($dataRows, $labNoIdx, $remarksIdx);
 
-        foreach ($dataRows as $row) {
-            $labNo = trim((string) ($row[$labNoIdx] ?? ''));
-            $remark = trim((string) ($row[$remarksIdx] ?? ''));
+        $counts = $this->summarizeOutcomes($plan);
 
-            if ($labNo === '') {
-                continue;
-            }
-
-            $plan[] = [
-                'lab_no' => $labNo,
-                'remark' => $remark,
-                'action' => $this->classifyRemark($remark),
-            ];
-        }
-
-        $toMarkCount = count(array_filter($plan, fn ($p) => in_array($p['action'], ['mark', 'mark_if_panels_exist'], true)));
-
-        $this->info('Total rows with lab_no: '.count($plan).'. Candidates to mark completed: '.$toMarkCount.'.');
+        $this->info("Total rows with lab_no: {$counts['total']}.");
         $this->line('');
+        $this->previewTable($plan);
+        $this->line('');
+        $this->printSummary($counts);
 
         if ($dryRun) {
-            $this->previewTable($plan, dryRun: true);
             $this->line('');
             $this->info('DRY RUN — no changes made.');
 
-            Log::channel('ai-command')->info('MarkLabNoCompletedFromExcel: dry run completed', [
-                'total_rows' => count($plan),
-                'candidates' => $toMarkCount,
-            ]);
+            Log::channel('ai-command')->info('MarkLabNoCompletedFromExcel: dry run completed', $counts);
 
             return self::SUCCESS;
         }
 
-        $this->previewTable($plan, dryRun: false);
         $this->line('');
 
-        if (! $force && ! $this->confirm("Mark {$toMarkCount} lab_no(s) as completed?")) {
+        if (! $force && ! $this->confirm("Mark {$counts['mark']} lab_no(s) as completed?")) {
             $this->info('Operation cancelled.');
             Log::channel('ai-command')->info('MarkLabNoCompletedFromExcel: cancelled by user');
 
@@ -135,57 +119,22 @@ class MarkLabNoCompletedFromExcel extends Command
         }
 
         $marked = 0;
-        $alreadyCompleted = 0;
-        $skippedEmpty = 0;
-        $skippedUnrecognized = 0;
-        $skippedNoPanels = 0;
-        $skippedNotFound = 0;
         $failed = 0;
         $resultRows = [];
 
         foreach ($plan as $item) {
+            if ($item['outcome'] !== 'mark') {
+                continue;
+            }
+
             $labNo = $item['lab_no'];
-            $action = $item['action'];
-
-            if ($action === 'skip_empty') {
-                $skippedEmpty++;
-                continue;
-            }
-
-            if ($action === 'skip_unrecognized') {
-                $skippedUnrecognized++;
-                $resultRows[] = [$labNo, 'SKIPPED', 'Unrecognized remark: '.$item['remark']];
-                continue;
-            }
 
             try {
-                $testResult = TestResult::where('lab_no', $labNo)->latest()->first();
+                $testResult = TestResult::find($item['test_result_id']);
 
                 if (! $testResult) {
-                    $skippedNotFound++;
-                    $resultRows[] = [$labNo, 'SKIPPED', 'Test result not found'];
-                    continue;
-                }
-
-                if ($action === 'mark_if_panels_exist') {
-                    $hasPanels = TestResultItem::where('test_result_id', $testResult->id)->exists();
-
-                    if (! $hasPanels) {
-                        $skippedNoPanels++;
-                        $resultRows[] = [$labNo, 'SKIPPED', 'No panels found for "Already Sent" remark'];
-
-                        Log::channel('ai-command')->info('MarkLabNoCompletedFromExcel: skipped, no panels for Already Sent remark', [
-                            'lab_no' => $labNo,
-                            'test_result_id' => $testResult->id,
-                        ]);
-
-                        continue;
-                    }
-                }
-
-                if ($testResult->is_completed && $testResult->manually_completed_at) {
-                    $alreadyCompleted++;
-                    $resultRows[] = [$labNo, 'ALREADY COMPLETED', '-'];
+                    $failed++;
+                    $resultRows[] = [$labNo, 'FAILED', 'Test result vanished between evaluation and write'];
                     continue;
                 }
 
@@ -217,19 +166,108 @@ class MarkLabNoCompletedFromExcel extends Command
         $this->line('');
         $this->table(['Lab No', 'Status', 'Detail'], $resultRows);
         $this->line('');
-        $this->info("Done. Marked: {$marked}, Already completed: {$alreadyCompleted}, Skipped (empty remark): {$skippedEmpty}, Skipped (unrecognized remark): {$skippedUnrecognized}, Skipped (no panels): {$skippedNoPanels}, Skipped (not found): {$skippedNotFound}, Failed: {$failed}.");
+        $this->info("Done. Marked: {$marked}, Already completed: {$counts['already_completed']}, Skipped (empty remark): {$counts['skip_empty']}, Skipped (unrecognized remark): {$counts['skip_unrecognized']}, Skipped (no panels): {$counts['skip_no_panels']}, Skipped (not found): {$counts['skip_not_found']}, Failed: {$failed}.");
 
         Log::channel('ai-command')->info('MarkLabNoCompletedFromExcel: completed', [
             'marked' => $marked,
-            'already_completed' => $alreadyCompleted,
-            'skipped_empty' => $skippedEmpty,
-            'skipped_unrecognized' => $skippedUnrecognized,
-            'skipped_no_panels' => $skippedNoPanels,
-            'skipped_not_found' => $skippedNotFound,
+            'already_completed' => $counts['already_completed'],
+            'skipped_empty' => $counts['skip_empty'],
+            'skipped_unrecognized' => $counts['skip_unrecognized'],
+            'skipped_no_panels' => $counts['skip_no_panels'],
+            'skipped_not_found' => $counts['skip_not_found'],
             'failed' => $failed,
         ]);
 
         return $failed > 0 && $marked === 0 ? self::FAILURE : self::SUCCESS;
+    }
+
+    /**
+     * Classify every lab_no row and resolve its final outcome, including the
+     * read-only DB checks (test result lookup, panel-existence check for
+     * "Already Sent"-family remarks, already-completed check) — shared by
+     * the dry-run preview and the live run so both report identical numbers.
+     *
+     * Outcome values: 'mark' (will be/would be marked completed),
+     * 'already_completed', 'skip_no_panels' (Already Sent family with no
+     * test_result_items), 'skip_not_found', 'skip_empty',
+     * 'skip_unrecognized'.
+     *
+     * @return array<int, array{lab_no: string, remark: string, action: string, outcome: string, test_result_id: int|null}>
+     */
+    private function evaluatePlan(array $dataRows, int $labNoIdx, int $remarksIdx): array
+    {
+        $plan = [];
+
+        foreach ($dataRows as $row) {
+            $labNo = trim((string) ($row[$labNoIdx] ?? ''));
+            $remark = trim((string) ($row[$remarksIdx] ?? ''));
+
+            if ($labNo === '') {
+                continue;
+            }
+
+            $action = $this->classifyRemark($remark);
+            $testResultId = null;
+
+            if ($action === 'skip_empty' || $action === 'skip_unrecognized') {
+                $outcome = $action;
+            } else {
+                $testResult = TestResult::where('lab_no', $labNo)->latest()->first();
+
+                if (! $testResult) {
+                    $outcome = 'skip_not_found';
+                } elseif ($action === 'mark_if_panels_exist' && ! TestResultItem::where('test_result_id', $testResult->id)->exists()) {
+                    $outcome = 'skip_no_panels';
+                } elseif ($testResult->is_completed && $testResult->manually_completed_at) {
+                    $outcome = 'already_completed';
+                } else {
+                    $outcome = 'mark';
+                    $testResultId = $testResult->id;
+                }
+            }
+
+            $plan[] = [
+                'lab_no' => $labNo,
+                'remark' => $remark,
+                'action' => $action,
+                'outcome' => $outcome,
+                'test_result_id' => $testResultId,
+            ];
+        }
+
+        return $plan;
+    }
+
+    /**
+     * @return array{total: int, mark: int, already_completed: int, skip_empty: int, skip_unrecognized: int, skip_no_panels: int, skip_not_found: int}
+     */
+    private function summarizeOutcomes(array $plan): array
+    {
+        $counts = [
+            'total' => count($plan),
+            'mark' => 0,
+            'already_completed' => 0,
+            'skip_empty' => 0,
+            'skip_unrecognized' => 0,
+            'skip_no_panels' => 0,
+            'skip_not_found' => 0,
+        ];
+
+        foreach ($plan as $item) {
+            $counts[$item['outcome']]++;
+        }
+
+        return $counts;
+    }
+
+    private function printSummary(array $counts): void
+    {
+        $this->info("Will be marked completed: {$counts['mark']}");
+        $this->info("Already completed (no change needed): {$counts['already_completed']}");
+        $this->info("Skipped — no panels found (Already Sent* check failed): {$counts['skip_no_panels']}");
+        $this->info("Skipped — test result not found: {$counts['skip_not_found']}");
+        $this->info("Skipped — empty remark: {$counts['skip_empty']}");
+        $this->info("Skipped — unrecognized remark: {$counts['skip_unrecognized']}");
     }
 
     /**
@@ -342,20 +380,22 @@ class MarkLabNoCompletedFromExcel extends Command
         return rtrim($normalized, ". \t\n\r\0\x0B");
     }
 
-    private function previewTable(array $plan, bool $dryRun): void
+    private function previewTable(array $plan): void
     {
         $labels = [
-            'mark' => 'MARK COMPLETED',
-            'mark_if_panels_exist' => 'MARK IF PANELS EXIST',
-            'skip_empty' => 'SKIP (empty remark)',
-            'skip_unrecognized' => 'SKIP (unrecognized remark)',
+            'mark' => 'WILL MARK COMPLETED',
+            'already_completed' => 'ALREADY COMPLETED',
+            'skip_no_panels' => 'SKIP — no panels found',
+            'skip_not_found' => 'SKIP — test result not found',
+            'skip_empty' => 'SKIP — empty remark',
+            'skip_unrecognized' => 'SKIP — unrecognized remark',
         ];
 
         $rows = array_map(
-            fn ($p) => [$p['lab_no'], $p['remark'] ?: '(empty)', $labels[$p['action']] ?? $p['action']],
+            fn ($p) => [$p['lab_no'], $p['remark'] ?: '(empty)', $labels[$p['outcome']] ?? $p['outcome']],
             $plan
         );
 
-        $this->table(['Lab No', 'Remark', ($dryRun ? 'Planned Action' : 'Action')], $rows);
+        $this->table(['Lab No', 'Remark', 'Outcome'], $rows);
     }
 }
