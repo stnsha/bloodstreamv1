@@ -6,20 +6,33 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\LabRequest;
 use App\Models\Lab;
 use Exception;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class LabController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        Log::info('LabController@index: fetching all labs');
+        $perPage = (int) $request->query('per_page', 50);
+        $perPage = max(1, min($perPage, 200));
 
-        $labs = Lab::orderBy('name')->get();
+        Log::info('LabController@index: fetching labs', ['per_page' => $perPage]);
 
-        Log::info('LabController@index: completed', ['count' => $labs->count()]);
+        $labs = Lab::orderBy('name')->paginate($perPage);
 
-        return response()->json(['success' => true, 'data' => $labs], 200);
+        Log::info('LabController@index: completed', ['total' => $labs->total()]);
+
+        return response()->json([
+            'success' => true,
+            'data' => $labs->items(),
+            'meta' => [
+                'current_page' => $labs->currentPage(),
+                'per_page' => $labs->perPage(),
+                'total' => $labs->total(),
+                'last_page' => $labs->lastPage(),
+            ],
+        ], 200);
     }
 
     public function store(LabRequest $request)

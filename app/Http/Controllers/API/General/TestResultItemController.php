@@ -1,0 +1,96 @@
+<?php
+
+namespace App\Http\Controllers\API\General;
+
+use App\Http\Controllers\Controller;
+use App\Models\TestResultItem;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Throwable;
+
+class TestResultItemController extends Controller
+{
+    /**
+     * Restrict the query to the caller's lab, unless the caller is the
+     * superadmin lab (id 1), matching TestResultController::scopeToLab().
+     */
+    private function scopeToLab(Builder $query)
+    {
+        $user = Auth::guard('lab')->user();
+        $lab_id = $user->lab_id;
+
+        if ($lab_id !== 1) {
+            $query->whereHas('testResult.doctor', function ($q) use ($lab_id) {
+                $q->where('lab_id', $lab_id);
+            });
+        }
+
+        return $lab_id;
+    }
+
+    private function respond(Builder $query, string $logContext, array $context = []): JsonResponse
+    {
+        try {
+            $lab_id = $this->scopeToLab($query);
+
+            Log::info("{$logContext}: fetching test result items", $context + ['lab_id' => $lab_id]);
+
+            $items = $query->get(['test_result_id', 'value', 'flag']);
+
+            Log::info("{$logContext}: completed", $context + ['lab_id' => $lab_id, 'count' => $items->count()]);
+
+            return response()->json([
+                'success' => true,
+                'data' => $items->map(fn ($item) => [
+                    'test_result_id' => $item->test_result_id,
+                    'value' => $item->value,
+                    'flag' => $item->flag,
+                ])->values(),
+                'count' => $items->count(),
+            ], 200);
+        } catch (Throwable $e) {
+            Log::error("{$logContext}: failed", $context + [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve test result items',
+                'error' => 'Internal server error',
+            ], 500);
+        }
+    }
+
+    /**
+     * GET /api/test-result-items
+     * All test result items visible to the caller's lab. No pagination.
+     */
+    public function all(): JsonResponse
+    {
+        return $this->respond(TestResultItem::query(), 'TestResultItemController@all');
+    }
+
+    /**
+     * GET /api/test-result-items/test-result/{testResultId}
+     */
+    public function byTestResult($testResultId): JsonResponse
+    {
+        $query = TestResultItem::query()->where('test_result_id', $testResultId);
+
+        return $this->respond($query, 'TestResultItemController@byTestResult', ['test_result_id' => $testResultId]);
+    }
+
+    /**
+     * GET /api/test-result-items/panel-panel-item/{panelPanelItemId}
+     */
+    public function byPanelPanelItem($panelPanelItemId): JsonResponse
+    {
+        $query = TestResultItem::query()->where('panel_panel_item_id', $panelPanelItemId);
+
+        return $this->respond($query, 'TestResultItemController@byPanelPanelItem', ['panel_panel_item_id' => $panelPanelItemId]);
+    }
+}

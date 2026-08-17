@@ -24,6 +24,21 @@ class MyHealthService
         return $this->connection->select($sql, $bindings);
     }
 
+    /**
+     * Get every check_record row for an IC, with no date restriction.
+     * Unlike getCheckRecordIdByIC(), this is not limited to the last 14
+     * days -- used for a full history lookup rather than a "current
+     * vitals" check.
+     */
+    public function getAllCheckRecordsByIC($ic)
+    {
+        return $this->connection->table('check_record')
+            ->where('ic', $ic)
+            ->select('id', 'gender', 'date_time')
+            ->orderBy('date_time', 'asc')
+            ->get();
+    }
+
     public function getCheckRecordIdByIC($ic)
     {
         $fourteenDaysAgo = now()->subDays(14)->format('Y-m-d H:i:s');

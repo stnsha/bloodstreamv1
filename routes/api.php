@@ -1,9 +1,26 @@
 <?php
 
 use App\Http\Controllers\API\AuthController;
+use App\Http\Controllers\API\Catalog\DoctorController;
+use App\Http\Controllers\API\Catalog\MasterPanelCommentController;
+use App\Http\Controllers\API\Catalog\MasterPanelController;
+use App\Http\Controllers\API\Catalog\MasterPanelItemController;
+use App\Http\Controllers\API\Catalog\PanelCategoryController;
+use App\Http\Controllers\API\Catalog\PanelCommentController as CatalogPanelCommentController;
+use App\Http\Controllers\API\Catalog\PanelController;
+use App\Http\Controllers\API\Catalog\PanelInterpretationController;
+use App\Http\Controllers\API\Catalog\PanelItemController;
+use App\Http\Controllers\API\Catalog\PanelPanelItemController;
+use App\Http\Controllers\API\Catalog\PanelPanelProfileController;
+use App\Http\Controllers\API\Catalog\PanelProfileController;
+use App\Http\Controllers\API\Catalog\PatientController;
+use App\Http\Controllers\API\Catalog\ReferenceRangeController;
 use App\Http\Controllers\API\Fixes\HotFixController;
 use App\Http\Controllers\API\Nexus\IntegrationController;
 use App\Http\Controllers\API\General\LabResultsController;
+use App\Http\Controllers\API\General\TestResultController;
+use App\Http\Controllers\API\General\TestResultItemController;
+use App\Http\Controllers\API\General\TestResultSpecialTestController;
 use App\Http\Controllers\API\Innoquest\PanelResultsController;
 use App\Http\Controllers\API\ODB\BloodTestController;
 use App\Http\Controllers\API\ODB\IncompleteTestResultsController;
@@ -15,6 +32,7 @@ use App\Http\Controllers\API\ConsultCall\ConsultCallController;
 use App\Http\Controllers\API\ConsultCall\ConsultCallFollowUpController;
 use App\Http\Controllers\API\ConsultCall\StatusLibraryController;
 use App\Http\Controllers\API\Lab\LabController;
+use App\Http\Controllers\API\MyHealth\MyHealthController;
 use App\Http\Controllers\API\Testing\SpecialTestController;
 use App\Http\Controllers\API\Webhook\AIResultController;
 use App\Http\Controllers\API\Export\DynamicExportController;
@@ -135,6 +153,114 @@ Route::middleware(['api.auth', 'throttle:api'])->group(function () {
 
     Route::prefix('special-test')->controller(SpecialTestController::class)->group(function () {
         Route::get('/', 'index')->name('special-test.index');
+    });
+
+    Route::prefix('test-results')->controller(TestResultController::class)->group(function () {
+        Route::get('/', 'index')->name('testResults.index');
+        Route::post('/search', 'search')->name('testResults.search');
+    });
+
+    Route::prefix('test-result-items')->controller(TestResultItemController::class)->group(function () {
+        Route::get('/test-result/{testResultId}', 'byTestResult')->whereNumber('testResultId')->name('testResultItems.byTestResult');
+        Route::get('/panel-panel-item/{panelPanelItemId}', 'byPanelPanelItem')->whereNumber('panelPanelItemId')->name('testResultItems.byPanelPanelItem');
+        Route::get('/', 'all')->name('testResultItems.all');
+    });
+
+    Route::prefix('test-result-special-tests')->controller(TestResultSpecialTestController::class)->group(function () {
+        Route::get('/panel-interpretation/{panelInterpretationId}', 'byPanelInterpretation')->whereNumber('panelInterpretationId')->name('testResultSpecialTests.byPanelInterpretation');
+        Route::get('/', 'all')->name('testResultSpecialTests.all');
+    });
+
+    Route::prefix('patients')->controller(PatientController::class)->group(function () {
+        Route::get('/gender/{gender}', 'byGender')->name('patients.byGender');
+        Route::get('/age/{age}', 'byAge')->name('patients.byAge');
+        Route::get('/{id}', 'show')->whereNumber('id')->name('patients.show');
+        Route::get('/', 'index')->name('patients.index');
+    });
+
+    Route::prefix('doctors')->controller(DoctorController::class)->group(function () {
+        Route::get('/lab/{labId}', 'byLab')->whereNumber('labId')->name('doctors.byLab');
+        Route::get('/{id}', 'show')->whereNumber('id')->name('doctors.show');
+        Route::get('/', 'index')->name('doctors.index');
+    });
+
+    Route::prefix('master-panels')->controller(MasterPanelController::class)->group(function () {
+        Route::get('/{id}', 'show')->whereNumber('id')->name('masterPanels.show');
+        Route::get('/', 'index')->name('masterPanels.index');
+    });
+
+    Route::prefix('master-panel-comments')->controller(MasterPanelCommentController::class)->group(function () {
+        Route::get('/{id}', 'show')->whereNumber('id')->name('masterPanelComments.show');
+        Route::get('/', 'index')->name('masterPanelComments.index');
+    });
+
+    Route::prefix('master-panel-items')->controller(MasterPanelItemController::class)->group(function () {
+        Route::get('/{id}', 'show')->whereNumber('id')->name('masterPanelItems.show');
+        Route::get('/', 'index')->name('masterPanelItems.index');
+    });
+
+    Route::prefix('panels')->controller(PanelController::class)->group(function () {
+        Route::get('/master-panel/{masterPanelId}', 'byMasterPanel')->whereNumber('masterPanelId')->name('panels.byMasterPanel');
+        Route::get('/panel-category/{panelCategoryId}', 'byPanelCategory')->whereNumber('panelCategoryId')->name('panels.byPanelCategory');
+        Route::get('/code/{code}', 'byCode')->name('panels.byCode');
+        Route::get('/{id}', 'show')->whereNumber('id')->name('panels.show');
+        Route::get('/', 'index')->name('panels.index');
+    });
+
+    Route::prefix('panel-categories')->controller(PanelCategoryController::class)->group(function () {
+        Route::get('/lab/{labId}', 'byLab')->whereNumber('labId')->name('panelCategories.byLab');
+        Route::get('/{id}', 'show')->whereNumber('id')->name('panelCategories.show');
+        Route::get('/', 'index')->name('panelCategories.index');
+    });
+
+    Route::prefix('panel-comments')->controller(CatalogPanelCommentController::class)->group(function () {
+        Route::get('/panel/{panelId}', 'byPanel')->whereNumber('panelId')->name('panelComments.byPanel');
+        Route::get('/master-panel-comment/{masterPanelCommentId}', 'byMasterPanelComment')->whereNumber('masterPanelCommentId')->name('panelComments.byMasterPanelComment');
+        Route::get('/{id}', 'show')->whereNumber('id')->name('panelComments.show');
+        Route::get('/', 'index')->name('panelComments.index');
+    });
+
+    Route::prefix('panel-interpretations')->controller(PanelInterpretationController::class)->group(function () {
+        Route::get('/panel-panel-item/{panelPanelItemId}', 'byPanelPanelItem')->whereNumber('panelPanelItemId')->name('panelInterpretations.byPanelPanelItem');
+        Route::get('/{id}', 'show')->whereNumber('id')->name('panelInterpretations.show');
+        Route::get('/', 'index')->name('panelInterpretations.index');
+    });
+
+    Route::prefix('panel-items')->controller(PanelItemController::class)->group(function () {
+        Route::get('/master-panel-item/{masterPanelItemId}', 'byMasterPanelItem')->whereNumber('masterPanelItemId')->name('panelItems.byMasterPanelItem');
+        Route::get('/lab/{labId}', 'byLab')->whereNumber('labId')->name('panelItems.byLab');
+        Route::get('/{id}', 'show')->whereNumber('id')->name('panelItems.show');
+        Route::get('/', 'index')->name('panelItems.index');
+    });
+
+    Route::prefix('panel-panel-items')->controller(PanelPanelItemController::class)->group(function () {
+        Route::get('/panel/{panelId}', 'byPanel')->whereNumber('panelId')->name('panelPanelItems.byPanel');
+        Route::get('/panel-item/{panelItemId}', 'byPanelItem')->whereNumber('panelItemId')->name('panelPanelItems.byPanelItem');
+        Route::get('/{id}', 'show')->whereNumber('id')->name('panelPanelItems.show');
+        Route::get('/', 'index')->name('panelPanelItems.index');
+    });
+
+    Route::prefix('panel-panel-profiles')->controller(PanelPanelProfileController::class)->group(function () {
+        Route::get('/panel-profile/{panelProfileId}', 'byPanelProfile')->whereNumber('panelProfileId')->name('panelPanelProfiles.byPanelProfile');
+        Route::get('/panel/{panelId}', 'byPanel')->whereNumber('panelId')->name('panelPanelProfiles.byPanel');
+        Route::get('/{id}', 'show')->whereNumber('id')->name('panelPanelProfiles.show');
+        Route::get('/', 'index')->name('panelPanelProfiles.index');
+    });
+
+    Route::prefix('panel-profiles')->controller(PanelProfileController::class)->group(function () {
+        Route::get('/lab/{labId}', 'byLab')->whereNumber('labId')->name('panelProfiles.byLab');
+        Route::get('/{id}', 'show')->whereNumber('id')->name('panelProfiles.show');
+        Route::get('/', 'index')->name('panelProfiles.index');
+    });
+
+    Route::prefix('reference-ranges')->controller(ReferenceRangeController::class)->group(function () {
+        Route::get('/panel-panel-item/{panelPanelItemId}', 'byPanelPanelItem')->whereNumber('panelPanelItemId')->name('referenceRanges.byPanelPanelItem');
+        Route::get('/{id}', 'show')->whereNumber('id')->name('referenceRanges.show');
+        Route::get('/', 'index')->name('referenceRanges.index');
+    });
+
+    Route::prefix('myhealth')->controller(MyHealthController::class)->group(function () {
+        Route::get('/check-record/{ic}', 'checkRecordByIc')->name('myhealth.checkRecordByIc');
     });
 
     Route::prefix('lab')->controller(LabController::class)->group(function () {
