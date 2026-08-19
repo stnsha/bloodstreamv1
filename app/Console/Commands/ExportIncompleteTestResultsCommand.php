@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Exports\IncompleteTestResultsExport;
 use App\Services\PanelCompletenessService;
+use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -13,13 +14,21 @@ use Throwable;
 
 class ExportIncompleteTestResultsCommand extends Command
 {
-    protected $signature = 'export:incomplete-test-results';
+    protected $signature = 'export:incomplete-test-results
+                            {--from= : Start of test_results.created_at range (Y-m-d), defaults to 30 days ago}
+                            {--to=   : End of test_results.created_at range (Y-m-d), defaults to today}';
 
-    protected $description = 'Export incomplete_test_results (ref_id, lab_no, reason, missing_details) to a timestamped CSV file in storage/app/public/csv';
+    protected $description = 'Export test_results with is_completed=0 and is_reviewed=0 (id, doctor_id, patient_id, ref_id, lab_no, dates, is_completed, is_reviewed, manually_completed_at, timestamps, reason, missing_details) to a timestamped CSV file in storage/app/public/csv';
 
     public function handle(PanelCompletenessService $panelCompletenessService): int
     {
-        Log::channel('ai-command')->info('ExportIncompleteTestResultsCommand: started');
+        $from = Carbon::parse($this->option('from') ?? now()->subDays(30)->toDateString())->startOfDay();
+        $to = Carbon::parse($this->option('to') ?? now()->toDateString())->endOfDay();
+
+        Log::channel('ai-command')->info('ExportIncompleteTestResultsCommand: started', [
+            'from' => $from->toDateTimeString(),
+            'to' => $to->toDateTimeString(),
+        ]);
 
         try {
             Storage::disk('public')->makeDirectory('csv');
@@ -27,7 +36,7 @@ class ExportIncompleteTestResultsCommand extends Command
             $filename = 'incomplete_test_results_' . now()->format('Y-m-d_His') . '.csv';
             $storagePath = 'public/csv/' . $filename;
 
-            Excel::store(new IncompleteTestResultsExport($panelCompletenessService), $storagePath, null, ExcelFormat::CSV);
+            Excel::store(new IncompleteTestResultsExport($panelCompletenessService, $from, $to), $storagePath, null, ExcelFormat::CSV);
 
             $fullPath = storage_path('app/' . $storagePath);
 
@@ -36,6 +45,8 @@ class ExportIncompleteTestResultsCommand extends Command
             Log::channel('ai-command')->info('ExportIncompleteTestResultsCommand: completed', [
                 'filename' => $filename,
                 'full_path' => $fullPath,
+                'from' => $from->toDateTimeString(),
+                'to' => $to->toDateTimeString(),
             ]);
 
             return self::SUCCESS;

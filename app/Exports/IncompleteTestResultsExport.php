@@ -2,9 +2,9 @@
 
 namespace App\Exports;
 
-use App\Models\IncompleteTestResult;
 use App\Models\TestResult;
 use App\Services\PanelCompletenessService;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithHeadings;
@@ -12,17 +12,29 @@ use Maatwebsite\Excel\Concerns\WithMapping;
 
 class IncompleteTestResultsExport implements FromQuery, WithHeadings, WithMapping
 {
-    public function __construct(protected PanelCompletenessService $panelCompletenessService)
-    {
+    public function __construct(
+        protected PanelCompletenessService $panelCompletenessService,
+        protected Carbon $from,
+        protected Carbon $to
+    ) {
     }
 
     public function query(): Builder
     {
-        return IncompleteTestResult::query()
-            ->join('test_results', 'test_results.id', '=', 'incomplete_test_results.test_result_id')
+        return TestResult::query()
+            ->leftJoin('incomplete_test_results', 'incomplete_test_results.test_result_id', '=', 'test_results.id')
             ->whereNull('test_results.deleted_at')
-            ->select('test_results.id as test_result_id', 'test_results.ref_id', 'test_results.lab_no', 'incomplete_test_results.reason', 'incomplete_test_results.missing_details')
-            ->orderBy('incomplete_test_results.id');
+            ->where('test_results.is_completed', false)
+            ->where('test_results.is_reviewed', false)
+            ->whereBetween('test_results.created_at', [$this->from, $this->to])
+            ->select(
+                'test_results.id as test_result_id',
+                'test_results.ref_id',
+                'test_results.lab_no',
+                'incomplete_test_results.reason',
+                'incomplete_test_results.missing_details'
+            )
+            ->orderBy('test_results.id');
     }
 
     public function headings(): array
