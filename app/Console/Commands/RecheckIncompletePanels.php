@@ -20,7 +20,8 @@ class RecheckIncompletePanels extends Command
                             {--force : Skip the confirmation prompt (required for unattended/scheduled runs)}
                             {--prioritize-ref-id : Process records with a non-null ref_id before those without, for higher-fidelity ODB-based completeness checks}
                             {--test-result-id= : Comma-separated test_result_id values to recheck directly, bypassing --from/--to/--limit/--offset/--prioritize-ref-id and the is_completed=true filter}
-                            {--batch-size= : Process and display the matched records in chunks of this size instead of one large table/run, for backlogs of hundreds+ records}';
+                            {--batch-size= : Process and display the matched records in chunks of this size instead of one large table/run, for backlogs of hundreds+ records}
+                            {--min-age-hours= : Only consider records whose test_results.updated_at is at least this many hours old, so a record still mid-delivery is not reverted out from under an in-progress batch (range mode only, incompatible with --test-result-id)}';
 
     protected $description = 'Recheck test results marked is_completed=true against their expected panel profiles, reverting is_completed to false and recording any with missing panels in incomplete_test_results';
 
@@ -33,9 +34,16 @@ class RecheckIncompletePanels extends Command
         $offset = $this->option('offset') ? (int) $this->option('offset') : null;
         $prioritizeRefId = $this->option('prioritize-ref-id');
         $batchSize = $this->option('batch-size') ? (int) $this->option('batch-size') : null;
+        $minAgeHours = $this->option('min-age-hours') !== null ? (int) $this->option('min-age-hours') : null;
 
-        if ($testResultIdOption && ($rawFrom || $rawTo || $limit || $offset || $prioritizeRefId || $batchSize)) {
-            $this->error('--test-result-id cannot be combined with --from/--to/--limit/--offset/--prioritize-ref-id/--batch-size.');
+        if ($testResultIdOption && ($rawFrom || $rawTo || $limit || $offset || $prioritizeRefId || $batchSize || $minAgeHours !== null)) {
+            $this->error('--test-result-id cannot be combined with --from/--to/--limit/--offset/--prioritize-ref-id/--batch-size/--min-age-hours.');
+
+            return Command::FAILURE;
+        }
+
+        if ($minAgeHours !== null && $minAgeHours < 0) {
+            $this->error('--min-age-hours must be a non-negative integer.');
 
             return Command::FAILURE;
         }
@@ -83,6 +91,7 @@ class RecheckIncompletePanels extends Command
             'force' => $force,
             'prioritize_ref_id' => $prioritizeRefId,
             'batch_size' => $batchSize ?? 'none',
+            'min_age_hours' => $minAgeHours ?? 'none',
         ]);
 
         $this->info('Querying test results to recheck...');
@@ -103,7 +112,8 @@ class RecheckIncompletePanels extends Command
             }
         } else {
             $query = TestResult::whereBetween('collected_date', [$fromDate, $toDate])
-                ->where('is_completed', true);
+                ->where('is_completed', true)
+                ->when($minAgeHours !== null, fn ($q) => $q->where('updated_at', '<=', now()->subHours($minAgeHours)));
 
             $totalMatched = $query->count();
 

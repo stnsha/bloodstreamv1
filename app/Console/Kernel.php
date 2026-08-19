@@ -49,21 +49,14 @@ class Kernel extends ConsoleKernel
             ->environments(['production'])
             ->withoutOverlapping(30);
 
-        // Phase 2D: Reconcile incomplete_test_results — promote records that now
-        // resolve, refresh reason/missing_details for the rest
-        $schedule->command('panels:reconcile-incomplete --limit=200 --force')
-            ->hourlyAt(35)
-            ->environments(['production'])
-            ->withoutOverlapping(30);
-
-        // Phase 2G: Recheck today's is_completed=true test results against current
-        // panel/invoice completeness rules, reverting any that no longer qualify.
-        // No --limit: the "today" window is self-bounding by daily volume, and a
-        // --limit here would only reselect the same newest-N records every run
-        // (ordered by collected_date desc) since verified-OK records keep
-        // is_completed=true and never drop out of the query.
-        $schedule->command('panels:recheck-incomplete --from=today --force')
-            ->hourlyAt(50)
+        // Phase 2D/2G/2H merged: full panel-completeness reconciliation cycle —
+        // revert stale is_completed=1 records (min-age-hours=1 default protects
+        // in-flight deliveries), promote/refresh incomplete_test_results rows
+        // (stamping manually_completed_at on promotion), and redispatch AI
+        // review + consult-call re-eval for records that received new panel
+        // data after their review finished.
+        $schedule->command('panels:master-reconcile --limit=200 --force')
+            ->hourlyAt(40)
             ->environments(['production'])
             ->withoutOverlapping(30);
 
