@@ -6,8 +6,11 @@ use App\Models\IncompleteTestResult;
 use App\Models\TestResult;
 use App\Models\TestResultItem;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use Throwable;
 
 class MarkLabNoCompletedFromExcel extends Command
@@ -17,18 +20,24 @@ class MarkLabNoCompletedFromExcel extends Command
                             {--dry-run : Preview affected lab numbers without making any changes}
                             {--force : Skip the confirmation prompt (required for unattended/scheduled runs)}';
 
-    protected $description = 'Read an incomplete_test_results xlsx export and mark lab_no rows as completed based on the Remarks column (UM omitted, No result, No Order HCG, Already Sent*, No Lipid test and FBC, Result sent). Empty or unrecognized remarks are skipped.';
+    protected $description = 'Read an incomplete_test_results xlsx export (sheet incomplete_test_results_YYYY-MM) and mark lab_no rows as completed based on the Remarks column: "result sent" (verified against missing_details panels actually having results) or "sample/edta clotted" (sample ruined, no result ever coming) -> mark completed; "result pending"/"result processing" -> still incomplete, skipped; empty or unrecognized remarks are skipped.';
 
     /**
-     * Remark values (lowercased, trimmed) that mark a lab_no completed
-     * outright, no further checks needed.
+     * Remark substrings meaning the sample was ruined, so no result will
+     * ever come for it -- mark completed unconditionally, no panel check.
      */
-    private const AUTO_COMPLETE_REMARKS = [
-        'um omitted',
-        'no result',
-        'no order hcg',
-        'no lipid test and fbc',
-        'result sent',
+    private const RUINED_SAMPLE_REMARK_SUBSTRINGS = [
+        'sample clotted',
+        'edta clotted',
+    ];
+
+    /**
+     * Remark substrings meaning the lab_no is still genuinely incomplete
+     * (result not ready yet) -- must NOT be marked completed.
+     */
+    private const STILL_INCOMPLETE_REMARK_SUBSTRINGS = [
+        'result pending',
+        'result processing',
     ];
 
     public function handle(): int
@@ -73,10 +82,10 @@ class MarkLabNoCompletedFromExcel extends Command
             return self::SUCCESS;
         }
 
-        [$labNoIdx, $remarksIdx] = $this->resolveColumns($rows[0]);
+        [$labNoIdx, $remarksIdx, $missingDetailsIdx] = $this->resolveColumns($rows[0]);
 
-        if ($labNoIdx === null || $remarksIdx === null) {
-            $this->error('Could not find both "lab_no" and "Remarks" columns in the header row.');
+        if ($labNoIdx === null || $remarksIdx === null || $missingDetailsIdx === null) {
+            $this->error('Could not find "lab_no", "Remarks", and "missing_details" columns in the header row.');
 
             Log::channel('ai-command')->error('MarkLabNoCompletedFromExcel: missing required columns', [
                 'header' => $rows[0],
@@ -90,7 +99,7 @@ class MarkLabNoCompletedFromExcel extends Command
         // Evaluate every row up front (read-only DB checks included) so the
         // dry-run preview shows the exact same outcome the live run would
         // produce — same lab_no lookup, same "does it have panels" check.
-        $plan = $this->evaluatePlan($dataRows, $labNoIdx, $remarksIdx);
+        $plan = $this->evaluatePlan($dataRows, $labNoIdx, $remarksIdx, $missingDetailsIdx);
 
         $counts = $this->summarizeOutcomes($plan);
 
@@ -166,13 +175,14 @@ class MarkLabNoCompletedFromExcel extends Command
         $this->line('');
         $this->table(['Lab No', 'Status', 'Detail'], $resultRows);
         $this->line('');
-        $this->info("Done. Marked: {$marked}, Already completed: {$counts['already_completed']}, Skipped (empty remark): {$counts['skip_empty']}, Skipped (unrecognized remark): {$counts['skip_unrecognized']}, Skipped (no panels): {$counts['skip_no_panels']}, Skipped (not found): {$counts['skip_not_found']}, Failed: {$failed}.");
+        $this->info("Done. Marked: {$marked}, Already completed: {$counts['already_completed']}, Skipped (empty remark): {$counts['skip_empty']}, Skipped (unrecognized remark): {$counts['skip_unrecognized']}, Skipped (still incomplete): {$counts['skip_incomplete']}, Skipped (missing panels not yet resulted): {$counts['skip_no_panels']}, Skipped (not found): {$counts['skip_not_found']}, Failed: {$failed}.");
 
         Log::channel('ai-command')->info('MarkLabNoCompletedFromExcel: completed', [
             'marked' => $marked,
             'already_completed' => $counts['already_completed'],
             'skipped_empty' => $counts['skip_empty'],
             'skipped_unrecognized' => $counts['skip_unrecognized'],
+            'skipped_incomplete' => $counts['skip_incomplete'],
             'skipped_no_panels' => $counts['skip_no_panels'],
             'skipped_not_found' => $counts['skip_not_found'],
             'failed' => $failed,
@@ -183,24 +193,27 @@ class MarkLabNoCompletedFromExcel extends Command
 
     /**
      * Classify every lab_no row and resolve its final outcome, including the
-     * read-only DB checks (test result lookup, panel-existence check for
-     * "Already Sent"-family remarks, already-completed check) — shared by
-     * the dry-run preview and the live run so both report identical numbers.
+     * read-only DB checks (test result lookup, missing-panels-now-have-
+     * results verification for "result sent" rows, already-completed check)
+     * — shared by the dry-run preview and the live run so both report
+     * identical numbers.
      *
      * Outcome values: 'mark' (will be/would be marked completed),
-     * 'already_completed', 'skip_no_panels' (Already Sent family with no
-     * test_result_items), 'skip_not_found', 'skip_empty',
-     * 'skip_unrecognized'.
+     * 'already_completed', 'skip_incomplete' (result genuinely still
+     * pending/processing), 'skip_no_panels' (remark claims "result sent"
+     * but missing_details panels still have no recorded result),
+     * 'skip_not_found', 'skip_empty', 'skip_unrecognized'.
      *
      * @return array<int, array{lab_no: string, remark: string, action: string, outcome: string, test_result_id: int|null}>
      */
-    private function evaluatePlan(array $dataRows, int $labNoIdx, int $remarksIdx): array
+    private function evaluatePlan(array $dataRows, int $labNoIdx, int $remarksIdx, int $missingDetailsIdx): array
     {
         $plan = [];
 
         foreach ($dataRows as $row) {
             $labNo = trim((string) ($row[$labNoIdx] ?? ''));
             $remark = trim((string) ($row[$remarksIdx] ?? ''));
+            $missingDetails = trim((string) ($row[$missingDetailsIdx] ?? ''));
 
             if ($labNo === '') {
                 continue;
@@ -209,14 +222,17 @@ class MarkLabNoCompletedFromExcel extends Command
             $action = $this->classifyRemark($remark);
             $testResultId = null;
 
-            if ($action === 'skip_empty' || $action === 'skip_unrecognized') {
+            if ($action === 'skip_empty' || $action === 'skip_unrecognized' || $action === 'skip_incomplete') {
                 $outcome = $action;
             } else {
                 $testResult = TestResult::where('lab_no', $labNo)->latest()->first();
 
                 if (! $testResult) {
                     $outcome = 'skip_not_found';
-                } elseif ($action === 'mark_if_panels_exist' && ! TestResultItem::where('test_result_id', $testResult->id)->exists()) {
+                } elseif (
+                    $action === 'mark_result_sent'
+                    && ! $this->missingPanelsNowHaveResults($testResult->id, $this->parseMissingPanelNames($missingDetails))
+                ) {
                     $outcome = 'skip_no_panels';
                 } elseif ($testResult->is_completed && $testResult->manually_completed_at) {
                     $outcome = 'already_completed';
@@ -239,7 +255,7 @@ class MarkLabNoCompletedFromExcel extends Command
     }
 
     /**
-     * @return array{total: int, mark: int, already_completed: int, skip_empty: int, skip_unrecognized: int, skip_no_panels: int, skip_not_found: int}
+     * @return array{total: int, mark: int, already_completed: int, skip_empty: int, skip_unrecognized: int, skip_incomplete: int, skip_no_panels: int, skip_not_found: int}
      */
     private function summarizeOutcomes(array $plan): array
     {
@@ -249,6 +265,7 @@ class MarkLabNoCompletedFromExcel extends Command
             'already_completed' => 0,
             'skip_empty' => 0,
             'skip_unrecognized' => 0,
+            'skip_incomplete' => 0,
             'skip_no_panels' => 0,
             'skip_not_found' => 0,
         ];
@@ -264,7 +281,8 @@ class MarkLabNoCompletedFromExcel extends Command
     {
         $this->info("Will be marked completed: {$counts['mark']}");
         $this->info("Already completed (no change needed): {$counts['already_completed']}");
-        $this->info("Skipped — no panels found (Already Sent* check failed): {$counts['skip_no_panels']}");
+        $this->info("Skipped — still incomplete (result pending/processing): {$counts['skip_incomplete']}");
+        $this->info("Skipped — 'result sent' claimed but missing panels still have no result: {$counts['skip_no_panels']}");
         $this->info("Skipped — test result not found: {$counts['skip_not_found']}");
         $this->info("Skipped — empty remark: {$counts['skip_empty']}");
         $this->info("Skipped — unrecognized remark: {$counts['skip_unrecognized']}");
@@ -296,7 +314,7 @@ class MarkLabNoCompletedFromExcel extends Command
         $reader = IOFactory::createReaderForFile($path);
         $reader->setReadDataOnly(true);
         $spreadsheet = $reader->load($path);
-        $sheet = $spreadsheet->getActiveSheet();
+        $sheet = $this->resolveSheet($spreadsheet);
         $rows = $sheet->toArray(null, true, true, false);
 
         $spreadsheet->disconnectWorksheets();
@@ -306,12 +324,29 @@ class MarkLabNoCompletedFromExcel extends Command
     }
 
     /**
-     * @return array{0: int|null, 1: int|null} [lab_no column index, Remarks column index]
+     * Prefer the "incomplete_test_results_..." sheet (the export's data
+     * sheet, alongside other reference sheets such as "AMCESN PROFILE");
+     * fall back to the active sheet if no such sheet is found.
+     */
+    private function resolveSheet(Spreadsheet $spreadsheet): Worksheet
+    {
+        foreach ($spreadsheet->getSheetNames() as $name) {
+            if (str_starts_with(strtolower($name), 'incomplete_test_results')) {
+                return $spreadsheet->getSheetByName($name);
+            }
+        }
+
+        return $spreadsheet->getActiveSheet();
+    }
+
+    /**
+     * @return array{0: int|null, 1: int|null, 2: int|null} [lab_no column index, Remarks column index, missing_details column index]
      */
     private function resolveColumns(array $headerRow): array
     {
         $labNoIdx = null;
         $remarksIdx = null;
+        $missingDetailsIdx = null;
 
         foreach ($headerRow as $idx => $header) {
             $normalized = strtolower(trim((string) $header));
@@ -323,61 +358,95 @@ class MarkLabNoCompletedFromExcel extends Command
             if ($normalized === 'remarks') {
                 $remarksIdx = $idx;
             }
+
+            if ($normalized === 'missing_details') {
+                $missingDetailsIdx = $idx;
+            }
         }
 
-        return [$labNoIdx, $remarksIdx];
+        return [$labNoIdx, $remarksIdx, $missingDetailsIdx];
     }
 
+    /**
+     * Remarks are free-text (often multi-line, with test codes and
+     * timestamps mixed in, e.g. "AFP, CEA, FE - result sent on Fri, Aug 14,
+     * 2026\nTo check AMCESN package"), so classification is substring-based
+     * rather than exact match.
+     */
     private function classifyRemark(string $remark): string
     {
         if ($remark === '') {
             return 'skip_empty';
         }
 
-        $normalized = $this->normalizeRemark($remark);
+        $normalized = strtolower($remark);
 
-        if (in_array($normalized, self::AUTO_COMPLETE_REMARKS, true)) {
-            return 'mark';
+        foreach (self::STILL_INCOMPLETE_REMARK_SUBSTRINGS as $needle) {
+            if (str_contains($normalized, $needle)) {
+                return 'skip_incomplete';
+            }
         }
 
-        if (str_starts_with($normalized, 'already sent')) {
-            // Prefix match: covers "Already Sent", "Already Sent.", and any
-            // "Already Sent. <detail>" variant (magnesium/electrolytes not
-            // ordered, albumin/AST/ALT already sent, etc).
-            return 'mark_if_panels_exist';
+        foreach (self::RUINED_SAMPLE_REMARK_SUBSTRINGS as $needle) {
+            if (str_contains($normalized, $needle)) {
+                return 'mark_ruined';
+            }
         }
 
-        if ($this->looksLikeAlreadySentTypo($normalized)) {
-            return 'mark_if_panels_exist';
+        if (str_contains($normalized, 'result sent')) {
+            return 'mark_result_sent';
         }
 
         return 'skip_unrecognized';
     }
 
     /**
-     * Catch data-entry typos of "Already Sent" (e.g. "Alreadt Sent") that
-     * the exact prefix match misses: first word within edit-distance 2 of
-     * "already", second word exactly "sent".
+     * Parses "Missing panels: A, B, C" out of the missing_details column
+     * into a plain list of panel names ["A", "B", "C"]. Returns [] when the
+     * column doesn't follow that format (nothing to verify against).
      */
-    private function looksLikeAlreadySentTypo(string $normalized): bool
+    private function parseMissingPanelNames(string $missingDetails): array
     {
-        $words = preg_split('/\s+/', $normalized, 3) ?: [];
-        $first = $words[0] ?? '';
-        $second = $words[1] ?? '';
+        $missingDetails = trim($missingDetails);
 
-        return $second === 'sent' && levenshtein($first, 'already') <= 2;
+        if ($missingDetails === '') {
+            return [];
+        }
+
+        $missingDetails = preg_replace('/^missing panels:\s*/i', '', $missingDetails);
+
+        $names = array_map('trim', explode(',', $missingDetails));
+
+        return array_values(array_filter($names, fn ($name) => $name !== ''));
     }
 
     /**
-     * Lowercase, trim, and strip trailing punctuation/whitespace so minor
-     * formatting variants of the same remark (e.g. "Result sent." vs
-     * "Result sent") compare equal.
+     * Verifies that every panel named in $panelNames now has at least one
+     * non-null TestResultItem value recorded against this test result --
+     * i.e. the "result sent" remark is actually backed by data, not just a
+     * hopeful note. Panel name matching is case-insensitive against
+     * panels.name via the panel_panel_items pivot.
      */
-    private function normalizeRemark(string $remark): string
+    private function missingPanelsNowHaveResults(int $testResultId, array $panelNames): bool
     {
-        $normalized = strtolower(trim($remark));
+        if (empty($panelNames)) {
+            // No parseable panel list to verify against -- don't block on it.
+            return true;
+        }
 
-        return rtrim($normalized, ". \t\n\r\0\x0B");
+        $normalizedNames = array_unique(array_map('strtoupper', $panelNames));
+
+        $matchedNames = TestResultItem::query()
+            ->join('panel_panel_items', 'panel_panel_items.id', '=', 'test_result_items.panel_panel_item_id')
+            ->join('panels', 'panels.id', '=', 'panel_panel_items.panel_id')
+            ->where('test_result_items.test_result_id', $testResultId)
+            ->whereNotNull('test_result_items.value')
+            ->whereIn(DB::raw('UPPER(panels.name)'), $normalizedNames)
+            ->distinct()
+            ->pluck(DB::raw('UPPER(panels.name) as panel_name'))
+            ->all();
+
+        return count(array_unique($matchedNames)) >= count($normalizedNames);
     }
 
     private function previewTable(array $plan): void
@@ -385,7 +454,8 @@ class MarkLabNoCompletedFromExcel extends Command
         $labels = [
             'mark' => 'WILL MARK COMPLETED',
             'already_completed' => 'ALREADY COMPLETED',
-            'skip_no_panels' => 'SKIP — no panels found',
+            'skip_incomplete' => 'SKIP — still incomplete (pending/processing)',
+            'skip_no_panels' => 'SKIP — missing panels still have no result',
             'skip_not_found' => 'SKIP — test result not found',
             'skip_empty' => 'SKIP — empty remark',
             'skip_unrecognized' => 'SKIP — unrecognized remark',
