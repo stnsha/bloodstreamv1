@@ -68,16 +68,16 @@ class TestResultCompletionDispatcher
                 return;
             }
 
-            // Gate 1b: collected_date must fall within the last 7 days up to today --
+            // Gate 1b: collected_date must fall within the last month up to today --
             // a rolling window instead of calendar month so a result collected on the
             // last day of a month but completed a few days into the next month still
             // enrolls, while a stale collected_date does not.
-            $consultWindowStart = now()->subDays(7)->startOfDay();
+            $consultWindowStart = now()->subMonth()->startOfDay();
             $consultWindowEnd = now()->endOfDay();
             $parsedCollectedDate = Carbon::parse($collectedDateForConsult);
 
             if ($parsedCollectedDate->lt($consultWindowStart) || $parsedCollectedDate->gt($consultWindowEnd)) {
-                Log::info('Consult call skipped: collected date outside the last 7 days', [
+                Log::info('Consult call skipped: collected date outside the last month', [
                     'test_result_id' => $testResult->id,
                     'collected_date' => $collectedDateForConsult,
                     'window_start' => $consultWindowStart->toDateTimeString(),
