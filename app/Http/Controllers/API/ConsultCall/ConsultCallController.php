@@ -28,7 +28,7 @@ class ConsultCallController extends Controller
             ]),
         ]);
 
-        $query = ConsultCall::with(['patient', 'addOn', 'details.clinicalCondition', 'details.testResult', 'followUps']);
+        $query = ConsultCall::with(['patient', 'addOns.addOn', 'details.clinicalCondition', 'details.testResult', 'followUps']);
 
         if ($request->filled('patient_id')) {
             $query->where('patient_id', $request->input('patient_id'));
@@ -208,6 +208,25 @@ class ConsultCallController extends Controller
                 ")
                 ->first();
 
+            $adviseTypeCounts = DB::table('consult_call_details as ccd')
+                ->joinSub(
+                    DB::table('consult_call_details')
+                        ->selectRaw('MAX(id) as max_id')
+                        ->whereNull('deleted_at')
+                        ->groupBy('consult_call_id'),
+                    'latest',
+                    'ccd.id',
+                    '=',
+                    'latest.max_id'
+                )
+                ->join('clinical_conditions as cc', 'cc.id', '=', 'ccd.clinical_condition_id')
+                ->selectRaw("
+                    SUM(CASE WHEN cc.type = 'CC' THEN 1 ELSE 0 END) as cc,
+                    SUM(CASE WHEN cc.type = 'AO' THEN 1 ELSE 0 END) as ao,
+                    SUM(CASE WHEN cc.type = 'CC + AO' THEN 1 ELSE 0 END) as cc_ao
+                ")
+                ->first();
+
             $data = [
                 'total' => (int) $baseStats->total,
                 'enrollment_type' => [
@@ -230,6 +249,11 @@ class ConsultCallController extends Controller
                     'completed' => (int) ($followupReminderCounts->completed ?? 0),
                     'rescheduled' => (int) ($followupReminderCounts->rescheduled ?? 0),
                     'cancelled' => (int) ($followupReminderCounts->cancelled ?? 0),
+                ],
+                'advise_type' => [
+                    'cc' => (int) ($adviseTypeCounts->cc ?? 0),
+                    'ao' => (int) ($adviseTypeCounts->ao ?? 0),
+                    'cc_ao' => (int) ($adviseTypeCounts->cc_ao ?? 0),
                 ],
             ];
 
@@ -255,7 +279,7 @@ class ConsultCallController extends Controller
     {
         Log::info('ConsultCall show: retrieving consult call', ['id' => $id]);
 
-        $consultCall = ConsultCall::with(['patient', 'addOn', 'details.clinicalCondition', 'details.testResult', 'followUps'])
+        $consultCall = ConsultCall::with(['patient', 'addOns.addOn', 'details.clinicalCondition', 'details.testResult', 'followUps'])
             ->find($id);
 
         if (!$consultCall) {
@@ -292,7 +316,8 @@ class ConsultCallController extends Controller
             'enrollment_type' => 'nullable|integer|in:1,2',
             'consent_call_status' => 'nullable|integer|in:0,1,2,3',
             'reason' => 'nullable|string|max:255',
-            'add_on_id' => 'nullable|integer|exists:add_ons,id',
+            'add_on_ids' => 'nullable|array',
+            'add_on_ids.*' => 'integer|exists:add_ons,id',
             'consent_call_date' => 'nullable|date',
             'scheduled_status' => 'nullable|integer|in:0,1,2,3',
             'scheduled_call_date' => 'nullable|date',
@@ -314,7 +339,17 @@ class ConsultCallController extends Controller
         try {
             DB::beginTransaction();
 
-            $consultCall = ConsultCall::create($validator->validated());
+            $validated = $validator->validated();
+            $addOnIds = $validated['add_on_ids'] ?? [];
+            unset($validated['add_on_ids']);
+
+            $consultCall = ConsultCall::create($validated);
+
+            if (!empty($addOnIds)) {
+                $consultCall->addOns()->createMany(
+                    array_map(fn ($addOnId) => ['add_on_id' => $addOnId], $addOnIds)
+                );
+            }
 
             DB::commit();
 
@@ -322,7 +357,7 @@ class ConsultCallController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $consultCall->load(['patient', 'addOn', 'details.clinicalCondition', 'details.testResult', 'followUps']),
+                'data' => $consultCall->load(['patient', 'addOns.addOn', 'details.clinicalCondition', 'details.testResult', 'followUps']),
                 'message' => 'Consult call created successfully.',
             ], 201);
         } catch (Throwable $e) {
@@ -365,7 +400,8 @@ class ConsultCallController extends Controller
             'enrollment_type' => 'nullable|integer|in:1,2',
             'consent_call_status' => 'nullable|integer|in:0,1,2,3',
             'reason' => 'nullable|string|max:255',
-            'add_on_id' => 'nullable|integer|exists:add_ons,id',
+            'add_on_ids' => 'nullable|array',
+            'add_on_ids.*' => 'integer|exists:add_ons,id',
             'consent_call_date' => 'nullable|date',
             'scheduled_status' => 'nullable|integer|in:0,1,2,3',
             'scheduled_call_date' => 'nullable|date',
@@ -387,7 +423,23 @@ class ConsultCallController extends Controller
         try {
             DB::beginTransaction();
 
-            $consultCall->update($validator->validated());
+            $validated = $validator->validated();
+            $addOnIdsProvided = array_key_exists('add_on_ids', $validated);
+            $addOnIds = $validated['add_on_ids'] ?? [];
+            unset($validated['add_on_ids']);
+
+            $consultCall->update($validated);
+
+            // Full replace, not merge -- the Add On Recommendation checkbox dropdown
+            // always submits the complete current selection.
+            if ($addOnIdsProvided) {
+                $consultCall->addOns()->delete();
+                if (!empty($addOnIds)) {
+                    $consultCall->addOns()->createMany(
+                        array_map(fn ($addOnId) => ['add_on_id' => $addOnId], $addOnIds)
+                    );
+                }
+            }
 
             DB::commit();
 
@@ -395,7 +447,7 @@ class ConsultCallController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $consultCall->fresh(['patient', 'addOn', 'details.clinicalCondition', 'details.testResult', 'followUps']),
+                'data' => $consultCall->fresh(['patient', 'addOns.addOn', 'details.clinicalCondition', 'details.testResult', 'followUps']),
                 'message' => 'Consult call updated successfully.',
             ]);
         } catch (Throwable $e) {
@@ -485,6 +537,8 @@ class ConsultCallController extends Controller
             'diagnosis' => 'nullable|string',
             'treatment_plan' => 'nullable|string',
             'rx_issued' => 'nullable|boolean',
+            'invoice_id' => 'nullable|string|max:255',
+            'invoice_status' => 'nullable|integer|in:1,2',
             'action' => 'nullable|integer|in:1,2,3',
             'consultation_type' => 'nullable|integer|in:1,2',
             'consult_status' => 'nullable|integer|in:0,1,2,3',
@@ -653,6 +707,8 @@ class ConsultCallController extends Controller
             'diagnosis' => 'nullable|string',
             'treatment_plan' => 'nullable|string',
             'rx_issued' => 'nullable|boolean',
+            'invoice_id' => 'nullable|string|max:255',
+            'invoice_status' => 'nullable|integer|in:1,2',
             'action' => 'nullable|integer|in:1,2,3',
             'consultation_type' => 'nullable|integer|in:1,2',
             'consult_status' => 'nullable|integer|in:0,1,2,3',

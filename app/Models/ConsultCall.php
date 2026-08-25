@@ -43,7 +43,6 @@ class ConsultCall extends Model
         'enrollment_type',
         'consent_call_status',
         'reason',
-        'add_on_id',
         'consent_call_date',
         'scheduled_status',
         'scheduled_call_date',
@@ -62,7 +61,6 @@ class ConsultCall extends Model
         'enrollment_date' => 'datetime',
         'enrollment_type' => 'integer',
         'consent_call_status' => 'integer',
-        'add_on_id' => 'integer',
         'consent_call_date' => 'date',
         'scheduled_status' => 'integer',
         'scheduled_call_date' => 'date',
@@ -90,9 +88,9 @@ class ConsultCall extends Model
         return $this->belongsTo(Patient::class, 'patient_id', 'id');
     }
 
-    public function addOn(): BelongsTo
+    public function addOns(): HasMany
     {
-        return $this->belongsTo(AddOn::class, 'add_on_id', 'id');
+        return $this->hasMany(ConsultCallAddOn::class, 'consult_call_id', 'id');
     }
 
     public function details(): HasMany
@@ -103,5 +101,22 @@ class ConsultCall extends Model
     public function followUps(): HasMany
     {
         return $this->hasMany(ConsultCallFollowUp::class, 'consult_call_id', 'id');
+    }
+
+    protected $appends = [
+        'add_on_ids',
+    ];
+
+    /**
+     * Recommended add-on IDs, derived from the consult_call_add_ons pivot rows.
+     * Only accurate when the addOns relation has been eager-loaded.
+     */
+    public function getAddOnIdsAttribute(): array
+    {
+        if (!$this->relationLoaded('addOns')) {
+            return [];
+        }
+
+        return $this->addOns->pluck('add_on_id')->values()->all();
     }
 }
