@@ -96,6 +96,42 @@ class MyHealthService
     }
 
     /**
+     * Batch load EVERY check_record_details row for the given record IDs.
+     *
+     * Joins check_normal_range for parameter metadata and check_record for
+     * the visit date_time. Unlike getRecordDetailsBatch(), nothing is
+     * collapsed -- every parameter id and every reading is returned, so the
+     * caller gets the full history per parameter.
+     *
+     * @param  array  $recordIds  Array of check_record IDs
+     * @return \Illuminate\Support\Collection Rows grouped by parameter name, newest reading first
+     */
+    public function getAllRecordDetailsBatch(array $recordIds)
+    {
+        if (empty($recordIds)) {
+            return collect([]);
+        }
+
+        return $this->connection->table('check_record_details as d')
+            ->join('check_normal_range as r', 'r.id', '=', 'd.parameter')
+            ->join('check_record as c', 'c.id', '=', 'd.record_id')
+            ->whereIn('d.record_id', $recordIds)
+            ->select(
+                'r.parameter',
+                'r.lower as min_range',
+                'r.upper as max_range',
+                'r.range',
+                'r.unit',
+                'd.value as result',
+                'd.record_id',
+                'c.date_time'
+            )
+            ->orderBy('c.date_time', 'desc')
+            ->get()
+            ->groupBy('parameter');
+    }
+
+    /**
      * check_normal_range:
      * BMI ID: 55
      * BP ID: 10

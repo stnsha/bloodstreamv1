@@ -18,11 +18,11 @@ class MyHealthController extends Controller
     }
 
     /**
-     * GET /api/v1/myhealth/check-record/{ic}
+     * GET /api/myhealth/check-record/{ic}
      * All check_record data for an IC, across every visit (no date
-     * restriction), flattened into one parameter -> {value, range, unit}
-     * map. Where the same parameter appears in more than one visit, the
-     * most recent visit's value wins.
+     * restriction). Returns every parameter and every reading, keyed by
+     * parameter name -> array of readings (newest first). Each reading:
+     * {value, range, min_range, max_range, unit, date_time, record_id}.
      */
     public function checkRecordByIc($ic): JsonResponse
     {
@@ -41,25 +41,31 @@ class MyHealthController extends Controller
             }
 
             $recordIds = $records->pluck('id')->all();
-            $detailsByRecord = $this->myHealthService->getRecordDetailsBatch($recordIds);
+            $detailsByParameter = $this->myHealthService->getAllRecordDetailsBatch($recordIds);
 
             $parameters = [];
-            foreach ($records as $record) {
-                $details = $detailsByRecord->get($record->id, collect());
-
-                foreach ($details as $detail) {
-                    $parameters[$detail->parameter] = [
-                        'value' => $detail->result,
-                        'range' => $detail->range,
-                        'unit' => $detail->unit,
+            $readingCount = 0;
+            foreach ($detailsByParameter as $parameterName => $rows) {
+                $parameters[$parameterName] = $rows->map(function ($row) {
+                    return [
+                        'value' => $row->result,
+                        'range' => $row->range,
+                        'min_range' => $row->min_range,
+                        'max_range' => $row->max_range,
+                        'unit' => $row->unit,
+                        'date_time' => $row->date_time,
+                        'record_id' => $row->record_id,
                     ];
-                }
+                })->values()->all();
+
+                $readingCount += count($parameters[$parameterName]);
             }
 
             Log::info('MyHealthController@checkRecordByIc: completed', [
                 'ic' => $ic,
                 'record_count' => $records->count(),
                 'parameter_count' => count($parameters),
+                'reading_count' => $readingCount,
             ]);
 
             return response()->json([
