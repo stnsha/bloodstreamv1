@@ -27,7 +27,7 @@ class TestResultCompletionDispatcher
      * a completed result that matches an "AO" / "CC + AO" clinical condition has
      * its AI review withheld until a doctor releases it from the consult call.
      */
-    const AI_REVIEW_HOLD_FROM = '2026-09-01';
+    const AI_REVIEW_HOLD_FROM = '2026-09-16';
 
     /**
      * Clinical condition types whose AI review is held for doctor release.
