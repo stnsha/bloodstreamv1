@@ -20,7 +20,7 @@ class ConsultCall extends Model
     const CONSENT_STATUS_PENDING = 0;
     const CONSENT_STATUS_OBTAINED = 1;
     const CONSENT_STATUS_REFUSED = 2;
-    const CONSENT_STATUS_ON_MEDICATION = 3;
+    const CONSENT_STATUS_OTHERS = 3;
 
     // Scheduled Status
     const SCHEDULED_STATUS_PENDING = 0;
@@ -42,6 +42,7 @@ class ConsultCall extends Model
         'enrollment_date',
         'enrollment_type',
         'consent_call_status',
+        'reason',
         'consent_call_date',
         'scheduled_status',
         'scheduled_call_date',
@@ -87,6 +88,11 @@ class ConsultCall extends Model
         return $this->belongsTo(Patient::class, 'patient_id', 'id');
     }
 
+    public function addOns(): HasMany
+    {
+        return $this->hasMany(ConsultCallAddOn::class, 'consult_call_id', 'id');
+    }
+
     public function details(): HasMany
     {
         return $this->hasMany(ConsultCallDetails::class, 'consult_call_id', 'id');
@@ -95,5 +101,22 @@ class ConsultCall extends Model
     public function followUps(): HasMany
     {
         return $this->hasMany(ConsultCallFollowUp::class, 'consult_call_id', 'id');
+    }
+
+    protected $appends = [
+        'add_on_ids',
+    ];
+
+    /**
+     * Recommended add-on IDs, derived from the consult_call_add_ons pivot rows.
+     * Only accurate when the addOns relation has been eager-loaded.
+     */
+    public function getAddOnIdsAttribute(): array
+    {
+        if (!$this->relationLoaded('addOns')) {
+            return [];
+        }
+
+        return $this->addOns->pluck('add_on_id')->values()->all();
     }
 }

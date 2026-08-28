@@ -14,7 +14,7 @@ class ClinicalConditionController extends Controller
 {
     public function index(): JsonResponse
     {
-        Log::info('ClinicalCondition index: retrieving all active conditions');
+        Log::info('ClinicalCondition index: retrieving all conditions');
 
         $conditions = ClinicalCondition::orderBy('id')->get();
 
@@ -42,6 +42,7 @@ class ClinicalConditionController extends Controller
 
         $validated = $request->validate([
             'description' => 'required|string|max:500',
+            'type'        => 'nullable|string|max:255',
             'risk_tier'   => 'required|integer|in:0,1,2,3',
             'active_from' => 'nullable|date',
         ]);
@@ -51,6 +52,7 @@ class ClinicalConditionController extends Controller
 
             $condition->update([
                 'description' => $validated['description'],
+                'type'        => $validated['type'] ?? '',
                 'risk_tier'   => $validated['risk_tier'],
                 'active_from' => $validated['active_from'] ?? null,
             ]);

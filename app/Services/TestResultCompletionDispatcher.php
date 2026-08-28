@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Jobs\SendToAIServer;
+use App\Models\ClinicalCondition;
+use App\Models\ConsultCallDetails;
 use App\Models\TestResult;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -21,17 +23,100 @@ class TestResultCompletionDispatcher
     }
 
     /**
-     * What happens once a TestResult is confirmed complete: AI review
-     * dispatch and consult-call eligibility check. Every dependency is
-     * derived from the TestResult itself, so this is safe to call from any
-     * trigger point (a PDF-bearing delivery, an incremental panel-item-only
-     * batch, or a comments batch) — not just the request that originally
-     * completed the record.
+     * Effective date for the add-on AI-review hold flow. On or after this date,
+     * a completed result that matches an "AO" / "CC + AO" clinical condition has
+     * its AI review withheld until a doctor releases it from the consult call.
+     */
+    const AI_REVIEW_HOLD_FROM = '2026-09-01';
+
+    /**
+     * Clinical condition types whose AI review is held for doctor release.
+     */
+    const HOLD_CONDITION_TYPES = ['AO', 'CC + AO'];
+
+    /**
+     * What happens once a TestResult is confirmed complete: consult-call
+     * eligibility check, then AI review dispatch (unless the matched clinical
+     * condition is an add-on type, in which case the review is held for a
+     * doctor to release). Every dependency is derived from the TestResult
+     * itself, so this is safe to call from any trigger point (a PDF-bearing
+     * delivery, an incremental panel-item-only batch, or a comments batch) —
+     * not just the request that originally completed the record.
+     *
+     * Consult-call eligibility runs first so the clinical condition it resolves
+     * is persisted before the hold decision reads it. checkConsultCallEligibility
+     * swallows its own errors, so a failure there never blocks the AI review.
      */
     public function dispatch(TestResult $testResult): void
     {
-        $this->dispatchAIReview($testResult);
         $this->checkConsultCallEligibility($testResult);
+
+        if ($this->shouldHoldAiReview($testResult)) {
+            $this->holdAiReview($testResult);
+
+            return;
+        }
+
+        $this->dispatchAIReview($testResult);
+    }
+
+    /**
+     * True when the AI review for this result must wait for a doctor to release
+     * it: the hold flow is in effect (processing on/after AI_REVIEW_HOLD_FROM),
+     * the doctor has not already released it, and the latest consult-call detail
+     * for this result carries a clinical condition of an add-on type.
+     */
+    protected function shouldHoldAiReview(TestResult $testResult): bool
+    {
+        if (now()->lt(Carbon::parse(self::AI_REVIEW_HOLD_FROM)->startOfDay())) {
+            return false;
+        }
+
+        // Doctor already released this review; a later benign re-delivery must
+        // not put it back on hold. Late/amended data clears this flag (see
+        // PanelCompletenessService::revertReviewForLateData) so a genuine
+        // re-review is re-held.
+        if ($testResult->ai_review_released_at !== null) {
+            return false;
+        }
+
+        $conditionId = ConsultCallDetails::where('test_result_id', $testResult->id)
+            ->orderByDesc('id')
+            ->value('clinical_condition_id');
+
+        if (! $conditionId) {
+            return false;
+        }
+
+        $type = ClinicalCondition::getCondition((int) $conditionId)['type'] ?? null;
+
+        return in_array($type, self::HOLD_CONDITION_TYPES, true);
+    }
+
+    /**
+     * Stamp the hold and skip AI review dispatch. Always clears
+     * ai_review_released_at so a re-hold after amended data is a clean state.
+     */
+    protected function holdAiReview(TestResult $testResult): void
+    {
+        try {
+            $testResult->forceFill([
+                'ai_review_held_at' => now(),
+                'ai_review_released_at' => null,
+            ])->save();
+
+            Log::info('AI review held pending doctor release (add-on clinical condition)', [
+                'test_result_id' => $testResult->id,
+                'lab_no' => $testResult->lab_no ?? null,
+            ]);
+        } catch (Throwable $e) {
+            Log::error('Failed to hold AI review; dispatching normally as fallback', [
+                'test_result_id' => $testResult->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            $this->dispatchAIReview($testResult);
+        }
     }
 
     protected function dispatchAIReview(TestResult $testResult): void

@@ -24,6 +24,21 @@ class MyHealthService
         return $this->connection->select($sql, $bindings);
     }
 
+    /**
+     * Get every check_record row for an IC, with no date restriction.
+     * Unlike getCheckRecordIdByIC(), this is not limited to the last 14
+     * days -- used for a full history lookup rather than a "current
+     * vitals" check.
+     */
+    public function getAllCheckRecordsByIC($ic)
+    {
+        return $this->connection->table('check_record')
+            ->where('ic', $ic)
+            ->select('id', 'gender', 'date_time')
+            ->orderBy('date_time', 'asc')
+            ->get();
+    }
+
     public function getCheckRecordIdByIC($ic)
     {
         $fourteenDaysAgo = now()->subDays(14)->format('Y-m-d H:i:s');
@@ -78,6 +93,42 @@ class MyHealthService
             )
             ->get()
             ->groupBy('record_id');
+    }
+
+    /**
+     * Batch load EVERY check_record_details row for the given record IDs.
+     *
+     * Joins check_normal_range for parameter metadata and check_record for
+     * the visit date_time. Unlike getRecordDetailsBatch(), nothing is
+     * collapsed -- every parameter id and every reading is returned, so the
+     * caller gets the full history per parameter.
+     *
+     * @param  array  $recordIds  Array of check_record IDs
+     * @return \Illuminate\Support\Collection Rows grouped by parameter name, newest reading first
+     */
+    public function getAllRecordDetailsBatch(array $recordIds)
+    {
+        if (empty($recordIds)) {
+            return collect([]);
+        }
+
+        return $this->connection->table('check_record_details as d')
+            ->join('check_normal_range as r', 'r.id', '=', 'd.parameter')
+            ->join('check_record as c', 'c.id', '=', 'd.record_id')
+            ->whereIn('d.record_id', $recordIds)
+            ->select(
+                'r.parameter',
+                'r.lower as min_range',
+                'r.upper as max_range',
+                'r.range',
+                'r.unit',
+                'd.value as result',
+                'd.record_id',
+                'c.date_time'
+            )
+            ->orderBy('c.date_time', 'desc')
+            ->get()
+            ->groupBy('parameter');
     }
 
     /**

@@ -1,0 +1,181 @@
+<?php
+
+namespace Database\Seeders;
+
+use App\Models\ClinicalCondition;
+use Exception;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+
+class LiverAndBoneClinicalConditionSeeder extends Seeder
+{
+    private const CONDITIONS = [
+        102 => [
+            'description' => 'ALT >50 U/L',
+            'type' => 'AO',
+            'evaluator' => 'condition102',
+            'risk_tier' => 1,
+            'criteria_count' => 1,
+            'active_from' => '2026-09-01',
+        ],
+        103 => [
+            'description' => 'AST >40 U/L',
+            'type' => 'AO',
+            'evaluator' => 'condition103',
+            'risk_tier' => 1,
+            'criteria_count' => 1,
+            'active_from' => '2026-09-01',
+        ],
+        104 => [
+            'description' => 'ALP >150 U/L',
+            'type' => 'AO',
+            'evaluator' => 'condition104',
+            'risk_tier' => 1,
+            'criteria_count' => 1,
+            'active_from' => '2026-09-01',
+        ],
+        105 => [
+            'description' => 'ALT >50 U/L AND AST >40 U/L',
+            'type' => 'AO',
+            'evaluator' => 'condition105',
+            'risk_tier' => 2,
+            'criteria_count' => 2,
+            'active_from' => '2026-09-01',
+        ],
+        106 => [
+            'description' => 'ALT >50 U/L AND ALP >150 U/L',
+            'type' => 'AO',
+            'evaluator' => 'condition106',
+            'risk_tier' => 2,
+            'criteria_count' => 2,
+            'active_from' => '2026-09-01',
+        ],
+        107 => [
+            'description' => 'AST >40 U/L AND ALP >150 U/L',
+            'type' => 'AO',
+            'evaluator' => 'condition107',
+            'risk_tier' => 2,
+            'criteria_count' => 2,
+            'active_from' => '2026-09-01',
+        ],
+        108 => [
+            'description' => 'ALT >50 U/L AND AST >40 U/L AND ALP >150 U/L',
+            'type' => 'AO',
+            'evaluator' => 'condition108',
+            'risk_tier' => 3,
+            'criteria_count' => 3,
+            'active_from' => '2026-09-01',
+        ],
+        109 => [
+            'description' => 'ALP >150 U/L AND Corrected Calcium <2.10 mmol/L',
+            'type' => 'AO',
+            'evaluator' => 'condition109',
+            'risk_tier' => 2,
+            'criteria_count' => 2,
+            'active_from' => '2026-09-01',
+        ],
+        110 => [
+            'description' => 'ALP >150 U/L AND Corrected Calcium <2.10 mmol/L AND Hb 100-129 g/L',
+            'type' => 'AO',
+            'evaluator' => 'condition110',
+            'risk_tier' => 3,
+            'criteria_count' => 3,
+            'active_from' => '2026-09-01',
+        ],
+        111 => [
+            'description' => 'ALP >150 U/L AND Phosphate <0.65 mmol/L',
+            'type' => 'AO',
+            'evaluator' => 'condition111',
+            'risk_tier' => 2,
+            'criteria_count' => 2,
+            'active_from' => '2026-09-01',
+        ],
+        112 => [
+            'description' => 'ALP >150 U/L AND Phosphate <0.65 mmol/L AND Hb 100-129 g/L',
+            'type' => 'AO',
+            'evaluator' => 'condition112',
+            'risk_tier' => 3,
+            'criteria_count' => 3,
+            'active_from' => '2026-09-01',
+        ],
+        113 => [
+            'description' => 'Corrected Calcium <2.10 mmol/L AND Hb 100-129 g/L',
+            'type' => 'AO',
+            'evaluator' => 'condition113',
+            'risk_tier' => 2,
+            'criteria_count' => 2,
+            'active_from' => '2026-09-01',
+        ],
+        114 => [
+            'description' => 'Phosphate <0.65 mmol/L AND Hb 100-129 g/L',
+            'type' => 'AO',
+            'evaluator' => 'condition114',
+            'risk_tier' => 2,
+            'criteria_count' => 2,
+            'active_from' => '2026-09-01',
+        ],
+        115 => [
+            'description' => 'Corrected Calcium <2.10 mmol/L AND Phosphate <0.65 mmol/L AND Hb 100-129 g/L',
+            'type' => 'AO',
+            'evaluator' => 'condition115',
+            'risk_tier' => 3,
+            'criteria_count' => 3,
+            'active_from' => '2026-09-01',
+        ],
+        116 => [
+            'description' => 'ALP >150 U/L AND Corrected Calcium <2.10 mmol/L AND Phosphate <0.65 mmol/L AND Hb 100-129 g/L',
+            'type' => 'AO',
+            'evaluator' => 'condition116',
+            'risk_tier' => 3,
+            'criteria_count' => 4,
+            'active_from' => '2026-09-01',
+        ],
+    ];
+
+    /**
+     * Run the database seeds.
+     */
+    public function run(): void
+    {
+        Log::info('LiverAndBoneClinicalConditionSeeder: Starting seeding');
+
+        try {
+            DB::beginTransaction();
+
+            $seededCount = 0;
+
+            foreach (self::CONDITIONS as $id => $data) {
+                ClinicalCondition::updateOrCreate(
+                    ['id' => $id],
+                    [
+                        'description' => $data['description'],
+                        'type' => $data['type'],
+                        'evaluator' => $data['evaluator'],
+                        'risk_tier' => $data['risk_tier'],
+                        'criteria_count' => $data['criteria_count'],
+                        'is_active' => true,
+                        'active_from' => $data['active_from'],
+                    ]
+                );
+                $seededCount++;
+            }
+
+            DB::commit();
+
+            ClinicalCondition::clearCache();
+
+            Log::info('LiverAndBoneClinicalConditionSeeder: Seeding completed', [
+                'total_seeded' => $seededCount,
+            ]);
+        } catch (Exception $e) {
+            DB::rollBack();
+
+            Log::error('LiverAndBoneClinicalConditionSeeder: Seeding failed', [
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
+    }
+}

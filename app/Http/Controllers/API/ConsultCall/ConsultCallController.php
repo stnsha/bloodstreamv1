@@ -4,14 +4,17 @@ namespace App\Http\Controllers\API\ConsultCall;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\API\Innoquest\PDFController;
+use App\Jobs\SendToAIServer;
 use App\Models\ConsultCall;
 use App\Models\ConsultCallDetails;
 use App\Models\ConsultCallFollowUp;
+use App\Models\TestResult;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Throwable;
 
@@ -28,7 +31,7 @@ class ConsultCallController extends Controller
             ]),
         ]);
 
-        $query = ConsultCall::with(['patient', 'details.clinicalCondition', 'details.testResult', 'followUps']);
+        $query = ConsultCall::with(['patient', 'addOns.addOn', 'details.clinicalCondition', 'details.testResult', 'followUps']);
 
         if ($request->filled('patient_id')) {
             $query->where('patient_id', $request->input('patient_id'));
@@ -208,6 +211,25 @@ class ConsultCallController extends Controller
                 ")
                 ->first();
 
+            $adviseTypeCounts = DB::table('consult_call_details as ccd')
+                ->joinSub(
+                    DB::table('consult_call_details')
+                        ->selectRaw('MAX(id) as max_id')
+                        ->whereNull('deleted_at')
+                        ->groupBy('consult_call_id'),
+                    'latest',
+                    'ccd.id',
+                    '=',
+                    'latest.max_id'
+                )
+                ->join('clinical_conditions as cc', 'cc.id', '=', 'ccd.clinical_condition_id')
+                ->selectRaw("
+                    SUM(CASE WHEN cc.type = 'CC' THEN 1 ELSE 0 END) as cc,
+                    SUM(CASE WHEN cc.type = 'AO' THEN 1 ELSE 0 END) as ao,
+                    SUM(CASE WHEN cc.type = 'CC + AO' THEN 1 ELSE 0 END) as cc_ao
+                ")
+                ->first();
+
             $data = [
                 'total' => (int) $baseStats->total,
                 'enrollment_type' => [
@@ -230,6 +252,11 @@ class ConsultCallController extends Controller
                     'completed' => (int) ($followupReminderCounts->completed ?? 0),
                     'rescheduled' => (int) ($followupReminderCounts->rescheduled ?? 0),
                     'cancelled' => (int) ($followupReminderCounts->cancelled ?? 0),
+                ],
+                'advise_type' => [
+                    'cc' => (int) ($adviseTypeCounts->cc ?? 0),
+                    'ao' => (int) ($adviseTypeCounts->ao ?? 0),
+                    'cc_ao' => (int) ($adviseTypeCounts->cc_ao ?? 0),
                 ],
             ];
 
@@ -255,7 +282,7 @@ class ConsultCallController extends Controller
     {
         Log::info('ConsultCall show: retrieving consult call', ['id' => $id]);
 
-        $consultCall = ConsultCall::with(['patient', 'details.clinicalCondition', 'details.testResult', 'followUps'])
+        $consultCall = ConsultCall::with(['patient', 'addOns.addOn', 'details.clinicalCondition', 'details.testResult', 'followUps'])
             ->find($id);
 
         if (!$consultCall) {
@@ -267,6 +294,14 @@ class ConsultCallController extends Controller
                 'message' => 'Consult call not found.',
             ], 404);
         }
+
+        // Surface the AI-review hold state on each linked test result so the
+        // edit screen can decide whether to show "Release Doctor Review?".
+        $consultCall->details->each(function ($detail) {
+            if ($detail->testResult) {
+                $detail->testResult->append('ai_review_on_hold');
+            }
+        });
 
         Log::info('ConsultCall show: completed', ['id' => $id]);
 
@@ -291,6 +326,9 @@ class ConsultCallController extends Controller
             'enrollment_date' => 'required|date',
             'enrollment_type' => 'nullable|integer|in:1,2',
             'consent_call_status' => 'nullable|integer|in:0,1,2,3',
+            'reason' => 'nullable|string|max:255',
+            'add_on_ids' => 'nullable|array',
+            'add_on_ids.*' => 'integer|exists:add_ons,id',
             'consent_call_date' => 'nullable|date',
             'scheduled_status' => 'nullable|integer|in:0,1,2,3',
             'scheduled_call_date' => 'nullable|date',
@@ -312,7 +350,17 @@ class ConsultCallController extends Controller
         try {
             DB::beginTransaction();
 
-            $consultCall = ConsultCall::create($validator->validated());
+            $validated = $validator->validated();
+            $addOnIds = $validated['add_on_ids'] ?? [];
+            unset($validated['add_on_ids']);
+
+            $consultCall = ConsultCall::create($validated);
+
+            if (!empty($addOnIds)) {
+                $consultCall->addOns()->createMany(
+                    array_map(fn ($addOnId) => ['add_on_id' => $addOnId], $addOnIds)
+                );
+            }
 
             DB::commit();
 
@@ -320,7 +368,7 @@ class ConsultCallController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $consultCall->load(['patient', 'details.clinicalCondition', 'details.testResult', 'followUps']),
+                'data' => $consultCall->load(['patient', 'addOns.addOn', 'details.clinicalCondition', 'details.testResult', 'followUps']),
                 'message' => 'Consult call created successfully.',
             ], 201);
         } catch (Throwable $e) {
@@ -362,6 +410,9 @@ class ConsultCallController extends Controller
             'enrollment_date' => 'sometimes|date',
             'enrollment_type' => 'nullable|integer|in:1,2',
             'consent_call_status' => 'nullable|integer|in:0,1,2,3',
+            'reason' => 'nullable|string|max:255',
+            'add_on_ids' => 'nullable|array',
+            'add_on_ids.*' => 'integer|exists:add_ons,id',
             'consent_call_date' => 'nullable|date',
             'scheduled_status' => 'nullable|integer|in:0,1,2,3',
             'scheduled_call_date' => 'nullable|date',
@@ -383,7 +434,23 @@ class ConsultCallController extends Controller
         try {
             DB::beginTransaction();
 
-            $consultCall->update($validator->validated());
+            $validated = $validator->validated();
+            $addOnIdsProvided = array_key_exists('add_on_ids', $validated);
+            $addOnIds = $validated['add_on_ids'] ?? [];
+            unset($validated['add_on_ids']);
+
+            $consultCall->update($validated);
+
+            // Full replace, not merge -- the Add On Recommendation checkbox dropdown
+            // always submits the complete current selection.
+            if ($addOnIdsProvided) {
+                $consultCall->addOns()->delete();
+                if (!empty($addOnIds)) {
+                    $consultCall->addOns()->createMany(
+                        array_map(fn ($addOnId) => ['add_on_id' => $addOnId], $addOnIds)
+                    );
+                }
+            }
 
             DB::commit();
 
@@ -391,7 +458,7 @@ class ConsultCallController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $consultCall->fresh(['patient', 'details.clinicalCondition', 'details.testResult', 'followUps']),
+                'data' => $consultCall->fresh(['patient', 'addOns.addOn', 'details.clinicalCondition', 'details.testResult', 'followUps']),
                 'message' => 'Consult call updated successfully.',
             ]);
         } catch (Throwable $e) {
@@ -458,6 +525,56 @@ class ConsultCallController extends Controller
     // Details sub-resource
     // ──────────────────────────────────────────────
 
+    /**
+     * When the doctor sets "Release Doctor Review? = Yes", dispatch the AI review
+     * for the linked test result. Independent of consult status -- a held review
+     * must be released even for a no-show / cancelled consult. SendToAIServer is
+     * ShouldBeUnique and skips already-reviewed / incomplete results, so this is
+     * safe to call unconditionally on every qualifying save.
+     */
+    private function dispatchReleasedAiReview(Request $request, ?ConsultCallDetails $detail, int $consultCallId): void
+    {
+        if (! $request->boolean('release_doctor_review') || ! $detail) {
+            return;
+        }
+
+        if (! $detail->test_result_id) {
+            Log::warning('ConsultCall release_doctor_review ignored: no test_result_id on detail', [
+                'consult_call_id' => $consultCallId,
+                'detail_id' => $detail->id,
+            ]);
+
+            return;
+        }
+
+        $testResult = TestResult::find($detail->test_result_id);
+
+        if (! $testResult) {
+            Log::warning('ConsultCall release_doctor_review ignored: test result not found', [
+                'consult_call_id' => $consultCallId,
+                'detail_id' => $detail->id,
+                'test_result_id' => $detail->test_result_id,
+            ]);
+
+            return;
+        }
+
+        // Stamp the release so TestResultCompletionDispatcher does not re-hold
+        // this review on a later benign re-delivery.
+        if ($testResult->isAiReviewHeld()) {
+            $testResult->forceFill(['ai_review_released_at' => now()])->save();
+        }
+
+        SendToAIServer::dispatch($testResult->id);
+
+        Log::info('ConsultCall release_doctor_review: dispatched AI review', [
+            'consult_call_id' => $consultCallId,
+            'detail_id' => $detail->id,
+            'test_result_id' => $testResult->id,
+            'was_held' => $testResult->ai_review_held_at !== null,
+        ]);
+    }
+
     public function storeDetails(Request $request, int $id): JsonResponse
     {
         Log::info('ConsultCall storeDetails: creating detail', ['consult_call_id' => $id]);
@@ -481,7 +598,11 @@ class ConsultCallController extends Controller
             'diagnosis' => 'nullable|string',
             'treatment_plan' => 'nullable|string',
             'rx_issued' => 'nullable|boolean',
+            'invoice_id' => 'nullable|string|max:255',
+            'invoice_status' => 'nullable|integer|in:1,2',
+            'is_invoice_synced' => 'nullable|boolean',
             'action' => 'nullable|integer|in:1,2,3',
+            'consultation_type' => 'nullable|integer|in:1,2',
             'consult_status' => 'nullable|integer|in:0,1,2,3',
             'process_status' => 'nullable|integer|in:1,2,3',
             'consulted_by' => 'nullable|integer',
@@ -502,6 +623,13 @@ class ConsultCallController extends Controller
             DB::beginTransaction();
 
             $detailData = $validator->validated();
+
+            // Tolerate the is_invoice_synced migration not being run yet: drop the
+            // key rather than letting an unknown-column write fail the whole save.
+            if (array_key_exists('is_invoice_synced', $detailData)
+                && ! Schema::hasColumn('consult_call_details', 'is_invoice_synced')) {
+                unset($detailData['is_invoice_synced']);
+            }
 
             // Auto-set process_status: Refer External, End Process, No Show, or Cancelled all force Closed;
             // default to Active when not explicitly provided
@@ -554,6 +682,8 @@ class ConsultCallController extends Controller
 
                     DB::commit();
 
+                    $this->dispatchReleasedAiReview($request, $originalDetail->fresh(), $id);
+
                     Log::info('ConsultCall storeDetails: updated original detail via smart-update', [
                         'consult_call_id' => $id,
                         'detail_id'       => $originalDetail->id,
@@ -576,6 +706,8 @@ class ConsultCallController extends Controller
             $detail = $consultCall->details()->create($detailData);
 
             DB::commit();
+
+            $this->dispatchReleasedAiReview($request, $detail->fresh(), $id);
 
             Log::info('ConsultCall storeDetails: created successfully', [
                 'consult_call_id' => $id,
@@ -648,7 +780,11 @@ class ConsultCallController extends Controller
             'diagnosis' => 'nullable|string',
             'treatment_plan' => 'nullable|string',
             'rx_issued' => 'nullable|boolean',
+            'invoice_id' => 'nullable|string|max:255',
+            'invoice_status' => 'nullable|integer|in:1,2',
+            'is_invoice_synced' => 'nullable|boolean',
             'action' => 'nullable|integer|in:1,2,3',
+            'consultation_type' => 'nullable|integer|in:1,2',
             'consult_status' => 'nullable|integer|in:0,1,2,3',
             'process_status' => 'nullable|integer|in:1,2,3',
             'consulted_by' => 'nullable|integer',
@@ -670,8 +806,22 @@ class ConsultCallController extends Controller
 
             $detailData = $validator->validated();
 
-            // Auto-set process_status: Refer External, End Process, No Show, or Cancelled all force Closed;
-            // default to Active when not explicitly provided
+            // Tolerate the is_invoice_synced migration not being run yet: drop the
+            // key rather than letting an unknown-column write fail the whole save.
+            if (array_key_exists('is_invoice_synced', $detailData)
+                && ! Schema::hasColumn('consult_call_details', 'is_invoice_synced')) {
+                unset($detailData['is_invoice_synced']);
+            }
+
+            // process_status is a NOT NULL column. Callers that don't manage it explicitly
+            // (e.g. the Consultation Details form, which now leaves it to the header pill
+            // toggle's own dedicated update) may still send the key as null -- drop it so
+            // the existing value is left untouched rather than overwritten with NULL.
+            if (array_key_exists('process_status', $detailData) && $detailData['process_status'] === null) {
+                unset($detailData['process_status']);
+            }
+
+            // Auto-set process_status: Refer External, End Process, No Show, or Cancelled all force Closed.
             $actionForcesClose = isset($detailData['action']) && (
                 $detailData['action'] === ConsultCallDetails::ACTION_REFER_EXTERNAL ||
                 $detailData['action'] === ConsultCallDetails::ACTION_END_PROCESS
@@ -693,6 +843,8 @@ class ConsultCallController extends Controller
             $detail->update($detailData);
 
             DB::commit();
+
+            $this->dispatchReleasedAiReview($request, $detail->fresh(), $id);
 
             Log::info('ConsultCall updateDetails: updated successfully', [
                 'consult_call_id' => $id,
@@ -798,7 +950,7 @@ class ConsultCallController extends Controller
 
         $validator = Validator::make($request->all(), [
             'followup_type' => 'nullable|integer|in:0,1,2',
-            'next_followup' => 'nullable|integer|in:0,1,2,3',
+            'next_followup' => 'nullable|integer|in:0,1,2,3,4',
             'followup_date' => 'nullable|date',
             'is_blood_test_required' => 'nullable|boolean',
             'mode_of_conversion' => 'nullable|integer',
@@ -890,7 +1042,7 @@ class ConsultCallController extends Controller
 
         $validator = Validator::make($request->all(), [
             'followup_type' => 'nullable|integer|in:0,1,2',
-            'next_followup' => 'nullable|integer|in:0,1,2,3',
+            'next_followup' => 'nullable|integer|in:0,1,2,3,4',
             'followup_date' => 'nullable|date',
             'is_blood_test_required' => 'nullable|boolean',
             'mode_of_conversion' => 'nullable|integer',

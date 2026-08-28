@@ -21,6 +21,7 @@ class ConsultCallFollowUp extends Model
     const NEXT_FOLLOWUP_1_MONTH = 1;
     const NEXT_FOLLOWUP_3_MONTHS = 2;
     const NEXT_FOLLOWUP_6_MONTHS = 3;
+    const NEXT_FOLLOWUP_OTHERS = 4;
 
     // Follow-up Reminder
     const FOLLOWUP_REMINDER_PENDING = 0;

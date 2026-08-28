@@ -14,6 +14,7 @@ class ClinicalCondition extends Model
     protected $fillable = [
         'id',
         'description',
+        'type',
         'evaluator',
         'risk_tier',
         'criteria_count',

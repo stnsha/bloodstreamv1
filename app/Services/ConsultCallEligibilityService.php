@@ -23,14 +23,96 @@ class ConsultCallEligibilityService
 
     protected PanelCompletenessService $panelCompletenessService;
 
+    protected OctopusApiService $octopusApi;
+
     public function __construct(
         ConditionEvaluatorService $conditionEvaluator,
         MyHealthService $myHealthService,
-        PanelCompletenessService $panelCompletenessService
+        PanelCompletenessService $panelCompletenessService,
+        OctopusApiService $octopusApi
     ) {
         $this->conditionEvaluator = $conditionEvaluator;
         $this->myHealthService = $myHealthService;
         $this->panelCompletenessService = $panelCompletenessService;
+        $this->octopusApi = $octopusApi;
+    }
+
+    /**
+     * Add-on blood test continuation: when a completed test result's blood_test_sales
+     * invoice (looked up in ODB by ref_id) matches an Add-On invoice_id recorded on a
+     * consult_call_details row for the SAME patient, the new test result is a
+     * continuation of that consult call rather than a fresh enrollment. Returns the
+     * consult call to attach to plus the matched invoice number, or null when there is
+     * no match (or the one-continuation-per-invoice guard already fired).
+     *
+     * Fully fail-safe: any lookup/query error returns null so the normal flow runs.
+     *
+     * @return array{consult_call: ConsultCall, inv_num: string}|null
+     */
+    private function resolveInvoiceContinuation(TestResult $testResult, int $patientId): ?array
+    {
+        $refId = $testResult->ref_id;
+        if (! $refId) {
+            return null;
+        }
+
+        try {
+            $labCode = $testResult->doctor->lab->code ?? null;
+            $customer = $this->octopusApi->customerByRefId($refId, $labCode);
+
+            $invNum = isset($customer['inv_num'])
+                ? preg_replace('/[^0-9]/', '', (string) $customer['inv_num'])
+                : '';
+
+            if ($invNum === '') {
+                return null;
+            }
+
+            $matchDetail = ConsultCallDetails::where('invoice_id', $invNum)
+                ->whereHas('consultCall', function ($q) use ($patientId) {
+                    $q->where('patient_id', $patientId);
+                })
+                ->orderByDesc('id')
+                ->first();
+
+            if (! $matchDetail || ! $matchDetail->consultCall) {
+                return null;
+            }
+
+            $consultCall = $matchDetail->consultCall;
+
+            // One continuation per invoice.
+            $alreadyLinked = $consultCall->details()
+                ->where('linked_via_invoice', $invNum)
+                ->exists();
+
+            if ($alreadyLinked) {
+                Log::info('ConsultCallEligibilityService: invoice continuation already created, skipping', [
+                    'test_result_id' => $testResult->id,
+                    'consult_call_id' => $consultCall->id,
+                    'inv_num' => $invNum,
+                ]);
+
+                return null;
+            }
+
+            Log::info('ConsultCallEligibilityService: invoice continuation match', [
+                'test_result_id' => $testResult->id,
+                'consult_call_id' => $consultCall->id,
+                'inv_num' => $invNum,
+                'ref_id' => $refId,
+            ]);
+
+            return ['consult_call' => $consultCall, 'inv_num' => $invNum];
+        } catch (Throwable $e) {
+            Log::warning('ConsultCallEligibilityService: invoice continuation lookup failed, falling back to normal flow', [
+                'test_result_id' => $testResult->id,
+                'ref_id' => $refId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
     }
 
     /**
@@ -145,6 +227,10 @@ class ConsultCallEligibilityService
             'rdw'           => $this->getPanelValue($items, 'rdw'),
             's_iron'        => $this->getPanelValue($items, 's_iron'),
             'ferritin'      => $this->getPanelValue($items, 'ferritin'),
+            'ast'           => $this->getPanelValue($items, 'ast'),
+            'alp'           => $this->getPanelValue($items, 'alp'),
+            'corrected_calcium' => $this->getPanelValue($items, 'corrected_calcium'),
+            'phosphate'     => $this->getPanelValue($items, 'phosphate'),
         ];
 
         // Evaluate against all conditions
@@ -156,13 +242,17 @@ class ConsultCallEligibilityService
             return;
         }
 
+        // Add-on continuation: does this blood test's invoice match an Add-On
+        // invoice_id on an existing consult call for this patient?
+        $invoiceContinuation = $this->resolveInvoiceContinuation($testResult, $patientId);
+
         if ($conditionId === null) {
             Log::info('ConsultCallEligibilityService: Patient is healthy, no condition matched', [
                 'test_result_id' => $testResult->id,
                 'patient_id' => $patientId,
             ]);
 
-            $this->handleHealthyReEnrollment($testResult, $patientId, $customerId);
+            $this->handleHealthyReEnrollment($testResult, $patientId, $customerId, $invoiceContinuation);
 
             return;
         }
@@ -171,23 +261,31 @@ class ConsultCallEligibilityService
         try {
             DB::beginTransaction();
 
-            $consultCall = ConsultCall::firstOrCreate(
-                [
-                    'patient_id' => $patientId,
-                    'customer_id' => $customerId,
-                ],
-                [
-                    'outlet_id' => $outletId,
-                    'is_eligible' => true,
-                    'enrollment_date' => now(),
-                    'enrollment_type' => ConsultCall::ENROLLMENT_TYPE_PRIMARY,
-                    'consent_call_status' => ConsultCall::CONSENT_STATUS_PENDING,
-                    'scheduled_status' => ConsultCall::SCHEDULED_STATUS_PENDING,
-                    'mode_of_consultation' => ConsultCall::MODE_PENDING,
-                ]
-            );
+            if ($invoiceContinuation) {
+                // Continuation of a specific consult call identified by the Add-On
+                // invoice. Treated as an existing consult call so the re-enrollment
+                // gates below still apply.
+                $consultCall = $invoiceContinuation['consult_call'];
+                $wasExisting = true;
+            } else {
+                $consultCall = ConsultCall::firstOrCreate(
+                    [
+                        'patient_id' => $patientId,
+                        'customer_id' => $customerId,
+                    ],
+                    [
+                        'outlet_id' => $outletId,
+                        'is_eligible' => true,
+                        'enrollment_date' => now(),
+                        'enrollment_type' => ConsultCall::ENROLLMENT_TYPE_PRIMARY,
+                        'consent_call_status' => ConsultCall::CONSENT_STATUS_PENDING,
+                        'scheduled_status' => ConsultCall::SCHEDULED_STATUS_PENDING,
+                        'mode_of_consultation' => ConsultCall::MODE_PENDING,
+                    ]
+                );
 
-            $wasExisting = ! $consultCall->wasRecentlyCreated;
+                $wasExisting = ! $consultCall->wasRecentlyCreated;
+            }
 
             if ($wasExisting) {
                 // Gate 1: a follow-up must exist with followup_type = BLOOD_TEST_AND_REVIEW
@@ -228,11 +326,17 @@ class ConsultCallEligibilityService
                 }
             }
 
-            ConsultCallDetails::create([
+            $detailAttributes = [
                 'consult_call_id' => $consultCall->id,
                 'clinical_condition_id' => $conditionId,
                 'test_result_id' => $testResult->id,
-            ]);
+            ];
+
+            if ($invoiceContinuation) {
+                $detailAttributes['linked_via_invoice'] = $invoiceContinuation['inv_num'];
+            }
+
+            ConsultCallDetails::create($detailAttributes);
 
             DB::commit();
 
@@ -309,18 +413,27 @@ class ConsultCallEligibilityService
      * For existing consult call patients who are now healthy, create a new ConsultCallDetails
      * record with the healthy clinical condition so the doctor can review and end the process.
      * Applies the same re-enrollment gates as the main flow.
+     *
+     * When $invoiceContinuation is provided, the continuation is attached to that specific
+     * consult call (the one whose Add-On invoice matched) and the new detail records the
+     * matched invoice number in linked_via_invoice.
+     *
+     * @param array{consult_call: ConsultCall, inv_num: string}|null $invoiceContinuation
      */
-    private function handleHealthyReEnrollment(TestResult $testResult, int $patientId, int $customerId): void
+    private function handleHealthyReEnrollment(TestResult $testResult, int $patientId, int $customerId, ?array $invoiceContinuation = null): void
     {
         Log::info('ConsultCallEligibilityService: Checking healthy re-enrollment for existing consult call', [
             'test_result_id' => $testResult->id,
             'patient_id'     => $patientId,
             'customer_id'    => $customerId,
+            'invoice_continuation' => $invoiceContinuation['inv_num'] ?? null,
         ]);
 
-        $consultCall = ConsultCall::where('patient_id', $patientId)
-            ->where('customer_id', $customerId)
-            ->first();
+        $consultCall = $invoiceContinuation
+            ? $invoiceContinuation['consult_call']
+            : ConsultCall::where('patient_id', $patientId)
+                ->where('customer_id', $customerId)
+                ->first();
 
         if (! $consultCall) {
             Log::info('ConsultCallEligibilityService: No existing consult call for healthy patient, skipping', [
@@ -382,11 +495,17 @@ class ConsultCallEligibilityService
         try {
             DB::beginTransaction();
 
-            ConsultCallDetails::create([
+            $healthyDetailAttributes = [
                 'consult_call_id'       => $consultCall->id,
                 'clinical_condition_id' => $healthyConditionId,
                 'test_result_id'        => $testResult->id,
-            ]);
+            ];
+
+            if ($invoiceContinuation) {
+                $healthyDetailAttributes['linked_via_invoice'] = $invoiceContinuation['inv_num'];
+            }
+
+            ConsultCallDetails::create($healthyDetailAttributes);
 
             DB::commit();
 
@@ -396,6 +515,7 @@ class ConsultCallEligibilityService
                 'customer_id'          => $customerId,
                 'consult_call_id'      => $consultCall->id,
                 'healthy_condition_id' => $healthyConditionId,
+                'linked_via_invoice'   => $invoiceContinuation['inv_num'] ?? null,
             ]);
         } catch (Throwable $e) {
             DB::rollBack();

@@ -9,7 +9,9 @@ use App\Http\Requests\ODB\ODBRequest;
 use App\Jobs\ProcessMigrationBatch;
 use App\Models\MigrationBatch;
 use App\Models\MigrationBatchItem;
+use App\Models\ClinicalCondition;
 use App\Models\ConsultCall;
+use App\Models\ConsultCallDetails;
 use App\Models\IncompleteTestResult;
 use App\Models\TestResult;
 use App\Services\AIReviewService;
@@ -21,6 +23,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -742,16 +745,46 @@ class BloodTestController extends Controller
             foreach ($validated as $item) {
                 $icno  = $item['icno'];
                 $refid = $item['refid'] ?? null;
+                $invNum = isset($item['inv_num']) ? preg_replace('/[^0-9]/', '', (string) $item['inv_num']) : '';
 
                 $consultCall = ConsultCall::whereHas('patient', function ($q) use ($icno) {
                     $q->where('icno', $icno);
                 })->first();
+
+                // Condition 1: enrolled AND the latest consult-call detail's clinical
+                // condition advise type is an add-on type (AO / CC + AO). Tick only.
+                $addOnByCondition = false;
+                if ($consultCall) {
+                    $conditionId = ConsultCallDetails::where('consult_call_id', $consultCall->id)
+                        ->whereNotNull('clinical_condition_id')
+                        ->orderByDesc('id')
+                        ->value('clinical_condition_id');
+
+                    if ($conditionId) {
+                        $type = ClinicalCondition::getCondition((int) $conditionId)['type'] ?? null;
+                        $addOnByCondition = in_array($type, ['AO', 'CC + AO'], true);
+                    }
+                }
+
+                // Condition 2: this invoice number matches a consult_call_details.invoice_id.
+                // Tick WITH a link to that consult call.
+                $addOnInvoiceConsultCallId = null;
+                if ($invNum !== '') {
+                    $addOnInvoiceConsultCallId = ConsultCallDetails::where('invoice_id', $invNum)
+                        ->orderByDesc('id')
+                        ->value('consult_call_id');
+                }
 
                 $response[] = [
                     'icno'            => $icno,
                     'refid'           => $refid,
                     'is_enrolled'     => $consultCall !== null,
                     'consult_call_id' => $consultCall ? $consultCall->id : null,
+                    'add_on_by_condition'            => $addOnByCondition,
+                    'add_on_by_invoice'              => $addOnInvoiceConsultCallId !== null,
+                    'add_on_invoice_consult_call_id' => $addOnInvoiceConsultCallId,
+                    // Back-compat: any add-on indication at all.
+                    'has_add_on'                     => $addOnByCondition || $addOnInvoiceConsultCallId !== null,
                 ];
             }
 
@@ -767,6 +800,61 @@ class BloodTestController extends Controller
                 'success' => false,
                 'message' => 'An error occurred while processing the request',
                 'error'   => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Mark the Add-On invoice on a consult call as synced to blood_test_sales.
+     * Called by blood_test/manual_integration.php after a manual Xilnex sync that
+     * was launched from the consult-call edit screen (consult_call_id passed
+     * through). Sets is_invoice_synced = true on the matching consult_call_details
+     * row(s) for that consult call + invoice number.
+     */
+    public function markConsultCallInvoiceSynced(ODBRequest $request)
+    {
+        $consultCallId = (int) $request->input('consult_call_id');
+        $invNum = preg_replace('/[^0-9]/', '', (string) $request->input('invoice_id'));
+
+        if ($consultCallId <= 0 || $invNum === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'consult_call_id and invoice_id are required',
+            ], 422);
+        }
+
+        try {
+            if (! Schema::hasColumn('consult_call_details', 'is_invoice_synced')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'is_invoice_synced column not present',
+                ], 409);
+            }
+
+            $updated = ConsultCallDetails::where('consult_call_id', $consultCallId)
+                ->where('invoice_id', $invNum)
+                ->update(['is_invoice_synced' => true]);
+
+            Log::channel($this->getLogChannel())->info('markConsultCallInvoiceSynced', [
+                'consult_call_id' => $consultCallId,
+                'invoice_id'      => $invNum,
+                'rows_updated'    => $updated,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'updated' => $updated,
+            ]);
+        } catch (Throwable $e) {
+            Log::channel($this->getLogChannel())->error('markConsultCallInvoiceSynced: error', [
+                'consult_call_id' => $consultCallId,
+                'invoice_id'      => $invNum,
+                'error_message'   => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
             ], 500);
         }
     }
