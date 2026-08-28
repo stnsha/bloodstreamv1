@@ -9,7 +9,9 @@ use App\Http\Requests\ODB\ODBRequest;
 use App\Jobs\ProcessMigrationBatch;
 use App\Models\MigrationBatch;
 use App\Models\MigrationBatchItem;
+use App\Models\ClinicalCondition;
 use App\Models\ConsultCall;
+use App\Models\ConsultCallDetails;
 use App\Models\IncompleteTestResult;
 use App\Models\TestResult;
 use App\Services\AIReviewService;
@@ -742,16 +744,46 @@ class BloodTestController extends Controller
             foreach ($validated as $item) {
                 $icno  = $item['icno'];
                 $refid = $item['refid'] ?? null;
+                $invNum = isset($item['inv_num']) ? preg_replace('/[^0-9]/', '', (string) $item['inv_num']) : '';
 
                 $consultCall = ConsultCall::whereHas('patient', function ($q) use ($icno) {
                     $q->where('icno', $icno);
                 })->first();
+
+                // Condition 1: enrolled AND the latest consult-call detail's clinical
+                // condition advise type is an add-on type (AO / CC + AO). Tick only.
+                $addOnByCondition = false;
+                if ($consultCall) {
+                    $conditionId = ConsultCallDetails::where('consult_call_id', $consultCall->id)
+                        ->whereNotNull('clinical_condition_id')
+                        ->orderByDesc('id')
+                        ->value('clinical_condition_id');
+
+                    if ($conditionId) {
+                        $type = ClinicalCondition::getCondition((int) $conditionId)['type'] ?? null;
+                        $addOnByCondition = in_array($type, ['AO', 'CC + AO'], true);
+                    }
+                }
+
+                // Condition 2: this invoice number matches a consult_call_details.invoice_id.
+                // Tick WITH a link to that consult call.
+                $addOnInvoiceConsultCallId = null;
+                if ($invNum !== '') {
+                    $addOnInvoiceConsultCallId = ConsultCallDetails::where('invoice_id', $invNum)
+                        ->orderByDesc('id')
+                        ->value('consult_call_id');
+                }
 
                 $response[] = [
                     'icno'            => $icno,
                     'refid'           => $refid,
                     'is_enrolled'     => $consultCall !== null,
                     'consult_call_id' => $consultCall ? $consultCall->id : null,
+                    'add_on_by_condition'            => $addOnByCondition,
+                    'add_on_by_invoice'              => $addOnInvoiceConsultCallId !== null,
+                    'add_on_invoice_consult_call_id' => $addOnInvoiceConsultCallId,
+                    // Back-compat: any add-on indication at all.
+                    'has_add_on'                     => $addOnByCondition || $addOnInvoiceConsultCallId !== null,
                 ];
             }
 

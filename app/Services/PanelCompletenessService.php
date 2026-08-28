@@ -824,13 +824,18 @@ class PanelCompletenessService
             DB::beginTransaction();
 
             $testResult->is_reviewed = false;
+            // Reset AI-review hold state: amended data invalidates any prior
+            // doctor release, so TestResultCompletionDispatcher re-evaluates the
+            // hold from scratch (re-holding add-on conditions for release again).
+            $testResult->ai_review_held_at = null;
+            $testResult->ai_review_released_at = null;
             $testResult->save();
 
             AIReview::where('test_result_id', $testResult->id)->delete();
 
             DB::commit();
 
-            Log::info('PanelCompletenessService: new or amended data after review detected, is_reviewed reverted and ai_review soft-deleted', [
+            Log::info('PanelCompletenessService: new or amended data after review detected, is_reviewed reverted, ai_review soft-deleted and hold state reset', [
                 'test_result_id' => $testResult->id,
             ]);
         } catch (Throwable $e) {

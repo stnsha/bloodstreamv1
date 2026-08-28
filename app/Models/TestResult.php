@@ -25,6 +25,8 @@ class TestResult extends Model
         'validated_by',
         'is_completed',
         'is_reviewed',
+        'ai_review_held_at',
+        'ai_review_released_at',
         'manual_sync_date',
         'manually_completed_at',
     ];
@@ -40,6 +42,8 @@ class TestResult extends Model
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
         'is_reviewed' => 'boolean',
+        'ai_review_held_at' => 'datetime',
+        'ai_review_released_at' => 'datetime',
         'manual_sync_date' => 'datetime',
         'manually_completed_at' => 'datetime',
     ];
@@ -52,9 +56,31 @@ class TestResult extends Model
         'validated_by' => null,
         'is_completed' => false,
         'is_reviewed' => false,
+        'ai_review_held_at' => null,
+        'ai_review_released_at' => null,
         'manual_sync_date' => null,
         'manually_completed_at' => null,
     ];
+
+    /**
+     * The AI review is on hold when it has been held for doctor release and
+     * not yet released. Drives the "Release Doctor Review?" control in the
+     * consult-call edit screen and the hold gate in
+     * TestResultCompletionDispatcher.
+     */
+    public function isAiReviewHeld(): bool
+    {
+        return $this->ai_review_held_at !== null && $this->ai_review_released_at === null;
+    }
+
+    /**
+     * Serialized flag consumed by the consult-call edit screen to decide
+     * whether to show the "Release Doctor Review?" control.
+     */
+    public function getAiReviewOnHoldAttribute(): bool
+    {
+        return $this->isAiReviewHeld();
+    }
 
     public function doctor(): BelongsTo
     {

@@ -4,14 +4,17 @@ namespace App\Http\Controllers\API\ConsultCall;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\API\Innoquest\PDFController;
+use App\Jobs\SendToAIServer;
 use App\Models\ConsultCall;
 use App\Models\ConsultCallDetails;
 use App\Models\ConsultCallFollowUp;
+use App\Models\TestResult;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Throwable;
 
@@ -292,6 +295,14 @@ class ConsultCallController extends Controller
             ], 404);
         }
 
+        // Surface the AI-review hold state on each linked test result so the
+        // edit screen can decide whether to show "Release Doctor Review?".
+        $consultCall->details->each(function ($detail) {
+            if ($detail->testResult) {
+                $detail->testResult->append('ai_review_on_hold');
+            }
+        });
+
         Log::info('ConsultCall show: completed', ['id' => $id]);
 
         return response()->json([
@@ -514,6 +525,56 @@ class ConsultCallController extends Controller
     // Details sub-resource
     // ──────────────────────────────────────────────
 
+    /**
+     * When the doctor sets "Release Doctor Review? = Yes", dispatch the AI review
+     * for the linked test result. Independent of consult status -- a held review
+     * must be released even for a no-show / cancelled consult. SendToAIServer is
+     * ShouldBeUnique and skips already-reviewed / incomplete results, so this is
+     * safe to call unconditionally on every qualifying save.
+     */
+    private function dispatchReleasedAiReview(Request $request, ?ConsultCallDetails $detail, int $consultCallId): void
+    {
+        if (! $request->boolean('release_doctor_review') || ! $detail) {
+            return;
+        }
+
+        if (! $detail->test_result_id) {
+            Log::warning('ConsultCall release_doctor_review ignored: no test_result_id on detail', [
+                'consult_call_id' => $consultCallId,
+                'detail_id' => $detail->id,
+            ]);
+
+            return;
+        }
+
+        $testResult = TestResult::find($detail->test_result_id);
+
+        if (! $testResult) {
+            Log::warning('ConsultCall release_doctor_review ignored: test result not found', [
+                'consult_call_id' => $consultCallId,
+                'detail_id' => $detail->id,
+                'test_result_id' => $detail->test_result_id,
+            ]);
+
+            return;
+        }
+
+        // Stamp the release so TestResultCompletionDispatcher does not re-hold
+        // this review on a later benign re-delivery.
+        if ($testResult->isAiReviewHeld()) {
+            $testResult->forceFill(['ai_review_released_at' => now()])->save();
+        }
+
+        SendToAIServer::dispatch($testResult->id);
+
+        Log::info('ConsultCall release_doctor_review: dispatched AI review', [
+            'consult_call_id' => $consultCallId,
+            'detail_id' => $detail->id,
+            'test_result_id' => $testResult->id,
+            'was_held' => $testResult->ai_review_held_at !== null,
+        ]);
+    }
+
     public function storeDetails(Request $request, int $id): JsonResponse
     {
         Log::info('ConsultCall storeDetails: creating detail', ['consult_call_id' => $id]);
@@ -539,6 +600,7 @@ class ConsultCallController extends Controller
             'rx_issued' => 'nullable|boolean',
             'invoice_id' => 'nullable|string|max:255',
             'invoice_status' => 'nullable|integer|in:1,2',
+            'is_invoice_synced' => 'nullable|boolean',
             'action' => 'nullable|integer|in:1,2,3',
             'consultation_type' => 'nullable|integer|in:1,2',
             'consult_status' => 'nullable|integer|in:0,1,2,3',
@@ -561,6 +623,13 @@ class ConsultCallController extends Controller
             DB::beginTransaction();
 
             $detailData = $validator->validated();
+
+            // Tolerate the is_invoice_synced migration not being run yet: drop the
+            // key rather than letting an unknown-column write fail the whole save.
+            if (array_key_exists('is_invoice_synced', $detailData)
+                && ! Schema::hasColumn('consult_call_details', 'is_invoice_synced')) {
+                unset($detailData['is_invoice_synced']);
+            }
 
             // Auto-set process_status: Refer External, End Process, No Show, or Cancelled all force Closed;
             // default to Active when not explicitly provided
@@ -613,6 +682,8 @@ class ConsultCallController extends Controller
 
                     DB::commit();
 
+                    $this->dispatchReleasedAiReview($request, $originalDetail->fresh(), $id);
+
                     Log::info('ConsultCall storeDetails: updated original detail via smart-update', [
                         'consult_call_id' => $id,
                         'detail_id'       => $originalDetail->id,
@@ -635,6 +706,8 @@ class ConsultCallController extends Controller
             $detail = $consultCall->details()->create($detailData);
 
             DB::commit();
+
+            $this->dispatchReleasedAiReview($request, $detail->fresh(), $id);
 
             Log::info('ConsultCall storeDetails: created successfully', [
                 'consult_call_id' => $id,
@@ -709,6 +782,7 @@ class ConsultCallController extends Controller
             'rx_issued' => 'nullable|boolean',
             'invoice_id' => 'nullable|string|max:255',
             'invoice_status' => 'nullable|integer|in:1,2',
+            'is_invoice_synced' => 'nullable|boolean',
             'action' => 'nullable|integer|in:1,2,3',
             'consultation_type' => 'nullable|integer|in:1,2',
             'consult_status' => 'nullable|integer|in:0,1,2,3',
@@ -731,6 +805,13 @@ class ConsultCallController extends Controller
             DB::beginTransaction();
 
             $detailData = $validator->validated();
+
+            // Tolerate the is_invoice_synced migration not being run yet: drop the
+            // key rather than letting an unknown-column write fail the whole save.
+            if (array_key_exists('is_invoice_synced', $detailData)
+                && ! Schema::hasColumn('consult_call_details', 'is_invoice_synced')) {
+                unset($detailData['is_invoice_synced']);
+            }
 
             // process_status is a NOT NULL column. Callers that don't manage it explicitly
             // (e.g. the Consultation Details form, which now leaves it to the header pill
@@ -762,6 +843,8 @@ class ConsultCallController extends Controller
             $detail->update($detailData);
 
             DB::commit();
+
+            $this->dispatchReleasedAiReview($request, $detail->fresh(), $id);
 
             Log::info('ConsultCall updateDetails: updated successfully', [
                 'consult_call_id' => $id,
@@ -867,7 +950,7 @@ class ConsultCallController extends Controller
 
         $validator = Validator::make($request->all(), [
             'followup_type' => 'nullable|integer|in:0,1,2',
-            'next_followup' => 'nullable|integer|in:0,1,2,3',
+            'next_followup' => 'nullable|integer|in:0,1,2,3,4',
             'followup_date' => 'nullable|date',
             'is_blood_test_required' => 'nullable|boolean',
             'mode_of_conversion' => 'nullable|integer',
@@ -959,7 +1042,7 @@ class ConsultCallController extends Controller
 
         $validator = Validator::make($request->all(), [
             'followup_type' => 'nullable|integer|in:0,1,2',
-            'next_followup' => 'nullable|integer|in:0,1,2,3',
+            'next_followup' => 'nullable|integer|in:0,1,2,3,4',
             'followup_date' => 'nullable|date',
             'is_blood_test_required' => 'nullable|boolean',
             'mode_of_conversion' => 'nullable|integer',

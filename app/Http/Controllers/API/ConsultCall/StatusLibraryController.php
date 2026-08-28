@@ -124,6 +124,7 @@ class StatusLibraryController extends Controller
                 ['id' => ConsultCallFollowUp::NEXT_FOLLOWUP_1_MONTH, 'label' => '1 Month'],
                 ['id' => ConsultCallFollowUp::NEXT_FOLLOWUP_3_MONTHS, 'label' => '3 Months'],
                 ['id' => ConsultCallFollowUp::NEXT_FOLLOWUP_6_MONTHS, 'label' => '6 Months'],
+                ['id' => ConsultCallFollowUp::NEXT_FOLLOWUP_OTHERS, 'label' => 'Others'],
             ],
             'message' => 'Next follow-ups retrieved successfully',
         ]);
