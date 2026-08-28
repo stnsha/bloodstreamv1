@@ -103,10 +103,14 @@ class ConsultCallController extends Controller
             $query->where('id', $request->input('id'));
         }
 
-        if ($request->filled('action')) {
-            $action = $request->input('action');
-            $query->whereHas('details', function ($q) use ($action) {
-                $q->where('action', $action);
+        // Accept both `action` and `detail_action` (the list UI sends the latter).
+        $actionFilter = $request->filled('action')
+            ? $request->input('action')
+            : ($request->filled('detail_action') ? $request->input('detail_action') : null);
+
+        if ($actionFilter !== null && $actionFilter !== '') {
+            $query->whereHas('details', function ($q) use ($actionFilter) {
+                $q->where('action', $actionFilter);
             });
         }
 
@@ -122,6 +126,74 @@ class ConsultCallController extends Controller
                     LIMIT 1
                 ), 0) = ?
             ", [$isDraft]);
+        }
+
+        // Add-On filter: whether the consult call has any recommended add-ons.
+        if ($request->filled('has_add_on')) {
+            if ((string) $request->input('has_add_on') === '1') {
+                $query->whereHas('addOns');
+            } else {
+                $query->whereDoesntHave('addOns');
+            }
+        }
+
+        // Advise type = the latest (non-deleted) detail's clinical condition `type`.
+        if ($request->filled('advise_type')) {
+            $adviseType = $request->input('advise_type');
+            $query->whereRaw("
+                (
+                    SELECT cc.type
+                    FROM consult_call_details d
+                    JOIN clinical_conditions cc ON cc.id = d.clinical_condition_id
+                    WHERE d.consult_call_id = consult_calls.id
+                      AND d.deleted_at IS NULL
+                    ORDER BY d.id DESC
+                    LIMIT 1
+                ) = ?
+            ", [$adviseType]);
+        }
+
+        // Blood test date range = the latest (non-deleted) detail's linked test
+        // result collected_date.
+        if ($request->filled('blood_test_date_from') || $request->filled('blood_test_date_to')) {
+            $btDateSubquery = "(
+                SELECT tr.collected_date
+                FROM consult_call_details d
+                JOIN test_results tr ON tr.id = d.test_result_id
+                WHERE d.consult_call_id = consult_calls.id
+                  AND d.deleted_at IS NULL
+                ORDER BY d.id DESC
+                LIMIT 1
+            )";
+
+            if ($request->filled('blood_test_date_from')) {
+                $query->whereRaw("DATE($btDateSubquery) >= ?", [$request->input('blood_test_date_from')]);
+            }
+
+            if ($request->filled('blood_test_date_to')) {
+                $query->whereRaw("DATE($btDateSubquery) <= ?", [$request->input('blood_test_date_to')]);
+            }
+        }
+
+        // Follow-up due-date range = the latest (non-deleted) follow-up's followup_date.
+        // Used by the "upcoming follow-ups" banner to fetch only its 7-day window.
+        if ($request->filled('followup_date_from') || $request->filled('followup_date_to')) {
+            $fuDateSubquery = "(
+                SELECT f.followup_date
+                FROM consult_call_follow_ups f
+                WHERE f.consult_call_id = consult_calls.id
+                  AND f.deleted_at IS NULL
+                ORDER BY f.id DESC
+                LIMIT 1
+            )";
+
+            if ($request->filled('followup_date_from')) {
+                $query->whereRaw("DATE($fuDateSubquery) >= ?", [$request->input('followup_date_from')]);
+            }
+
+            if ($request->filled('followup_date_to')) {
+                $query->whereRaw("DATE($fuDateSubquery) <= ?", [$request->input('followup_date_to')]);
+            }
         }
 
         $perPage = $request->input('per_page', 15);
