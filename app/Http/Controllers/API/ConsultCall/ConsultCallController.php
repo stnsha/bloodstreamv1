@@ -236,7 +236,9 @@ class ConsultCallController extends Controller
         Log::info('ConsultCall summary: retrieving dashboard summary');
 
         try {
-            $baseStats = ConsultCall::selectRaw("
+            // whereNull('deleted_at') is redundant with the SoftDeletes global scope
+            // but makes the "exclude trashed" intent explicit for this raw aggregate.
+            $baseStats = ConsultCall::whereNull('deleted_at')->selectRaw("
                 COUNT(*) as total,
                 SUM(CASE WHEN enrollment_type = 1 THEN 1 ELSE 0 END) as enrollment_primary,
                 SUM(CASE WHEN enrollment_type = 2 THEN 1 ELSE 0 END) as enrollment_follow_up,
@@ -257,6 +259,8 @@ class ConsultCallController extends Controller
                     '=',
                     'latest.max_id'
                 )
+                ->join('consult_calls as cc', 'cc.id', '=', 'ccd.consult_call_id')
+                ->whereNull('cc.deleted_at')
                 ->selectRaw("
                     SUM(CASE WHEN ccd.process_status = 1 THEN 1 ELSE 0 END) as active,
                     SUM(CASE WHEN ccd.process_status = 2 THEN 1 ELSE 0 END) as escalated,
@@ -275,6 +279,8 @@ class ConsultCallController extends Controller
                     '=',
                     'latest.max_id'
                 )
+                ->join('consult_calls as cc', 'cc.id', '=', 'ccf.consult_call_id')
+                ->whereNull('cc.deleted_at')
                 ->selectRaw("
                     SUM(CASE WHEN ccf.followup_reminder = 0 THEN 1 ELSE 0 END) as pending,
                     SUM(CASE WHEN ccf.followup_reminder = 1 THEN 1 ELSE 0 END) as completed,
@@ -294,6 +300,8 @@ class ConsultCallController extends Controller
                     '=',
                     'latest.max_id'
                 )
+                ->join('consult_calls as ccl', 'ccl.id', '=', 'ccd.consult_call_id')
+                ->whereNull('ccl.deleted_at')
                 ->join('clinical_conditions as cc', 'cc.id', '=', 'ccd.clinical_condition_id')
                 ->selectRaw("
                     SUM(CASE WHEN cc.type = 'CC' THEN 1 ELSE 0 END) as cc,
