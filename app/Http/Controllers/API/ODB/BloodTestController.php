@@ -23,6 +23,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -799,6 +800,61 @@ class BloodTestController extends Controller
                 'success' => false,
                 'message' => 'An error occurred while processing the request',
                 'error'   => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Mark the Add-On invoice on a consult call as synced to blood_test_sales.
+     * Called by blood_test/manual_integration.php after a manual Xilnex sync that
+     * was launched from the consult-call edit screen (consult_call_id passed
+     * through). Sets is_invoice_synced = true on the matching consult_call_details
+     * row(s) for that consult call + invoice number.
+     */
+    public function markConsultCallInvoiceSynced(ODBRequest $request)
+    {
+        $consultCallId = (int) $request->input('consult_call_id');
+        $invNum = preg_replace('/[^0-9]/', '', (string) $request->input('invoice_id'));
+
+        if ($consultCallId <= 0 || $invNum === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'consult_call_id and invoice_id are required',
+            ], 422);
+        }
+
+        try {
+            if (! Schema::hasColumn('consult_call_details', 'is_invoice_synced')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'is_invoice_synced column not present',
+                ], 409);
+            }
+
+            $updated = ConsultCallDetails::where('consult_call_id', $consultCallId)
+                ->where('invoice_id', $invNum)
+                ->update(['is_invoice_synced' => true]);
+
+            Log::channel($this->getLogChannel())->info('markConsultCallInvoiceSynced', [
+                'consult_call_id' => $consultCallId,
+                'invoice_id'      => $invNum,
+                'rows_updated'    => $updated,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'updated' => $updated,
+            ]);
+        } catch (Throwable $e) {
+            Log::channel($this->getLogChannel())->error('markConsultCallInvoiceSynced: error', [
+                'consult_call_id' => $consultCallId,
+                'invoice_id'      => $invNum,
+                'error_message'   => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
             ], 500);
         }
     }
