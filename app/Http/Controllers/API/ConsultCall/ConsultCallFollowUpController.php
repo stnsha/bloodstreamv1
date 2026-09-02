@@ -28,6 +28,7 @@ class ConsultCallFollowUpController extends Controller
         $validator = Validator::make($request->all(), [
             'my_referral_id' => 'required|integer|min:1',
             'referral_to'    => 'nullable|integer',
+            'consult_call_detail_id' => 'nullable|integer|exists:consult_call_details,id',
         ]);
 
         if ($validator->fails()) {
@@ -38,13 +39,19 @@ class ConsultCallFollowUpController extends Controller
             ], 422);
         }
 
-        $followUp = ConsultCallFollowUp::where('consult_call_id', $id)
-            ->orderByDesc('id')
-            ->first();
+        // When the caller names the consultation, target that consultation's
+        // follow-up; otherwise fall back to the call's most recent follow-up.
+        $detailId = $request->input('consult_call_detail_id');
+        $followUpQuery = ConsultCallFollowUp::where('consult_call_id', $id);
+        if (!empty($detailId)) {
+            $followUpQuery->where('consult_call_detail_id', $detailId);
+        }
+        $followUp = $followUpQuery->orderByDesc('id')->first();
 
         if (!$followUp) {
             Log::warning('ConsultCallFollowUp linkReferralByCall: no follow-up found', [
                 'consult_call_id' => $id,
+                'consult_call_detail_id' => $detailId,
             ]);
 
             return response()->json([
