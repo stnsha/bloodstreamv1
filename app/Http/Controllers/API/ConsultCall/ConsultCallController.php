@@ -1033,6 +1033,7 @@ class ConsultCallController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
+            'consult_call_detail_id' => 'nullable|integer|exists:consult_call_details,id',
             'followup_type' => 'nullable|integer|in:0,1,2',
             'next_followup' => 'nullable|integer|in:0,1,2,3,4',
             'followup_date' => 'nullable|date',
@@ -1061,6 +1062,14 @@ class ConsultCallController extends Controller
             // Auto-set followup_reminder to pending (0) on creation if not explicitly provided
             if (!isset($followUpData['followup_reminder'])) {
                 $followUpData['followup_reminder'] = 0;
+            }
+
+            // Tie the follow-up to a specific consultation. The caller normally
+            // supplies consult_call_detail_id; when omitted, fall back to the
+            // call's most recent detail.
+            if (empty($followUpData['consult_call_detail_id'])) {
+                $latestDetail = $consultCall->details()->orderByDesc('id')->first();
+                $followUpData['consult_call_detail_id'] = $latestDetail?->id;
             }
 
             $followUp = $consultCall->followUps()->create($followUpData);
@@ -1125,6 +1134,7 @@ class ConsultCallController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
+            'consult_call_detail_id' => 'nullable|integer|exists:consult_call_details,id',
             'followup_type' => 'nullable|integer|in:0,1,2',
             'next_followup' => 'nullable|integer|in:0,1,2,3,4',
             'followup_date' => 'nullable|date',

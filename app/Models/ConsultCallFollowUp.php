@@ -31,6 +31,7 @@ class ConsultCallFollowUp extends Model
 
     protected $fillable = [
         'consult_call_id',
+        'consult_call_detail_id',
         'followup_type',
         'next_followup',
         'followup_date',
@@ -45,6 +46,7 @@ class ConsultCallFollowUp extends Model
 
     protected $casts = [
         'consult_call_id' => 'integer',
+        'consult_call_detail_id' => 'integer',
         'followup_type' => 'integer',
         'next_followup' => 'integer',
         'followup_date' => 'datetime',
@@ -73,5 +75,10 @@ class ConsultCallFollowUp extends Model
     public function consultCall(): BelongsTo
     {
         return $this->belongsTo(ConsultCall::class, 'consult_call_id', 'id');
+    }
+
+    public function detail(): BelongsTo
+    {
+        return $this->belongsTo(ConsultCallDetails::class, 'consult_call_detail_id', 'id');
     }
 }
