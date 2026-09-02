@@ -48,6 +48,18 @@ class ConsultCallFollowUpController extends Controller
         }
         $followUp = $followUpQuery->orderByDesc('id')->first();
 
+        // A named consultation that has no follow-up row yet (Refer Internal saved
+        // but the follow-up fields were not) gets a bare row created here so the
+        // referral can still be linked; the doctor fills the follow-up fields
+        // later from the Consultation History editor. Without a named
+        // consultation there is nothing to anchor a new row to, so keep the 404.
+        if (!$followUp && !empty($detailId)) {
+            $followUp = new ConsultCallFollowUp([
+                'consult_call_id' => $id,
+                'consult_call_detail_id' => $detailId,
+            ]);
+        }
+
         if (!$followUp) {
             Log::warning('ConsultCallFollowUp linkReferralByCall: no follow-up found', [
                 'consult_call_id' => $id,
@@ -64,7 +76,8 @@ class ConsultCallFollowUpController extends Controller
         try {
             DB::beginTransaction();
 
-            $followUp->update($validator->validated());
+            $followUp->fill($validator->validated());
+            $followUp->save();
 
             DB::commit();
 
