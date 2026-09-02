@@ -837,8 +837,12 @@ class ConsultCallController extends Controller
             ], 404);
         }
 
-        // Once consulted_by is set, only that doctor may update this detail record
-        if ($detail->consulted_by && $detail->consulted_by !== (int) $request->attributes->get('staff_id')) {
+        // Once consulted_by is set, only that doctor may update this detail record.
+        // Super Admin (consult_call role 1) bypasses this so support can correct or
+        // backfill records that were never saved by the original doctor.
+        $callerRole = (int) $request->attributes->get('consult_call_role');
+        $isSuperAdmin = $callerRole === 1;
+        if (!$isSuperAdmin && $detail->consulted_by && $detail->consulted_by !== (int) $request->attributes->get('staff_id')) {
             Log::warning('ConsultCall updateDetails: forbidden — staff_id does not match consulted_by', [
                 'consult_call_id' => $id,
                 'detail_id' => $detailId,
