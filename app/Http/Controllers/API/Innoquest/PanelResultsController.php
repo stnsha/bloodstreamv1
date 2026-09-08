@@ -4,23 +4,12 @@ namespace App\Http\Controllers\API\Innoquest;
 
 use App\Http\Controllers\API\BaseResultsController;
 use App\Jobs\Innoquest\ProcessPanelResults;
-use App\Models\Panel;
-use App\Models\Patient;
-use App\Models\ReferenceRange;
-use App\Services\AIReviewService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
 class PanelResultsController extends BaseResultsController
 {
-    protected $aiReviewService;
-
-    public function __construct(AIReviewService $aiReviewService)
-    {
-        $this->aiReviewService = $aiReviewService;
-    }
-
     /**
      * @OA\Post(
      *     path="/api/v1/result/panel",
