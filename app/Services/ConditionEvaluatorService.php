@@ -1879,4 +1879,138 @@ class ConditionEvaluatorService
             && $data['hae'] >= 100
             && $data['hae'] <= 129;
     }
+
+    /**
+     * Condition 117: LDL > 3.39 mmol/L AND HbA1c >= 6.3 %
+     */
+    private function condition117(array $data): bool
+    {
+        if ($data['ldlc'] === null || $data['hba1c_percent'] === null) {
+            return false;
+        }
+
+        return $data['ldlc'] > 3.39
+            && $data['hba1c_percent'] >= 6.3;
+    }
+
+    /**
+     * Condition 118: TC > 5.9 mmol/L AND HbA1c >= 6.3 %
+     */
+    private function condition118(array $data): bool
+    {
+        if ($data['tc'] === null || $data['hba1c_percent'] === null) {
+            return false;
+        }
+
+        return $data['tc'] > 5.9
+            && $data['hba1c_percent'] >= 6.3;
+    }
+
+    /**
+     * Condition 119: TC > 5.9 mmol/L AND LDL-C > 3.39 mmol/L AND HbA1c >= 6.3 %
+     */
+    private function condition119(array $data): bool
+    {
+        if ($data['tc'] === null || $data['ldlc'] === null || $data['hba1c_percent'] === null) {
+            return false;
+        }
+
+        return $data['tc'] > 5.9
+            && $data['ldlc'] > 3.39
+            && $data['hba1c_percent'] >= 6.3;
+    }
+
+    /**
+     * Condition 120: ALT > 120 U/L (after statin initiation) AND TC > 5.9 mmol/L AND LDL-C > 3.39 mmol/L
+     */
+    private function condition120(array $data): bool
+    {
+        if ($data['alt'] === null || $data['tc'] === null || $data['ldlc'] === null) {
+            return false;
+        }
+
+        return $data['alt'] > 120
+            && $data['tc'] > 5.9
+            && $data['ldlc'] > 3.39;
+    }
+
+    /**
+     * Condition 121: Age > 30 AND BMI > 23 kg/m2 AND TC > 5.9 mmol/L AND LDL-C > 3.39 mmol/L
+     */
+    private function condition121(array $data): bool
+    {
+        if ($data['age'] === null || $data['bmi'] === null || $data['tc'] === null || $data['ldlc'] === null) {
+            return false;
+        }
+
+        return $data['age'] > 30
+            && $data['bmi'] > 23
+            && $data['tc'] > 5.9
+            && $data['ldlc'] > 3.39;
+    }
+
+    /**
+     * Condition 122: Age > 30 AND BMI > 23 kg/m2 AND HbA1c >= 6.3 % AND TC > 5.9 mmol/L AND LDL-C > 3.39 mmol/L
+     */
+    private function condition122(array $data): bool
+    {
+        if (
+            $data['age'] === null || $data['bmi'] === null || $data['hba1c_percent'] === null ||
+            $data['tc'] === null || $data['ldlc'] === null
+        ) {
+            return false;
+        }
+
+        return $data['age'] > 30
+            && $data['bmi'] > 23
+            && $data['hba1c_percent'] >= 6.3
+            && $data['tc'] > 5.9
+            && $data['ldlc'] > 3.39;
+    }
+
+    /**
+     * Condition 123: HbA1c >= 6.3 % AND ALT mildly elevated (40-120 U/L)
+     */
+    private function condition123(array $data): bool
+    {
+        if ($data['hba1c_percent'] === null || $data['alt'] === null) {
+            return false;
+        }
+
+        return $data['hba1c_percent'] >= 6.3
+            && $data['alt'] >= 40
+            && $data['alt'] <= 120;
+    }
+
+    /**
+     * Condition 124: ALT mildly elevated (40-120 U/L) AND HbA1c >= 6.1 % AND LDL-C > 3.39 mmol/L AND TC > 5.9 mmol/L
+     */
+    private function condition124(array $data): bool
+    {
+        if (
+            $data['alt'] === null || $data['hba1c_percent'] === null ||
+            $data['ldlc'] === null || $data['tc'] === null
+        ) {
+            return false;
+        }
+
+        return $data['alt'] >= 40
+            && $data['alt'] <= 120
+            && $data['hba1c_percent'] >= 6.1
+            && $data['ldlc'] > 3.39
+            && $data['tc'] > 5.9;
+    }
+
+    /**
+     * Condition 125: LDL-C > 3.39 mmol/L AND TC > 5.9 mmol/L
+     */
+    private function condition125(array $data): bool
+    {
+        if ($data['ldlc'] === null || $data['tc'] === null) {
+            return false;
+        }
+
+        return $data['ldlc'] > 3.39
+            && $data['tc'] > 5.9;
+    }
 }
