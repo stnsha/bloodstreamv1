@@ -51,6 +51,29 @@ class MyHealthService
             ->get();
     }
 
+    /**
+     * Get every check_normal_range row with the reference-range metadata
+     * used by the MyHealth check screens.
+     *
+     * @return \Illuminate\Support\Collection Rows: {var_name, parameter, gender, lower, upper, range, unit, base_point}
+     */
+    public function getAllCheckNormalRanges()
+    {
+        return $this->connection->table('check_normal_range')
+            ->select(
+                'var_name',
+                'parameter',
+                'gender',
+                'lower',
+                'upper',
+                'range',
+                'unit',
+                'base_point'
+            )
+            ->orderBy('parameter', 'asc')
+            ->get();
+    }
+
     public function getRecordDetailsByRecordId($recordId)
     {
         return $this->connection->table('check_record_details as d')

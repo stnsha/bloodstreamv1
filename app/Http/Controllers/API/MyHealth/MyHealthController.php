@@ -87,4 +87,40 @@ class MyHealthController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * GET /api/myhealth/normal-ranges
+     * Every check_normal_range row: var_name, parameter, gender, lower,
+     * upper, range, unit, base_point. Used to seed reference-range lookups
+     * on the MyHealth check screens.
+     */
+    public function normalRanges(): JsonResponse
+    {
+        try {
+            Log::info('MyHealthController@normalRanges: fetching check_normal_range rows');
+
+            $ranges = $this->myHealthService->getAllCheckNormalRanges();
+
+            Log::info('MyHealthController@normalRanges: completed', [
+                'row_count' => $ranges->count(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => $ranges,
+            ], 200);
+        } catch (Throwable $e) {
+            Log::error('MyHealthController@normalRanges: failed', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve normal ranges',
+                'error' => 'Internal server error',
+            ], 500);
+        }
+    }
 }

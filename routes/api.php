@@ -262,6 +262,7 @@ Route::middleware(['api.auth', 'throttle:api'])->group(function () {
 
     Route::prefix('myhealth')->controller(MyHealthController::class)->group(function () {
         Route::get('/check-record/{ic}', 'checkRecordByIc')->name('myhealth.checkRecordByIc');
+        Route::get('/normal-ranges', 'normalRanges')->name('myhealth.normalRanges');
     });
 
     Route::prefix('lab')->controller(LabController::class)->group(function () {
