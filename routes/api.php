@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\API\AuthController;
+use App\Http\Controllers\API\Catalog\AIReviewController;
 use App\Http\Controllers\API\Catalog\DoctorController;
 use App\Http\Controllers\API\Catalog\MasterPanelCommentController;
 use App\Http\Controllers\API\Catalog\MasterPanelController;
@@ -272,6 +273,12 @@ Route::middleware(['api.auth', 'throttle:api'])->group(function () {
         Route::get('/{id}', 'show')->whereNumber('id')->name('lab.show');
         Route::put('/{id}', 'update')->whereNumber('id')->name('lab.update');
         Route::delete('/{id}', 'destroy')->whereNumber('id')->name('lab.destroy');
+    });
+
+    Route::prefix('ai-reviews')->controller(AIReviewController::class)->group(function () {
+        Route::get('/test-result/{testResultId}', 'byTestResult')->whereNumber('testResultId')->name('aiReviews.byTestResult');
+        Route::get('/{id}', 'show')->whereNumber('id')->name('aiReviews.show');
+        Route::get('/', 'index')->name('aiReviews.index');
     });
 
 });
