@@ -175,6 +175,7 @@ Route::middleware(['api.auth', 'throttle:api'])->group(function () {
     Route::prefix('patients')->controller(PatientController::class)->group(function () {
         Route::get('/gender/{gender}', 'byGender')->name('patients.byGender');
         Route::get('/age/{age}', 'byAge')->name('patients.byAge');
+        Route::get('/by-icno/{icno}', 'byIcNo')->name('patients.byIcNo');
         Route::get('/{id}', 'show')->whereNumber('id')->name('patients.show');
         Route::get('/', 'index')->name('patients.index');
     });

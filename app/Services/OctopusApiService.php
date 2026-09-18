@@ -616,6 +616,59 @@ class OctopusApiService
     }
 
     /**
+     * Get blood_test_sales records with a doctor review for a customer, by IC
+     * number. Only rows with doc_id != 0 are returned (see
+     * bloodTestSalesByIcNo.php).
+     *
+     * @param string $icno The patient IC number
+     * @return array List of sales records [['date' => string, 'doc_review' => string], ...]
+     * @throws Exception
+     */
+    public function getBloodTestSalesByIcNo(string $icno): array
+    {
+        Log::info('OctopusApiService: Fetching blood_test_sales by IC number', [
+            'icno' => $icno,
+        ]);
+
+        $data = [
+            'username' => $this->username,
+            'password' => $this->password,
+            'icno' => $icno,
+        ];
+
+        try {
+            $result = $this->callAPI('POST', '/bloodTestSalesByIcNo.php', $data);
+
+            if (($result['status'] ?? '') !== 'success') {
+                Log::warning('OctopusApiService: Blood test sales by IC lookup returned non-success status', [
+                    'icno' => $icno,
+                    'status' => $result['status'] ?? null,
+                    'message' => $result['message'] ?? null,
+                ]);
+
+                return [];
+            }
+
+            $sales = $result['sales'] ?? [];
+
+            Log::info('OctopusApiService: Blood test sales by IC fetched successfully', [
+                'icno' => $icno,
+                'sales_count' => count($sales),
+            ]);
+
+            return $sales;
+
+        } catch (Exception $e) {
+            Log::error('OctopusApiService: Blood test sales by IC lookup exception', [
+                'error' => $e->getMessage(),
+                'icno' => $icno,
+            ]);
+
+            throw $e;
+        }
+    }
+
+    /**
      * Test API connection.
      *
      * @return bool True if connection is successful
