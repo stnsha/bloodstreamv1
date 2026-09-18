@@ -25,10 +25,10 @@ class RunConsultCallEligibility extends Command
     public function handle(): int
     {
         $dateFrom = $this->option('date-from');
-        $dateTo   = $this->option('date-to') ?: Carbon::today()->toDateString();
-        $limit    = (int) $this->option('limit');
-        $offset   = (int) $this->option('offset');
-        $dryRun   = (bool) $this->option('dry-run');
+        $dateTo = $this->option('date-to') ?: Carbon::today()->toDateString();
+        $limit = (int) $this->option('limit');
+        $offset = (int) $this->option('offset');
+        $dryRun = (bool) $this->option('dry-run');
 
         if ($dryRun) {
             $this->warn('DRY RUN MODE — no records will be written to the database.');
@@ -36,17 +36,18 @@ class RunConsultCallEligibility extends Command
 
         Log::info('RunConsultCallEligibility: Starting', [
             'date_from' => $dateFrom,
-            'date_to'   => $dateTo,
-            'limit'     => $limit,
-            'offset'    => $offset,
-            'dry_run'   => $dryRun,
+            'date_to' => $dateTo,
+            'limit' => $limit,
+            'offset' => $offset,
+            'dry_run' => $dryRun,
         ]);
 
         $this->info("Querying completed test results (date_from={$dateFrom}, date_to={$dateTo}, limit={$limit}, offset={$offset})");
 
         $testResults = TestResult::where('is_completed', true)
             ->whereNotNull('ref_id')
-            ->whereBetween('collected_date', [$dateFrom . ' 00:00:00', $dateTo . ' 23:59:59'])
+            ->whereBetween('collected_date', [$dateFrom.' 00:00:00', $dateTo.' 23:59:59'])
+            ->whereNotIn('id', ConsultCallDetails::select('test_result_id')->whereNotNull('test_result_id'))
             ->orderBy('id', 'asc')
             ->skip($offset)
             ->take($limit)
@@ -58,9 +59,9 @@ class RunConsultCallEligibility extends Command
             $this->warn('No test results found matching criteria.');
             Log::info('RunConsultCallEligibility: No records found', [
                 'date_from' => $dateFrom,
-                'date_to'   => $dateTo,
-                'limit'     => $limit,
-                'offset'    => $offset,
+                'date_to' => $dateTo,
+                'limit' => $limit,
+                'offset' => $offset,
             ]);
 
             return self::SUCCESS;
@@ -68,21 +69,21 @@ class RunConsultCallEligibility extends Command
 
         $this->info("Found {$total} test results to process.");
 
-        $octopusApi         = app(OctopusApiService::class);
+        $octopusApi = app(OctopusApiService::class);
         $eligibilityService = app(ConsultCallEligibilityService::class);
 
         $counters = [
-            'eligible'           => 0,
-            'healthy'            => 0,
-            'no_customer'        => 0,
-            'skipped_no_ref_id'  => 0,
+            'eligible' => 0,
+            'healthy' => 0,
+            'no_customer' => 0,
+            'skipped_no_ref_id' => 0,
             'skipped_no_patient' => 0,
-            'already_exists'     => 0,
-            'errors'             => 0,
+            'already_exists' => 0,
+            'errors' => 0,
         ];
 
         $outletEligibleCounts = [];
-        $dailyEligibleCounts  = [];
+        $dailyEligibleCounts = [];
 
         $bar = $this->output->createProgressBar($total);
         $bar->start();
@@ -106,9 +107,9 @@ class RunConsultCallEligibility extends Command
                 $counters['errors']++;
                 Log::error('RunConsultCallEligibility: Error processing test result', [
                     'test_result_id' => $testResult->id,
-                    'error'          => $e->getMessage(),
-                    'file'           => $e->getFile(),
-                    'line'           => $e->getLine(),
+                    'error' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
                 ]);
             }
 
@@ -154,7 +155,7 @@ class RunConsultCallEligibility extends Command
         }
 
         Log::info('RunConsultCallEligibility: Completed', [
-            'total'    => $total,
+            'total' => $total,
             'counters' => $counters,
         ]);
 
@@ -190,20 +191,20 @@ class RunConsultCallEligibility extends Command
             return ['skipped_no_ref_id', null];
         }
 
-        $labCode  = $testResult->doctor->lab->code ?? null;
+        $labCode = $testResult->doctor->lab->code ?? null;
         $customer = $octopusApi->eligibleConsultCallByOutlet($testResult->ref_id, $labCode);
 
         if (! $customer) {
             Log::info('RunConsultCallEligibility: Not an eligible outlet customer or ref_id not found', [
                 'test_result_id' => $testResult->id,
-                'ref_id'         => $testResult->ref_id,
+                'ref_id' => $testResult->ref_id,
             ]);
 
             return ['no_customer', null];
         }
 
         $customerId = (int) $customer['customer_id'];
-        $outletId   = isset($customer['outlet_id']) ? (int) $customer['outlet_id'] : null;
+        $outletId = isset($customer['outlet_id']) ? (int) $customer['outlet_id'] : null;
 
         $existedBefore = ConsultCallDetails::where('test_result_id', $testResult->id)->exists();
 
@@ -214,9 +215,9 @@ class RunConsultCallEligibility extends Command
         if ($dryRun) {
             Log::info('RunConsultCallEligibility: DRY RUN — would enroll', [
                 'test_result_id' => $testResult->id,
-                'patient_id'     => $testResult->patient_id,
-                'customer_id'    => $customerId,
-                'outlet_id'      => $outletId,
+                'patient_id' => $testResult->patient_id,
+                'customer_id' => $customerId,
+                'outlet_id' => $outletId,
             ]);
 
             return ['eligible', $outletId];

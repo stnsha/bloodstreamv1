@@ -60,6 +60,16 @@ class Kernel extends ConsoleKernel
             ->environments(['production'])
             ->withoutOverlapping(30);
 
+        // Daily consult-call eligibility sweep — re-checks completed test results
+        // collected from the 1st of the current month through today, catching any
+        // patients whose eligibility gates only cleared after the original dispatch
+        // (see ConsultCallEligibilityService::checkAndCreate). Date range and batch
+        // pagination are handled inside the command itself.
+        $schedule->command('consult-call:daily-eligibility-sweep')
+            ->dailyAt('00:15')
+            ->environments(['production'])
+            ->withoutOverlapping(120);
+
         // Manual backfill only — do not schedule
         // php artisan testing:run-consult-eligibility --dry-run
         // php artisan testing:run-consult-eligibility --limit=100 --offset=0
