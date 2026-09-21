@@ -156,12 +156,12 @@ class SendToAIServer implements ShouldBeUnique, ShouldQueue
             if (isset($responseData)) {
                 // Check if AI server returned failure
                 if (isset($responseData['success']) && $responseData['success'] === false) {
-                    // Soft-delete the pending record — non-COMPLETED rows must stay hidden from
-                    // default queries (ai_reviews "only contains COMPLETED rows" from callers'
-                    // perspective), but a late webhook can still find and restore it via withTrashed()
+                    // Mark the pending record SUPERSEDED — non-COMPLETED rows must stay out of
+                    // default "only COMPLETED rows" queries, but a late webhook can still find
+                    // and complete it
                     AIReview::where('test_result_id', $this->testResultId)
                         ->where('processing_status', '!=', 'COMPLETED')
-                        ->delete();
+                        ->update(['processing_status' => 'SUPERSEDED']);
 
                     AIError::create([
                         'test_result_id' => $this->testResultId,
@@ -219,11 +219,11 @@ class SendToAIServer implements ShouldBeUnique, ShouldQueue
     {
         try {
             DB::transaction(function () use ($exception) {
-                // Soft-delete any non-COMPLETED record — hidden from default queries so callers
-                // still see "only COMPLETED rows", but recoverable if a late webhook arrives
+                // Mark any non-COMPLETED record SUPERSEDED — hidden from default "only COMPLETED
+                // rows" queries, but a late webhook can still find and complete it
                 AIReview::where('test_result_id', $this->testResultId)
                     ->where('processing_status', '!=', 'COMPLETED')
-                    ->delete();
+                    ->update(['processing_status' => 'SUPERSEDED']);
 
                 // Store error record for recovery
                 $this->storeError($exception);
@@ -244,11 +244,11 @@ class SendToAIServer implements ShouldBeUnique, ShouldQueue
     {
         try {
             DB::transaction(function () use ($e) {
-                // Soft-delete any non-COMPLETED record — hidden from default queries so callers
-                // still see "only COMPLETED rows", but recoverable if a late webhook arrives
+                // Mark any non-COMPLETED record SUPERSEDED — hidden from default "only COMPLETED
+                // rows" queries, but a late webhook can still find and complete it
                 AIReview::where('test_result_id', $this->testResultId)
                     ->where('processing_status', '!=', 'COMPLETED')
-                    ->delete();
+                    ->update(['processing_status' => 'SUPERSEDED']);
 
                 // Store error to ai_errors table for recovery
                 $this->storeError($e);

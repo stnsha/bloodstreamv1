@@ -37,6 +37,6 @@ class IncompleteTestResult extends Model
 
     public function aiReview(): BelongsTo
     {
-        return $this->belongsTo(AIReview::class, 'ai_review_id')->withTrashed();
+        return $this->belongsTo(AIReview::class, 'ai_review_id');
     }
 }

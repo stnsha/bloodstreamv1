@@ -142,6 +142,7 @@ Route::middleware(['api.auth', 'throttle:api'])->group(function () {
 
     Route::prefix('odb')->controller(IncompleteTestResultsController::class)->group(function () {
         Route::get('/incompleteTestResults', 'index')->name('odb.incompleteTestResults');
+        Route::get('/exportUnreviewedTestResults', 'exportUnreviewed')->name('odb.exportUnreviewedTestResults');
     });
 
     Route::prefix('nexus')->controller(IntegrationController::class)->group(function () {

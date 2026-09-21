@@ -13,11 +13,11 @@ use Throwable;
 class RequeueAIReviews extends Command
 {
     protected $signature = 'ai-review:requeue
-                            {ids? : Comma-separated test_result IDs to delete the existing AI review for and re-dispatch. Omit to use the hardcoded DEFAULT_IDS list.}
+                            {ids? : Comma-separated test_result IDs to mark the existing AI review STALE_AMENDED for and re-dispatch. Omit to use the hardcoded DEFAULT_IDS list.}
                             {--dry-run : Preview affected test results without making any changes}
                             {--force : Skip the confirmation prompt (required for unattended/scheduled runs)}';
 
-    protected $description = 'Soft-delete the current ai_reviews row for the given test_result IDs, reset is_reviewed to false, and re-dispatch SendToAIServer to generate a fresh review.';
+    protected $description = 'Mark the current ai_reviews row STALE_AMENDED for the given test_result IDs, reset is_reviewed to false, and re-dispatch SendToAIServer to generate a fresh review.';
 
     /**
      * test_result IDs where is_reviewed=1 but the active ai_reviews row was
@@ -80,7 +80,7 @@ class RequeueAIReviews extends Command
                 $id,
                 $testResult->lab_no,
                 $activeReview
-                    ? "WILL DELETE REVIEW (id={$activeReview->id}, status={$activeReview->processing_status}) AND REQUEUE"
+                    ? "WILL MARK STALE_AMENDED (id={$activeReview->id}, status={$activeReview->processing_status}) AND REQUEUE"
                     : 'WILL REQUEUE (no active review found)',
             ];
         }
@@ -101,7 +101,7 @@ class RequeueAIReviews extends Command
             return self::SUCCESS;
         }
 
-        if (! $force && ! $this->confirm("Delete existing AI review and re-queue {$eligibleCount} test result(s)?")) {
+        if (! $force && ! $this->confirm("Mark existing AI review STALE_AMENDED and re-queue {$eligibleCount} test result(s)?")) {
             $this->info('Operation cancelled.');
             Log::channel('ai-command')->info('RequeueAIReviews: cancelled by user');
 
@@ -130,7 +130,7 @@ class RequeueAIReviews extends Command
                 $requeued++;
                 $resultRows[] = [$id, 'REQUEUED', "lab_no={$testResult->lab_no}"];
 
-                Log::channel('ai-command')->info('RequeueAIReviews: review deleted and requeued', [
+                Log::channel('ai-command')->info('RequeueAIReviews: review marked stale and requeued', [
                     'test_result_id' => $id,
                     'lab_no' => $testResult->lab_no,
                 ]);

@@ -66,15 +66,15 @@ class AIResultRequest extends FormRequest
         $testResultId = $this->input('test_result_id');
 
         if ($testResultId) {
-            // Only delete non-COMPLETED reviews.
+            // Only mark non-COMPLETED reviews SUPERSEDED.
             // COMPLETED reviews represent a valid, previously accepted AI analysis and must be preserved.
             // The original code force-deleted ANY review unconditionally, which destroyed completed
             // reviews when the AI server sent a failure or non-DONE webhook (e.g. status != "DONE"),
             // leaving test_results.is_reviewed = 1 with no corresponding ai_reviews record.
-            // Soft-delete (not force-delete) so a late-arriving valid webhook can still restore it.
+            // SUPERSEDED (not deleted) so a late-arriving valid webhook can still find and complete it.
             AIReview::where('test_result_id', $testResultId)
                 ->where('processing_status', '!=', 'COMPLETED')
-                ->delete();
+                ->update(['processing_status' => 'SUPERSEDED']);
 
             AIError::create([
                 'test_result_id' => $testResultId,

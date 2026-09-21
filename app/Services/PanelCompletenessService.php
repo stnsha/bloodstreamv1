@@ -26,6 +26,17 @@ class PanelCompletenessService
     public const COMPLETE_PANEL_THRESHOLD = 8;
 
     /**
+     * When expected_panel_count is at least this many, a shortfall/excess of
+     * fewer than this many panels (either direction) is treated as noise in
+     * the expected count rather than genuinely missing/extra panels — the
+     * record is still marked complete even though actual_panel_count doesn't
+     * exactly meet or exceed expected_panel_count. Only applies once
+     * expected_panel_count itself reaches this size; a small expected count
+     * (e.g. 0-6) still requires actual_panel_count >= expected_panel_count.
+     */
+    public const NEAR_COMPLETE_DIFFERENCE_THRESHOLD = 7;
+
+    /**
      * Human-readable labels for the special-test formulas' raw
      * test_result_items inputs, used to build missing_details when
      * missingSpecialTestParameters() finds a gap. Platelets is handled
@@ -185,7 +196,9 @@ class PanelCompletenessService
         // same as any record whose expected count is set but exceeds what's
         // actually achievable.
         $meetsPanelThreshold = $actualPanelCount >= self::COMPLETE_PANEL_THRESHOLD
-            || ($expectedPanelCount > 0 && $actualPanelCount >= $expectedPanelCount);
+            || ($expectedPanelCount > 0 && $actualPanelCount >= $expectedPanelCount)
+            || ($expectedPanelCount >= self::NEAR_COMPLETE_DIFFERENCE_THRESHOLD
+                && abs($actualPanelCount - $expectedPanelCount) < self::NEAR_COMPLETE_DIFFERENCE_THRESHOLD);
 
         // profile_item_count (bloodTestItemCount.php) is a raw blood_test_item ROW
         // count and can over-count relative to the true number of distinct billed
@@ -209,21 +222,12 @@ class PanelCompletenessService
         }
 
         // A confirmed mismatch (backed by the reliable distinct package count)
-        // means a whole profile really is missing — the panel-count threshold
-        // below has no visibility into a profile that never arrived at all, so it
-        // must never be allowed to override this.
-        if ($confirmedMismatch) {
-            return [
-                'applicable' => true,
-                'is_complete' => false,
-                'expected_panel_count' => $expectedPanelCount,
-                'actual_panel_count' => $actualPanelCount,
-                'missing_panel_ids' => $missingPanelIds,
-                'invoice_item_count' => $invoiceItemCount,
-                'test_result_profiles_count' => $testResultProfilesCount,
-            ];
-        }
-
+        // usually means a whole profile is missing, but the lab can compile
+        // multiple billed profiles into a single delivered item_code group —
+        // so if actual_panel_count already meets/exceeds expected_panel_count
+        // (panel-count threshold), that's stronger evidence of real
+        // completeness than the invoice count and overrides the mismatch,
+        // same as any other effectiveMismatch case below.
         if ($effectiveMismatch && ! $meetsPanelThreshold) {
             return [
                 'applicable' => true,
@@ -433,25 +437,21 @@ class PanelCompletenessService
             $testResult->is_reviewed = false;
             $testResult->save();
 
-            // withTrashed() + latest id: a caller earlier in the same request (e.g.
-            // revertReviewForLateData()) may have already soft-deleted the current
-            // ai_reviews row and flipped is_reviewed to false on this same in-memory
-            // TestResult before recordIncomplete() ever ran. Looking this up with the
-            // default scope would find nothing, silently dropping the ai_review_id
-            // reference from the incomplete_test_results row forever -- undo() would
-            // then have no id to restore and the review is permanently orphaned.
+            // Latest id: a caller earlier in the same request (e.g.
+            // revertReviewForLateData()) may have already marked the current ai_reviews
+            // row STALE_AMENDED and flipped is_reviewed to false on this same in-memory
+            // TestResult before recordIncomplete() ever ran.
             // Deriving was_reviewed from the review's own processing_status (rather
             // than trusting $testResult->is_reviewed, which may already be stale)
             // keeps the snapshot correct regardless of call order.
-            $existingAiReview = AIReview::withTrashed()
-                ->where('test_result_id', $testResult->id)
+            $existingAiReview = AIReview::where('test_result_id', $testResult->id)
                 ->orderByDesc('id')
                 ->first();
 
             $wasReviewed = $existingAiReview && $existingAiReview->processing_status === 'COMPLETED';
 
-            if ($existingAiReview && ! $existingAiReview->trashed()) {
-                $existingAiReview->delete();
+            if ($existingAiReview && ! in_array($existingAiReview->processing_status, ['STALE_INCOMPLETE', 'STALE_AMENDED', 'SUPERSEDED'], true)) {
+                $existingAiReview->update(['processing_status' => 'STALE_INCOMPLETE']);
             }
 
             IncompleteTestResult::updateOrCreate(
@@ -764,13 +764,13 @@ class PanelCompletenessService
             $aiReviewRestored = false;
 
             if ($incompleteRecord->ai_review_id) {
-                $aiReviewRestored = (bool) AIReview::withTrashed()
-                    ->where('id', $incompleteRecord->ai_review_id)
-                    ->restore();
+                $aiReviewRestored = (bool) AIReview::where('id', $incompleteRecord->ai_review_id)
+                    ->where('processing_status', 'STALE_INCOMPLETE')
+                    ->update(['processing_status' => 'COMPLETED']);
             }
 
             if ($incompleteRecord->was_reviewed && !$aiReviewRestored) {
-                Log::warning('PanelCompletenessService: undo found was_reviewed=true but ai_reviews row could not be restored (missing/already hard-deleted), forcing is_reviewed=false', [
+                Log::warning('PanelCompletenessService: undo found was_reviewed=true but ai_reviews row could not be restored (missing/status changed since), forcing is_reviewed=false', [
                     'test_result_id' => $testResult->id,
                     'incomplete_test_result_id' => $incompleteRecord->id,
                     'ai_review_id' => $incompleteRecord->ai_review_id,
@@ -809,14 +809,15 @@ class PanelCompletenessService
      * Force a re-review after new or amended panel data arrives for a
      * TestResult that was already is_completed=true, is_reviewed=true --
      * either a corrected value, or a panel that missed the original
-     * completeness check and only showed up in a later delivery. Soft-
-     * deletes the current ai_reviews row (SendToAIServer::handle() will
-     * create a fresh PENDING row on redispatch via updateOrCreate(), same as
-     * the incomplete-panel revert path in recordIncomplete()) and flips
-     * is_reviewed back to false so the caller's completed-but-not-reviewed
-     * gate lets it through to TestResultCompletionDispatcher again.
-     * is_completed is left untouched -- the record is still complete, only
-     * its prior review is now stale.
+     * completeness check and only showed up in a later delivery. Marks
+     * the current ai_reviews row STALE_AMENDED (SendToAIServer::handle()
+     * will overwrite it with a fresh PENDING row on redispatch via
+     * updateOrCreate(), same as the incomplete-panel revert path in
+     * recordIncomplete()) and flips is_reviewed back to false so the
+     * caller's completed-but-not-reviewed gate lets it through to
+     * TestResultCompletionDispatcher again. is_completed is left
+     * untouched -- the record is still complete, only its prior review
+     * is now stale.
      */
     public function revertReviewForLateData(TestResult $testResult): void
     {
@@ -831,11 +832,11 @@ class PanelCompletenessService
             $testResult->ai_review_released_at = null;
             $testResult->save();
 
-            AIReview::where('test_result_id', $testResult->id)->delete();
+            AIReview::where('test_result_id', $testResult->id)->update(['processing_status' => 'STALE_AMENDED']);
 
             DB::commit();
 
-            Log::info('PanelCompletenessService: new or amended data after review detected, is_reviewed reverted, ai_review soft-deleted and hold state reset', [
+            Log::info('PanelCompletenessService: new or amended data after review detected, is_reviewed reverted, ai_review marked stale and hold state reset', [
                 'test_result_id' => $testResult->id,
             ]);
         } catch (Throwable $e) {

@@ -22,7 +22,7 @@ class FixNullSpecialTestsAndResetReviews extends Command
                             {--prioritize-ref-id : Process records with a non-null ref_id first}
                             {--dry-run : Preview affected records without making any changes}';
 
-    protected $description = 'Recalculate null special tests, reset is_reviewed=false, and soft-delete AI reviews for affected records in a collected_date range';
+    protected $description = 'Recalculate null special tests, reset is_reviewed=false, and mark AI reviews STALE_AMENDED for affected records in a collected_date range';
 
     public function handle(): int
     {
@@ -138,7 +138,7 @@ class FixNullSpecialTestsAndResetReviews extends Command
         }
 
         $this->line('');
-        if (!$this->confirm("Proceed with fixing {$count} record(s)? This will recalculate special tests, set is_reviewed=false, and soft-delete AI reviews.")) {
+        if (!$this->confirm("Proceed with fixing {$count} record(s)? This will recalculate special tests, set is_reviewed=false, and mark AI reviews STALE_AMENDED.")) {
             $this->info('Operation cancelled.');
             Log::channel('ai-command')->info('FixNullSpecialTestsAndResetReviews: cancelled by user');
             return Command::SUCCESS;
@@ -164,7 +164,7 @@ class FixNullSpecialTestsAndResetReviews extends Command
 
                 $testResult->update(['is_reviewed' => false]);
 
-                AIReview::where('test_result_id', $testResult->id)->delete();
+                AIReview::where('test_result_id', $testResult->id)->update(['processing_status' => 'STALE_AMENDED']);
 
                 DB::commit();
 

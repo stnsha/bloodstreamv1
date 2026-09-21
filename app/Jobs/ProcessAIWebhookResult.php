@@ -90,22 +90,19 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
 
             // Update ai_reviews and test_result in transaction
             DB::transaction(function () use ($testResultId, $aiAnalysis, $htmlReview, $idempotencyKey, $compiler) {
-                // Get most recent AIReview record for this test result (including soft-deleted)
+                // Get most recent AIReview record for this test result
                 $aiReview = AIReview::where('test_result_id', $testResultId)
-                    ->withTrashed()
                     ->orderBy('id', 'desc')
                     ->first();
 
-                if ($aiReview && $aiReview->trashed()) {
-                    // Row was soft-deleted after an earlier local failure, but the AI service had
-                    // already accepted the request and is now completing it. Restore it so its
-                    // original compiled_results (untouched by the soft delete) is kept intact.
-                    Log::channel('webhook')->info('Restoring soft-deleted AI review record for webhook', [
+                if ($aiReview && $aiReview->processing_status === 'SUPERSEDED') {
+                    // Row was marked SUPERSEDED after an earlier local failure, but the AI service
+                    // had already accepted the request and is now completing it. processing_status
+                    // gets overwritten to COMPLETED below; original compiled_results is untouched.
+                    Log::channel('webhook')->info('Completing SUPERSEDED AI review record for webhook', [
                         'test_result_id' => $testResultId,
                         'ai_review_id' => $aiReview->id,
                     ]);
-
-                    $aiReview->deleted_at = null;
                 } elseif (! $aiReview) {
                     // No prior record at all (e.g. manual cleanup) — recompile compiled_results
                     // so the NOT NULL column is still satisfied with real data.
@@ -198,13 +195,13 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
     }
 
     /**
-     * Handle error by removing any non-COMPLETED ai_review record and creating an ai_errors entry.
+     * Handle error by resolving any non-COMPLETED ai_review record and creating an ai_errors entry.
      *
      * If the webhook itself reported a confirmed failure (processing_status FAILED / non-DONE),
      * the AI service has already given its final verdict — no future webhook will complete this
-     * request, so the record is force-deleted. For any other error (our own bug, DB failure, etc.)
-     * the AI service may still complete the request asynchronously, so the record is soft-deleted
-     * instead, allowing a later webhook to find and restore it.
+     * request, so the record is permanently deleted. For any other error (our own bug, DB failure,
+     * etc.) the AI service may still complete the request asynchronously, so the record is marked
+     * SUPERSEDED instead, allowing a later webhook to find and complete it.
      */
     protected function handleError(int $testResultId, Exception $e): void
     {
@@ -218,7 +215,7 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
                 if ($isConfirmedAiFailure) {
                     $query->forceDelete();
                 } else {
-                    $query->delete();
+                    $query->update(['processing_status' => 'SUPERSEDED']);
                 }
 
                 // Create error record for recovery
