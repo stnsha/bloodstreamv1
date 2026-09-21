@@ -70,6 +70,23 @@ class Kernel extends ConsoleKernel
             ->environments(['production'])
             ->withoutOverlapping(120);
 
+        // Auto-retry failed_jobs entries for the allowlisted job classes (see
+        // AutoRetryFailedJobs::RETRYABLE_JOB_CLASSES) — capped per test_result_id
+        // to avoid endlessly retrying a permanently-broken job. Anything not
+        // allowlisted, or past its attempt cap, is left for manual review via
+        // `queue:failed` and eventually swept up by the prune below.
+        $schedule->command('queue:auto-retry-failed --hours=24 --limit=100 --max-attempts=3')
+            ->hourlyAt(50)
+            ->environments(['production'])
+            ->withoutOverlapping(30);
+
+        // Prune old rows from the failed_jobs table so it doesn't grow unbounded.
+        // Runs after auto-retry — anything still there past the retention window
+        // is either not allowlisted for auto-retry or exhausted its attempt cap.
+        $schedule->command('queue:prune-failed --hours=720')
+            ->dailyAt('01:00')
+            ->environments(['production']);
+
         // Manual backfill only — do not schedule
         // php artisan testing:run-consult-eligibility --dry-run
         // php artisan testing:run-consult-eligibility --limit=100 --offset=0
