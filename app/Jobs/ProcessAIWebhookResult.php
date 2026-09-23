@@ -23,9 +23,11 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
 
     public $timeout = 60;  // Fast DB operation
 
-    public $tries = 3;     // Allow retries - webhook acknowledgment is separate from processing
-
-    public $backoff = [60, 300, 900];  // Exponential backoff: 1 min, 5 min, 15 min
+    public $tries = 1;     // Single attempt - no job-level retry. A confirmed AI
+                            // failure webhook throws the same exception on every
+                            // retry anyway (fixed payload), so retrying in-job
+                            // gains nothing. handleError() records the outcome and
+                            // the scheduled sweep/retry commands own recovery from here.
 
     public $uniqueFor = 3600;  // Lock for 1 hour
 
@@ -55,7 +57,8 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
 
     /**
      * Execute the job.
-     * Safe to retry - includes idempotency checks and non-destructive error handling
+     * Single attempt - idempotency checks guard against being dispatched twice
+     * for the same webhook, but a failure here is not retried in-job
      */
     public function handle(ReviewHtmlGenerator $htmlGenerator, TestResultCompilerService $compiler): void
     {
@@ -167,11 +170,10 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
                 'file' => $e->getFile().':'.$e->getLine(),
             ]);
 
-            // Update ai_reviews status to failed and store error
+            // Update ai_reviews status to failed and store error. Do NOT rethrow -
+            // this job must complete "successfully" from Laravel's point of view
+            // so no failed_jobs row is created.
             $this->handleError($testResultId, $e);
-
-            // Re-throw to allow retries with backoff
-            throw $e;
         }
     }
 
