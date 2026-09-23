@@ -19,10 +19,10 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         // Phase 2A: Find orphaned test results that missed AI review and re-dispatch them
-        $schedule->command('ai:reconcile-reviews --hours=6 --limit=200')
-            ->hourlyAt(5)
-            ->environments(['production'])
-            ->withoutOverlapping(30);
+        // $schedule->command('ai:reconcile-reviews --hours=6 --limit=200')
+        //     ->hourlyAt(5)
+        //     ->environments(['production'])
+        //     ->withoutOverlapping(30);
 
         // Phase 2B: Retry test results whose ai_reviews row is SUPERSEDED (a
         // previous send or webhook failed, or the sweep below gave up on it) —
@@ -33,20 +33,20 @@ class Kernel extends ConsoleKernel
         //     ->withoutOverlapping(30);
 
         // Phase 2C: Dispatch any unreviewed results to the AI server
-        $schedule->command('ai:dispatch-unreviewed-async')
-            ->hourly()
-            ->environments(['production'])
-            ->withoutOverlapping(18);
+        // $schedule->command('ai:dispatch-unreviewed-async')
+        //     ->hourly()
+        //     ->environments(['production'])
+        //     ->withoutOverlapping(18);
 
         // Give up on ai_reviews rows stuck PENDING past the staleness threshold
         // (SendToAIServer sent successfully but the AI server never called the
         // webhook back) - marks SUPERSEDED + records in ai_errors so the retry
         // commands above pick them back up. Runs every 10 min to match the
         // SweepStalePendingReviews::STALE_MINUTES threshold.
-        $schedule->command('ai:sweep-stale-pending')
-            ->everyTenMinutes()
-            ->environments(['production'])
-            ->withoutOverlapping(8);
+        // $schedule->command('ai:sweep-stale-pending')
+        //     ->everyTenMinutes()
+        //     ->environments(['production'])
+        //     ->withoutOverlapping(8);
 
         // Dynamic CSV export queue worker — processes jobs from the 'exports' queue, exits when empty
         $schedule->command('queue:work --queue=exports --stop-when-empty --timeout=3600 --tries=1')
@@ -87,17 +87,17 @@ class Kernel extends ConsoleKernel
         // to avoid endlessly retrying a permanently-broken job. Anything not
         // allowlisted, or past its attempt cap, is left for manual review via
         // `queue:failed` and eventually swept up by the prune below.
-        $schedule->command('queue:auto-retry-failed --hours=24 --limit=100 --max-attempts=3')
-            ->hourlyAt(50)
-            ->environments(['production'])
-            ->withoutOverlapping(30);
+        // $schedule->command('queue:auto-retry-failed --hours=24 --limit=100 --max-attempts=3')
+        //     ->hourlyAt(50)
+        //     ->environments(['production'])
+        //     ->withoutOverlapping(30);
 
         // Prune old rows from the failed_jobs table so it doesn't grow unbounded.
         // Runs after auto-retry — anything still there past the retention window
         // is either not allowlisted for auto-retry or exhausted its attempt cap.
-        $schedule->command('queue:prune-failed --hours=720')
-            ->dailyAt('01:00')
-            ->environments(['production']);
+        // $schedule->command('queue:prune-failed --hours=720')
+        //     ->dailyAt('01:00')
+        //     ->environments(['production']);
 
         // Manual backfill only — do not schedule
         // php artisan testing:run-consult-eligibility --dry-run
