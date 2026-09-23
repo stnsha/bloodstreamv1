@@ -37,6 +37,18 @@ class PanelCompletenessService
     public const NEAR_COMPLETE_DIFFERENCE_THRESHOLD = 7;
 
     /**
+     * panel_profile_ids that must strictly meet their own panel_profiles_count
+     * - no NEAR_COMPLETE_DIFFERENCE_THRESHOLD tolerance and no
+     * COMPLETE_PANEL_THRESHOLD ceiling, just actual_panel_count >=
+     * expected_panel_count. Added after test_result_id 55557 (linked to
+     * panel_profile_id 8, expected_panel_count=8) was marked complete with
+     * far fewer than 8 actual panels — expected=8 sits close enough to
+     * COMPLETE_PANEL_THRESHOLD that the tolerance window (actual within 6 of
+     * expected, i.e. as low as 2) covered almost its entire practical range.
+     */
+    public const STRICT_PANEL_PROFILE_IDS = [8];
+
+    /**
      * Human-readable labels for the special-test formulas' raw
      * test_result_items inputs, used to build missing_details when
      * missingSpecialTestParameters() finds a gap. Platelets is handled
@@ -190,15 +202,23 @@ class PanelCompletenessService
         $invoiceItemCount = $breakdown['profile_item_count'] ?? null;
         $invoiceMismatch = $invoiceItemCount !== null && $invoiceItemCount !== $testResultProfilesCount;
 
-        // expected_panel_count = 0 means panel_profiles_count has no row for this
-        // profile yet (not manually populated) — on its own that must not trivially
-        // pass, so it only counts via the >= COMPLETE_PANEL_THRESHOLD ceiling below,
-        // same as any record whose expected count is set but exceeds what's
-        // actually achievable.
-        $meetsPanelThreshold = $actualPanelCount >= self::COMPLETE_PANEL_THRESHOLD
-            || ($expectedPanelCount > 0 && $actualPanelCount >= $expectedPanelCount)
-            || ($expectedPanelCount >= self::NEAR_COMPLETE_DIFFERENCE_THRESHOLD
-                && abs($actualPanelCount - $expectedPanelCount) < self::NEAR_COMPLETE_DIFFERENCE_THRESHOLD);
+        $requiresStrictPanelCount = $panelProfileIds->intersect(self::STRICT_PANEL_PROFILE_IDS)->isNotEmpty();
+
+        if ($requiresStrictPanelCount) {
+            // No tolerance, no ceiling override - must actually reach its own
+            // expected_panel_count.
+            $meetsPanelThreshold = $expectedPanelCount > 0 && $actualPanelCount >= $expectedPanelCount;
+        } else {
+            // expected_panel_count = 0 means panel_profiles_count has no row for this
+            // profile yet (not manually populated) — on its own that must not trivially
+            // pass, so it only counts via the >= COMPLETE_PANEL_THRESHOLD ceiling below,
+            // same as any record whose expected count is set but exceeds what's
+            // actually achievable.
+            $meetsPanelThreshold = $actualPanelCount >= self::COMPLETE_PANEL_THRESHOLD
+                || ($expectedPanelCount > 0 && $actualPanelCount >= $expectedPanelCount)
+                || ($expectedPanelCount >= self::NEAR_COMPLETE_DIFFERENCE_THRESHOLD
+                    && abs($actualPanelCount - $expectedPanelCount) < self::NEAR_COMPLETE_DIFFERENCE_THRESHOLD);
+        }
 
         // profile_item_count (bloodTestItemCount.php) is a raw blood_test_item ROW
         // count and can over-count relative to the true number of distinct billed

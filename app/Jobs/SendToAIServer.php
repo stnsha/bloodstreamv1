@@ -104,7 +104,7 @@ class SendToAIServer implements ShouldBeUnique, ShouldQueue
                 return;
             }
 
-            // IDEMPOTENCY CHECK: Skip only if already COMPLETED
+            // IDEMPOTENCY CHECK: Skip if already COMPLETED
             $existingReview = AIReview::where('test_result_id', $this->testResultId)
                 ->where('processing_status', 'COMPLETED')
                 ->first();
@@ -112,6 +112,26 @@ class SendToAIServer implements ShouldBeUnique, ShouldQueue
             if ($existingReview) {
                 Log::channel('performance')->info('SendToAIServer: AI review already completed, skipping', [
                     'test_result_id' => $this->testResultId,
+                ]);
+
+                return;
+            }
+
+            // IN-FLIGHT CHECK: Skip if a send is already out awaiting its webhook.
+            // ProcessPanelResults calls TestResultCompletionDispatcher on every
+            // incremental delivery batch while is_reviewed is still false (which
+            // stays false until the webhook completes it) - without this, a
+            // slow-to-respond AI server (queue congestion) means every later batch
+            // re-triggers a fresh send for the same test result before the first
+            // one's webhook ever comes back.
+            $pendingReview = AIReview::where('test_result_id', $this->testResultId)
+                ->where('processing_status', 'PENDING')
+                ->first();
+
+            if ($pendingReview) {
+                Log::channel('performance')->info('SendToAIServer: AI review already PENDING (in flight), skipping', [
+                    'test_result_id' => $this->testResultId,
+                    'ai_review_id' => $pendingReview->id,
                 ]);
 
                 return;
