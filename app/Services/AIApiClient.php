@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\AIReview;
+use App\Models\TestResult;
 use Exception;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -115,8 +117,22 @@ class AIApiClient
         $maxRetries = 3;
         $attempt = 0;
         $lastException = null;
+        $testResultId = $payload['test_result_id'] ?? null;
 
         while ($attempt < $maxRetries) {
+            // Before retrying, re-check current status: an earlier attempt may have
+            // already reached the AI server and completed, even though we timed out
+            // or errored waiting on the response. Resending would create a duplicate
+            // job on the AI server side (it has no dedupe by test_result_id).
+            if ($attempt > 0 && $testResultId !== null && $this->alreadyProcessed((int) $testResultId)) {
+                Log::channel($this->logChannel)->info('AI async send: skipping retry, already reviewed/completed', [
+                    'test_result_id' => $testResultId,
+                    'attempt' => $attempt + 1,
+                ]);
+
+                return ['success' => true, 'skipped' => true, 'reason' => 'already_processed'];
+            }
+
             try {
                 $response = Http::timeout(30)
                     ->withToken($token)
@@ -185,5 +201,23 @@ class AIApiClient
 
         // Should never reach here, but safety fallback
         throw $lastException ?? new RuntimeException("AI async send failed unexpectedly");
+    }
+
+    /**
+     * Check current status before retrying an async send.
+     * True if the test result is already reviewed, or an ai_reviews record
+     * already reached COMPLETED - both mean an earlier attempt got through.
+     */
+    protected function alreadyProcessed(int $testResultId): bool
+    {
+        $testResult = TestResult::find($testResultId);
+
+        if ($testResult && $testResult->is_reviewed) {
+            return true;
+        }
+
+        return AIReview::where('test_result_id', $testResultId)
+            ->where('processing_status', 'COMPLETED')
+            ->exists();
     }
 }

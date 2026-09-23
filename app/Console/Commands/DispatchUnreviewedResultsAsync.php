@@ -7,6 +7,7 @@ use App\Models\AIReview;
 use App\Models\TestResult;
 use Exception;
 use Illuminate\Console\Command;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -34,6 +35,17 @@ class DispatchUnreviewedResultsAsync extends Command
      * @var int
      */
     public $timeout = 120;
+
+    /**
+     * How long a non-COMPLETED ai_reviews row is treated as still in flight and
+     * left alone. SendToAIServer only flips a PENDING row to SUPERSEDED when the
+     * job itself errors or exhausts retries - if the AI server accepts the
+     * request but never calls the webhook back, nothing ever updates the row, so
+     * age is the only signal we have that it's stuck rather than processing.
+     *
+     * @var int
+     */
+    protected const PENDING_STALE_MINUTES = 30;
 
     /**
      * Cache lock key to prevent concurrent execution
@@ -99,13 +111,20 @@ class DispatchUnreviewedResultsAsync extends Command
             'dry_run' => $this->option('dry-run')
         ]);
 
-        // Check if AI server queue is already saturated
-        $queuedCount = AIReview::where('processing_status', 'QUEUED')->count();
+        // Check if AI server queue is already saturated. Counts PENDING rather than
+        // QUEUED - nothing in the send/webhook flow ever writes 'QUEUED', so that
+        // count was always 0 and this guard never actually fired. PENDING (sent,
+        // awaiting webhook) is the real in-flight state; only "fresh" ones count,
+        // since a PENDING row past the staleness window is presumed dead already
+        // and shouldn't hold up new dispatches.
+        $queuedCount = AIReview::where('processing_status', 'PENDING')
+            ->where('updated_at', '>=', $this->staleThreshold())
+            ->count();
 
         if ($queuedCount > 10) {
-            $this->info("Skipping dispatch: {$queuedCount} reviews already QUEUED (threshold: 10).");
+            $this->info("Skipping dispatch: {$queuedCount} reviews already PENDING (threshold: 10).");
             Log::channel('ai-command')->info('Dispatch skipped - AI queue saturated', [
-                'queued_count' => $queuedCount,
+                'pending_count' => $queuedCount,
                 'threshold' => 10,
             ]);
             return Command::SUCCESS;
@@ -181,15 +200,20 @@ class DispatchUnreviewedResultsAsync extends Command
      */
     protected function fetchUnreviewedIds(): array
     {
-        return DB::transaction(function () {
+        $staleThreshold = $this->staleThreshold();
+
+        return DB::transaction(function () use ($staleThreshold) {
             return TestResult::where('is_completed', true)
                 ->where('is_reviewed', false)
-                ->whereNotExists(function ($query) {
+                ->whereNotExists(function ($query) use ($staleThreshold) {
                     $query->select(DB::raw(1))
                         ->from('ai_reviews')
                         ->whereColumn('ai_reviews.test_result_id', 'test_results.id')
-                        ->where('ai_reviews.processing_status', 'COMPLETED')
-                        ->whereNull('ai_reviews.deleted_at');
+                        ->whereNull('ai_reviews.deleted_at')
+                        ->where(function ($q) use ($staleThreshold) {
+                            $q->where('ai_reviews.processing_status', 'COMPLETED')
+                                ->orWhere('ai_reviews.updated_at', '>=', $staleThreshold);
+                        });
                 })
                 ->orderBy('id', 'desc')
                 ->limit(10)
@@ -197,6 +221,15 @@ class DispatchUnreviewedResultsAsync extends Command
                 ->pluck('id')
                 ->toArray();
         });
+    }
+
+    /**
+     * Cutoff before which a non-COMPLETED ai_reviews row is no longer treated
+     * as in flight.
+     */
+    protected function staleThreshold(): Carbon
+    {
+        return now()->subMinutes(self::PENDING_STALE_MINUTES);
     }
 
     /**

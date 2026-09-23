@@ -25,6 +25,17 @@ class ReconcileAIReviews extends Command
     protected $description = 'Find orphaned test results (PDF received but not reviewed) and dispatch AI review jobs';
 
     /**
+     * How long a non-COMPLETED ai_reviews row is treated as still in flight and
+     * left alone. SendToAIServer only flips a PENDING row to SUPERSEDED when the
+     * job itself errors or exhausts retries - if the AI server accepts the
+     * request but never calls the webhook back, nothing ever updates the row, so
+     * age is the only signal we have that it's stuck rather than processing.
+     *
+     * @var int
+     */
+    protected const PENDING_STALE_MINUTES = 30;
+
+    /**
      * Execute the console command.
      */
     public function handle(): int
@@ -38,13 +49,21 @@ class ReconcileAIReviews extends Command
 
         try {
             // Find test results that are completed but have no COMPLETED ai_review.
-            // Non-COMPLETED records (PENDING/QUEUED/FAILED) are treated as absent
-            // because they are cleaned up by the job on failure.
+            // A non-COMPLETED record younger than PENDING_STALE_MINUTES is treated
+            // as still in flight and left alone - only COMPLETED rows, or
+            // non-COMPLETED rows old enough to be considered stuck (the AI server
+            // accepted the request but never called the webhook back), count as
+            // "orphaned" here.
+            $staleThreshold = now()->subMinutes(self::PENDING_STALE_MINUTES);
+
             $orphanedResults = TestResult::where('is_completed', true)
                 ->where('is_reviewed', false)
                 ->where('created_at', '>=', now()->subHours($hours))
-                ->whereDoesntHave('aiReview', function ($query) {
-                    $query->where('processing_status', 'COMPLETED');
+                ->whereDoesntHave('aiReview', function ($query) use ($staleThreshold) {
+                    $query->where(function ($q) use ($staleThreshold) {
+                        $q->where('processing_status', 'COMPLETED')
+                            ->orWhere('updated_at', '>=', $staleThreshold);
+                    });
                 })
                 ->orderBy('collected_date', 'desc')
                 ->limit($limit)

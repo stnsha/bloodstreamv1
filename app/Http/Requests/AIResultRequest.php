@@ -7,6 +7,7 @@ use App\Models\AIReview;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class AIResultRequest extends FormRequest
@@ -26,16 +27,32 @@ class AIResultRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
+        $base = [
             'success' => ['required', 'boolean'],
-            'status' => ['required', 'string', 'in:DONE'],
+            'status' => ['required', 'string', Rule::in(['DONE', 'ERROR'])],
             'test_result_id' => ['required', 'integer'],
 
             'data' => ['required', 'array'],
             'data.ai_analysis' => ['required', 'array'],
-
             'data.ai_analysis.success' => ['required', 'boolean'],
             'data.ai_analysis.status' => ['required', 'integer'],
+        ];
+
+        // status: ERROR - AI server reporting the analysis itself failed (e.g. LLM
+        // returned empty/incomplete output). No `answer` payload to validate; the
+        // failure reason lives in error/details instead. Handled downstream by
+        // ProcessAIWebhookResult::isConfirmedFailureWebhook(), which force-deletes
+        // the non-COMPLETED ai_reviews row so the result is picked up for a clean retry.
+        if ($this->input('status') === 'ERROR') {
+            return array_merge($base, [
+                'data.ai_analysis.error' => ['required', 'string'],
+                'data.ai_analysis.details' => ['nullable', 'string'],
+                'data.ai_analysis.raw_output_preview' => ['nullable', 'string'],
+            ]);
+        }
+
+        // status: DONE - successful analysis payload.
+        return array_merge($base, [
             'data.ai_analysis.answer' => ['required', 'array'],
 
             // section_a1: array of objects
@@ -58,7 +75,7 @@ class AIResultRequest extends FormRequest
 
             // section_c: sometimes empty string
             'data.ai_analysis.answer.section_c' => ['nullable'],
-        ];
+        ]);
     }
 
     protected function failedValidation(Validator $validator): void
