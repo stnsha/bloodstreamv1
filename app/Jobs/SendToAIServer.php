@@ -27,9 +27,10 @@ class SendToAIServer implements ShouldBeUnique, ShouldQueue
 
     public $timeout = 120;  // 120 seconds for AI service communication
 
-    public $tries = 6;      // Retry up to 6 times on failure
-
-    public $backoff = [120, 300, 600, 900, 1200, 1800];  // 2min, 5min, 10min, 15min, 20min, 30min
+    public $tries = 1;      // Single attempt - no job-level retry. A failure is
+                             // recorded (ai_errors) and left for the scheduled
+                             // sweep/retry commands to pick back up, rather than
+                             // retrying inside this job.
 
     public $testResultId;
 
@@ -55,7 +56,8 @@ class SendToAIServer implements ShouldBeUnique, ShouldQueue
 
     /**
      * Execute the job.
-     * Safe to retry - includes idempotency checks and non-destructive error handling
+     * Single attempt - idempotency checks guard against being dispatched twice
+     * for the same test result, but a failure here is not retried in-job
      */
     public function handle(
         TestResultCompilerService $compiler,
@@ -188,26 +190,11 @@ class SendToAIServer implements ShouldBeUnique, ShouldQueue
                 ]);
             }
         } catch (Exception $e) {
-            // Detect 429/QUEUE_FULL: release back to queue without polluting ai_errors
-            if ($this->isQueueFullError($e) && $this->attempts() < $this->tries) {
-                $delay = $this->backoff[$this->attempts() - 1] ?? end($this->backoff);
-
-                Log::channel('job')->warning('SendToAIServer: AI queue full, releasing for retry', [
-                    'test_result_id' => $this->testResultId,
-                    'attempt' => $this->attempts(),
-                    'max_tries' => $this->tries,
-                    'retry_delay_seconds' => $delay,
-                ]);
-
-                $this->release($delay);
-
-                return;
-            }
-
-            // Non-429 errors or final 429 attempt: record error and re-throw
+            // Single attempt: record the failure and stop. Do NOT rethrow - this
+            // job must complete "successfully" from Laravel's point of view so no
+            // failed_jobs row is created (retry decisions live in ai_reviews/
+            // ai_errors, not in the queue's own failure bookkeeping).
             $this->handleError($e);
-
-            throw $e;
         }
     }
 
@@ -300,17 +287,5 @@ class SendToAIServer implements ShouldBeUnique, ShouldQueue
                 'storage_error' => $dbError->getMessage(),
             ]);
         }
-    }
-
-    /**
-     * Check if the exception indicates a 429/QUEUE_FULL response from the AI server
-     */
-    protected function isQueueFullError(Throwable $e): bool
-    {
-        $message = $e->getMessage();
-
-        return str_contains($message, '429') && (
-            str_contains($message, 'QUEUE_FULL') || str_contains($message, 'Queue is full')
-        );
     }
 }

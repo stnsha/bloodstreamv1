@@ -2,9 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\AIReview;
-use App\Models\TestResult;
-use Exception;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -103,121 +100,35 @@ class AIApiClient
     }
 
     /**
-     * Send test result data to AI server asynchronously (webhook-based)
-     * Retries up to 3 times with exponential backoff on non-429 failures.
-     * On 429 (QUEUE_FULL), throws immediately so job-level retry handles it.
+     * Send test result data to AI server asynchronously (webhook-based).
+     * Single attempt, no retry - a failure here is a real outcome, not a
+     * transient condition to paper over. The caller (SendToAIServer) records
+     * it and leaves the retry decision to the scheduled sweep/retry commands.
      *
      * @param array $payload The payload to send (includes test_result_id, source, and compiled data)
      * @param string $token The authentication token
      * @return array The AI server response data (status)
-     * @throws RuntimeException If the API call fails after all retries or on 429
+     * @throws RuntimeException If the API call fails
      */
     public function sendAsync(array $payload, string $token): array
     {
-        $maxRetries = 3;
-        $attempt = 0;
-        $lastException = null;
-        $testResultId = $payload['test_result_id'] ?? null;
+        $response = Http::timeout(30)
+            ->withToken($token)
+            ->post(config('credentials.ai_review.analysis'), $payload);
 
-        while ($attempt < $maxRetries) {
-            // Before retrying, re-check current status: an earlier attempt may have
-            // already reached the AI server and completed, even though we timed out
-            // or errored waiting on the response. Resending would create a duplicate
-            // job on the AI server side (it has no dedupe by test_result_id).
-            if ($attempt > 0 && $testResultId !== null && $this->alreadyProcessed((int) $testResultId)) {
-                Log::channel($this->logChannel)->info('AI async send: skipping retry, already reviewed/completed', [
-                    'test_result_id' => $testResultId,
-                    'attempt' => $attempt + 1,
-                ]);
+        if ($response->failed()) {
+            $responseBody = $response->body();
 
-                return ['success' => true, 'skipped' => true, 'reason' => 'already_processed'];
-            }
+            Log::channel($this->logChannel)->warning('AI async send failed', [
+                'status' => $response->status(),
+                'response_body' => $responseBody,
+            ]);
 
-            try {
-                $response = Http::timeout(30)
-                    ->withToken($token)
-                    ->post(config('credentials.ai_review.analysis'), $payload);
-
-                if ($response->failed()) {
-                    $responseBody = $response->body();
-
-                    // 429/QUEUE_FULL: throw immediately, let job-level retry handle it
-                    if ($response->status() === 429) {
-                        Log::channel($this->logChannel)->warning('AI server queue full (429), skipping HTTP retries', [
-                            'attempt' => $attempt + 1,
-                            'response_body' => $responseBody,
-                        ]);
-
-                        throw new RuntimeException(
-                            "AI server returned 429 QUEUE_FULL. Response: " . $responseBody
-                        );
-                    }
-
-                    $attempt++;
-
-                    Log::channel($this->logChannel)->warning('AI async send failed, may retry', [
-                        'attempt' => $attempt,
-                        'status' => $response->status(),
-                        'will_retry' => $attempt < $maxRetries
-                    ]);
-
-                    if ($attempt < $maxRetries) {
-                        // Exponential backoff: 1s, 2s, 4s
-                        $backoffSeconds = (2 ** ($attempt - 1));
-                        sleep($backoffSeconds);
-                        continue;
-                    }
-
-                    throw new RuntimeException(
-                        "Failed to send data to AI server after {$maxRetries} attempts - status {$response->status()}. Response: " . $responseBody
-                    );
-                }
-
-                // Success
-                return $response->json();
-
-            } catch (Exception $e) {
-                $attempt++;
-                $lastException = $e;
-
-                if ($attempt < $maxRetries) {
-                    Log::channel($this->logChannel)->warning('AI async send exception, retrying', [
-                        'attempt' => $attempt,
-                        'error' => $e->getMessage()
-                    ]);
-                    // Exponential backoff
-                    $backoffSeconds = (2 ** ($attempt - 1));
-                    sleep($backoffSeconds);
-                    continue;
-                }
-
-                throw new RuntimeException(
-                    "Failed to send data to AI server after {$maxRetries} attempts: " . $e->getMessage(),
-                    0,
-                    $e
-                );
-            }
+            throw new RuntimeException(
+                "Failed to send data to AI server - status {$response->status()}. Response: " . $responseBody
+            );
         }
 
-        // Should never reach here, but safety fallback
-        throw $lastException ?? new RuntimeException("AI async send failed unexpectedly");
-    }
-
-    /**
-     * Check current status before retrying an async send.
-     * True if the test result is already reviewed, or an ai_reviews record
-     * already reached COMPLETED - both mean an earlier attempt got through.
-     */
-    protected function alreadyProcessed(int $testResultId): bool
-    {
-        $testResult = TestResult::find($testResultId);
-
-        if ($testResult && $testResult->is_reviewed) {
-            return true;
-        }
-
-        return AIReview::where('test_result_id', $testResultId)
-            ->where('processing_status', 'COMPLETED')
-            ->exists();
+        return $response->json();
     }
 }

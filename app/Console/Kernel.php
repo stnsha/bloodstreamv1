@@ -24,7 +24,9 @@ class Kernel extends ConsoleKernel
             ->environments(['production'])
             ->withoutOverlapping(30);
 
-        // Phase 2B: Retry failed AI reviews from the ai_errors table
+        // Phase 2B: Retry test results whose ai_reviews row is SUPERSEDED (a
+        // previous send or webhook failed, or the sweep below gave up on it) —
+        // no attempt cap, keeps retrying every run until it completes.
         $schedule->command('ai:retry-failed-reviews --hours=12 --limit=50')
             ->hourlyAt(20)
             ->environments(['production'])
@@ -35,6 +37,16 @@ class Kernel extends ConsoleKernel
             ->hourly()
             ->environments(['production'])
             ->withoutOverlapping(18);
+
+        // Give up on ai_reviews rows stuck PENDING past the staleness threshold
+        // (SendToAIServer sent successfully but the AI server never called the
+        // webhook back) - marks SUPERSEDED + records in ai_errors so the retry
+        // commands above pick them back up. Runs every 10 min to match the
+        // SweepStalePendingReviews::STALE_MINUTES threshold.
+        $schedule->command('ai:sweep-stale-pending')
+            ->everyTenMinutes()
+            ->environments(['production'])
+            ->withoutOverlapping(8);
 
         // Dynamic CSV export queue worker — processes jobs from the 'exports' queue, exits when empty
         $schedule->command('queue:work --queue=exports --stop-when-empty --timeout=3600 --tries=1')

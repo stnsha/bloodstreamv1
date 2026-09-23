@@ -3,12 +3,10 @@
 namespace App\Console\Commands;
 
 use App\Jobs\SendToAIServer;
-use App\Models\AIError;
 use App\Models\AIReview;
-use App\Models\TestResult;
-use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class RetryFailedAIReviews extends Command
 {
@@ -17,90 +15,62 @@ class RetryFailedAIReviews extends Command
      *
      * @var string
      */
-    protected $signature = 'ai:retry-failed-reviews {--hours=24 : Retry errors from the last N hours} {--limit=100 : Maximum number of errors to retry}';
+    protected $signature = 'ai:retry-failed-reviews {--hours=24 : Only retry reviews superseded within the last N hours} {--limit=100 : Maximum number of reviews to retry}';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Retry failed AI reviews from the ai_errors table';
+    protected $description = 'Retry test results whose ai_reviews row is SUPERSEDED (a previous send/webhook failed) - no attempt cap, keeps retrying until it completes.';
 
     /**
      * Execute the console command.
      */
     public function handle(): int
     {
-        $hours = $this->option('hours');
-        $limit = $this->option('limit');
+        $hours = (int) $this->option('hours');
+        $limit = (int) $this->option('limit');
 
-        $this->info("Retrying failed AI reviews from the last {$hours} hours (max {$limit})...");
+        $this->info("Retrying SUPERSEDED AI reviews from the last {$hours} hours (max {$limit})...");
 
         try {
-            // Find failed AI reviews from recent hours
-            $failedErrors = AIError::where('processing_status', 'FAILED')
-                ->where('created_at', '>=', now()->subHours($hours))
-                ->where('attempt_count', '<', 3)  // Limit to less than 3 attempts
+            // Source of truth is ai_reviews.processing_status, not ai_errors - one row
+            // per test_result_id, so this naturally dedupes (an ai_errors row exists per
+            // failure and can have many rows for the same test result over time).
+            // is_completed/is_reviewed are enforced here too, same as
+            // DispatchUnreviewedResultsAsync, so a record that became reviewed or
+            // reverted to incomplete since the failure is skipped without a per-row check.
+            $staleReviews = AIReview::where('processing_status', 'SUPERSEDED')
+                ->where('updated_at', '>=', now()->subHours($hours))
+                ->whereHas('testResult', function ($query) {
+                    $query->where('is_completed', true)
+                        ->where('is_reviewed', false);
+                })
+                ->orderBy('updated_at')
                 ->limit($limit)
                 ->get();
 
-            if ($failedErrors->isEmpty()) {
-                $this->info('No failed AI reviews found to retry.');
+            if ($staleReviews->isEmpty()) {
+                $this->info('No SUPERSEDED AI reviews found to retry.');
+
                 return self::SUCCESS;
             }
 
             $retryCount = 0;
-            $skipCount = 0;
+            $failCount = 0;
 
-            foreach ($failedErrors as $error) {
+            foreach ($staleReviews as $review) {
                 try {
-                    // Check if test result exists and is not already reviewed
-                    $testResult = TestResult::find($error->test_result_id);
-
-                    if (!$testResult) {
-                        $skipCount++;
-                        $this->line("  [SKIP] test_result_id: {$error->test_result_id} - test result not found");
-                        continue;
-                    }
-
-                    if ($testResult->is_reviewed) {
-                        $skipCount++;
-                        $this->line("  [SKIP] test_result_id: {$error->test_result_id} - already reviewed");
-                        continue;
-                    }
-
-                    // Skip if a COMPLETED AI review already exists — dispatching SendToAIServer
-                    // would only trigger the idempotency early-return without generating a new review
-                    $hasCompletedReview = AIReview::where('test_result_id', $error->test_result_id)
-                        ->where('processing_status', 'COMPLETED')
-                        ->exists();
-
-                    if ($hasCompletedReview) {
-                        $skipCount++;
-                        $this->line("  [SKIP] test_result_id: {$error->test_result_id} - completed review already exists");
-                        continue;
-                    }
-
-                    if (!$testResult->is_completed) {
-                        $skipCount++;
-                        $this->line("  [SKIP] test_result_id: {$error->test_result_id} - not completed");
-                        continue;
-                    }
-
-                    // Increment attempt counter
-                    $error->increment('attempt_count');
-
-                    // Dispatch job to retry
-                    SendToAIServer::dispatch($error->test_result_id);
+                    SendToAIServer::dispatch($review->test_result_id);
                     $retryCount++;
 
-                    $this->line("  [OK] Queued retry for test_result_id: {$error->test_result_id} (attempt {$error->attempt_count})");
-
-                } catch (Exception $e) {
-                    $skipCount++;
-                    $this->error("  [ERROR] Failed to queue retry for test_result_id {$error->test_result_id}: {$e->getMessage()}");
-                    Log::error('RetryFailedAIReviews: Failed to dispatch job', [
-                        'test_result_id' => $error->test_result_id,
+                    $this->line("  [OK] Queued retry for test_result_id: {$review->test_result_id}");
+                } catch (Throwable $e) {
+                    $failCount++;
+                    $this->error("  [ERROR] Failed to queue retry for test_result_id {$review->test_result_id}: {$e->getMessage()}");
+                    Log::channel('ai-command')->error('RetryFailedAIReviews: failed to dispatch job', [
+                        'test_result_id' => $review->test_result_id,
                         'error' => $e->getMessage(),
                     ]);
                 }
@@ -108,23 +78,25 @@ class RetryFailedAIReviews extends Command
 
             $this->info("\nSummary:");
             $this->info("  Retried: {$retryCount}");
-            $this->info("  Skipped: {$skipCount}");
+            if ($failCount > 0) {
+                $this->warn("  Failed to queue: {$failCount}");
+            }
 
-            Log::info('RetryFailedAIReviews: Command completed', [
+            Log::channel('ai-command')->info('RetryFailedAIReviews: command completed', [
                 'hours' => $hours,
                 'limit' => $limit,
                 'retried' => $retryCount,
-                'skipped' => $skipCount,
+                'failed_to_queue' => $failCount,
             ]);
 
             return self::SUCCESS;
-
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             $this->error("Command failed: {$e->getMessage()}");
-            Log::error('RetryFailedAIReviews: Command failed', [
+            Log::channel('ai-command')->error('RetryFailedAIReviews: command failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
+
             return self::FAILURE;
         }
     }

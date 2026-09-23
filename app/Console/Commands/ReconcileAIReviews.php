@@ -25,15 +25,12 @@ class ReconcileAIReviews extends Command
     protected $description = 'Find orphaned test results (PDF received but not reviewed) and dispatch AI review jobs';
 
     /**
-     * How long a non-COMPLETED ai_reviews row is treated as still in flight and
-     * left alone. SendToAIServer only flips a PENDING row to SUPERSEDED when the
-     * job itself errors or exhausts retries - if the AI server accepts the
-     * request but never calls the webhook back, nothing ever updates the row, so
-     * age is the only signal we have that it's stuck rather than processing.
+     * How long a fresh PENDING row is left alone before it's fair game to
+     * redispatch. Matches SweepStalePendingReviews::STALE_MINUTES.
      *
      * @var int
      */
-    protected const PENDING_STALE_MINUTES = 30;
+    protected const PENDING_STALE_MINUTES = 10;
 
     /**
      * Execute the console command.

@@ -37,15 +37,15 @@ class DispatchUnreviewedResultsAsync extends Command
     public $timeout = 120;
 
     /**
-     * How long a non-COMPLETED ai_reviews row is treated as still in flight and
-     * left alone. SendToAIServer only flips a PENDING row to SUPERSEDED when the
-     * job itself errors or exhausts retries - if the AI server accepts the
-     * request but never calls the webhook back, nothing ever updates the row, so
-     * age is the only signal we have that it's stuck rather than processing.
+     * How long a fresh PENDING row is left alone before it's fair game to
+     * redispatch. Matches SweepStalePendingReviews::STALE_MINUTES - by the time
+     * a PENDING row crosses this age, the sweep has already (or is about to)
+     * mark it SUPERSEDED, so this is just a grace window to avoid sending a
+     * second request while the first is still genuinely in flight.
      *
      * @var int
      */
-    protected const PENDING_STALE_MINUTES = 30;
+    protected const PENDING_STALE_MINUTES = 10;
 
     /**
      * Cache lock key to prevent concurrent execution
