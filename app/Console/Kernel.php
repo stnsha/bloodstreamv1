@@ -27,10 +27,10 @@ class Kernel extends ConsoleKernel
         // Phase 2B: Retry test results whose ai_reviews row is SUPERSEDED (a
         // previous send or webhook failed, or the sweep below gave up on it) —
         // no attempt cap, keeps retrying every run until it completes.
-        $schedule->command('ai:retry-failed-reviews --hours=12 --limit=50')
-            ->hourlyAt(20)
-            ->environments(['production'])
-            ->withoutOverlapping(30);
+        // $schedule->command('ai:retry-failed-reviews --hours=12 --limit=50')
+        //     ->hourlyAt(20)
+        //     ->environments(['production'])
+        //     ->withoutOverlapping(30);
 
         // Phase 2C: Dispatch any unreviewed results to the AI server
         $schedule->command('ai:dispatch-unreviewed-async')
