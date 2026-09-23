@@ -1500,6 +1500,7 @@ class PDFController extends Controller
         }
 
         // Build panel comments from item comments
+        $this->filterDuplicatePanels($hierarchicalData);
         $this->buildPanelCommentsFromItems($hierarchicalData);
 
         // Sort categories within profiles by panel_profile_sequence average
@@ -2115,6 +2116,7 @@ class PDFController extends Controller
         }
 
         // Build panel comments from item comments
+        $this->filterDuplicatePanels($hierarchicalData);
         $this->buildPanelCommentsFromItems($hierarchicalData);
 
         // Sort categories within profiles by panel_profile_sequence average
@@ -2961,6 +2963,7 @@ class PDFController extends Controller
         }
 
         // Build panel comments from item comments
+        $this->filterDuplicatePanels($hierarchicalData);
         $this->buildPanelCommentsFromItems($hierarchicalData);
 
         // Sort categories within profiles by panel_profile_sequence average
@@ -3421,8 +3424,78 @@ class PDFController extends Controller
     }
 
     /**
+     * Drop a whole panel from the hierarchy if most of its panel_items already
+     * appeared under an earlier-processed panel - a source lab sending e.g.
+     * "LIPID STUDIES" twice under different procedure codes, or a combo panel
+     * like "MULTIPLE BIOCHEM ANALYSIS" re-listing items already shown under
+     * their own individual panel (LIVER FUNCTION TEST, RENAL FUNCTION TEST).
+     * A mostly-duplicate panel heading with little or no real content left is
+     * confusing on the PDF, so the whole panel is skipped rather than
+     * per-item deduping within it.
+     *
+     * @param array $hierarchicalData The hierarchical data structure
+     * @return void
+     */
+    private function filterDuplicatePanels(&$hierarchicalData)
+    {
+        $seenPanelItemIds = [];
+
+        $filterContainer = function (&$panels) use (&$seenPanelItemIds) {
+            foreach ($panels as $panelId => &$panel) {
+                if (empty($panel['panel_items'])) {
+                    continue;
+                }
+
+                $itemIds = array_filter(array_map(
+                    fn ($item) => $item['panel_item_id'] ?? null,
+                    $panel['panel_items']
+                ));
+
+                if (empty($itemIds)) {
+                    continue;
+                }
+
+                $duplicateCount = count(array_intersect($itemIds, $seenPanelItemIds));
+
+                if ($duplicateCount > count($itemIds) / 2) {
+                    unset($panels[$panelId]);
+                    continue;
+                }
+
+                $seenPanelItemIds = array_merge($seenPanelItemIds, $itemIds);
+            }
+        };
+
+        // Same traversal order as buildPanelCommentsFromItems: profiles, then
+        // categories, then top-level panels.
+        if (isset($hierarchicalData['profiles'])) {
+            foreach ($hierarchicalData['profiles'] as &$profile) {
+                if (isset($profile['categories'])) {
+                    foreach ($profile['categories'] as &$category) {
+                        if (isset($category['panels'])) {
+                            $filterContainer($category['panels']);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (isset($hierarchicalData['categories'])) {
+            foreach ($hierarchicalData['categories'] as &$category) {
+                if (isset($category['panels'])) {
+                    $filterContainer($category['panels']);
+                }
+            }
+        }
+
+        if (isset($hierarchicalData['panels'])) {
+            $filterContainer($hierarchicalData['panels']);
+        }
+    }
+
+    /**
      * Collect unique comments from panel items
-     * 
+     *
      * @param array $panel Panel data
      * @return void
      */
@@ -3957,6 +4030,7 @@ class PDFController extends Controller
         }
 
         // Build panel comments from item comments
+        $this->filterDuplicatePanels($hierarchicalData);
         $this->buildPanelCommentsFromItems($hierarchicalData);
 
         // Sort categories within profiles by panel_profile_sequence average
