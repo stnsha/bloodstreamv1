@@ -296,6 +296,7 @@ class TestResultCompilerService
     {
         $categorizedItems = [];
         $validItemsCount = 0;
+        $seenPanelItemIds = [];
 
         if ($testResult->testResultItems->isEmpty()) {
             throw new RuntimeException("No test result items found for test result: {$testResult->id}");
@@ -334,6 +335,26 @@ class TestResultCompilerService
                     ]);
                     continue;
                 }
+
+                // Same panel_item_id can be attached to more than one panel for this
+                // test result (e.g. a source lab sending "LIPID STUDIES" twice under
+                // different procedure codes, or an analyte shared by two panels).
+                // Only the first occurrence is sent to the AI - repeats are redundant
+                // data under a different panel heading, not a distinct result.
+                $panelItemId = $ri->panelPanelItem->panel_item_id;
+
+                if (in_array($panelItemId, $seenPanelItemIds, true)) {
+                    Log::channel($this->logChannel)->info('Skipping duplicate panel_item_id in compiled AI payload', [
+                        'test_result_id' => $testResult->id,
+                        'panel_item_id' => $panelItemId,
+                        'result_item_id' => $ri->id,
+                        'panel_id' => $ri->panelPanelItem->panel_id ?? null,
+                    ]);
+
+                    continue;
+                }
+
+                $seenPanelItemIds[] = $panelItemId;
 
                 $panelItemName = $ri->panelPanelItem->panelItem->name ?? 'Unknown Item';
 
