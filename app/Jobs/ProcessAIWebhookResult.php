@@ -164,7 +164,7 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
             Log::channel('webhook')->error('ProcessAIWebhookResult job failed', [
                 'test_result_id' => $testResultId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile().':'.$e->getLine(),
             ]);
 
             // Update ai_reviews status to failed and store error

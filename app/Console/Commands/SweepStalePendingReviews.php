@@ -118,7 +118,7 @@ class SweepStalePendingReviews extends Command
             $this->error("Command failed: {$e->getMessage()}");
             Log::channel('ai-command')->error('SweepStalePendingReviews: command failed', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile().':'.$e->getLine(),
             ]);
 
             return self::FAILURE;

@@ -94,7 +94,7 @@ class RetryFailedAIReviews extends Command
             $this->error("Command failed: {$e->getMessage()}");
             Log::channel('ai-command')->error('RetryFailedAIReviews: command failed', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile().':'.$e->getLine(),
             ]);
 
             return self::FAILURE;

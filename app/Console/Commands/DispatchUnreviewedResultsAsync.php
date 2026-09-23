@@ -88,7 +88,6 @@ class DispatchUnreviewedResultsAsync extends Command
                 'exception_class' => get_class($e),
                 'error' => $e->getMessage(),
                 'file' => $e->getFile() . ':' . $e->getLine(),
-                'trace' => $e->getTraceAsString(),
             ]);
 
             return Command::FAILURE;

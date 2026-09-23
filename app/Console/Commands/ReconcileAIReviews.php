@@ -123,7 +123,7 @@ class ReconcileAIReviews extends Command
             $this->error("Command failed: {$e->getMessage()}");
             Log::error('ReconcileAIReviews: Command failed', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile().':'.$e->getLine(),
             ]);
             return self::FAILURE;
         }
