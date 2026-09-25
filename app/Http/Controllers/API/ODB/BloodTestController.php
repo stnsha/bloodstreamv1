@@ -484,6 +484,27 @@ class BloodTestController extends Controller
                 }
             }
 
+            // Step 6b: Exact ref_id match regardless of collected month/year
+            // Condition: ref_id already tagged to this ODB invoice, but campaign date
+            // (sent as month/year) differs from collected_date (postponed/rescheduled
+            // campaign). ref_id is INN<blood_test_sales.id>, unique per invoice, so an
+            // exact match is authoritative without a date bound.
+            if (!$testResult && $refid) {
+                $searchAttempts['step6b_refid_any_date'] = ['attempted' => true, 'found' => false];
+
+                $testResult = TestResult::with('aiReview')
+                    ->where('ref_id', $refid)
+                    ->where('is_completed', true)
+                    ->where('is_reviewed', true)
+                    ->latest()->first();
+
+                if ($testResult) {
+                    $searchAttempts['step6b_refid_any_date']['found'] = true;
+                    $searchAttempts['step6b_refid_any_date']['collected_date'] = $testResult->collected_date;
+                    $foundByStep = 'step6b_refid_any_date';
+                }
+            }
+
             // Step 7: None of the completed+reviewed searches matched. Before declaring
             // notfound, check whether a TestResult exists at all for this patient
             // (regardless of is_completed/is_reviewed) - if so it's still processing
@@ -497,14 +518,16 @@ class BloodTestController extends Controller
                 // no date bound let unrelated historical records (e.g. from a
                 // different, older campaign) falsely report "processing" for a
                 // patient/period that has no real record at all.
-                $existenceQuery = $buildBaseQuery()
-                    ->whereBetween('created_at', [
-                        Carbon::create($year, $month, 1)->startOfMonth(),
-                        Carbon::create($year, $month, 1)->endOfMonth()
-                    ]);
-
+                // An exact ref_id match is unique per invoice, so it needs no date
+                // bound (campaign month may differ from when the lab created it).
                 if ($refid) {
-                    $existenceQuery->where('ref_id', $refid);
+                    $existenceQuery = TestResult::where('ref_id', $refid);
+                } else {
+                    $existenceQuery = $buildBaseQuery()
+                        ->whereBetween('created_at', [
+                            Carbon::create($year, $month, 1)->startOfMonth(),
+                            Carbon::create($year, $month, 1)->endOfMonth()
+                        ]);
                 }
 
                 $unfinishedTestResult = $existenceQuery->latest()->first();
@@ -927,6 +950,7 @@ class BloodTestController extends Controller
                     'collected_date' => $testResult->collected_date ? Carbon::parse($testResult->collected_date)->format('Y-m-d') : null,
                     'reported_date' => $testResult->reported_date ? Carbon::parse($testResult->reported_date)->format('Y-m-d') : null,
                     'report_id' => $testResult->id,
+                    'ref_id' => $testResult->ref_id,
                     'is_reviewed' => $testResult->is_reviewed,
                     'review' => $testResult->aiReview ? $testResult->aiReview->ai_response : null
                 ];
@@ -1166,6 +1190,7 @@ class BloodTestController extends Controller
                 'collected_date' => $testResult->collected_date ? Carbon::parse($testResult->collected_date)->format('Y-m-d') : null,
                 'reported_date' => $testResult->reported_date ? Carbon::parse($testResult->reported_date)->format('Y-m-d') : null,
                 'report_id' => $testResult->id,
+                'ref_id' => $testResult->ref_id,
                 'is_reviewed' => $testResult->is_reviewed,
                 'review' => $testResult->aiReview ? $testResult->aiReview->ai_response : null
             ];
