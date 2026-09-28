@@ -84,6 +84,7 @@ class SweepStalePendingReviews extends Command
                         AIError::create([
                             'test_result_id' => $review->test_result_id,
                             'processing_status' => 'FAILED',
+                            'http_status' => 504,
                             'error_message' => 'No webhook response received within '.self::STALE_MINUTES.' minutes',
                             'compiled_data' => $review->compiled_results,
                             'attempt_count' => 1,

@@ -208,9 +208,10 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
     protected function handleError(int $testResultId, Exception $e): void
     {
         $isConfirmedAiFailure = $this->isConfirmedFailureWebhook();
+        $httpStatus = $this->resolveErrorHttpStatus();
 
         try {
-            DB::transaction(function () use ($testResultId, $e, $isConfirmedAiFailure) {
+            DB::transaction(function () use ($testResultId, $e, $isConfirmedAiFailure, $httpStatus) {
                 $query = AIReview::where('test_result_id', $testResultId)
                     ->where('processing_status', '!=', 'COMPLETED');
 
@@ -224,6 +225,7 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
                 AIError::create([
                     'test_result_id' => $testResultId,
                     'processing_status' => 'FAILED',
+                    'http_status' => $httpStatus,
                     'error_message' => $e->getMessage(),
                     'error_trace' => $e->getTraceAsString(),
                     'compiled_data' => $this->webhookData,
@@ -246,6 +248,18 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
     private function isConfirmedFailureWebhook(): bool
     {
         return ! ($this->webhookData['success'] ?? true) || ($this->webhookData['status'] ?? null) !== 'DONE';
+    }
+
+    /**
+     * HTTP status to record on the ai_errors row. Uses the status reported by the AI service
+     * in data.ai_analysis.status when present and numeric; otherwise falls back to 500, matching
+     * how SendToAIServer records local failures.
+     */
+    private function resolveErrorHttpStatus(): int
+    {
+        $status = $this->webhookData['data']['ai_analysis']['status'] ?? null;
+
+        return is_numeric($status) ? (int) $status : 500;
     }
 
     /**
