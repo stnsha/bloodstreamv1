@@ -135,7 +135,13 @@ class TestResultCompletionDispatcher
         }
     }
 
-    protected function checkConsultCallEligibility(TestResult $testResult): void
+    /**
+     * Run the live-flow consult-call eligibility check (date gates, outlet
+     * eligibility, clinical conditions) and auto-enroll when eligible. Public
+     * so manual re-run tooling (test-result:rerun-review) applies exactly the
+     * same gates as a live delivery. Swallows and logs its own errors.
+     */
+    public function checkConsultCallEligibility(TestResult $testResult): void
     {
         $patientId = $testResult->patient_id;
 
