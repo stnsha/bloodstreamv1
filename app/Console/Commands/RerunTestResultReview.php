@@ -60,6 +60,8 @@ class RerunTestResultReview extends Command
         $this->table(['Field', 'Value'], [
             ['Test Result ID', $testResult->id],
             ['Lab No', $testResult->lab_no ?? 'N/A'],
+            ['Patient Name', $testResult->patient?->name ?? 'N/A'],
+            ['Patient IC', $testResult->patient?->icno ?? 'N/A'],
             ['Collected Date', $testResult->collected_date?->format('Y-m-d') ?? 'N/A'],
             ['is_completed', $testResult->is_completed ? '1' : '0'],
             ['is_reviewed', $testResult->is_reviewed ? '1' : '0'],
@@ -190,7 +192,7 @@ class RerunTestResultReview extends Command
      */
     private function resolveByLabNo(string $labNo): ?TestResult
     {
-        $matches = TestResult::where('lab_no', $labNo)->get();
+        $matches = TestResult::with('patient:id,name,icno')->where('lab_no', $labNo)->get();
 
         if ($matches->isEmpty()) {
             $this->error("Test result not found for --lab_no={$labNo}");
@@ -203,8 +205,10 @@ class RerunTestResultReview extends Command
 
         if ($matches->count() > 1) {
             $this->error("--lab_no={$labNo} matches {$matches->count()} test results. Re-run with --test_result_id instead.");
-            $this->table(['ID', 'Collected Date', 'is_completed', 'is_reviewed'], $matches->map(fn ($tr) => [
+            $this->table(['ID', 'Patient Name', 'Patient IC', 'Collected Date', 'is_completed', 'is_reviewed'], $matches->map(fn ($tr) => [
                 $tr->id,
+                $tr->patient?->name ?? 'N/A',
+                $tr->patient?->icno ?? 'N/A',
                 $tr->collected_date?->format('Y-m-d') ?? 'N/A',
                 $tr->is_completed ? '1' : '0',
                 $tr->is_reviewed ? '1' : '0',
