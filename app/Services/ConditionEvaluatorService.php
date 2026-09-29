@@ -2293,4 +2293,19 @@ class ConditionEvaluatorService
             && $data['gender'] === 'M'
             && $data['rcc'] < 4.3;
     }
+
+    /**
+     * Condition 140: Hb 100-115 g/L AND MCV <80 fL AND RCC >5.0 x10^12/L
+     */
+    private function condition140(array $data): bool
+    {
+        if ($data['hae'] === null || $data['mcv'] === null || $data['rcc'] === null) {
+            return false;
+        }
+
+        return $data['hae'] >= 100
+            && $data['hae'] <= 115
+            && $data['mcv'] < 80
+            && $data['rcc'] > 5.0;
+    }
 }
