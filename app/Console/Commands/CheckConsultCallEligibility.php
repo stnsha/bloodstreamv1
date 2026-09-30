@@ -329,8 +329,10 @@ class CheckConsultCallEligibility extends Command
             foreach ($inactiveConditions as $condition) {
                 $passes = $conditionEvaluator->evaluateConditionRecord($condition->toArray(), $patientData);
                 $label  = '[' . ($condition->type ?? 'N/A') . '] ' . ($condition->description ?? "Condition {$condition->id}");
+                // No deactivated_at column exists; updated_at is the last change to the row,
+                // which approximates the deactivation date if nothing else changed afterwards.
                 $status = ! $condition->is_active
-                    ? 'INACTIVE'
+                    ? 'INACTIVE, last updated ' . ($condition->updated_at?->format('Y-m-d H:i') ?? 'unknown')
                     : 'INACTIVE until ' . $condition->active_from?->toDateString();
 
                 if ($passes) {
