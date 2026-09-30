@@ -303,7 +303,7 @@ class CheckConsultCallEligibility extends Command
         foreach ($sortedIds as $conditionId) {
             $condition = ClinicalCondition::getCondition($conditionId);
             $passes    = $conditionEvaluator->evaluateCondition($conditionId, $patientData);
-            $label     = $condition['description'] ?? "Condition {$conditionId}";
+            $label     = '[' . ($condition['type'] ?? 'N/A') . '] ' . ($condition['description'] ?? "Condition {$conditionId}");
 
             if ($passes) {
                 $this->info("  [MATCH] Condition {$conditionId}: {$label}");
@@ -328,7 +328,7 @@ class CheckConsultCallEligibility extends Command
 
             foreach ($inactiveConditions as $condition) {
                 $passes = $conditionEvaluator->evaluateConditionRecord($condition->toArray(), $patientData);
-                $label  = $condition->description ?? "Condition {$condition->id}";
+                $label  = '[' . ($condition->type ?? 'N/A') . '] ' . ($condition->description ?? "Condition {$condition->id}");
                 $status = ! $condition->is_active
                     ? 'INACTIVE'
                     : 'INACTIVE until ' . $condition->active_from?->toDateString();
