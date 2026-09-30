@@ -278,6 +278,10 @@ class CheckConsultCallEligibility extends Command
             'rdw'           => $extractedValues['rdw'] ?? null,
             's_iron'        => $extractedValues['s_iron'] ?? null,
             'ferritin'      => $extractedValues['ferritin'] ?? null,
+            'ast'           => $extractedValues['ast'] ?? null,
+            'alp'           => $extractedValues['alp'] ?? null,
+            'corrected_calcium' => $extractedValues['corrected_calcium'] ?? null,
+            'phosphate'     => $extractedValues['phosphate'] ?? null,
         ];
 
         $this->line('');
