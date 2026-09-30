@@ -9,6 +9,7 @@ use App\Models\ConsultCall;
 use App\Models\ConsultCallDetails;
 use App\Models\ConsultCallFollowUp;
 use App\Models\TestResult;
+use App\Services\AddOnResultLinkService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,6 +21,11 @@ use Throwable;
 
 class ConsultCallController extends Controller
 {
+    public function __construct(
+        private readonly AddOnResultLinkService $addOnResultLinkService
+    ) {
+    }
+
     public function index(Request $request): JsonResponse
     {
         Log::info('ConsultCall index: listing consult calls', [
@@ -31,7 +37,7 @@ class ConsultCallController extends Controller
             ]),
         ]);
 
-        $query = ConsultCall::with(['patient', 'addOns.addOn', 'details.clinicalCondition', 'details.testResult', 'followUps']);
+        $query = ConsultCall::with(['patient', 'addOns.addOn', 'addOns.results.testResult:id,lab_no,reported_date', 'details.clinicalCondition', 'details.testResult', 'details.addOnResults.testResult:id,lab_no,reported_date', 'followUps']);
 
         if ($request->filled('patient_id')) {
             $query->where('patient_id', $request->input('patient_id'));
@@ -362,7 +368,7 @@ class ConsultCallController extends Controller
     {
         Log::info('ConsultCall show: retrieving consult call', ['id' => $id]);
 
-        $consultCall = ConsultCall::with(['patient', 'addOns.addOn', 'details.clinicalCondition', 'details.testResult', 'followUps'])
+        $consultCall = ConsultCall::with(['patient', 'addOns.addOn', 'addOns.results.testResult:id,lab_no,reported_date', 'details.clinicalCondition', 'details.testResult', 'details.addOnResults.testResult:id,lab_no,reported_date', 'followUps'])
             ->find($id);
 
         if (!$consultCall) {
@@ -448,7 +454,7 @@ class ConsultCallController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $consultCall->load(['patient', 'addOns.addOn', 'details.clinicalCondition', 'details.testResult', 'followUps']),
+                'data' => $consultCall->load(['patient', 'addOns.addOn', 'addOns.results.testResult:id,lab_no,reported_date', 'details.clinicalCondition', 'details.testResult', 'details.addOnResults.testResult:id,lab_no,reported_date', 'followUps']),
                 'message' => 'Consult call created successfully.',
             ], 201);
         } catch (Throwable $e) {
@@ -511,25 +517,38 @@ class ConsultCallController extends Controller
             ], 422);
         }
 
+        $validated = $validator->validated();
+        $addOnIdsProvided = array_key_exists('add_on_ids', $validated);
+        $addOnIds = array_map('intval', $validated['add_on_ids'] ?? []);
+        unset($validated['add_on_ids']);
+
+        // A purchased add-on carries its invoice / sale id, so it cannot be unselected.
+        if ($addOnIdsProvided) {
+            $purchasedRemoved = $this->addOnResultLinkService->purchasedOutsideSelection($consultCall, $addOnIds);
+
+            if ($purchasedRemoved->isNotEmpty()) {
+                Log::warning('ConsultCall update: refused to unselect purchased add-on(s)', [
+                    'id' => $id,
+                    'add_on_ids' => $purchasedRemoved->pluck('add_on_id')->all(),
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'data' => null,
+                    'message' => 'Add-on already purchased on invoice ' . $purchasedRemoved->pluck('invoice_id')->unique()->implode(', ') . ' and cannot be unselected.',
+                ], 422);
+            }
+        }
+
         try {
             DB::beginTransaction();
 
-            $validated = $validator->validated();
-            $addOnIdsProvided = array_key_exists('add_on_ids', $validated);
-            $addOnIds = $validated['add_on_ids'] ?? [];
-            unset($validated['add_on_ids']);
-
             $consultCall->update($validated);
 
-            // Full replace, not merge -- the Add On Recommendation checkbox dropdown
-            // always submits the complete current selection.
+            // The Add On Recommendation checkbox dropdown always submits the complete
+            // current selection; existing rows (and their invoice data) are kept.
             if ($addOnIdsProvided) {
-                $consultCall->addOns()->delete();
-                if (!empty($addOnIds)) {
-                    $consultCall->addOns()->createMany(
-                        array_map(fn ($addOnId) => ['add_on_id' => $addOnId], $addOnIds)
-                    );
-                }
+                $this->addOnResultLinkService->syncSelection($consultCall, $addOnIds);
             }
 
             DB::commit();
@@ -538,7 +557,7 @@ class ConsultCallController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $consultCall->fresh(['patient', 'addOns.addOn', 'details.clinicalCondition', 'details.testResult', 'followUps']),
+                'data' => $consultCall->fresh(['patient', 'addOns.addOn', 'addOns.results.testResult:id,lab_no,reported_date', 'details.clinicalCondition', 'details.testResult', 'details.addOnResults.testResult:id,lab_no,reported_date', 'followUps']),
                 'message' => 'Consult call updated successfully.',
             ]);
         } catch (Throwable $e) {
@@ -552,6 +571,89 @@ class ConsultCallController extends Controller
                 'success' => false,
                 'data' => null,
                 'message' => 'Failed to update consult call.',
+            ], 500);
+        }
+    }
+
+    /**
+     * Record a synced Add-On invoice on the recommended add-ons it contains
+     * (called by edit.php after ajax_sync_invoice.php succeeds).
+     */
+    public function assignAddOnInvoice(Request $request, int $id): JsonResponse
+    {
+        Log::info('ConsultCall assignAddOnInvoice: starting', ['consult_call_id' => $id]);
+
+        $consultCall = ConsultCall::find($id);
+
+        if (!$consultCall) {
+            Log::warning('ConsultCall assignAddOnInvoice: consult call not found', ['consult_call_id' => $id]);
+
+            return response()->json([
+                'success' => false,
+                'data' => null,
+                'message' => 'Consult call not found.',
+            ], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'invoice_id' => 'required|string|max:255',
+            'blood_test_sales_id' => 'required|integer|min:1',
+            'matched_item_codes' => 'required|array|min:1',
+            'matched_item_codes.*' => 'string|max:50',
+            'consult_call_detail_id' => 'nullable|integer',
+            'selected_add_on_ids' => 'nullable|array',
+            'selected_add_on_ids.*' => 'integer|exists:add_ons,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'data' => $validator->errors(),
+                'message' => 'Validation failed.',
+            ], 422);
+        }
+
+        $validated = $validator->validated();
+
+        $detailId = isset($validated['consult_call_detail_id']) ? (int) $validated['consult_call_detail_id'] : null;
+        if ($detailId !== null && !ConsultCallDetails::where('consult_call_id', $id)->whereKey($detailId)->exists()) {
+            return response()->json([
+                'success' => false,
+                'data' => null,
+                'message' => 'Consult call detail does not belong to this consult call.',
+            ], 422);
+        }
+
+        try {
+            $addOns = $this->addOnResultLinkService->assignInvoice(
+                $consultCall,
+                $detailId,
+                $validated['invoice_id'],
+                (int) $validated['blood_test_sales_id'],
+                $validated['matched_item_codes'],
+                $validated['selected_add_on_ids'] ?? []
+            );
+
+            Log::info('ConsultCall assignAddOnInvoice: completed', [
+                'consult_call_id' => $id,
+                'blood_test_sales_id' => $validated['blood_test_sales_id'],
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => $addOns,
+                'message' => 'Add-on invoice recorded successfully.',
+            ]);
+        } catch (Throwable $e) {
+            Log::error('ConsultCall assignAddOnInvoice: failed', [
+                'consult_call_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'data' => null,
+                'message' => 'Failed to record add-on invoice.',
             ], 500);
         }
     }
@@ -773,7 +875,7 @@ class ConsultCallController extends Controller
 
                     return response()->json([
                         'success' => true,
-                        'data'    => $originalDetail->fresh(['clinicalCondition', 'testResult']),
+                        'data'    => $originalDetail->fresh(['clinicalCondition', 'testResult', 'addOnResults.testResult:id,lab_no,reported_date']),
                         'message' => 'Consult call detail updated successfully.',
                     ], 200);
                 }
@@ -797,7 +899,7 @@ class ConsultCallController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $detail->load(['clinicalCondition', 'testResult']),
+                'data' => $detail->load(['clinicalCondition', 'testResult', 'addOnResults.testResult:id,lab_no,reported_date']),
                 'message' => 'Consult call detail created successfully.',
             ], 201);
         } catch (Throwable $e) {
@@ -938,7 +1040,7 @@ class ConsultCallController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $detail->fresh(['clinicalCondition', 'testResult']),
+                'data' => $detail->fresh(['clinicalCondition', 'testResult', 'addOnResults.testResult:id,lab_no,reported_date']),
                 'message' => 'Consult call detail updated successfully.',
             ]);
         } catch (Throwable $e) {

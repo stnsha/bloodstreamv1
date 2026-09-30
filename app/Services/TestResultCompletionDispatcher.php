@@ -16,10 +16,16 @@ class TestResultCompletionDispatcher
 
     protected ConsultCallEligibilityService $consultCallEligibilityService;
 
-    public function __construct(OctopusApiService $octopusApi, ConsultCallEligibilityService $consultCallEligibilityService)
-    {
+    protected AddOnResultLinkService $addOnResultLinkService;
+
+    public function __construct(
+        OctopusApiService $octopusApi,
+        ConsultCallEligibilityService $consultCallEligibilityService,
+        AddOnResultLinkService $addOnResultLinkService
+    ) {
         $this->octopusApi = $octopusApi;
         $this->consultCallEligibilityService = $consultCallEligibilityService;
+        $this->addOnResultLinkService = $addOnResultLinkService;
     }
 
     /**
@@ -49,6 +55,8 @@ class TestResultCompletionDispatcher
      */
     public function dispatch(TestResult $testResult): void
     {
+        $this->linkAddOnResult($testResult);
+
         $this->checkConsultCallEligibility($testResult);
 
         if ($this->shouldHoldAiReview($testResult)) {
@@ -116,6 +124,25 @@ class TestResultCompletionDispatcher
             ]);
 
             $this->dispatchAIReview($testResult);
+        }
+    }
+
+    /**
+     * Attach an Add-On lab result to the consult call whose Add-On invoice
+     * produced it. Runs before and independent of the consult-call eligibility
+     * gates (date window, outlet, panel completeness), which an add-on-only
+     * result would otherwise fail. Swallows and logs its own errors.
+     */
+    protected function linkAddOnResult(TestResult $testResult): void
+    {
+        try {
+            $this->addOnResultLinkService->linkFromTestResult($testResult);
+        } catch (Throwable $e) {
+            Log::error('Add-on result link failed', [
+                'test_result_id' => $testResult->id,
+                'ref_id' => $testResult->ref_id,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 

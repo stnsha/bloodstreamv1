@@ -48,6 +48,7 @@ class AddOnController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'item_code' => 'nullable|string|max:50',
         ]);
 
         try {
@@ -55,6 +56,7 @@ class AddOnController extends Controller
 
             $addOn = AddOn::create([
                 'name' => $validated['name'],
+                'item_code' => $validated['item_code'] ?? null,
                 'is_active' => true,
             ]);
 
@@ -94,14 +96,19 @@ class AddOnController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'item_code' => 'nullable|string|max:50',
         ]);
 
         try {
             DB::beginTransaction();
 
-            $addOn->update([
-                'name' => $validated['name'],
-            ]);
+            $addOnData = ['name' => $validated['name']];
+
+            if ($request->has('item_code')) {
+                $addOnData['item_code'] = $validated['item_code'];
+            }
+
+            $addOn->update($addOnData);
 
             DB::commit();
 

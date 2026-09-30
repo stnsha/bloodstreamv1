@@ -14,6 +14,7 @@ use App\Models\ConsultCall;
 use App\Models\ConsultCallDetails;
 use App\Models\IncompleteTestResult;
 use App\Models\TestResult;
+use App\Services\AddOnResultLinkService;
 use App\Services\AIReviewService;
 use App\Services\ApiTokenService;
 use App\Services\MyHealthService;
@@ -759,11 +760,20 @@ class BloodTestController extends Controller
         }
     }
 
-    public function checkConsultCall(ODBRequest $request)
+    public function checkConsultCall(ODBRequest $request, AddOnResultLinkService $addOnResultLinkService)
     {
         $validated = $request->all();
 
         try {
+            Log::channel($this->getLogChannel())->info('checkConsultCall: Starting', [
+                'total_items' => count($validated),
+            ]);
+
+            // Per-row add-on role (sale / recommended), batched for the whole page.
+            $addOnRoles = $addOnResultLinkService->resolveRowRoles(
+                array_map(fn ($item) => (string) ($item['refid'] ?? ''), $validated)
+            );
+
             $response = [];
             foreach ($validated as $item) {
                 $icno  = $item['icno'];
@@ -789,14 +799,16 @@ class BloodTestController extends Controller
                     }
                 }
 
-                // Condition 2: this invoice number matches a consult_call_details.invoice_id.
-                // Tick WITH a link to that consult call.
+                // Condition 2 (legacy): this invoice number matches a consult_call_details.invoice_id.
+                // Used by index.php only when the row has no add_on_role. Tick WITH a link to that consult call.
                 $addOnInvoiceConsultCallId = null;
                 if ($invNum !== '') {
                     $addOnInvoiceConsultCallId = ConsultCallDetails::where('invoice_id', $invNum)
                         ->orderByDesc('id')
                         ->value('consult_call_id');
                 }
+
+                $addOnRow = $refid !== null ? ($addOnRoles[$refid] ?? null) : null;
 
                 $response[] = [
                     'icno'            => $icno,
@@ -807,9 +819,23 @@ class BloodTestController extends Controller
                     'add_on_by_invoice'              => $addOnInvoiceConsultCallId !== null,
                     'add_on_invoice_consult_call_id' => $addOnInvoiceConsultCallId,
                     // Back-compat: any add-on indication at all.
-                    'has_add_on'                     => $addOnByCondition || $addOnInvoiceConsultCallId !== null,
+                    'has_add_on'                     => $addOnByCondition || $addOnInvoiceConsultCallId !== null || $addOnRow !== null,
+                    // Per-row add-on role: 'sale' | 'recommended' | null, status 1 Confirmed / 2 Completed.
+                    'add_on_role'                    => $addOnRow['role'] ?? null,
+                    'add_on_status'                  => $addOnRow['status'] ?? null,
+                    'add_on_row_consult_call_id'     => $addOnRow['consult_call_id'] ?? null,
+                    // Recommended add-ons of that consult call: bought / selected counts.
+                    'add_on_summary'                 => $addOnRow ? ['bought' => $addOnRow['bought'], 'selected' => $addOnRow['selected']] : null,
                 ];
             }
+
+            $roleCounts = array_count_values(array_filter(array_column($response, 'add_on_role')));
+
+            Log::channel($this->getLogChannel())->info('checkConsultCall: Completed', [
+                'total_items' => count($response),
+                'add_on_sale_rows' => $roleCounts['sale'] ?? 0,
+                'add_on_recommended_rows' => $roleCounts['recommended'] ?? 0,
+            ]);
 
             return response()->json($response);
         } catch (Throwable $e) {

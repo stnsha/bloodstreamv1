@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ConsultCallDetails extends Model
@@ -93,5 +94,13 @@ class ConsultCallDetails extends Model
     public function testResult(): BelongsTo
     {
         return $this->belongsTo(TestResult::class, 'test_result_id', 'id');
+    }
+
+    /**
+     * Add-on lab reports linked to the invoice synced on this detail.
+     */
+    public function addOnResults(): HasMany
+    {
+        return $this->hasMany(ConsultCallAddOnResult::class, 'consult_call_detail_id', 'id');
     }
 }

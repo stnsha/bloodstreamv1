@@ -316,6 +316,7 @@ Route::middleware(['consult-call.auth', 'throttle:api'])->group(function () {
         Route::put('/{id}', 'update')->whereNumber('id');
         Route::delete('/{id}', 'destroy')->whereNumber('id');
         Route::get('/{id}/pdf', 'exportPdf')->whereNumber('id');
+        Route::post('/{id}/add-on-invoice', 'assignAddOnInvoice')->whereNumber('id');
         Route::post('/{id}/details', 'storeDetails')->whereNumber('id');
         Route::put('/{id}/details/{detailId}', 'updateDetails')->whereNumber('id');
         Route::delete('/{id}/details/{detailId}', 'destroyDetails')->whereNumber('id');

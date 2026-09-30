@@ -10,6 +10,7 @@ class AddOn extends Model
 
     protected $fillable = [
         'name',
+        'item_code',
         'is_active',
     ];
 
