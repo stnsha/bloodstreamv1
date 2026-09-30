@@ -313,6 +313,34 @@ class CheckConsultCallEligibility extends Command
             }
         }
 
+        // Inactive conditions: diagnostic only, never counted toward $matched
+        $inactiveConditions = ClinicalCondition::query()
+            ->where('criteria_count', '>', 0)
+            ->whereNotIn('id', $sortedIds)
+            ->orderByDesc('risk_tier')
+            ->orderByDesc('criteria_count')
+            ->orderBy('id')
+            ->get();
+
+        if ($inactiveConditions->isNotEmpty()) {
+            $this->line('');
+            $this->line('  Inactive conditions (diagnostic only, not used for eligibility):');
+
+            foreach ($inactiveConditions as $condition) {
+                $passes = $conditionEvaluator->evaluateConditionRecord($condition->toArray(), $patientData);
+                $label  = $condition->description ?? "Condition {$condition->id}";
+                $status = ! $condition->is_active
+                    ? 'INACTIVE'
+                    : 'INACTIVE until ' . $condition->active_from?->toDateString();
+
+                if ($passes) {
+                    $this->comment("  [MATCH] [{$status}] Condition {$condition->id}: {$label}");
+                } else {
+                    $this->line("  [    ] [{$status}] Condition {$condition->id}: {$label}");
+                }
+            }
+        }
+
         $this->line('');
 
         if (! $matched) {

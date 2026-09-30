@@ -141,10 +141,23 @@ class ConditionEvaluatorService
             return false;
         }
 
-        $method = $condition['evaluator'];
-        if (! method_exists($this, $method)) {
+        return $this->evaluateConditionRecord($condition, $patientData);
+    }
+
+    /**
+     * Evaluate a condition record directly, bypassing the active-only cache lookup.
+     * Used by diagnostic commands to test inactive conditions. Not used by the live flow.
+     *
+     * @param  array  $condition  Clinical condition attributes (must include id and evaluator)
+     * @param  array  $patientData  Patient data array (same keys as evaluateCondition)
+     * @return bool True if the condition is met, false otherwise
+     */
+    public function evaluateConditionRecord(array $condition, array $patientData): bool
+    {
+        $method = $condition['evaluator'] ?? null;
+        if (! $method || ! method_exists($this, $method)) {
             Log::warning('Condition evaluator method not found', [
-                'condition_id' => $conditionId,
+                'condition_id' => $condition['id'] ?? null,
                 'method' => $method,
             ]);
 
