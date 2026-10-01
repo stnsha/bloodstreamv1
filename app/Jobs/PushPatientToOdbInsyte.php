@@ -33,7 +33,7 @@ class PushPatientToOdbInsyte implements ShouldBeUnique, ShouldQueue
 
     public function __construct(public readonly int $testResultId)
     {
-        $this->onQueue(config('services.odb_insyte.queue', 'default'));
+        $this->onQueue(config('services.odb_insyte.queue', 'odb-push'));
     }
 
     public function uniqueId(): string

@@ -54,6 +54,15 @@ class Kernel extends ConsoleKernel
             ->environments(['production'])
             ->withoutOverlapping(60);
 
+        // ODB InSyte push queue worker — processes PushPatientToOdbInsyte jobs from the
+        // 'odb-push' queue (services.odb_insyte.queue), exits when empty. Kept off the
+        // ai-webhooks queue so slow ODB calls never delay webhook processing. Retry count
+        // and backoff come from the job itself ($tries / $backoff).
+        $schedule->command('queue:work --queue=odb-push --stop-when-empty --timeout=200')
+            ->everyMinute()
+            ->environments(['production'])
+            ->withoutOverlapping(30);
+
         // Phase 2E: Keep panel_profiles_count in sync with panel_panel_profiles so
         // PanelCompletenessService has accurate expected-panel-count data
         $schedule->command('panels:sync-profile-counts')
