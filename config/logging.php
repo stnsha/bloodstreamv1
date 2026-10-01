@@ -121,6 +121,13 @@ return [
             'days' => 3,
         ],
 
+        'odb-push' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/odb-push.log'),
+            'level' => env('LOG_LEVEL', 'warning'),
+            'days' => 3,
+        ],
+
         'webhook' => [
             'driver' => 'daily',
             'path' => storage_path('logs/webhook.log'),

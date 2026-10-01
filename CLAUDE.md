@@ -68,6 +68,7 @@ php artisan queue:retry all    # Retry all failed jobs
 php artisan ai:dispatch-unreviewed-async    # Dispatch test results to AI server (webhook)
 php artisan ai:reconcile-reviews            # Find orphaned results and dispatch AI review jobs
 php artisan ai:retry-failed-reviews         # Retry failed AI reviews from ai_errors table
+php artisan odb:insyte-push {icno} --dry-run # Build (and without --dry-run, send) the ODB InSyte push for one patient
 ```
 
 ## Architecture Overview
@@ -195,6 +196,7 @@ Blood Stream is a comprehensive blood test result management and analysis system
 - `TokenValidationService` / `TokenValidationRateLimiter` - JWT format pre-validation and per-IP rate limiting (used by `APIAuthMiddleware` only)
 - `PanelInterpretationService` - Evaluates panel-level interpretations
 - `ApiTokenService` / `TokenCacheService` - Token lifecycle helpers used by `BloodTestController`
+- `OdbInsytePushService` - Pushes one patient to the ODB InSyte Push API (login JWT cached, then `receive_and_trigger.php`): last 2 years of blood tests (all labs), all MyHealth check-record parameters, and ODB `blood_test_sales` doctor remarks (never AI reviews). Config: `services.odb_insyte.*`, `credentials.odb_insyte.*`; disabled by default (`ODB_INSYTE_PUSH_ENABLED`)
 
 Services handle business logic—controllers remain thin by delegating to these services.
 
@@ -231,6 +233,7 @@ Decodes the JWT and enforces `token_type === 'consult_call'` to prevent API-auth
 - `ExportBpJob` / `DynamicExportJob` - Background export jobs (tracked by UUID via `QueueJobTrackerService`)
 - `ProcessAIWebhookResult` - Handles incoming AI webhook payloads asynchronously
 - `SendToAIServer` - Dispatches test results to the AI review service
+- `PushPatientToOdbInsyte` - Dispatched by `ProcessAIWebhookResult` after commit, only when the review actually transitions to `COMPLETED` (idempotent replays skipped). tries=3, backoff=[60,300,900]s; 400/404/405/422 fail immediately without retry
 
 **Post-result processing chain** (inside `ProcessPanelResults`, after `DB::commit()`):
 1. Patient matching via `OctopusApiService`
@@ -320,6 +323,7 @@ Every significant operation must log:
 | `odb-log` | `logs/odb.log` | ODB controller and migration operations |
 | `job` | `logs/job.log` | Queue job execution |
 | `webhook` | `logs/webhook.log` | Incoming webhook events |
+| `odb-push` | `logs/odb-push.log` | ODB InSyte push (payload build, login, push response, unit_mismatch) |
 | `migrate-log` | `logs/migration.log` | ODB batch migrations |
 | `gpt-log` | `logs/gpt.log` | AI/GPT review processing |
 | `ai-command` | `logs/ai-command.log` | Artisan AI commands |

@@ -60,6 +60,16 @@ return [
         'password' => env('ODB_API_PASSWORD', 'password'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | ODB InSyte Push API Credentials
+    |--------------------------------------------------------------------------
+    */
+    'odb_insyte' => [
+        'username' => env('ODB_INSYTE_USERNAME'),
+        'password' => env('ODB_INSYTE_PASSWORD'),
+    ],
+
     'ai_review' => [
         'login' => env('AI_REVIEW_LOGIN', 'http://example.com/api/review'),
         'analysis' => env('AI_REVIEW_ANALYSIS', 'http://example.com/api/analysis'),
