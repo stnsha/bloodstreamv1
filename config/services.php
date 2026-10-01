@@ -37,4 +37,12 @@ return [
             : env('ODB_API_URL_LOCAL'),
     ],
 
+    'odb_insyte' => [
+        'enabled' => (bool) env('ODB_INSYTE_PUSH_ENABLED', false),
+        'login_url' => env('ODB_INSYTE_LOGIN_URL'),
+        'push_url' => env('ODB_INSYTE_PUSH_URL'),
+        'queue' => env('ODB_INSYTE_PUSH_QUEUE', 'default'),
+        'history_years' => (int) env('ODB_INSYTE_HISTORY_YEARS', 2),
+    ],
+
 ];

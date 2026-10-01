@@ -39,6 +39,20 @@ class MyHealthService
             ->get();
     }
 
+    /**
+     * Get every check_record row for an IC recorded on or after $since.
+     * Used for bounded history lookups (e.g. the 2-year ODB InSyte push).
+     */
+    public function getCheckRecordsByICSince($ic, Carbon $since)
+    {
+        return $this->connection->table('check_record')
+            ->where('ic', $ic)
+            ->where('date_time', '>=', $since->format('Y-m-d H:i:s'))
+            ->select('id', 'gender', 'date_time')
+            ->orderBy('date_time', 'asc')
+            ->get();
+    }
+
     public function getCheckRecordIdByIC($ic)
     {
         $fourteenDaysAgo = now()->subDays(14)->format('Y-m-d H:i:s');
