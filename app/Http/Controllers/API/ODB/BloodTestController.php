@@ -22,6 +22,7 @@ use App\Services\ODB\MigrationService;
 use App\Services\PanelCompletenessService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -1385,6 +1386,69 @@ class BloodTestController extends Controller
                 'error_line' => $e->getLine(),
                 'trace' => $e->getTraceAsString(),
                 'labno' => $labno ?? null,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while processing the request',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Runs `test-result:rerun-review --lab_no=... --force` for one lab number:
+     * soft-deletes the AI review, resets is_reviewed=0 so the next scheduled
+     * ai:dispatch-unreviewed-async regenerates it, and runs the consult-call
+     * eligibility check when not yet enrolled. The command refuses an
+     * ambiguous lab_no; its console output is returned as-is for display.
+     */
+    public function rerunReviewByLabNo(Request $request)
+    {
+        $validated = $request->validate([
+            'labno' => 'required|string',
+        ], [
+            'labno.required' => 'Labno is required.',
+        ]);
+
+        $labno = trim($validated['labno']);
+
+        Log::channel($this->getLogChannel())->info('rerunReviewByLabNo: Processing started', ['labno' => $labno]);
+
+        try {
+            $exitCode = Artisan::call('test-result:rerun-review', [
+                '--lab_no' => $labno,
+                '--force' => true,
+            ]);
+            $output = trim(Artisan::output());
+
+            if ($exitCode !== 0) {
+                Log::channel($this->getLogChannel())->warning('rerunReviewByLabNo: Command failed', [
+                    'labno' => $labno,
+                    'exit_code' => $exitCode,
+                    'output' => $output,
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Rerun review failed for the given lab number',
+                    'output' => $output,
+                ], 422);
+            }
+
+            Log::channel($this->getLogChannel())->info('rerunReviewByLabNo: Completed', ['labno' => $labno]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'AI review reset. It will be regenerated on the next scheduled AI dispatch run.',
+                'output' => $output,
+            ]);
+        } catch (Throwable $e) {
+            Log::channel($this->getLogChannel())->error('rerunReviewByLabNo: Critical error occurred', [
+                'error_message' => $e->getMessage(),
+                'error_file' => $e->getFile(),
+                'error_line' => $e->getLine(),
+                'labno' => $labno,
             ]);
 
             return response()->json([

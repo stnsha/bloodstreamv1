@@ -132,6 +132,7 @@ Route::middleware(['api.auth', 'throttle:api'])->group(function () {
         Route::post('/getLabNoReport', 'getLabNoReport')->name('getLabNoReport');
         Route::post('/markLabNoCompleted', 'markLabNoCompleted')->name('markLabNoCompleted');
         Route::post('/bulkMarkLabNoCompleted', 'bulkMarkLabNoCompleted')->name('bulkMarkLabNoCompleted');
+        Route::post('/rerunReviewByLabNo', 'rerunReviewByLabNo')->name('odb.rerunReviewByLabNo');
         Route::post('/revertIncompleteTestResult', 'revertIncompleteTestResult')->name('odb.revertIncompleteTestResult');
         Route::post('/updateLabNo', 'updateLabNo')->name('updateLabNo');
 
