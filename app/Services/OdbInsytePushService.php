@@ -48,7 +48,7 @@ class OdbInsytePushService
      * Returns null when the patient has neither blood_test nor check_record
      * data in the window, since ODB rejects that body with HTTP 400.
      */
-    public function buildPayload(Patient $patient): ?array
+    public function buildPayload(Patient $patient, bool $includeRemarks = true): ?array
     {
         $cutoff = now()->subYears($this->historyYears())->startOfDay();
 
@@ -87,7 +87,8 @@ class OdbInsytePushService
 
         // remarks is only sent when the ODB lookup succeeded. Leaving the key out makes
         // ODB fall back to its own Doctor's Review copy; [] would mean "no remarks".
-        $remarks = $this->buildRemarks($patient->icno, $cutoff);
+        // $includeRemarks = false skips the ODB lookup entirely (blood test and MyHealth data only).
+        $remarks = $includeRemarks ? $this->buildRemarks($patient->icno, $cutoff) : null;
         if ($remarks !== null) {
             $payload['remarks'] = $remarks;
         }
