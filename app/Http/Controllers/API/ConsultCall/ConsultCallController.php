@@ -21,6 +21,28 @@ use Throwable;
 
 class ConsultCallController extends Controller
 {
+    /**
+     * Appointment date that is actually in effect: the updated date when the
+     * appointment was rescheduled (scheduled_status = 2), else the original.
+     */
+    private const EFFECTIVE_SCHEDULED_DATE_SQL = '(CASE
+        WHEN consult_calls.scheduled_status = ' . ConsultCall::SCHEDULED_STATUS_RESCHEDULED . '
+             AND consult_calls.updated_scheduled_date IS NOT NULL
+        THEN consult_calls.updated_scheduled_date
+        ELSE consult_calls.scheduled_call_date
+    END)';
+
+    /**
+     * Follow-up date that is actually in effect for follow-up alias `f`: the
+     * rescheduled date when followup_reminder = 2, else the original.
+     */
+    private const EFFECTIVE_FOLLOWUP_DATE_SQL = '(CASE
+        WHEN f.followup_reminder = ' . ConsultCallFollowUp::FOLLOWUP_REMINDER_RESCHEDULED . '
+             AND f.rescheduled_date IS NOT NULL
+        THEN f.rescheduled_date
+        ELSE f.followup_date
+    END)';
+
     public function __construct(
         private readonly AddOnResultLinkService $addOnResultLinkService
     ) {
@@ -33,7 +55,8 @@ class ConsultCallController extends Controller
                 'id', 'patient_id', 'outlet_id', 'consent_call_status', 'scheduled_status',
                 'date_from', 'date_to', 'search', 'enrollment_type',
                 'process_status', 'followup_reminder', 'scheduled_from', 'scheduled_to',
-                'consulted_by', 'action',
+                'consulted_by', 'action', 'consult_status', 'rx_issued',
+                'consultation_type', 'consult_date_from', 'consult_date_to',
             ]),
         ]);
 
@@ -65,10 +88,17 @@ class ConsultCallController extends Controller
 
         if ($request->filled('search')) {
             $search = $request->input('search');
-            $query->whereHas('patient', function ($q) use ($search) {
-                $q->where('name', 'LIKE', "%{$search}%")
-                    ->orWhere('icno', 'LIKE', "%{$search}%")
-                    ->orWhere('tel', 'LIKE', "%{$search}%");
+            $query->where(function ($outer) use ($search) {
+                $outer->whereHas('patient', function ($q) use ($search) {
+                    $q->where('name', 'LIKE', "%{$search}%")
+                        ->orWhere('icno', 'LIKE', "%{$search}%")
+                        ->orWhere('tel', 'LIKE', "%{$search}%");
+                });
+
+                // A bare number (e.g. "1528") also matches the consult call ID exactly.
+                if (ctype_digit((string) $search)) {
+                    $outer->orWhere('consult_calls.id', (int) $search);
+                }
             });
         }
 
@@ -90,12 +120,16 @@ class ConsultCallController extends Controller
             });
         }
 
+        // A rescheduled appointment is tracked on its new date only; the original
+        // scheduled_call_date no longer counts once scheduled_status = Rescheduled.
+        $effectiveScheduledDate = 'DATE(' . self::EFFECTIVE_SCHEDULED_DATE_SQL . ')';
+
         if ($request->filled('scheduled_from')) {
-            $query->where('scheduled_call_date', '>=', $request->input('scheduled_from'));
+            $query->whereRaw("$effectiveScheduledDate >= ?", [$request->input('scheduled_from')]);
         }
 
         if ($request->filled('scheduled_to')) {
-            $query->where('scheduled_call_date', '<=', $request->input('scheduled_to'));
+            $query->whereRaw("$effectiveScheduledDate <= ?", [$request->input('scheduled_to')]);
         }
 
         if ($request->filled('consulted_by')) {
@@ -181,11 +215,43 @@ class ConsultCallController extends Controller
             }
         }
 
-        // Follow-up due-date range = the latest (non-deleted) follow-up's followup_date.
+        // Consult status / Rx issued / consultation type / consulted date range all
+        // read from the latest (non-deleted) detail, matching advise_type above.
+        $latestDetailColumn = fn (string $column): string => "(
+            SELECT d.{$column}
+            FROM consult_call_details d
+            WHERE d.consult_call_id = consult_calls.id
+              AND d.deleted_at IS NULL
+            ORDER BY d.id DESC
+            LIMIT 1
+        )";
+
+        if ($request->filled('consult_status')) {
+            $query->whereRaw($latestDetailColumn('consult_status') . ' = ?', [(int) $request->input('consult_status')]);
+        }
+
+        if ($request->filled('rx_issued')) {
+            $query->whereRaw('COALESCE(' . $latestDetailColumn('rx_issued') . ', 0) = ?', [(int) $request->input('rx_issued')]);
+        }
+
+        if ($request->filled('consultation_type')) {
+            $query->whereRaw($latestDetailColumn('consultation_type') . ' = ?', [(int) $request->input('consultation_type')]);
+        }
+
+        if ($request->filled('consult_date_from')) {
+            $query->whereRaw('DATE(' . $latestDetailColumn('consult_date') . ') >= ?', [$request->input('consult_date_from')]);
+        }
+
+        if ($request->filled('consult_date_to')) {
+            $query->whereRaw('DATE(' . $latestDetailColumn('consult_date') . ') <= ?', [$request->input('consult_date_to')]);
+        }
+
+        // Follow-up due-date range = the latest (non-deleted) follow-up's effective
+        // date (rescheduled_date when rescheduled, else followup_date).
         // Used by the "upcoming follow-ups" banner to fetch only its 7-day window.
         if ($request->filled('followup_date_from') || $request->filled('followup_date_to')) {
             $fuDateSubquery = "(
-                SELECT f.followup_date
+                SELECT " . self::EFFECTIVE_FOLLOWUP_DATE_SQL . "
                 FROM consult_call_follow_ups f
                 WHERE f.consult_call_id = consult_calls.id
                   AND f.deleted_at IS NULL
@@ -211,12 +277,18 @@ class ConsultCallController extends Controller
             'id'                  => 'consult_calls.id',
             'consent_call_status' => 'consult_calls.consent_call_status',
             'enrollment_date'     => 'consult_calls.enrollment_date',
-            'scheduled_call_date' => 'consult_calls.scheduled_call_date',
+            'scheduled_call_date' => self::EFFECTIVE_SCHEDULED_DATE_SQL,
             'process_status'      => '(SELECT d.process_status FROM consult_call_details d
                                        WHERE d.consult_call_id = consult_calls.id
                                          AND d.deleted_at IS NULL
                                        ORDER BY d.id DESC LIMIT 1)',
         ];
+
+        // Bare-number search: pin the exact consult call ID match above the
+        // partial IC/phone matches, regardless of the chosen sort.
+        if ($request->filled('search') && ctype_digit((string) $request->input('search'))) {
+            $query->orderByRaw('consult_calls.id = ? DESC', [(int) $request->input('search')]);
+        }
 
         if ($sortBy && isset($sortableColumns[$sortBy])) {
             $data = $query
