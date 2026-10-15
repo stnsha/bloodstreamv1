@@ -43,6 +43,57 @@ class ConsultCallController extends Controller
         ELSE f.followup_date
     END)';
 
+    /**
+     * SQL subquery for a column of the latest non-deleted detail, or NULL when that
+     * latest detail is still a draft -- a draft has not been finalised, so it must
+     * not count (mirrors getLatestNonDraftDetail() in the consultcall report and
+     * the draft handling in the list's row rendering).
+     */
+    private static function latestFinalDetailColumn(string $column): string
+    {
+        return "(
+            SELECT CASE WHEN COALESCE(d.is_draft, 0) = 1 THEN NULL ELSE d.{$column} END
+            FROM consult_call_details d
+            WHERE d.consult_call_id = consult_calls.id
+              AND d.deleted_at IS NULL
+            ORDER BY d.id DESC
+            LIMIT 1
+        )";
+    }
+
+    /**
+     * Non-eligibility reason codes (as used by the consultcall report) mapped to
+     * the stored consult_calls.reason values.
+     */
+    private const NON_ELIGIBILITY_REASONS = [
+        'OM-FU' => 'On Prescribed Medication/Follow-Up',
+        'UR' => 'Unreachable',
+        'NK' => 'Not Keen',
+        'FN' => 'Foreign Number',
+    ];
+
+    /**
+     * Process status as displayed on the list and report (js/main.js renderRow(),
+     * js/report.js deriveProcessStatus()): the latest finalised detail's
+     * process_status when set, else Closed (3) for Refused / Not Eligible consent or
+     * a closing action/no-show, else Active (1) once a finalised detail exists.
+     */
+    private static function effectiveProcessStatusSql(): string
+    {
+        $finalProcessStatus = self::latestFinalDetailColumn('process_status');
+        $finalAction = self::latestFinalDetailColumn('action');
+        $finalConsultStatus = self::latestFinalDetailColumn('consult_status');
+        $finalDetailId = self::latestFinalDetailColumn('id');
+
+        return "(CASE
+            WHEN $finalProcessStatus IS NOT NULL THEN $finalProcessStatus
+            WHEN consult_calls.consent_call_status IN (2, 3) THEN 3
+            WHEN $finalAction IN (2, 3) OR $finalConsultStatus = 2 THEN 3
+            WHEN $finalDetailId IS NOT NULL THEN 1
+            ELSE NULL
+        END)";
+    }
+
     public function __construct(
         private readonly AddOnResultLinkService $addOnResultLinkService
     ) {
@@ -57,6 +108,8 @@ class ConsultCallController extends Controller
                 'process_status', 'followup_reminder', 'scheduled_from', 'scheduled_to',
                 'consulted_by', 'action', 'consult_status', 'rx_issued',
                 'consultation_type', 'consult_date_from', 'consult_date_to',
+                'consent_date_from', 'consent_date_to', 'non_eligibility_reason',
+                'consult_status_in', 'advise_type', 'call_answered',
             ]),
         ]);
 
@@ -78,12 +131,14 @@ class ConsultCallController extends Controller
             $query->where('scheduled_status', $request->input('scheduled_status'));
         }
 
+        // enrollment_date is a datetime: compare by calendar date so "To 30 Sep"
+        // includes consult calls enrolled any time on 30 Sep, not just at 00:00.
         if ($request->filled('date_from')) {
-            $query->where('enrollment_date', '>=', $request->input('date_from'));
+            $query->whereDate('enrollment_date', '>=', $request->input('date_from'));
         }
 
         if ($request->filled('date_to')) {
-            $query->where('enrollment_date', '<=', $request->input('date_to'));
+            $query->whereDate('enrollment_date', '<=', $request->input('date_to'));
         }
 
         if ($request->filled('search')) {
@@ -106,11 +161,10 @@ class ConsultCallController extends Controller
             $query->where('enrollment_type', $request->input('enrollment_type'));
         }
 
+        // Process status = the same derived value the list's badge and the report
+        // show (see effectiveProcessStatusSql()).
         if ($request->filled('process_status')) {
-            $processStatus = $request->input('process_status');
-            $query->whereHas('details', function ($q) use ($processStatus) {
-                $q->where('process_status', $processStatus);
-            });
+            $query->whereRaw(self::effectiveProcessStatusSql() . ' = ?', [(int) $request->input('process_status')]);
         }
 
         if ($request->filled('followup_reminder')) {
@@ -132,11 +186,10 @@ class ConsultCallController extends Controller
             $query->whereRaw("$effectiveScheduledDate <= ?", [$request->input('scheduled_to')]);
         }
 
+        // Consulted by = the latest finalised detail's doctor (matches the list's
+        // "Consulted By" column and the report's doctor chart).
         if ($request->filled('consulted_by')) {
-            $consultedBy = $request->input('consulted_by');
-            $query->whereHas('details', function ($q) use ($consultedBy) {
-                $q->where('consulted_by', $consultedBy);
-            });
+            $query->whereRaw(self::latestFinalDetailColumn('consulted_by') . ' = ?', [(int) $request->input('consulted_by')]);
         }
 
         if ($request->filled('id')) {
@@ -148,10 +201,10 @@ class ConsultCallController extends Controller
             ? $request->input('action')
             : ($request->filled('detail_action') ? $request->input('detail_action') : null);
 
+        // Action = the latest finalised detail's action (matches the action badge
+        // on the list and the report's "Referred Internally" count).
         if ($actionFilter !== null && $actionFilter !== '') {
-            $query->whereHas('details', function ($q) use ($actionFilter) {
-                $q->where('action', $actionFilter);
-            });
+            $query->whereRaw(self::latestFinalDetailColumn('action') . ' = ?', [(int) $actionFilter]);
         }
 
         if ($request->filled('draft_status')) {
@@ -168,6 +221,17 @@ class ConsultCallController extends Controller
             ", [$isDraft]);
         }
 
+        // Answered call (1 = Yes, 0 = No, 2 = None / no call made) from the eligibility form.
+        if ($request->filled('call_answered')) {
+            $query->where('consult_calls.call_answered', (int) $request->input('call_answered'));
+        }
+
+        // Specific add-on (report drill-down): consult calls recommended this add-on.
+        if ($request->filled('add_on_id')) {
+            $addOnId = (int) $request->input('add_on_id');
+            $query->whereHas('addOns', fn ($q) => $q->where('add_on_id', $addOnId));
+        }
+
         // Add-On filter: whether the consult call has any recommended add-ons.
         if ($request->filled('has_add_on')) {
             if ((string) $request->input('has_add_on') === '1') {
@@ -177,20 +241,30 @@ class ConsultCallController extends Controller
             }
         }
 
-        // Advise type = the latest (non-deleted) detail's clinical condition `type`.
+        // Advise type = the latest finalised detail's clinical condition `type`.
         if ($request->filled('advise_type')) {
-            $adviseType = $request->input('advise_type');
             $query->whereRaw("
                 (
                     SELECT cc.type
-                    FROM consult_call_details d
-                    JOIN clinical_conditions cc ON cc.id = d.clinical_condition_id
-                    WHERE d.consult_call_id = consult_calls.id
-                      AND d.deleted_at IS NULL
-                    ORDER BY d.id DESC
-                    LIMIT 1
+                    FROM clinical_conditions cc
+                    WHERE cc.id = " . self::latestFinalDetailColumn('clinical_condition_id') . "
                 ) = ?
-            ", [$adviseType]);
+            ", [$request->input('advise_type')]);
+        }
+
+        // Non-eligibility reason (report drill-down): Refused / Not Eligible consult
+        // calls grouped by reason code; OTHER = any reason outside the known list.
+        if ($request->filled('non_eligibility_reason')) {
+            $code = strtoupper((string) $request->input('non_eligibility_reason'));
+            $query->whereIn('consult_calls.consent_call_status', [2, 3]);
+            if (isset(self::NON_ELIGIBILITY_REASONS[$code])) {
+                $query->where('consult_calls.reason', self::NON_ELIGIBILITY_REASONS[$code]);
+            } else {
+                $query->where(function ($q) {
+                    $q->whereNull('consult_calls.reason')
+                        ->orWhereNotIn('consult_calls.reason', array_values(self::NON_ELIGIBILITY_REASONS));
+                });
+            }
         }
 
         // Blood test date range = the latest (non-deleted) detail's linked test
@@ -216,15 +290,19 @@ class ConsultCallController extends Controller
         }
 
         // Consult status / Rx issued / consultation type / consulted date range all
-        // read from the latest (non-deleted) detail, matching advise_type above.
-        $latestDetailColumn = fn (string $column): string => "(
-            SELECT d.{$column}
-            FROM consult_call_details d
-            WHERE d.consult_call_id = consult_calls.id
-              AND d.deleted_at IS NULL
-            ORDER BY d.id DESC
-            LIMIT 1
-        )";
+        // read from the latest finalised detail (see latestFinalDetailColumn()).
+        $latestDetailColumn = fn (string $column): string => self::latestFinalDetailColumn($column);
+
+        if ($request->filled('consult_status_in')) {
+            $statuses = array_values(array_filter(
+                array_map('intval', explode(',', (string) $request->input('consult_status_in'))),
+                fn (int $s): bool => $s >= 0 && $s <= 3
+            ));
+            if ($statuses) {
+                $placeholders = implode(',', array_fill(0, count($statuses), '?'));
+                $query->whereRaw($latestDetailColumn('consult_status') . " IN ($placeholders)", $statuses);
+            }
+        }
 
         if ($request->filled('consult_status')) {
             $query->whereRaw($latestDetailColumn('consult_status') . ' = ?', [(int) $request->input('consult_status')]);
@@ -244,6 +322,19 @@ class ConsultCallController extends Controller
 
         if ($request->filled('consult_date_to')) {
             $query->whereRaw('DATE(' . $latestDetailColumn('consult_date') . ') <= ?', [$request->input('consult_date_to')]);
+        }
+
+        // Consent date range = consent_call_date, falling back to enrollment_date when
+        // consent_call_date is missing (same bucketing as the report's "Total Consent
+        // Obtained" column).
+        $consentDate = 'DATE(COALESCE(consult_calls.consent_call_date, consult_calls.enrollment_date))';
+
+        if ($request->filled('consent_date_from')) {
+            $query->whereRaw("$consentDate >= ?", [$request->input('consent_date_from')]);
+        }
+
+        if ($request->filled('consent_date_to')) {
+            $query->whereRaw("$consentDate <= ?", [$request->input('consent_date_to')]);
         }
 
         // Follow-up due-date range = the latest (non-deleted) follow-up's effective
@@ -278,10 +369,7 @@ class ConsultCallController extends Controller
             'consent_call_status' => 'consult_calls.consent_call_status',
             'enrollment_date'     => 'consult_calls.enrollment_date',
             'scheduled_call_date' => self::EFFECTIVE_SCHEDULED_DATE_SQL,
-            'process_status'      => '(SELECT d.process_status FROM consult_call_details d
-                                       WHERE d.consult_call_id = consult_calls.id
-                                         AND d.deleted_at IS NULL
-                                       ORDER BY d.id DESC LIMIT 1)',
+            'process_status'      => self::effectiveProcessStatusSql(),
         ];
 
         // Bare-number search: pin the exact consult call ID match above the
@@ -483,6 +571,7 @@ class ConsultCallController extends Controller
             'is_eligible' => 'nullable|boolean',
             'enrollment_date' => 'required|date',
             'enrollment_type' => 'nullable|integer|in:1,2',
+            'call_answered' => 'nullable|integer|in:0,1,2',
             'consent_call_status' => 'nullable|integer|in:0,1,2,3',
             'reason' => 'nullable|string|max:255',
             'add_on_ids' => 'nullable|array',
@@ -567,6 +656,7 @@ class ConsultCallController extends Controller
             'is_eligible' => 'nullable|boolean',
             'enrollment_date' => 'sometimes|date',
             'enrollment_type' => 'nullable|integer|in:1,2',
+            'call_answered' => 'nullable|integer|in:0,1,2',
             'consent_call_status' => 'nullable|integer|in:0,1,2,3',
             'reason' => 'nullable|string|max:255',
             'add_on_ids' => 'nullable|array',
