@@ -109,7 +109,7 @@ class ConsultCallController extends Controller
                 'consulted_by', 'action', 'consult_status', 'rx_issued',
                 'consultation_type', 'consult_date_from', 'consult_date_to',
                 'consent_date_from', 'consent_date_to', 'non_eligibility_reason',
-                'consult_status_in', 'advise_type', 'call_answered',
+                'consult_status_in', 'advise_type', 'call_answered', 'action_master_id',
             ]),
         ]);
 
@@ -292,6 +292,11 @@ class ConsultCallController extends Controller
         // Consult status / Rx issued / consultation type / consulted date range all
         // read from the latest finalised detail (see latestFinalDetailColumn()).
         $latestDetailColumn = fn (string $column): string => self::latestFinalDetailColumn($column);
+
+        // Action (action_master) chosen on the latest finalised detail.
+        if ($request->filled('action_master_id')) {
+            $query->whereRaw($latestDetailColumn('action_master_id') . ' = ?', [(int) $request->input('action_master_id')]);
+        }
 
         if ($request->filled('consult_status_in')) {
             $statuses = array_values(array_filter(
@@ -946,6 +951,7 @@ class ConsultCallController extends Controller
             'invoice_status' => 'nullable|integer|in:1,2',
             'is_invoice_synced' => 'nullable|boolean',
             'action' => 'nullable|integer|in:1,2,3',
+            'action_master_id' => 'nullable|integer|exists:action_master,id',
             'consultation_type' => 'nullable|integer|in:1,2',
             'consult_status' => 'nullable|integer|in:0,1,2,3',
             'process_status' => 'nullable|integer|in:1,2,3',
@@ -1132,6 +1138,7 @@ class ConsultCallController extends Controller
             'invoice_status' => 'nullable|integer|in:1,2',
             'is_invoice_synced' => 'nullable|boolean',
             'action' => 'nullable|integer|in:1,2,3',
+            'action_master_id' => 'nullable|integer|exists:action_master,id',
             'consultation_type' => 'nullable|integer|in:1,2',
             'consult_status' => 'nullable|integer|in:0,1,2,3',
             'process_status' => 'nullable|integer|in:1,2,3',

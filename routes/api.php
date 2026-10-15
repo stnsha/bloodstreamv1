@@ -26,6 +26,7 @@ use App\Http\Controllers\API\Innoquest\PanelResultsController;
 use App\Http\Controllers\API\ODB\BloodTestController;
 use App\Http\Controllers\API\ODB\IncompleteTestResultsController;
 use App\Http\Controllers\API\Innoquest\PDFController;
+use App\Http\Controllers\API\ConsultCall\ActionMasterController;
 use App\Http\Controllers\API\ConsultCall\AddOnController;
 use App\Http\Controllers\API\ConsultCall\ClinicalConditionController;
 use App\Http\Controllers\API\ConsultCall\ConsultCallAuthController;
@@ -307,6 +308,15 @@ Route::middleware(['consult-call.auth', 'throttle:api'])->group(function () {
         Route::post('/add-ons', 'store')->name('consult-call.add-ons.store');
         Route::put('/add-ons/{id}', 'update')->name('consult-call.add-ons.update');
         Route::patch('/add-ons/{id}/toggle', 'toggle')->name('consult-call.add-ons.toggle');
+    });
+
+    Route::prefix('consult-call')->controller(ActionMasterController::class)->group(function () {
+        // Static-path routes must be registered before wildcard {id} routes to avoid capture
+        Route::get('/action-master/all', 'all')->name('consult-call.action-master.all');
+        Route::get('/action-master', 'index')->name('consult-call.action-master.index');
+        Route::post('/action-master', 'store')->name('consult-call.action-master.store');
+        Route::put('/action-master/{id}', 'update')->name('consult-call.action-master.update');
+        Route::patch('/action-master/{id}/toggle', 'toggle')->name('consult-call.action-master.toggle');
     });
 
     Route::prefix('consult-call')->controller(ConsultCallController::class)->group(function () {

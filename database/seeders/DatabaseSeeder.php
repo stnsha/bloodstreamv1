@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
             AnemiaClinicalConditionSeeder::class,
             LiverAndBoneClinicalConditionSeeder::class,
             AddOnSeeder::class,
+            ActionMasterSeeder::class,
         ]);
     }
 }
