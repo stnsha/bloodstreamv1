@@ -43,14 +43,17 @@ class BackfillAiReviewHoldCommand extends Command
         // The edit page reads the hold flag off each consult call's latest detail,
         // so only that detail's test result is considered. whereHas('consultCall')
         // excludes soft-deleted consult calls.
-        $latestDetailIds = ConsultCallDetails::query()
+        // Built as a subquery so MySQL resolves the latest detail IDs itself,
+        // instead of round-tripping a large ID list through PHP bindings.
+        $latestDetailIdsQuery = ConsultCallDetails::query()
             ->whereHas('consultCall')
-            ->groupBy('consult_call_id')
-            ->selectRaw('MAX(id) as id')
-            ->pluck('id');
+            ->groupBy('consult_call_details.consult_call_id')
+            ->selectRaw('MAX(consult_call_details.id)');
+
+        $latestDetailCount = DB::query()->fromSub($latestDetailIdsQuery, 'latest')->count();
 
         $details = ConsultCallDetails::query()
-            ->whereIn('id', $latestDetailIds)
+            ->whereIn('id', $latestDetailIdsQuery->toBase())
             ->whereNotNull('test_result_id')
             ->whereNotNull('clinical_condition_id')
             ->when(! $includeClosed, function ($query) {
@@ -91,7 +94,7 @@ class BackfillAiReviewHoldCommand extends Command
             ->filter(fn ($conditionId) => ! isset($conditionTypes[$conditionId]))
             ->values();
 
-        $this->line('Consult calls (latest detail):            ' . $latestDetailIds->count());
+        $this->line('Consult calls (latest detail):            ' . $latestDetailCount);
         $this->line('With test result + condition'
             . ($includeClosed ? ':             ' : ', not Closed: ') . $details->count());
         $this->line('Condition type CC / CC + AO / AO:          ' . $testResultIds->count());
