@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -96,6 +97,20 @@ class ConsultCallDetails extends Model
     public function testResult(): BelongsTo
     {
         return $this->belongsTo(TestResult::class, 'test_result_id', 'id');
+    }
+
+    /**
+     * "Action" options (action_master) selected on this detail; several may be
+     * selected. action_master_id is kept mirrored to the first one.
+     */
+    public function actionMasters(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            ActionMaster::class,
+            'consult_call_detail_actions',
+            'consult_call_detail_id',
+            'action_master_id'
+        )->withTimestamps();
     }
 
     /**

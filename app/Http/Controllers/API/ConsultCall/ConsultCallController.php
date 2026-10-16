@@ -113,7 +113,7 @@ class ConsultCallController extends Controller
             ]),
         ]);
 
-        $query = ConsultCall::with(['patient', 'addOns.addOn', 'addOns.results.testResult:id,lab_no,reported_date', 'details.clinicalCondition', 'details.testResult', 'details.addOnResults.testResult:id,lab_no,reported_date', 'followUps']);
+        $query = ConsultCall::with(['patient', 'addOns.addOn', 'addOns.results.testResult:id,lab_no,reported_date', 'details.clinicalCondition', 'details.testResult', 'details.addOnResults.testResult:id,lab_no,reported_date', 'details.actionMasters', 'followUps']);
 
         if ($request->filled('patient_id')) {
             $query->where('patient_id', $request->input('patient_id'));
@@ -293,9 +293,13 @@ class ConsultCallController extends Controller
         // read from the latest finalised detail (see latestFinalDetailColumn()).
         $latestDetailColumn = fn (string $column): string => self::latestFinalDetailColumn($column);
 
-        // Action (action_master) chosen on the latest finalised detail.
+        // Action (action_master): any of the actions selected on the latest finalised detail.
         if ($request->filled('action_master_id')) {
-            $query->whereRaw($latestDetailColumn('action_master_id') . ' = ?', [(int) $request->input('action_master_id')]);
+            $query->whereRaw('EXISTS (
+                SELECT 1 FROM consult_call_detail_actions cda
+                WHERE cda.consult_call_detail_id = ' . $latestDetailColumn('id') . '
+                  AND cda.action_master_id = ?
+            )', [(int) $request->input('action_master_id')]);
         }
 
         if ($request->filled('consult_status_in')) {
@@ -533,7 +537,7 @@ class ConsultCallController extends Controller
     {
         Log::info('ConsultCall show: retrieving consult call', ['id' => $id]);
 
-        $consultCall = ConsultCall::with(['patient', 'addOns.addOn', 'addOns.results.testResult:id,lab_no,reported_date', 'details.clinicalCondition', 'details.testResult', 'details.addOnResults.testResult:id,lab_no,reported_date', 'followUps'])
+        $consultCall = ConsultCall::with(['patient', 'addOns.addOn', 'addOns.results.testResult:id,lab_no,reported_date', 'details.clinicalCondition', 'details.testResult', 'details.addOnResults.testResult:id,lab_no,reported_date', 'details.actionMasters', 'followUps'])
             ->find($id);
 
         if (!$consultCall) {
@@ -620,7 +624,7 @@ class ConsultCallController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $consultCall->load(['patient', 'addOns.addOn', 'addOns.results.testResult:id,lab_no,reported_date', 'details.clinicalCondition', 'details.testResult', 'details.addOnResults.testResult:id,lab_no,reported_date', 'followUps']),
+                'data' => $consultCall->load(['patient', 'addOns.addOn', 'addOns.results.testResult:id,lab_no,reported_date', 'details.clinicalCondition', 'details.testResult', 'details.addOnResults.testResult:id,lab_no,reported_date', 'details.actionMasters', 'followUps']),
                 'message' => 'Consult call created successfully.',
             ], 201);
         } catch (Throwable $e) {
@@ -724,7 +728,7 @@ class ConsultCallController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $consultCall->fresh(['patient', 'addOns.addOn', 'addOns.results.testResult:id,lab_no,reported_date', 'details.clinicalCondition', 'details.testResult', 'details.addOnResults.testResult:id,lab_no,reported_date', 'followUps']),
+                'data' => $consultCall->fresh(['patient', 'addOns.addOn', 'addOns.results.testResult:id,lab_no,reported_date', 'details.clinicalCondition', 'details.testResult', 'details.addOnResults.testResult:id,lab_no,reported_date', 'details.actionMasters', 'followUps']),
                 'message' => 'Consult call updated successfully.',
             ]);
         } catch (Throwable $e) {
@@ -875,6 +879,43 @@ class ConsultCallController extends Controller
     // ──────────────────────────────────────────────
 
     /**
+     * Pull the selected Action options out of validated detail data. Accepts the
+     * multi-select action_master_ids[] or, from older callers, the single
+     * action_master_id. Returns null when neither was sent (leave selections
+     * untouched); otherwise the IDs to sync, with action_master_id mirrored to the
+     * first one for compatibility.
+     *
+     * @param  array<string, mixed>  $detailData
+     * @return array<int, int>|null
+     */
+    private function extractActionMasterIds(array &$detailData): ?array
+    {
+        if (array_key_exists('action_master_ids', $detailData)) {
+            $ids = array_values(array_unique(array_map('intval', $detailData['action_master_ids'] ?? [])));
+            unset($detailData['action_master_ids']);
+            $detailData['action_master_id'] = $ids[0] ?? null;
+
+            return $ids;
+        }
+
+        if (array_key_exists('action_master_id', $detailData)) {
+            return $detailData['action_master_id'] !== null ? [(int) $detailData['action_master_id']] : [];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<int, int>|null  $actionMasterIds
+     */
+    private function syncActionMasters(ConsultCallDetails $detail, ?array $actionMasterIds): void
+    {
+        if ($actionMasterIds !== null) {
+            $detail->actionMasters()->sync($actionMasterIds);
+        }
+    }
+
+    /**
      * When the doctor sets "Release Doctor Review? = Yes", dispatch the AI review
      * for the linked test result. Independent of consult status -- a held review
      * must be released even for a no-show / cancelled consult. SendToAIServer is
@@ -952,6 +993,8 @@ class ConsultCallController extends Controller
             'is_invoice_synced' => 'nullable|boolean',
             'action' => 'nullable|integer|in:1,2,3',
             'action_master_id' => 'nullable|integer|exists:action_master,id',
+            'action_master_ids' => 'nullable|array',
+            'action_master_ids.*' => 'integer|distinct|exists:action_master,id',
             'consultation_type' => 'nullable|integer|in:1,2',
             'consult_status' => 'nullable|integer|in:0,1,2,3',
             'process_status' => 'nullable|integer|in:1,2,3',
@@ -973,6 +1016,7 @@ class ConsultCallController extends Controller
             DB::beginTransaction();
 
             $detailData = $validator->validated();
+            $actionMasterIds = $this->extractActionMasterIds($detailData);
 
             // Tolerate the is_invoice_synced migration not being run yet: drop the
             // key rather than letting an unknown-column write fail the whole save.
@@ -1029,6 +1073,7 @@ class ConsultCallController extends Controller
 
                 if ($originalDetail) {
                     $originalDetail->update($detailData);
+                    $this->syncActionMasters($originalDetail, $actionMasterIds);
 
                     DB::commit();
 
@@ -1043,7 +1088,7 @@ class ConsultCallController extends Controller
 
                     return response()->json([
                         'success' => true,
-                        'data'    => $originalDetail->fresh(['clinicalCondition', 'testResult', 'addOnResults.testResult:id,lab_no,reported_date']),
+                        'data'    => $originalDetail->fresh(['clinicalCondition', 'testResult', 'addOnResults.testResult:id,lab_no,reported_date', 'actionMasters']),
                         'message' => 'Consult call detail updated successfully.',
                     ], 200);
                 }
@@ -1054,6 +1099,7 @@ class ConsultCallController extends Controller
                 $detailData['process_status'] = ConsultCallDetails::PROCESS_STATUS_ACTIVE;
             }
             $detail = $consultCall->details()->create($detailData);
+            $this->syncActionMasters($detail, $actionMasterIds);
 
             DB::commit();
 
@@ -1067,7 +1113,7 @@ class ConsultCallController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $detail->load(['clinicalCondition', 'testResult', 'addOnResults.testResult:id,lab_no,reported_date']),
+                'data' => $detail->load(['clinicalCondition', 'testResult', 'addOnResults.testResult:id,lab_no,reported_date', 'actionMasters']),
                 'message' => 'Consult call detail created successfully.',
             ], 201);
         } catch (Throwable $e) {
@@ -1139,6 +1185,8 @@ class ConsultCallController extends Controller
             'is_invoice_synced' => 'nullable|boolean',
             'action' => 'nullable|integer|in:1,2,3',
             'action_master_id' => 'nullable|integer|exists:action_master,id',
+            'action_master_ids' => 'nullable|array',
+            'action_master_ids.*' => 'integer|distinct|exists:action_master,id',
             'consultation_type' => 'nullable|integer|in:1,2',
             'consult_status' => 'nullable|integer|in:0,1,2,3',
             'process_status' => 'nullable|integer|in:1,2,3',
@@ -1160,6 +1208,7 @@ class ConsultCallController extends Controller
             DB::beginTransaction();
 
             $detailData = $validator->validated();
+            $actionMasterIds = $this->extractActionMasterIds($detailData);
 
             // Tolerate the is_invoice_synced migration not being run yet: drop the
             // key rather than letting an unknown-column write fail the whole save.
@@ -1196,6 +1245,7 @@ class ConsultCallController extends Controller
             }
 
             $detail->update($detailData);
+            $this->syncActionMasters($detail, $actionMasterIds);
 
             DB::commit();
 
@@ -1209,7 +1259,7 @@ class ConsultCallController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $detail->fresh(['clinicalCondition', 'testResult', 'addOnResults.testResult:id,lab_no,reported_date']),
+                'data' => $detail->fresh(['clinicalCondition', 'testResult', 'addOnResults.testResult:id,lab_no,reported_date', 'actionMasters']),
                 'message' => 'Consult call detail updated successfully.',
             ]);
         } catch (Throwable $e) {
