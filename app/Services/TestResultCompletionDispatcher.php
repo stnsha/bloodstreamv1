@@ -98,7 +98,9 @@ class TestResultCompletionDispatcher
             return false;
         }
 
-        $type = ClinicalCondition::getCondition((int) $conditionId)['type'] ?? null;
+        // Read the type directly: getCondition() only knows active conditions, and
+        // an enrolled result keeps its condition after that condition is deactivated.
+        $type = ClinicalCondition::whereKey((int) $conditionId)->value('type');
 
         return in_array($type, self::HOLD_CONDITION_TYPES, true);
     }

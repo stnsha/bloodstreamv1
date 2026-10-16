@@ -61,9 +61,15 @@ class BackfillAiReviewHoldCommand extends Command
             })
             ->get(['id', 'consult_call_id', 'test_result_id', 'clinical_condition_id']);
 
+        // Read types straight from the table: getCondition() only knows active
+        // conditions, and a consult call keeps its condition after it is deactivated.
+        $conditionTypes = ClinicalCondition::query()
+            ->whereIn('id', $details->pluck('clinical_condition_id')->unique())
+            ->pluck('type', 'id');
+
         $testResultIds = $details
-            ->filter(function (ConsultCallDetails $detail) {
-                $type = ClinicalCondition::getCondition((int) $detail->clinical_condition_id)['type'] ?? null;
+            ->filter(function (ConsultCallDetails $detail) use ($conditionTypes) {
+                $type = $conditionTypes[$detail->clinical_condition_id] ?? null;
 
                 return in_array($type, TestResultCompletionDispatcher::HOLD_CONDITION_TYPES, true);
             })
@@ -77,6 +83,24 @@ class BackfillAiReviewHoldCommand extends Command
             ->whereNull('ai_review_held_at')
             ->whereNull('ai_review_released_at')
             ->pluck('id');
+
+        // Per-stage counts so an empty result shows which filter removed everything.
+        $unknownConditionIds = $details
+            ->pluck('clinical_condition_id')
+            ->unique()
+            ->filter(fn ($conditionId) => ! isset($conditionTypes[$conditionId]))
+            ->values();
+
+        $this->line('Consult calls (latest detail):            ' . $latestDetailIds->count());
+        $this->line('With test result + condition'
+            . ($includeClosed ? ':             ' : ', not Closed: ') . $details->count());
+        $this->line('Condition type CC / CC + AO / AO:          ' . $testResultIds->count());
+        $this->line('Not yet held or released:                  ' . $targetIds->count());
+
+        if ($unknownConditionIds->isNotEmpty()) {
+            $this->warn('Condition ID(s) missing from clinical_conditions: '
+                . $unknownConditionIds->implode(', '));
+        }
 
         if ($targetIds->isEmpty()) {
             $this->info('No enrolled test results need an AI review hold.');
