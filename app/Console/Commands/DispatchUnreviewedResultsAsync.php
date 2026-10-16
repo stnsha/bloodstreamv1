@@ -204,6 +204,12 @@ class DispatchUnreviewedResultsAsync extends Command
         return DB::transaction(function () use ($staleThreshold) {
             return TestResult::where('is_completed', true)
                 ->where('is_reviewed', false)
+                // Skip results whose AI review is held for consult call release
+                // (see TestResultCompletionDispatcher); the release dispatches them.
+                ->where(function ($q) {
+                    $q->whereNull('ai_review_held_at')
+                        ->orWhereNotNull('ai_review_released_at');
+                })
                 ->whereNotExists(function ($query) use ($staleThreshold) {
                     $query->select(DB::raw(1))
                         ->from('ai_reviews')

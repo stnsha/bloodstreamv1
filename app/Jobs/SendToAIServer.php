@@ -96,6 +96,18 @@ class SendToAIServer implements ShouldBeUnique, ShouldQueue
                 return;
             }
 
+            // Held for consult call release (enrolled result): only the release in
+            // ConsultCallController::dispatchReleasedAiReview, which stamps
+            // ai_review_released_at first, may send it. Guards every other
+            // dispatch path (scheduled sweepers, retry/requeue commands).
+            if ($testResultCheck->isAiReviewHeld()) {
+                Log::channel('performance')->info('SendToAIServer: AI review held for consult call release, skipping', [
+                    'test_result_id' => $this->testResultId,
+                ]);
+
+                return;
+            }
+
             if (! $panelCompletenessService->checkAndHandle($testResultCheck)) {
                 Log::channel('performance')->warning('SendToAIServer: incomplete panel data, is_completed reverted, skipping', [
                     'test_result_id' => $this->testResultId,

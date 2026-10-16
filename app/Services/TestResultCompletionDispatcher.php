@@ -29,22 +29,24 @@ class TestResultCompletionDispatcher
     }
 
     /**
-     * Effective date for the add-on AI-review hold flow. On or after this date,
-     * a completed result that matches an "AO" / "CC + AO" clinical condition has
-     * its AI review withheld until a doctor releases it from the consult call.
+     * Effective date for the AI-review hold flow. On or after this date, a
+     * completed result enrolled into a consult call ("CC" / "CC + AO" / "AO"
+     * clinical condition) has its AI review withheld until it is released from
+     * the consult call, so neither the doctor review nor the report flows to the
+     * outlet before the ConsultCall update.
      */
     const AI_REVIEW_HOLD_FROM = '2026-09-16';
 
     /**
-     * Clinical condition types whose AI review is held for doctor release.
+     * Clinical condition types whose AI review is held for release.
      */
-    const HOLD_CONDITION_TYPES = ['AO', 'CC + AO'];
+    const HOLD_CONDITION_TYPES = ['CC', 'CC + AO', 'AO'];
 
     /**
      * What happens once a TestResult is confirmed complete: consult-call
-     * eligibility check, then AI review dispatch (unless the matched clinical
-     * condition is an add-on type, in which case the review is held for a
-     * doctor to release). Every dependency is derived from the TestResult
+     * eligibility check, then AI review dispatch (unless the result is enrolled
+     * under a CC / CC + AO / AO clinical condition, in which case the review is
+     * held until released from the consult call). Every dependency is derived from the TestResult
      * itself, so this is safe to call from any trigger point (a PDF-bearing
      * delivery, an incremental panel-item-only batch, or a comments batch) —
      * not just the request that originally completed the record.
@@ -72,7 +74,7 @@ class TestResultCompletionDispatcher
      * True when the AI review for this result must wait for a doctor to release
      * it: the hold flow is in effect (processing on/after AI_REVIEW_HOLD_FROM),
      * the doctor has not already released it, and the latest consult-call detail
-     * for this result carries a clinical condition of an add-on type.
+     * for this result carries a clinical condition of a held type.
      */
     protected function shouldHoldAiReview(TestResult $testResult): bool
     {
@@ -113,7 +115,7 @@ class TestResultCompletionDispatcher
                 'ai_review_released_at' => null,
             ])->save();
 
-            Log::info('AI review held pending doctor release (add-on clinical condition)', [
+            Log::info('AI review held pending consult call release', [
                 'test_result_id' => $testResult->id,
                 'lab_no' => $testResult->lab_no ?? null,
             ]);
