@@ -81,6 +81,22 @@ class AddOnResultLinkService
                 ]);
             }
 
+            // Also record the invoice on the detail, which pre-fills the Invoice ID field,
+            // so a Sync without a later Submit Changes still shows it after a reload.
+            if ($detailId !== null && $rows->isNotEmpty()) {
+                $detail = ConsultCallDetails::where('consult_call_id', $consultCall->id)->whereKey($detailId)->first();
+                if ($detail) {
+                    $detailUpdate = ['invoice_id' => $invoiceId];
+                    if ($detail->invoice_status === null) {
+                        $detailUpdate['invoice_status'] = ConsultCallAddOn::INVOICE_STATUS_CONFIRMED;
+                    }
+                    if (Schema::hasColumn('consult_call_details', 'is_invoice_synced')) {
+                        $detailUpdate['is_invoice_synced'] = true;
+                    }
+                    $detail->update($detailUpdate);
+                }
+            }
+
             DB::commit();
 
             Log::info('AddOnResultLinkService: add-on invoice assigned', $context + [
