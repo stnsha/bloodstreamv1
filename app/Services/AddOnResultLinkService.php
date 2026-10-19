@@ -11,6 +11,7 @@ use App\Models\TestResult;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Throwable;
 
 /**
@@ -102,6 +103,88 @@ class AddOnResultLinkService
             Log::error('AddOnResultLinkService: reverse link after invoice assignment failed', $context + [
                 'error' => $e->getMessage(),
             ]);
+        }
+
+        return ConsultCallAddOn::with(['addOn', 'results.testResult:id,lab_no,reported_date'])
+            ->where('consult_call_id', $consultCall->id)
+            ->get();
+    }
+
+    /**
+     * Undo assignInvoice() for one sale on this consult call, e.g. when Customer Support
+     * synced a wrong invoice ID. The add-ons become not-bought again (so a corrected
+     * invoice can be synced for them), any lab report linked through that sale is
+     * unlinked from this consult call, and the detail(s) that carried the invoice
+     * forget it. The ODB blood_test_sales row itself is left untouched: it is a real
+     * Xilnex sale and may belong to another customer.
+     *
+     * @return Collection<int, ConsultCallAddOn>|null the consult call's add-on rows after
+     *                                                unlinking, or null when no add-on of
+     *                                                this consult call is on that sale
+     */
+    public function unassignInvoice(ConsultCall $consultCall, int $bloodTestSalesId): ?Collection
+    {
+        $context = [
+            'consult_call_id' => $consultCall->id,
+            'blood_test_sales_id' => $bloodTestSalesId,
+        ];
+
+        Log::info('AddOnResultLinkService: unassigning add-on invoice', $context);
+
+        $rows = ConsultCallAddOn::where('consult_call_id', $consultCall->id)
+            ->where('blood_test_sales_id', $bloodTestSalesId)
+            ->get();
+
+        if ($rows->isEmpty()) {
+            Log::warning('AddOnResultLinkService: no add-on of this consult call is on the sale', $context);
+
+            return null;
+        }
+
+        $invoiceIds = $rows->pluck('invoice_id')->filter()->unique()->values()->all();
+
+        try {
+            DB::beginTransaction();
+
+            ConsultCallAddOn::whereKey($rows->pluck('id')->all())->update([
+                'consult_call_detail_id' => null,
+                'invoice_id' => null,
+                'blood_test_sales_id' => null,
+                'invoice_status' => null,
+            ]);
+
+            $removedResults = ConsultCallAddOnResult::where('consult_call_id', $consultCall->id)
+                ->where('blood_test_sales_id', $bloodTestSalesId)
+                ->delete();
+
+            $clearedDetails = 0;
+            if (! empty($invoiceIds)) {
+                $detailUpdate = ['invoice_id' => null, 'invoice_status' => null];
+                if (Schema::hasColumn('consult_call_details', 'is_invoice_synced')) {
+                    $detailUpdate['is_invoice_synced'] = false;
+                }
+
+                $clearedDetails = ConsultCallDetails::where('consult_call_id', $consultCall->id)
+                    ->whereIn('invoice_id', $invoiceIds)
+                    ->update($detailUpdate);
+            }
+
+            DB::commit();
+
+            Log::info('AddOnResultLinkService: add-on invoice unassigned', $context + [
+                'invoice_ids' => $invoiceIds,
+                'unassigned_add_on_ids' => $rows->pluck('add_on_id')->all(),
+                'removed_result_links' => $removedResults,
+                'cleared_detail_rows' => $clearedDetails,
+            ]);
+        } catch (Throwable $e) {
+            DB::rollBack();
+
+            Log::error('AddOnResultLinkService: failed to unassign add-on invoice', $context + [
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
         }
 
         return ConsultCallAddOn::with(['addOn', 'results.testResult:id,lab_no,reported_date'])

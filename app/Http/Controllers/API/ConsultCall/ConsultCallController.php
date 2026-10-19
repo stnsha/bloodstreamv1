@@ -829,6 +829,65 @@ class ConsultCallController extends Controller
         }
     }
 
+    /**
+     * Unlink a synced Add-On invoice (one blood_test_sales id) from this consult call so
+     * a corrected invoice can be synced in its place (called by edit.php).
+     */
+    public function unassignAddOnInvoice(int $id, int $bloodTestSalesId): JsonResponse
+    {
+        Log::info('ConsultCall unassignAddOnInvoice: starting', [
+            'consult_call_id' => $id,
+            'blood_test_sales_id' => $bloodTestSalesId,
+        ]);
+
+        $consultCall = ConsultCall::find($id);
+
+        if (!$consultCall) {
+            Log::warning('ConsultCall unassignAddOnInvoice: consult call not found', ['consult_call_id' => $id]);
+
+            return response()->json([
+                'success' => false,
+                'data' => null,
+                'message' => 'Consult call not found.',
+            ], 404);
+        }
+
+        try {
+            $addOns = $this->addOnResultLinkService->unassignInvoice($consultCall, $bloodTestSalesId);
+
+            if ($addOns === null) {
+                return response()->json([
+                    'success' => false,
+                    'data' => null,
+                    'message' => 'This invoice is not linked to this consult call.',
+                ], 404);
+            }
+
+            Log::info('ConsultCall unassignAddOnInvoice: completed', [
+                'consult_call_id' => $id,
+                'blood_test_sales_id' => $bloodTestSalesId,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => $addOns,
+                'message' => 'Add-on invoice unlinked successfully.',
+            ]);
+        } catch (Throwable $e) {
+            Log::error('ConsultCall unassignAddOnInvoice: failed', [
+                'consult_call_id' => $id,
+                'blood_test_sales_id' => $bloodTestSalesId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'data' => null,
+                'message' => 'Failed to unlink add-on invoice.',
+            ], 500);
+        }
+    }
+
     public function destroy(int $id): JsonResponse
     {
         Log::info('ConsultCall destroy: deleting consult call', ['id' => $id]);
