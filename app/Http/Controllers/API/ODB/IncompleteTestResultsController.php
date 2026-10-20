@@ -26,7 +26,10 @@ class IncompleteTestResultsController extends Controller
         $search = trim((string) $request->input('search', ''));
 
         try {
+            // Hide stale rows whose test result is already completed and reviewed
+            // (cleared for good by panels:purge-stale-incomplete).
             $query = IncompleteTestResult::with('testResult')
+                ->whereDoesntHave('testResult', fn ($q) => $q->where('is_completed', true)->where('is_reviewed', true))
                 ->orderBy('id', 'desc');
 
             if ($search !== '') {

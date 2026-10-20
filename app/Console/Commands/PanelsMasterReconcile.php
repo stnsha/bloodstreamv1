@@ -21,7 +21,7 @@ class PanelsMasterReconcile extends Command
                             {--dry-run : Preview all three steps without making any changes}
                             {--force : Skip the confirmation prompt (required for unattended/scheduled runs)}';
 
-    protected $description = 'Run the full panel-completeness reconciliation cycle in one pass: (1) panels:recheck-incomplete — revert is_completed=1 records whose panels no longer meet the completeness threshold, respecting --min-age-hours so in-flight deliveries are left alone; (2) panels:reconcile-incomplete — promote incomplete_test_results rows that now meet the threshold, stamping manually_completed_at on each so it is never reverted again by step 1; (3) panels:recheck-late-reviews — redispatch AI review + consult-call re-eval for completed/reviewed records that received new panel data after their review finished.';
+    protected $description = 'Run the full panel-completeness reconciliation cycle in one pass: (1) panels:recheck-incomplete — revert is_completed=1 records whose panels no longer meet the completeness threshold, respecting --min-age-hours so in-flight deliveries are left alone; (2) panels:reconcile-incomplete — promote incomplete_test_results rows that now meet the threshold, stamping manually_completed_at on each so it is never reverted again by step 1; (3) panels:recheck-late-reviews — redispatch AI review + consult-call re-eval for completed/reviewed records that received new panel data after their review finished; (4) panels:purge-stale-incomplete — delete incomplete_test_results rows whose record is already completed and reviewed.';
 
     public function handle(): int
     {
@@ -139,16 +139,31 @@ class PanelsMasterReconcile extends Command
         $this->line(Artisan::output());
 
         $this->line('');
-        $this->info("Done. Step exit codes — recheck-incomplete: {$step1Exit}, reconcile-incomplete: {$step2Exit}, recheck-late-reviews: {$step3Exit}, manually_completed_at stamped: {$stampedCount}.");
+        $this->info('=== Step 4/4: panels:purge-stale-incomplete (remove incomplete rows of completed + reviewed records) ===');
+
+        // Step 2 only reconciles rows whose test result is still is_completed=0, so a row
+        // left behind on a record that is already completed and reviewed is never cleared
+        // there and keeps showing on the ODB Incomplete Test Results page.
+        $step4Exit = Artisan::call('panels:purge-stale-incomplete', array_filter([
+            '--limit' => $limit,
+        ], fn ($value) => $value !== null) + [
+            '--dry-run' => $dryRun,
+            '--force' => true,
+        ]);
+        $this->line(Artisan::output());
+
+        $this->line('');
+        $this->info("Done. Step exit codes — recheck-incomplete: {$step1Exit}, reconcile-incomplete: {$step2Exit}, recheck-late-reviews: {$step3Exit}, purge-stale-incomplete: {$step4Exit}, manually_completed_at stamped: {$stampedCount}.");
 
         Log::channel('ai-command')->info('PanelsMasterReconcile completed', [
             'step1_exit' => $step1Exit,
             'step2_exit' => $step2Exit,
             'step3_exit' => $step3Exit,
+            'step4_exit' => $step4Exit,
             'manually_completed_at_stamped' => $stampedCount,
         ]);
 
-        return ($step1Exit === Command::FAILURE && $step2Exit === Command::FAILURE && $step3Exit === Command::FAILURE)
+        return ($step1Exit === Command::FAILURE && $step2Exit === Command::FAILURE && $step3Exit === Command::FAILURE && $step4Exit === Command::FAILURE)
             ? Command::FAILURE
             : Command::SUCCESS;
     }
