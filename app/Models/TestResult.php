@@ -82,6 +82,16 @@ class TestResult extends Model
         return $this->isAiReviewHeld();
     }
 
+    /**
+     * Serialized flag: the held AI review has already been released (by
+     * "Release Doctor Review? = Yes" or by closing the case). The consult-call
+     * edit screen shows the control pre-filled with Yes and locked.
+     */
+    public function getAiReviewReleasedAttribute(): bool
+    {
+        return $this->ai_review_held_at !== null && $this->ai_review_released_at !== null;
+    }
+
     public function doctor(): BelongsTo
     {
         return $this->belongsTo(Doctor::class, 'doctor_id', 'id');

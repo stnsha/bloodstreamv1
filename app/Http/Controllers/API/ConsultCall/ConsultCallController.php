@@ -554,7 +554,7 @@ class ConsultCallController extends Controller
         // edit screen can decide whether to show "Release Doctor Review?".
         $consultCall->details->each(function ($detail) {
             if ($detail->testResult) {
-                $detail->testResult->append('ai_review_on_hold');
+                $detail->testResult->append(['ai_review_on_hold', 'ai_review_released']);
             }
         });
 
@@ -1012,6 +1012,11 @@ class ConsultCallController extends Controller
         // this review on a later benign re-delivery.
         if ($testResult->isAiReviewHeld()) {
             $testResult->forceFill(['ai_review_released_at' => now()])->save();
+
+            if (Schema::hasColumn('consult_call_details', 'release_doctor_review')) {
+                ConsultCallDetails::where('consult_call_id', $consultCallId)
+                    ->update(['release_doctor_review' => true]);
+            }
         }
 
         SendToAIServer::dispatch($testResult->id);
@@ -1021,6 +1026,44 @@ class ConsultCallController extends Controller
             'detail_id' => $detail->id,
             'test_result_id' => $testResult->id,
             'was_held' => $testResult->ai_review_held_at !== null,
+        ]);
+    }
+
+    /**
+     * Closing a case releases an AI review that is still on hold, i.e. the
+     * user left "Release Doctor Review?" at No (or never released it). One-time
+     * by design: only a transition into Closed triggers it, and the release
+     * stamps ai_review_released_at, so isAiReviewHeld() is false on any later
+     * reopen/close cycle and nothing is dispatched again.
+     */
+    private function releaseHeldAiReviewOnClose(?ConsultCallDetails $detail, bool $wasClosed, int $consultCallId): void
+    {
+        if ($wasClosed || ! $detail || ! $detail->test_result_id
+            || (int) $detail->process_status !== ConsultCallDetails::PROCESS_STATUS_CLOSED) {
+            return;
+        }
+
+        $testResult = TestResult::find($detail->test_result_id);
+
+        if (! $testResult || ! $testResult->isAiReviewHeld()) {
+            return;
+        }
+
+        $testResult->forceFill(['ai_review_released_at' => now()])->save();
+
+        // Record the release as "Release Doctor Review? = Yes" on every detail of
+        // this consult call, matching ReleaseDoctorReviewBackfillSeeder.
+        if (Schema::hasColumn('consult_call_details', 'release_doctor_review')) {
+            ConsultCallDetails::where('consult_call_id', $consultCallId)
+                ->update(['release_doctor_review' => true]);
+        }
+
+        SendToAIServer::dispatch($testResult->id);
+
+        Log::info('ConsultCall close: released held AI review', [
+            'consult_call_id' => $consultCallId,
+            'detail_id' => $detail->id,
+            'test_result_id' => $testResult->id,
         ]);
     }
 
@@ -1050,6 +1093,7 @@ class ConsultCallController extends Controller
             'invoice_id' => 'nullable|string|max:255',
             'invoice_status' => 'nullable|integer|in:1,2',
             'is_invoice_synced' => 'nullable|boolean',
+            'release_doctor_review' => 'nullable|boolean',
             'action' => 'nullable|integer|in:1,2,3',
             'action_master_id' => 'nullable|integer|exists:action_master,id',
             'action_master_ids' => 'nullable|array',
@@ -1082,6 +1126,13 @@ class ConsultCallController extends Controller
             if (array_key_exists('is_invoice_synced', $detailData)
                 && ! Schema::hasColumn('consult_call_details', 'is_invoice_synced')) {
                 unset($detailData['is_invoice_synced']);
+            }
+
+            // Same tolerance for the release_doctor_review column. The release
+            // itself reads the request, so it still works without the column.
+            if (array_key_exists('release_doctor_review', $detailData)
+                && ! Schema::hasColumn('consult_call_details', 'release_doctor_review')) {
+                unset($detailData['release_doctor_review']);
             }
 
             // Auto-set process_status: Refer External, End Process, No Show, or Cancelled all force Closed;
@@ -1131,12 +1182,14 @@ class ConsultCallController extends Controller
                     ->first();
 
                 if ($originalDetail) {
+                    $wasClosed = (int) $originalDetail->process_status === ConsultCallDetails::PROCESS_STATUS_CLOSED;
                     $originalDetail->update($detailData);
                     $this->syncActionMasters($originalDetail, $actionMasterIds);
 
                     DB::commit();
 
                     $this->dispatchReleasedAiReview($request, $originalDetail->fresh(), $id);
+                    $this->releaseHeldAiReviewOnClose($originalDetail->fresh(), $wasClosed, $id);
 
                     Log::info('ConsultCall storeDetails: updated original detail via smart-update', [
                         'consult_call_id' => $id,
@@ -1163,6 +1216,7 @@ class ConsultCallController extends Controller
             DB::commit();
 
             $this->dispatchReleasedAiReview($request, $detail->fresh(), $id);
+            $this->releaseHeldAiReviewOnClose($detail->fresh(), false, $id);
 
             Log::info('ConsultCall storeDetails: created successfully', [
                 'consult_call_id' => $id,
@@ -1242,6 +1296,7 @@ class ConsultCallController extends Controller
             'invoice_id' => 'nullable|string|max:255',
             'invoice_status' => 'nullable|integer|in:1,2',
             'is_invoice_synced' => 'nullable|boolean',
+            'release_doctor_review' => 'nullable|boolean',
             'action' => 'nullable|integer|in:1,2,3',
             'action_master_id' => 'nullable|integer|exists:action_master,id',
             'action_master_ids' => 'nullable|array',
@@ -1276,6 +1331,13 @@ class ConsultCallController extends Controller
                 unset($detailData['is_invoice_synced']);
             }
 
+            // Same tolerance for the release_doctor_review column. The release
+            // itself reads the request, so it still works without the column.
+            if (array_key_exists('release_doctor_review', $detailData)
+                && ! Schema::hasColumn('consult_call_details', 'release_doctor_review')) {
+                unset($detailData['release_doctor_review']);
+            }
+
             // process_status is a NOT NULL column. Callers that don't manage it explicitly
             // (e.g. the Consultation Details form, which now leaves it to the header pill
             // toggle's own dedicated update) may still send the key as null -- drop it so
@@ -1303,12 +1365,14 @@ class ConsultCallController extends Controller
                 $detail->consultCall->update(['consent_call_status' => ConsultCall::CONSENT_STATUS_REFUSED]);
             }
 
+            $wasClosed = (int) $detail->process_status === ConsultCallDetails::PROCESS_STATUS_CLOSED;
             $detail->update($detailData);
             $this->syncActionMasters($detail, $actionMasterIds);
 
             DB::commit();
 
             $this->dispatchReleasedAiReview($request, $detail->fresh(), $id);
+            $this->releaseHeldAiReviewOnClose($detail->fresh(), $wasClosed, $id);
 
             Log::info('ConsultCall updateDetails: updated successfully', [
                 'consult_call_id' => $id,
