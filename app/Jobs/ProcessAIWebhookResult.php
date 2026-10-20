@@ -16,7 +16,6 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Throwable;
 
 class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
 {
@@ -92,12 +91,8 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
             // Convert AI response to HTML
             $htmlReview = $htmlGenerator->convertToHtml($aiAnalysis['answer']);
 
-            // Set inside the transaction only when this webhook actually completes the
-            // review (an idempotent replay leaves it false), so the ODB push fires once.
-            $completedNow = false;
-
             // Update ai_reviews and test_result in transaction
-            DB::transaction(function () use ($testResultId, $aiAnalysis, $htmlReview, $idempotencyKey, $compiler, &$completedNow) {
+            DB::transaction(function () use ($testResultId, $aiAnalysis, $htmlReview, $idempotencyKey, $compiler) {
                 // Get most recent AIReview record for this test result
                 $aiReview = AIReview::where('test_result_id', $testResultId)
                     ->orderBy('id', 'desc')
@@ -140,7 +135,6 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
                 $aiReview->raw_response = $aiAnalysis;
                 $aiReview->webhook_idempotency_key = $idempotencyKey;
                 $aiReview->save();
-                $completedNow = true;
 
                 // Update test_result.is_reviewed flag (only on first successful webhook)
                 $testResult = TestResult::find($testResultId);
@@ -157,10 +151,6 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
             Log::channel('webhook')->info('AI review stored successfully from webhook', [
                 'test_result_id' => $testResultId,
             ]);
-
-            if ($completedNow) {
-                $this->dispatchOdbInsytePush($testResultId);
-            }
 
             // Log performance metrics
             $duration = round((microtime(true) - $startTime) * 1000, 2);
@@ -184,31 +174,6 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
             // this job must complete "successfully" from Laravel's point of view
             // so no failed_jobs row is created.
             $this->handleError($testResultId, $e);
-        }
-    }
-
-    /**
-     * Queue the ODB InSyte push for the patient behind this review. Runs after the
-     * review is committed, so any failure here is logged only and never routed to
-     * handleError() (which would supersede a review that is already COMPLETED).
-     */
-    protected function dispatchOdbInsytePush(int $testResultId): void
-    {
-        if (! config('services.odb_insyte.enabled')) {
-            return;
-        }
-
-        try {
-            PushPatientToOdbInsyte::dispatch($testResultId);
-
-            Log::channel('webhook')->info('ODB InSyte push job dispatched', [
-                'test_result_id' => $testResultId,
-            ]);
-        } catch (Throwable $e) {
-            Log::channel('webhook')->error('Failed to dispatch ODB InSyte push job', [
-                'test_result_id' => $testResultId,
-                'error' => $e->getMessage(),
-            ]);
         }
     }
 

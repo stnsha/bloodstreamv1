@@ -788,6 +788,7 @@ class BloodTestController extends Controller
                 // Condition 1: enrolled AND the latest consult-call detail's clinical
                 // condition advise type is an add-on type (AO / CC + AO). Tick only.
                 $addOnByCondition = false;
+                $adviseType = null;
                 if ($consultCall) {
                     $conditionId = ConsultCallDetails::where('consult_call_id', $consultCall->id)
                         ->whereNotNull('clinical_condition_id')
@@ -795,8 +796,8 @@ class BloodTestController extends Controller
                         ->value('clinical_condition_id');
 
                     if ($conditionId) {
-                        $type = ClinicalCondition::getCondition((int) $conditionId)['type'] ?? null;
-                        $addOnByCondition = in_array($type, ['AO', 'CC + AO'], true);
+                        $adviseType = ClinicalCondition::getCondition((int) $conditionId)['type'] ?? null;
+                        $addOnByCondition = in_array($adviseType, ['AO', 'CC + AO'], true);
                     }
                 }
 
@@ -816,6 +817,9 @@ class BloodTestController extends Controller
                     'refid'           => $refid,
                     'is_enrolled'     => $consultCall !== null,
                     'consult_call_id' => $consultCall ? $consultCall->id : null,
+                    // Latest consult-call detail's advise type: 'CC' | 'AO' | 'CC + AO' | null.
+                    // 'AO' = Add-On only, no consult call to be made.
+                    'advise_type'     => $adviseType,
                     'add_on_by_condition'            => $addOnByCondition,
                     'add_on_by_invoice'              => $addOnInvoiceConsultCallId !== null,
                     'add_on_invoice_consult_call_id' => $addOnInvoiceConsultCallId,

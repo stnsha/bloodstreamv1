@@ -669,6 +669,71 @@ class OctopusApiService
     }
 
     /**
+     * Fetch the data needed to verify a lab ref_id against the patient IC:
+     * the customer behind the ref_id's blood_test_sales row, and every
+     * blood_test_sales row of customers whose IC equals the patient IC
+     * (see verifyRefIdByIc.php). The match decision is left to the caller.
+     *
+     * @param string $refId The lab ref_id (e.g., INN124856)
+     * @param string $patientIc The patient IC number
+     * @param string|null $labCode The lab code prefix (e.g., INN)
+     * @return array|null ['ref_customer' => array|null, 'ic_sales' => array] or null on non-success
+     * @throws Exception
+     */
+    public function verifyRefIdByIc(string $refId, string $patientIc, ?string $labCode = null): ?array
+    {
+        Log::info('OctopusApiService: Verifying ref_id against patient IC', [
+            'refid' => $refId,
+            'patient_ic' => $patientIc,
+            'lab_code' => $labCode,
+        ]);
+
+        $data = [
+            'username' => $this->username,
+            'password' => $this->password,
+            'refid' => $refId,
+            'patient_ic' => $patientIc,
+            'lab_code' => $labCode ?? '',
+        ];
+
+        try {
+            $result = $this->callAPI('POST', '/verifyRefIdByIc.php', $data);
+
+            if (($result['status'] ?? '') !== 'success') {
+                Log::warning('OctopusApiService: ref_id verification returned non-success status', [
+                    'refid' => $refId,
+                    'patient_ic' => $patientIc,
+                    'status' => $result['status'] ?? null,
+                    'message' => $result['message'] ?? null,
+                ]);
+
+                return null;
+            }
+
+            Log::info('OctopusApiService: ref_id verification data fetched', [
+                'refid' => $refId,
+                'patient_ic' => $patientIc,
+                'ref_customer_id' => $result['ref_customer']['customer_id'] ?? null,
+                'ic_sales_count' => count($result['ic_sales'] ?? []),
+            ]);
+
+            return [
+                'ref_customer' => $result['ref_customer'] ?? null,
+                'ic_sales' => $result['ic_sales'] ?? [],
+            ];
+
+        } catch (Exception $e) {
+            Log::error('OctopusApiService: ref_id verification exception', [
+                'error' => $e->getMessage(),
+                'refid' => $refId,
+                'patient_ic' => $patientIc,
+            ]);
+
+            throw $e;
+        }
+    }
+
+    /**
      * Test API connection.
      *
      * @return bool True if connection is successful

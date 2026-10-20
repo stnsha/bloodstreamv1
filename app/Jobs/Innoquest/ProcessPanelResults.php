@@ -26,6 +26,7 @@ use App\Services\MyHealthService;
 use App\Services\OctopusApiService;
 use App\Services\PanelCompletenessService;
 use App\Services\PanelInterpretationService;
+use App\Services\RefIdVerificationService;
 use App\Services\TestResultCompletionDispatcher;
 use Carbon\Carbon;
 use DateTime;
@@ -215,20 +216,20 @@ class ProcessPanelResults implements ShouldQueue
         // Capture every raw JSON on arrival, before any processing or transaction
         $this->trackDeliveryFile($lab_id, $sending_facility, $batch_id, $validated);
 
+        // Verify the ref_id belongs to this patient before it is stored. Runs
+        // outside the transaction so the ODB round trip does not hold locks.
+        $reference_id = $this->resolveVerifiedRefId($validated, $lab_id, $batch_id);
+
         try {
             DB::beginTransaction();
 
             $patient_id = $this->findOrCreatePatient($validated['patient'], $batch_id);
 
-            $reference_id = null;
             $orders_count = 0;
             $observations_count = 0;
 
             foreach ($validated['Orders'] as $key => $od) {
                 $orders_count++;
-                if (is_null($reference_id) && filled($od['PlacerOrderNumber'])) {
-                    $reference_id = strtoupper($od['PlacerOrderNumber']);
-                }
 
                 $doctor_name = $od['OrderingProvider']['Name'];
                 $doctor_code = $od['OrderingProvider']['Code'];
@@ -480,8 +481,12 @@ class ProcessPanelResults implements ShouldQueue
             // AFTER TRANSACTION: Non-critical operations that don't need atomicity
             // These are moved outside to reduce transaction lock hold time
 
-            // Resolve null ref_id via exact IC match from ODB
-            if ($test_result && $reference_id === null) {
+            // Resolve null ref_id via exact IC match from ODB. Skipped when the
+            // delivered ref_id was dropped by verification: no sale matched the
+            // collected campaign date, so it must stay null.
+            $refIdDroppedByVerification = $reference_id === null && $this->extractRefId() !== null;
+
+            if ($test_result && $reference_id === null && ! $refIdDroppedByVerification) {
                 try {
                     $patient = Patient::find($patient_id);
                     $patientIc = $patient->icno ?? null;
@@ -659,22 +664,96 @@ class ProcessPanelResults implements ShouldQueue
         }
     }
 
-    protected function findOrCreatePatient(array $patient, $batch_id = null)
+    /**
+     * The raw ref_id (first PlacerOrderNumber), checked against ODB so a
+     * mistyped ref_id pointing at another customer's sale is corrected (or
+     * dropped) before it is stored. Fails open: any error keeps the raw ref_id.
+     */
+    protected function resolveVerifiedRefId(array $validated, int $lab_id, $batch_id = null): ?string
     {
-        $icno = null;
-        $ic_type = Patient::IC_TYPE_OTHERS;
-        $patient_gender = null;
-        $age = null;
+        $rawRefId = $this->extractRefId();
 
+        if ($rawRefId === null) {
+            return null;
+        }
+
+        try {
+            $identity = $this->resolvePatientIdentity($validated['patient'], $batch_id);
+
+            $collectedDate = null;
+            foreach ($validated['Orders'] ?? [] as $order) {
+                foreach ($order['Observations'] ?? [] as $observation) {
+                    if (filled($observation['SpecimenDateTime'] ?? null)) {
+                        $collectedDate = $this->convertDatetime($observation['SpecimenDateTime']);
+                        break 2;
+                    }
+                }
+            }
+
+            $outcome = app(RefIdVerificationService::class)->verify(
+                $rawRefId,
+                Lab::find($lab_id)?->code,
+                $identity['icno'],
+                $validated['patient']['PatientLastName'] ?? null,
+                $collectedDate,
+                $this->extractLabNo()
+            );
+
+            if ($outcome['ref_id'] !== $rawRefId) {
+                Log::error('ProcessPanelResults: storing verified ref_id in place of delivered ref_id', [
+                    'request_id' => $this->requestId,
+                    'lab_no' => $this->extractLabNo(),
+                    'delivered_ref_id' => $rawRefId,
+                    'stored_ref_id' => $outcome['ref_id'],
+                    'status' => $outcome['status'],
+                ]);
+            }
+
+            return $outcome['ref_id'];
+        } catch (Throwable $e) {
+            Log::error('ProcessPanelResults: ref_id verification failed, storing delivered ref_id', [
+                'request_id' => $this->requestId,
+                'ref_id' => $rawRefId,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return $rawRefId;
+        }
+    }
+
+    /**
+     * IC number, IC type, gender and age derived from the delivered patient block.
+     */
+    protected function resolvePatientIdentity(array $patient, $batch_id = null): array
+    {
         if (filled($patient['AlternatePatientID'])) {
             $icInfo = checkIcno($patient['AlternatePatientID'], $patient['PatientDOB'] ?? null);
-            $icno = $icInfo['icno'];
-            $ic_type = $icInfo['type'];
-            $patient_gender = $icInfo['gender'];
-            $age = $icInfo['age'];
-        } else {
-            $icno = $patient['PatientID'] ?? 'N/A_'.$batch_id;
+
+            return [
+                'icno' => $icInfo['icno'],
+                'ic_type' => $icInfo['type'],
+                'gender' => $icInfo['gender'],
+                'age' => $icInfo['age'],
+            ];
         }
+
+        return [
+            'icno' => $patient['PatientID'] ?? 'N/A_'.$batch_id,
+            'ic_type' => Patient::IC_TYPE_OTHERS,
+            'gender' => null,
+            'age' => null,
+        ];
+    }
+
+    protected function findOrCreatePatient(array $patient, $batch_id = null)
+    {
+        $identity = $this->resolvePatientIdentity($patient, $batch_id);
+        $icno = $identity['icno'];
+        $ic_type = $identity['ic_type'];
+        $patient_gender = $identity['gender'];
+        $age = $identity['age'];
 
         $patient_name = $patient['PatientLastName'];
         $patient_dob = filled($patient['PatientDOB']) ? $patient['PatientDOB'] : null;
