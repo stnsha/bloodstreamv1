@@ -891,6 +891,50 @@ class BloodTestController extends Controller
     }
 
     /**
+     * Move consult calls from a duplicate ODB customer to the customer it was merged
+     * into (consult_calls.customer_id). Called by ODB
+     * blood_test/fix_duplicate_customers.php after it merged the customer rows.
+     */
+    public function repointCustomer(Request $request)
+    {
+        $fromCustomerId = (int) $request->input('from_customer_id');
+        $toCustomerId = (int) $request->input('to_customer_id');
+
+        if ($fromCustomerId <= 0 || $toCustomerId <= 0 || $fromCustomerId === $toCustomerId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'from_customer_id and to_customer_id are required and must differ',
+            ], 422);
+        }
+
+        try {
+            // withTrashed: soft-deleted consult calls keep a valid customer too.
+            $updated = ConsultCall::withTrashed()
+                ->where('customer_id', $fromCustomerId)
+                ->update(['customer_id' => $toCustomerId]);
+
+            Log::channel($this->getLogChannel())->info('repointCustomer', [
+                'from_customer_id' => $fromCustomerId,
+                'to_customer_id' => $toCustomerId,
+                'consult_calls_updated' => $updated,
+            ]);
+
+            return response()->json(['success' => true, 'consult_calls' => $updated]);
+        } catch (Throwable $e) {
+            Log::channel($this->getLogChannel())->error('repointCustomer: error', [
+                'from_customer_id' => $fromCustomerId,
+                'to_customer_id' => $toCustomerId,
+                'error_message' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Original blood test sale of a consult call (the sale whose result it was
      * enrolled from). ODB blood_test/ajax_sync_invoice.php lists a synced add-on
      * invoice's items under this sale instead of creating a new blood_test_sales row.
