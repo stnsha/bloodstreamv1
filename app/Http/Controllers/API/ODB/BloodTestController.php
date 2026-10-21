@@ -1297,12 +1297,32 @@ class BloodTestController extends Controller
                 ]);
             }
 
+            // Consult-call enrollment for this patient, and the latest detail's
+            // clinical condition advise type: 'CC' | 'AO' | 'CC + AO' | null.
+            // Type is read directly so a deactivated condition still resolves.
+            $consultCall = $testResult->patient_id
+                ? ConsultCall::where('patient_id', $testResult->patient_id)->orderByDesc('id')->first()
+                : null;
+            $adviseType = null;
+            if ($consultCall) {
+                $conditionId = ConsultCallDetails::where('consult_call_id', $consultCall->id)
+                    ->whereNotNull('clinical_condition_id')
+                    ->orderByDesc('id')
+                    ->value('clinical_condition_id');
+
+                if ($conditionId) {
+                    $adviseType = ClinicalCondition::whereKey((int) $conditionId)->value('type');
+                }
+            }
+
             $processingTime = now()->diffInSeconds($processingStartTime);
 
             Log::channel($this->getLogChannel())->info('getLabNoReport: Processing completed', [
                 'labno' => $labno,
                 'report_id' => $testResult->id,
                 'status' => $status,
+                'is_enrolled' => $consultCall !== null,
+                'advise_type' => $adviseType,
                 'has_pdf' => $pdfBase64 !== null,
                 'processing_time_seconds' => $processingTime,
             ]);
@@ -1317,6 +1337,9 @@ class BloodTestController extends Controller
                 'ref_id' => $testResult->ref_id,
                 'is_reviewed' => $testResult->is_reviewed,
                 'review' => ($testResult->is_reviewed && $testResult->aiReview) ? $testResult->aiReview->ai_response : null,
+                'is_enrolled' => $consultCall !== null,
+                'consult_call_id' => $consultCall?->id,
+                'advise_type' => $adviseType,
                 'pdf' => $pdfBase64,
             ]);
         } catch (Throwable $e) {
