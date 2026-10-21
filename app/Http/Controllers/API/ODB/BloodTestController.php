@@ -27,6 +27,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 use Throwable;
 
 class BloodTestController extends Controller
@@ -39,6 +40,9 @@ class BloodTestController extends Controller
     const ungenerate = 2;
     const processing = 3;
     const notfound = 4;
+    // AI review held until the consult call releases it (CC / CC + AO / AO enrolment,
+    // see TestResultCompletionDispatcher::holdAiReview()). Returned by getReviewById only.
+    const held = 5;
 
     public function __construct(
         MyHealthService $myHealthService,
@@ -538,7 +542,11 @@ class BloodTestController extends Controller
                     $searchAttempts['step7_existence_check']['found'] = true;
                     $searchAttempts['step7_existence_check']['test_result_id'] = $unfinishedTestResult->id;
 
-                    $logSummary('info', 'PROCESSING', [
+                    // Held for the consult call: not lab processing, the AI review waits
+                    // for the consult call to release it. Otherwise still processing.
+                    $isHeld = $unfinishedTestResult->isAiReviewHeld();
+
+                    $logSummary('info', $isHeld ? 'HELD_FOR_CONSULT_CALL' : 'PROCESSING', [
                         'existing_test_result_id' => $unfinishedTestResult->id,
                         'is_completed' => $unfinishedTestResult->is_completed,
                         'is_reviewed' => $unfinishedTestResult->is_reviewed,
@@ -552,7 +560,7 @@ class BloodTestController extends Controller
                         // which would incorrectly mark "Report" as ready before it exists.
                         'report_id' => null,
                         'ref_id' => $unfinishedTestResult->ref_id,
-                        'status' => self::processing
+                        'status' => $isHeld ? self::held : self::processing
                     ])
                     ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
                     ->header('Pragma', 'no-cache')
@@ -854,6 +862,106 @@ class BloodTestController extends Controller
                 'success' => false,
                 'message' => 'An error occurred while processing the request',
                 'error'   => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Add-on sales still on their own blood_test_sales row, with the original
+     * blood test sale (parent) each belongs under. Read-only; used by ODB
+     * blood_test/fix_ao_refid.php.
+     */
+    public function addOnSalesForMerge(AddOnResultLinkService $addOnResultLinkService)
+    {
+        try {
+            return response()->json([
+                'success' => true,
+                'data'    => $addOnResultLinkService->addOnSalesForMerge(),
+            ]);
+        } catch (Throwable $e) {
+            Log::channel($this->getLogChannel())->error('addOnSalesForMerge: error', [
+                'error_message' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Original blood test sale of a consult call (the sale whose result it was
+     * enrolled from). ODB blood_test/ajax_sync_invoice.php lists a synced add-on
+     * invoice's items under this sale instead of creating a new blood_test_sales row.
+     */
+    public function addOnParentSale(Request $request, AddOnResultLinkService $addOnResultLinkService)
+    {
+        $consultCallId = (int) $request->input('consult_call_id');
+        $detailId = (int) $request->input('consult_call_detail_id');
+
+        if ($consultCallId <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'consult_call_id is required',
+            ], 422);
+        }
+
+        $parent = $addOnResultLinkService->parentSaleOf($consultCallId, $detailId > 0 ? $detailId : null);
+
+        Log::channel($this->getLogChannel())->info('addOnParentSale', [
+            'consult_call_id' => $consultCallId,
+            'consult_call_detail_id' => $detailId ?: null,
+        ] + $parent);
+
+        return response()->json([
+            'success' => true,
+            'parent_sales_id' => $parent['sales_id'],
+            'parent_ref_id' => $parent['ref_id'],
+        ]);
+    }
+
+    /**
+     * Move an add-on sale's consult-call links (consult_call_add_ons,
+     * consult_call_add_on_results) onto its original blood test sale. Called by
+     * ODB blood_test/fix_ao_refid.php after it merged the sale on the ODB side.
+     */
+    public function repointAddOnSale(Request $request, AddOnResultLinkService $addOnResultLinkService)
+    {
+        $fromSalesId = (int) $request->input('from_sales_id');
+        $toSalesId = (int) $request->input('to_sales_id');
+
+        if ($fromSalesId <= 0 || $toSalesId <= 0 || $fromSalesId === $toSalesId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'from_sales_id and to_sales_id are required and must differ',
+            ], 422);
+        }
+
+        try {
+            $updated = $addOnResultLinkService->repointSale($fromSalesId, $toSalesId);
+
+            Log::channel($this->getLogChannel())->info('repointAddOnSale', [
+                'from_sales_id' => $fromSalesId,
+                'to_sales_id'   => $toSalesId,
+            ] + $updated);
+
+            return response()->json(['success' => true] + $updated);
+        } catch (InvalidArgumentException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        } catch (Throwable $e) {
+            Log::channel($this->getLogChannel())->error('repointAddOnSale: error', [
+                'from_sales_id' => $fromSalesId,
+                'to_sales_id'   => $toSalesId,
+                'error_message' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
             ], 500);
         }
     }

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Jobs\SendToAIServer;
 use App\Models\ClinicalCondition;
 use App\Models\ConsultCallDetails;
+use App\Models\IncompleteTestResult;
 use App\Models\TestResult;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -108,6 +109,12 @@ class TestResultCompletionDispatcher
     /**
      * Stamp the hold and skip AI review dispatch. Always clears
      * ai_review_released_at so a re-hold after amended data is a clean state.
+     *
+     * A held result (CC / CC + AO / AO) stays is_completed=0 / is_reviewed=0 until
+     * the consult call releases it (releaseHeldAiReview()): an add-on bought on the
+     * call runs on the same blood sample, so its panels arrive later under the same
+     * lab number. Every later delivery re-runs completeness and lands here again,
+     * since the delivery jobs re-check any result that is not completed and reviewed.
      */
     protected function holdAiReview(TestResult $testResult): void
     {
@@ -115,6 +122,8 @@ class TestResultCompletionDispatcher
             $testResult->forceFill([
                 'ai_review_held_at' => now(),
                 'ai_review_released_at' => null,
+                'is_completed' => false,
+                'is_reviewed' => false,
             ])->save();
 
             Log::info('AI review held pending consult call release', [
@@ -129,6 +138,32 @@ class TestResultCompletionDispatcher
 
             $this->dispatchAIReview($testResult);
         }
+    }
+
+    /**
+     * Release a held AI review from the consult call (Release Doctor Review = Yes,
+     * or the case is closed): stamp ai_review_released_at and promote the result to
+     * is_completed=1 / is_reviewed=0 so SendToAIServer picks it up. A result that a
+     * later delivery marked incomplete (incomplete_test_results row) stays
+     * is_completed=0; the next completeness pass completes it and, being released,
+     * dispatches the AI review instead of holding it again. The caller dispatches
+     * SendToAIServer.
+     */
+    public function releaseHeldAiReview(TestResult $testResult): void
+    {
+        $stillIncomplete = IncompleteTestResult::where('test_result_id', $testResult->id)->exists();
+
+        $testResult->forceFill([
+            'ai_review_released_at' => now(),
+            'is_completed' => ! $stillIncomplete,
+            'is_reviewed' => false,
+        ])->save();
+
+        Log::info('AI review released from consult call', [
+            'test_result_id' => $testResult->id,
+            'lab_no' => $testResult->lab_no ?? null,
+            'is_completed' => ! $stillIncomplete,
+        ]);
     }
 
     /**

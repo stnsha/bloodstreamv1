@@ -10,6 +10,7 @@ use App\Models\ConsultCallDetails;
 use App\Models\ConsultCallFollowUp;
 use App\Models\TestResult;
 use App\Services\AddOnResultLinkService;
+use App\Services\TestResultCompletionDispatcher;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -1009,9 +1010,10 @@ class ConsultCallController extends Controller
         }
 
         // Stamp the release so TestResultCompletionDispatcher does not re-hold
-        // this review on a later benign re-delivery.
+        // this review on a later benign re-delivery, and promote the held result
+        // (kept is_completed=0 while held) to is_completed=1 / is_reviewed=0.
         if ($testResult->isAiReviewHeld()) {
-            $testResult->forceFill(['ai_review_released_at' => now()])->save();
+            app(TestResultCompletionDispatcher::class)->releaseHeldAiReview($testResult);
 
             if (Schema::hasColumn('consult_call_details', 'release_doctor_review')) {
                 ConsultCallDetails::where('consult_call_id', $consultCallId)
@@ -1049,7 +1051,7 @@ class ConsultCallController extends Controller
             return;
         }
 
-        $testResult->forceFill(['ai_review_released_at' => now()])->save();
+        app(TestResultCompletionDispatcher::class)->releaseHeldAiReview($testResult);
 
         // Record the release as "Release Doctor Review? = Yes" on every detail of
         // this consult call, matching ReleaseDoctorReviewBackfillSeeder.

@@ -6,6 +6,7 @@ use App\Jobs\SendToAIServer;
 use App\Models\ConsultCall;
 use App\Models\ConsultCallDetails;
 use App\Models\TestResult;
+use App\Services\TestResultCompletionDispatcher;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -115,11 +116,19 @@ class CloseAddOnOnlyConsultCallsCommand extends Command
                 ->whereIn('id', $detailIds)
                 ->update(['process_status' => ConsultCallDetails::PROCESS_STATUS_CLOSED]);
 
-            $releasedCount = TestResult::query()
+            // Same release as the consult call page: stamp the release and promote the
+            // held result (kept is_completed=0 while held) to is_completed=1 / is_reviewed=0.
+            $dispatcher = app(TestResultCompletionDispatcher::class);
+            $releasedCount = 0;
+            $heldTestResults = TestResult::query()
                 ->whereIn('id', $heldTestResultIds)
                 ->whereNotNull('ai_review_held_at')
                 ->whereNull('ai_review_released_at')
-                ->update(['ai_review_released_at' => now()]);
+                ->get();
+            foreach ($heldTestResults as $heldTestResult) {
+                $dispatcher->releaseHeldAiReview($heldTestResult);
+                $releasedCount++;
+            }
 
             if ($releasedConsultCallIds->isNotEmpty()
                 && Schema::hasColumn('consult_call_details', 'release_doctor_review')) {

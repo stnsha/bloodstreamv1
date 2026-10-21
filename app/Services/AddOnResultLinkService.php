@@ -12,6 +12,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use InvalidArgumentException;
 use Throwable;
 
 /**
@@ -112,9 +113,14 @@ class AddOnResultLinkService
             throw $e;
         }
 
-        // The report may already be here (rare); link it without failing the assignment.
+        // A separate add-on sale's report may already be here (rare); link it without
+        // failing the assignment. Not for an invoice listed under the original sale: that
+        // sale's report is the original blood test, and the add-on panels only arrive
+        // later under the same lab number (linked then by linkFromTestResult()).
         try {
-            $this->linkExistingResult($bloodTestSalesId);
+            if ($this->parentSaleOf($consultCall->id, $detailId)['sales_id'] !== $bloodTestSalesId) {
+                $this->linkExistingResult($bloodTestSalesId);
+            }
         } catch (Throwable $e) {
             Log::error('AddOnResultLinkService: reverse link after invoice assignment failed', $context + [
                 'error' => $e->getMessage(),
@@ -406,6 +412,167 @@ class AddOnResultLinkService
         }
 
         return $roles;
+    }
+
+    /**
+     * Add-on sales that still sit on their own ODB blood_test_sales row instead of the
+     * original blood test sale. An add-on is run on the original blood sample and the
+     * lab reports it under the original lab number, so its invoice belongs under the
+     * original sale (the "parent", the sale whose result recommended the add-on).
+     *
+     * The parent is read from the consult-call detail that carried the invoice (falling
+     * back to the consult call's latest detail with a result): its test_results.ref_id
+     * is <lab code><parent blood_test_sales.id>.
+     *
+     * @return array<int, array{
+     *     blood_test_sales_id: int,
+     *     parent_sales_id: int|null,
+     *     parent_ref_id: string|null,
+     *     consult_call_ids: array<int, int>,
+     *     invoice_ids: array<int, string>,
+     *     add_on_ids: array<int, int>,
+     *     ao_sale_has_result: bool,
+     *     reason: string|null
+     * }>
+     */
+    public function addOnSalesForMerge(): array
+    {
+        $sales = ConsultCallAddOn::whereNotNull('blood_test_sales_id')
+            ->whereHas('consultCall')
+            ->get()
+            ->groupBy('blood_test_sales_id');
+
+        $candidates = [];
+
+        foreach ($sales as $saleId => $rows) {
+            $saleId = (int) $saleId;
+
+            $parents = $rows
+                ->map(fn (ConsultCallAddOn $row) => $this->resolveParentSale($row))
+                ->filter(fn (array $parent) => $parent['sales_id'] !== null)
+                ->unique('sales_id')
+                ->values();
+
+            // Already under the parent (merged before, or synced the new way).
+            if ($parents->count() === 1 && $parents->first()['sales_id'] === $saleId) {
+                continue;
+            }
+
+            $reason = match (true) {
+                $parents->isEmpty() => 'Original blood test result not found for this add-on sale',
+                $parents->count() > 1 => 'Add-on sale is linked to more than one original blood test sale',
+                default => null,
+            };
+
+            $candidates[] = [
+                'blood_test_sales_id' => $saleId,
+                'parent_sales_id' => $reason === null ? $parents->first()['sales_id'] : null,
+                'parent_ref_id' => $reason === null ? $parents->first()['ref_id'] : null,
+                'consult_call_ids' => $rows->pluck('consult_call_id')->unique()->values()->all(),
+                'invoice_ids' => $rows->pluck('invoice_id')->filter()->unique()->values()->all(),
+                'add_on_ids' => $rows->pluck('add_on_id')->unique()->values()->all(),
+                // A result of its own means the lab ran the add-on under a new lab number.
+                'ao_sale_has_result' => $this->findResultBySaleId($saleId) !== null,
+                'reason' => $reason,
+            ];
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * Move an add-on sale's consult-call links onto its parent sale, after ODB has
+     * moved the invoice items under the parent and soft-deleted the add-on sale.
+     * The parent must be the one addOnSalesForMerge() resolves for that sale.
+     *
+     * @return array{add_on_rows: int, result_rows: int}
+     *
+     * @throws InvalidArgumentException when the parent does not match
+     */
+    public function repointSale(int $fromSalesId, int $toSalesId): array
+    {
+        $candidate = collect($this->addOnSalesForMerge())->firstWhere('blood_test_sales_id', $fromSalesId);
+
+        if ($candidate === null || $candidate['parent_sales_id'] !== $toSalesId) {
+            throw new InvalidArgumentException(
+                "Sale {$toSalesId} is not the original blood test sale of add-on sale {$fromSalesId}"
+            );
+        }
+
+        $context = ['from_sales_id' => $fromSalesId, 'to_sales_id' => $toSalesId];
+
+        Log::info('AddOnResultLinkService: repointing add-on sale to original sale', $context);
+
+        try {
+            DB::beginTransaction();
+
+            $addOnRows = ConsultCallAddOn::where('blood_test_sales_id', $fromSalesId)
+                ->update(['blood_test_sales_id' => $toSalesId]);
+
+            $resultRows = ConsultCallAddOnResult::where('blood_test_sales_id', $fromSalesId)
+                ->update(['blood_test_sales_id' => $toSalesId]);
+
+            DB::commit();
+        } catch (Throwable $e) {
+            DB::rollBack();
+
+            Log::error('AddOnResultLinkService: failed to repoint add-on sale', $context + [
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
+
+        Log::info('AddOnResultLinkService: add-on sale repointed', $context + [
+            'add_on_rows' => $addOnRows,
+            'result_rows' => $resultRows,
+        ]);
+
+        return ['add_on_rows' => $addOnRows, 'result_rows' => $resultRows];
+    }
+
+    /**
+     * Original blood test sale of an add-on row, from the ref_id of its detail's result.
+     *
+     * @return array{sales_id: int|null, ref_id: string|null}
+     */
+    private function resolveParentSale(ConsultCallAddOn $row): array
+    {
+        return $this->parentSaleOf((int) $row->consult_call_id, $row->consult_call_detail_id ? (int) $row->consult_call_detail_id : null);
+    }
+
+    /**
+     * Original blood test sale of a consult call: the ODB blood_test_sales.id in the
+     * ref_id of the given detail's result, falling back to the consult call's latest
+     * detail with a result. Add-on invoices of the consult call are listed under it.
+     *
+     * @return array{sales_id: int|null, ref_id: string|null}
+     */
+    public function parentSaleOf(int $consultCallId, ?int $detailId = null): array
+    {
+        $testResultId = $detailId
+            ? ConsultCallDetails::where('consult_call_id', $consultCallId)->whereKey($detailId)->value('test_result_id')
+            : null;
+
+        $testResultId ??= ConsultCallDetails::where('consult_call_id', $consultCallId)
+            ->whereNotNull('test_result_id')
+            ->orderByDesc('id')
+            ->value('test_result_id');
+
+        $refId = $testResultId ? TestResult::whereKey($testResultId)->value('ref_id') : null;
+
+        return ['sales_id' => $this->extractBloodTestSalesId($refId), 'ref_id' => $refId];
+    }
+
+    /**
+     * Latest test result whose ref_id is exactly <lab code><sale id>, or null.
+     */
+    private function findResultBySaleId(int $bloodTestSalesId): ?TestResult
+    {
+        return TestResult::where('ref_id', 'like', '%'.$bloodTestSalesId)
+            ->orderByDesc('id')
+            ->get()
+            ->first(fn (TestResult $candidate) => $this->extractBloodTestSalesId($candidate->ref_id) === $bloodTestSalesId);
     }
 
     /**
