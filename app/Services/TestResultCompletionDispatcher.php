@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Jobs\SendToAIServer;
+use App\Models\AIReview;
 use App\Models\ClinicalCondition;
 use App\Models\ConsultCallDetails;
 use App\Models\IncompleteTestResult;
@@ -148,21 +149,33 @@ class TestResultCompletionDispatcher
      * is_completed=0; the next completeness pass completes it and, being released,
      * dispatches the AI review instead of holding it again. The caller dispatches
      * SendToAIServer.
+     *
+     * A result whose AI review already COMPLETED before the hold (backfilled holds,
+     * or reviews that finished before the hold was stamped) keeps is_reviewed=1:
+     * SendToAIServer and ai:dispatch-unreviewed-async both skip a result with a
+     * COMPLETED review, so resetting is_reviewed would leave it unreviewed forever.
+     * Amended data marks that review STALE_* first, so a genuine re-review still runs.
      */
     public function releaseHeldAiReview(TestResult $testResult): void
     {
         $stillIncomplete = IncompleteTestResult::where('test_result_id', $testResult->id)->exists();
 
+        $hasCompletedReview = ! $stillIncomplete
+            && AIReview::where('test_result_id', $testResult->id)
+                ->where('processing_status', 'COMPLETED')
+                ->exists();
+
         $testResult->forceFill([
             'ai_review_released_at' => now(),
             'is_completed' => ! $stillIncomplete,
-            'is_reviewed' => false,
+            'is_reviewed' => $hasCompletedReview,
         ])->save();
 
         Log::info('AI review released from consult call', [
             'test_result_id' => $testResult->id,
             'lab_no' => $testResult->lab_no ?? null,
             'is_completed' => ! $stillIncomplete,
+            'is_reviewed' => $hasCompletedReview,
         ]);
     }
 

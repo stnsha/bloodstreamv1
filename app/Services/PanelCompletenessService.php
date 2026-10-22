@@ -660,6 +660,15 @@ class PanelCompletenessService
             $testResult->is_reviewed = false;
             $testResult->save();
 
+            // A COMPLETED review left on a record being (re)promoted -- e.g. a held
+            // result reviewed before its hold, which revertReviewForLateData() never
+            // sees because is_completed=0 while held -- would make SendToAIServer and
+            // ai:dispatch-unreviewed-async skip it, stranding it at is_reviewed=0.
+            // Mark it stale so the redispatch regenerates it, same as the revert paths.
+            $staledReviewCount = AIReview::where('test_result_id', $testResult->id)
+                ->where('processing_status', 'COMPLETED')
+                ->update(['processing_status' => 'STALE_AMENDED']);
+
             IncompleteTestResult::where('test_result_id', $testResult->id)->delete();
 
             DB::commit();
@@ -668,6 +677,7 @@ class PanelCompletenessService
                 'test_result_id' => $testResult->id,
                 'expected_panel_count' => $result['expected_panel_count'],
                 'actual_panel_count' => $result['actual_panel_count'],
+                'staled_completed_reviews' => $staledReviewCount,
             ]);
         } catch (Throwable $e) {
             DB::rollBack();

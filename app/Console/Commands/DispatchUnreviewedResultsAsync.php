@@ -48,6 +48,19 @@ class DispatchUnreviewedResultsAsync extends Command
     protected const PENDING_STALE_MINUTES = 10;
 
     /**
+     * How long a recently updated result is left to its own delivery job.
+     * PanelCompletenessService::resolve() commits is_completed=1 before
+     * TestResultCompletionDispatcher runs the consult-call eligibility check
+     * (Octopus API call) and stamps ai_review_held_at. Picking the result up in
+     * that window would send an enrolled result to AI review before it is held.
+     * The delivery job dispatches the review itself, so this sweep is only a
+     * safety net and loses nothing by waiting.
+     *
+     * @var int
+     */
+    protected const RECENT_UPDATE_GRACE_MINUTES = 5;
+
+    /**
      * Cache lock key to prevent concurrent execution
      *
      * @var string
@@ -204,6 +217,9 @@ class DispatchUnreviewedResultsAsync extends Command
         return DB::transaction(function () use ($staleThreshold) {
             return TestResult::where('is_completed', true)
                 ->where('is_reviewed', false)
+                // Leave freshly completed results to their delivery job until the
+                // consult-call hold decision has been made.
+                ->where('updated_at', '<', now()->subMinutes(self::RECENT_UPDATE_GRACE_MINUTES))
                 // Skip results whose AI review is held for consult call release
                 // (see TestResultCompletionDispatcher); the release dispatches them.
                 ->where(function ($q) {

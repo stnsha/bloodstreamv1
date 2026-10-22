@@ -128,16 +128,33 @@ class ProcessAIWebhookResult implements ShouldBeUnique, ShouldQueue
                     return;
                 }
 
+                $testResult = TestResult::find($testResultId);
+
+                // Held for consult call release: the request went out before the hold
+                // was stamped (first-enrolment window between completion and the hold
+                // decision). Keep the response for audit but store it SUPERSEDED so the
+                // ODB report (COMPLETED only) does not expose it before release, and
+                // leave is_reviewed=0 so the release sends a fresh review.
+                $isHeld = $testResult && $testResult->isAiReviewHeld();
+
                 // Update record using model (respects casts and preserves compiled_results)
-                $aiReview->processing_status = 'COMPLETED';
+                $aiReview->processing_status = $isHeld ? 'SUPERSEDED' : 'COMPLETED';
                 $aiReview->http_status = $aiAnalysis['status'];
                 $aiReview->ai_response = $htmlReview;
                 $aiReview->raw_response = $aiAnalysis;
                 $aiReview->webhook_idempotency_key = $idempotencyKey;
                 $aiReview->save();
 
+                if ($isHeld) {
+                    Log::channel('webhook')->warning('AI review webhook received for held test result, stored SUPERSEDED pending consult call release', [
+                        'test_result_id' => $testResultId,
+                        'ai_review_id' => $aiReview->id,
+                    ]);
+
+                    return;
+                }
+
                 // Update test_result.is_reviewed flag (only on first successful webhook)
-                $testResult = TestResult::find($testResultId);
                 if ($testResult && ! $testResult->is_reviewed) {
                     $testResult->is_reviewed = true;
                     $testResult->save();
