@@ -72,16 +72,6 @@ class Kernel extends ConsoleKernel
             ->environments(['production'])
             ->withoutOverlapping(30);
 
-        // Daily consult-call eligibility sweep — re-checks completed test results
-        // collected from the 1st of the current month through today, catching any
-        // patients whose eligibility gates only cleared after the original dispatch
-        // (see ConsultCallEligibilityService::checkAndCreate). Date range and batch
-        // pagination are handled inside the command itself.
-        $schedule->command('consult-call:daily-eligibility-sweep')
-            ->dailyAt('00:15')
-            ->environments(['production'])
-            ->withoutOverlapping(120);
-
         // Auto-retry failed_jobs entries for the allowlisted job classes (see
         // AutoRetryFailedJobs::RETRYABLE_JOB_CLASSES) — capped per test_result_id
         // to avoid endlessly retrying a permanently-broken job. Anything not
