@@ -37,4 +37,12 @@ return [
             : env('ODB_API_URL_LOCAL'),
     ],
 
+    // MyHealth lab feed: replaces AI review dispatch for results completed or
+    // released on/after SendToAIServer::MYHEALTH_FEED_FROM.
+    'myhealth_feed' => [
+        'url' => env('MH_KEY_FEED_URL'),
+        'key' => env('MH_KEY_FEED'),
+        'timeout' => (int) env('MH_KEY_FEED_TIMEOUT', 60),
+    ],
+
 ];

@@ -9,6 +9,7 @@ use App\Services\AIApiClient;
 use App\Services\ApiTokenService;
 use App\Services\PanelCompletenessService;
 use App\Services\TestResultCompilerService;
+use Carbon\Carbon;
 use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -35,6 +36,12 @@ class SendToAIServer implements ShouldBeUnique, ShouldQueue
     public $testResultId;
 
     public $uniqueFor = 3600;  // Lock job uniqueness for 1 hour
+
+    /**
+     * On or after this date (server time, 00:00), a result ready for review is
+     * sent to the MyHealth lab feed (SendToMyHealthFeed) instead of the AI server.
+     */
+    const MYHEALTH_FEED_FROM = '2026-11-01';
 
     /**
      * Create a new job instance.
@@ -144,6 +151,20 @@ class SendToAIServer implements ShouldBeUnique, ShouldQueue
                 Log::channel('performance')->info('SendToAIServer: AI review already PENDING (in flight), skipping', [
                     'test_result_id' => $this->testResultId,
                     'ai_review_id' => $pendingReview->id,
+                ]);
+
+                return;
+            }
+
+            // From MYHEALTH_FEED_FROM the MyHealth lab feed replaces the AI review.
+            // Gated here, after the hold / completeness / idempotency checks, so
+            // every dispatch path (completion, consult call release, sweepers,
+            // retry/requeue commands) switches over together.
+            if (now()->gte(Carbon::parse(self::MYHEALTH_FEED_FROM)->startOfDay())) {
+                SendToMyHealthFeed::dispatch($this->testResultId);
+
+                Log::channel('myhealth-feed')->info('SendToAIServer: routed to MyHealth feed instead of AI review', [
+                    'test_result_id' => $this->testResultId,
                 ]);
 
                 return;

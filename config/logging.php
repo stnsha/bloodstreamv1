@@ -114,6 +114,13 @@ return [
             'days' => 3,
         ],
 
+        'myhealth-feed' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/myhealth-feed.log'),
+            'level' => env('LOG_LEVEL', 'warning'),
+            'days' => 3,
+        ],
+
         'ai-command' => [
             'driver' => 'daily',
             'path' => storage_path('logs/ai-command.log'),
