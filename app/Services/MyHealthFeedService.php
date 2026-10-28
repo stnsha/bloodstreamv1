@@ -39,13 +39,25 @@ class MyHealthFeedService
             throw new RuntimeException("Test result {$testResult->id}: patient has no IC number, cannot build feed");
         }
 
+        return $this->buildPayloadForIcno($icno);
+    }
+
+    /**
+     * Build the request body for a patient by IC number.
+     *
+     * Returns ['body' => <request body>, 'stats' => <counts for logging>].
+     *
+     * @throws RuntimeException when no patient has this IC number
+     */
+    public function buildPayloadForIcno(string $icno): array
+    {
         $profile = $this->patientProfileService->build(
             $icno,
             now()->subYears(self::FEED_HISTORY_YEARS)->startOfDay()
         );
 
         if (! $profile) {
-            throw new RuntimeException("Test result {$testResult->id}: patient not found by IC number, cannot build feed");
+            throw new RuntimeException("Patient not found by IC number {$icno}, cannot build feed");
         }
 
         return [
