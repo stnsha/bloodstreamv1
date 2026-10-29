@@ -41,7 +41,16 @@ class SendToAIServer implements ShouldBeUnique, ShouldQueue
      * On or after this date (server time, 00:00), a result ready for review is
      * sent to the MyHealth lab feed (SendToMyHealthFeed) instead of the AI server.
      */
-    const MYHEALTH_FEED_FROM = '2026-11-01';
+    const MYHEALTH_FEED_FROM = '2026-11-13';
+
+    /**
+     * Testing overlap: from this date (server time, 00:00) until MYHEALTH_FEED_FROM,
+     * the AI review runs exactly as before and, once the AI server has accepted the
+     * request, a copy is also sent to the MyHealth feed. The AI review keeps
+     * priority: the feed copy never changes is_reviewed and its failure never
+     * affects the AI review.
+     */
+    const MYHEALTH_FEED_TEST_FROM = '2026-11-01';
 
     /**
      * Create a new job instance.
@@ -241,6 +250,8 @@ class SendToAIServer implements ShouldBeUnique, ShouldQueue
                     'memory_mb' => $memoryUsed,
                     'attempt' => $this->attempts(),
                 ]);
+
+                $this->dispatchMyHealthFeedTestCopy();
             }
         } catch (Exception $e) {
             // Single attempt: record the failure and stop. Do NOT rethrow - this
@@ -248,6 +259,32 @@ class SendToAIServer implements ShouldBeUnique, ShouldQueue
             // failed_jobs row is created (retry decisions live in ai_reviews/
             // ai_errors, not in the queue's own failure bookkeeping).
             $this->handleError($e);
+        }
+    }
+
+    /**
+     * Testing overlap (MYHEALTH_FEED_TEST_FROM until MYHEALTH_FEED_FROM): send a copy
+     * of an accepted AI review request to the MyHealth feed. markReviewed = false, so
+     * is_reviewed stays owned by the AI review webhook. Any failure is logged and
+     * swallowed so the AI review is never affected.
+     */
+    protected function dispatchMyHealthFeedTestCopy(): void
+    {
+        if (now()->lt(Carbon::parse(self::MYHEALTH_FEED_TEST_FROM)->startOfDay())) {
+            return;
+        }
+
+        try {
+            SendToMyHealthFeed::dispatch($this->testResultId, false);
+
+            Log::channel('myhealth-feed')->info('SendToAIServer: testing overlap, MyHealth feed copy dispatched alongside AI review', [
+                'test_result_id' => $this->testResultId,
+            ]);
+        } catch (Throwable $e) {
+            Log::channel('myhealth-feed')->error('SendToAIServer: testing overlap, failed to dispatch MyHealth feed copy', [
+                'test_result_id' => $this->testResultId,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 

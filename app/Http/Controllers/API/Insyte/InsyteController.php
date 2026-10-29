@@ -23,7 +23,9 @@ class InsyteController extends Controller
     /**
      * GET /api/insyte/updateCompletionByTestResultId?test_result_id={id}
      * Called by Insyte once a test result has been received. Sets
-     * test_results.is_reviewed = 1. Idempotent.
+     * test_results.is_reviewed = 1. Idempotent. During the Insyte testing period
+     * (before SendToAIServer::MYHEALTH_FEED_FROM) the call is ignored: the AI
+     * review owns is_reviewed.
      */
     public function updateCompletionByTestResultId(Request $request): JsonResponse
     {
@@ -50,11 +52,15 @@ class InsyteController extends Controller
 
             $result = $this->insyteService->markReviewed($testResultId);
 
+            $message = match (true) {
+                $result['ignored'] => 'Insyte testing period: is_reviewed not changed',
+                $result['already_reviewed'] => 'Test result already marked as reviewed',
+                default => 'Test result marked as reviewed',
+            };
+
             return response()->json([
                 'success' => true,
-                'message' => $result['already_reviewed']
-                    ? 'Test result already marked as reviewed'
-                    : 'Test result marked as reviewed',
+                'message' => $message,
                 'data' => $result,
             ], 200);
         } catch (ModelNotFoundException $e) {

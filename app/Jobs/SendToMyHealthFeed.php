@@ -20,6 +20,11 @@ use Throwable;
  * lab feed, in place of the AI review (see SendToAIServer::MYHEALTH_FEED_FROM).
  * Payload and transport live in MyHealthFeedService. A successful POST marks
  * the result is_reviewed=1 so the unreviewed sweepers do not re-send it.
+ *
+ * With markReviewed = false (testing overlap, SendToAIServer::MYHEALTH_FEED_TEST_FROM
+ * until MYHEALTH_FEED_FROM) the feed is a copy alongside the AI review: it is sent
+ * even when the result is already reviewed and never changes is_reviewed, which
+ * stays owned by the AI review.
  */
 class SendToMyHealthFeed implements ShouldBeUnique, ShouldQueue
 {
@@ -35,9 +40,12 @@ class SendToMyHealthFeed implements ShouldBeUnique, ShouldQueue
 
     public $testResultId;
 
-    public function __construct(int $testResultId)
+    public $markReviewed;
+
+    public function __construct(int $testResultId, bool $markReviewed = true)
     {
         $this->testResultId = $testResultId;
+        $this->markReviewed = $markReviewed;
         $this->onQueue('ai-reviews');
     }
 
@@ -60,7 +68,7 @@ class SendToMyHealthFeed implements ShouldBeUnique, ShouldQueue
             return;
         }
 
-        if ($testResult->is_reviewed) {
+        if ($this->markReviewed && $testResult->is_reviewed) {
             Log::channel('myhealth-feed')->info('SendToMyHealthFeed: test result already reviewed, skipping', [
                 'test_result_id' => $this->testResultId,
             ]);
@@ -72,6 +80,7 @@ class SendToMyHealthFeed implements ShouldBeUnique, ShouldQueue
             'test_result_id' => $this->testResultId,
             'lab_no' => $testResult->lab_no,
             'attempt' => $this->attempts(),
+            'mark_reviewed' => $this->markReviewed,
         ]);
 
         try {
@@ -96,6 +105,17 @@ class SendToMyHealthFeed implements ShouldBeUnique, ShouldQueue
                 $response->status(),
                 mb_substr($response->body(), 0, 1000)
             ));
+        }
+
+        if (! $this->markReviewed) {
+            Log::channel('myhealth-feed')->info('SendToMyHealthFeed: completed (testing overlap copy, is_reviewed left to the AI review)', array_merge([
+                'test_result_id' => $this->testResultId,
+                'lab_no' => $testResult->lab_no,
+                'http_status' => $response->status(),
+                'duration_ms' => round((microtime(true) - $startTime) * 1000, 2),
+            ], $payload['stats']));
+
+            return;
         }
 
         try {
