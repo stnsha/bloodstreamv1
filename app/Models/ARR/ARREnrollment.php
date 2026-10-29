@@ -2,6 +2,7 @@
 
 namespace App\Models\ARR;
 
+use App\Models\ClinicalCondition;
 use App\Models\Patient;
 use App\Models\TestResult;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -24,6 +25,7 @@ class ARREnrollment extends Model
         'patient_id',
         'customer_id',
         'outlet_id',
+        'clinical_condition_id',
         'enrollment_date',
         'handled_by',
     ];
@@ -33,6 +35,7 @@ class ARREnrollment extends Model
         'patient_id' => 'integer',
         'customer_id' => 'integer',
         'outlet_id' => 'integer',
+        'clinical_condition_id' => 'integer',
         'enrollment_date' => 'datetime',
         'handled_by' => 'integer',
         'created_at' => 'datetime',
@@ -57,5 +60,10 @@ class ARREnrollment extends Model
     public function patient(): BelongsTo
     {
         return $this->belongsTo(Patient::class, 'patient_id', 'id');
+    }
+
+    public function clinicalCondition(): BelongsTo
+    {
+        return $this->belongsTo(ClinicalCondition::class, 'clinical_condition_id', 'id');
     }
 }

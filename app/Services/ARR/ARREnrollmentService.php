@@ -13,7 +13,8 @@ class ARREnrollmentService
     /**
      * Enroll a cluster (ARR) patient once a test result has passed the outlet
      * cluster check and matched a cluster clinical condition. One enrollment per
-     * test result: a re-delivery of the same result returns the existing row.
+     * test result: a re-delivery of the same result keeps the existing row and
+     * updates its clinical_condition_id when the re-evaluated condition changed.
      *
      * @throws Throwable when the enrollment cannot be stored
      */
@@ -36,9 +37,25 @@ class ARREnrollmentService
                     'patient_id' => $patientId,
                     'customer_id' => $customerId,
                     'outlet_id' => $outletId,
+                    'clinical_condition_id' => $conditionId,
                     'enrollment_date' => now(),
                 ]
             );
+
+            $conditionChanged = ! $enrollment->wasRecentlyCreated
+                && $enrollment->clinical_condition_id !== $conditionId;
+
+            if ($conditionChanged) {
+                $previousConditionId = $enrollment->clinical_condition_id;
+                $enrollment->update(['clinical_condition_id' => $conditionId]);
+
+                Log::info('ARREnrollmentService: clinical condition updated on re-evaluation', [
+                    'test_result_id' => $testResult->id,
+                    'arr_enrollment_id' => $enrollment->id,
+                    'previous_clinical_condition_id' => $previousConditionId,
+                    'clinical_condition_id' => $conditionId,
+                ]);
+            }
 
             DB::commit();
         } catch (Throwable $e) {
