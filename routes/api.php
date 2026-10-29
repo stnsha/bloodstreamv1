@@ -33,6 +33,7 @@ use App\Http\Controllers\API\ConsultCall\ConsultCallAuthController;
 use App\Http\Controllers\API\ConsultCall\ConsultCallController;
 use App\Http\Controllers\API\ConsultCall\ConsultCallFollowUpController;
 use App\Http\Controllers\API\ConsultCall\StatusLibraryController;
+use App\Http\Controllers\API\Insyte\InsyteController;
 use App\Http\Controllers\API\Lab\LabController;
 use App\Http\Controllers\API\MyHealth\MyHealthController;
 use App\Http\Controllers\API\Testing\SpecialTestController;
@@ -272,6 +273,10 @@ Route::middleware(['api.auth', 'throttle:api'])->group(function () {
     Route::prefix('myhealth')->controller(MyHealthController::class)->group(function () {
         Route::get('/check-record/{ic}', 'checkRecordByIc')->name('myhealth.checkRecordByIc');
         Route::get('/normal-ranges', 'normalRanges')->name('myhealth.normalRanges');
+    });
+
+    Route::prefix('insyte')->controller(InsyteController::class)->group(function () {
+        Route::get('/updateCompletionByTestResultId', 'updateCompletionByTestResultId')->name('insyte.updateCompletionByTestResultId');
     });
 
     Route::prefix('lab')->controller(LabController::class)->group(function () {
