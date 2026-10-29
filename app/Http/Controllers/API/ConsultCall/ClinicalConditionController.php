@@ -43,6 +43,7 @@ class ClinicalConditionController extends Controller
         $validated = $request->validate([
             'description' => 'required|string|max:500',
             'type'        => 'nullable|string|max:255',
+            'cluster_scope' => 'nullable|integer|in:1,2,3',
             'risk_tier'   => 'required|integer|in:0,1,2,3',
             'active_from' => 'nullable|date',
         ]);
@@ -53,6 +54,7 @@ class ClinicalConditionController extends Controller
             $condition->update([
                 'description' => $validated['description'],
                 'type'        => $validated['type'] ?? '',
+                'cluster_scope' => $validated['cluster_scope'] ?? $condition->cluster_scope,
                 'risk_tier'   => $validated['risk_tier'],
                 'active_from' => $validated['active_from'] ?? null,
             ]);

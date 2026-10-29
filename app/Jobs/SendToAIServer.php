@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\AIError;
 use App\Models\AIReview;
+use App\Models\ARR\ARREnrollment;
 use App\Models\TestResult;
 use App\Services\AIApiClient;
 use App\Services\ApiTokenService;
@@ -118,6 +119,16 @@ class SendToAIServer implements ShouldBeUnique, ShouldQueue
             // dispatch path (scheduled sweepers, retry/requeue commands).
             if ($testResultCheck->isAiReviewHeld()) {
                 Log::channel('performance')->info('SendToAIServer: AI review held for consult call release, skipping', [
+                    'test_result_id' => $this->testResultId,
+                ]);
+
+                return;
+            }
+
+            // ARR-enrolled result: no AI review or MyHealth feed. Guards every
+            // dispatch path (sweepers, retry/requeue commands).
+            if (ARREnrollment::existsForTestResult($this->testResultId)) {
+                Log::channel('performance')->info('SendToAIServer: test result enrolled in ARR, skipping', [
                     'test_result_id' => $this->testResultId,
                 ]);
 

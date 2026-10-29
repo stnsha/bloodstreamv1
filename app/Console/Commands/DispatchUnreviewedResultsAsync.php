@@ -226,6 +226,13 @@ class DispatchUnreviewedResultsAsync extends Command
                     $q->whereNull('ai_review_held_at')
                         ->orWhereNotNull('ai_review_released_at');
                 })
+                // Skip ARR-enrolled results; they get no AI review.
+                ->whereNotExists(function ($query) {
+                    $query->select(DB::raw(1))
+                        ->from('arr_enrollments')
+                        ->whereColumn('arr_enrollments.test_result_id', 'test_results.id')
+                        ->whereNull('arr_enrollments.deleted_at');
+                })
                 ->whereNotExists(function ($query) use ($staleThreshold) {
                     $query->select(DB::raw(1))
                         ->from('ai_reviews')

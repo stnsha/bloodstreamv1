@@ -7,10 +7,10 @@ use App\Models\ClinicalCondition;
 use App\Models\ConsultCallDetails;
 use App\Models\Patient;
 use App\Models\TestResult;
+use App\Services\ARR\ARREligibilityService;
 use App\Services\ConditionEvaluatorService;
 use App\Services\ConsultCallEligibilityService;
 use App\Services\MyHealthService;
-use App\Services\OctopusApiService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -94,8 +94,7 @@ class CheckConsultCallEligibility extends Command
 
         // ── Gate 4: outlet eligibility ──────────────────────────────────────
         $labCode    = $testResult->doctor->lab->code ?? null;
-        $octopusApi = app(OctopusApiService::class);
-        $customer   = $octopusApi->eligibleConsultCallByOutlet($testResult->ref_id, $labCode);
+        $customer   = app(ARREligibilityService::class)->eligibleCustomerByRefId($testResult->ref_id, $labCode);
 
         if (! $customer) {
             $this->warn('SKIPPED: not an eligible outlet customer (ref_id=' . $testResult->ref_id . ', lab_code=' . ($labCode ?? 'null') . ')');
@@ -110,6 +109,7 @@ class CheckConsultCallEligibility extends Command
 
         $customerId = (int) $customer['customer_id'];
         $outletId   = isset($customer['outlet_id']) ? (int) $customer['outlet_id'] : null;
+        $isCluster  = (bool) ($customer['is_cluster'] ?? false);
 
         $this->line('  [PASS] Outlet check passed (customer_id=' . $customerId . ', outlet_id=' . ($outletId ?? 'null') . ')');
 
@@ -296,7 +296,7 @@ class CheckConsultCallEligibility extends Command
         $this->line('--- Condition Evaluation ---');
 
         $conditionEvaluator = app(ConditionEvaluatorService::class);
-        $sortedIds          = ClinicalCondition::getIdsSortedByPriority();
+        $sortedIds          = ClinicalCondition::getIdsSortedByPriority($isCluster);
 
         $matched = false;
 
@@ -367,7 +367,8 @@ class CheckConsultCallEligibility extends Command
                 $testResult,
                 $testResult->patient_id,
                 $customerId,
-                $outletId
+                $outletId,
+                $isCluster
             );
         } catch (Throwable $e) {
             $this->error('ERROR during eligibility check: ' . $e->getMessage());

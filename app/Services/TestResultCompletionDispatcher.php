@@ -8,26 +8,28 @@ use App\Models\ClinicalCondition;
 use App\Models\ConsultCallDetails;
 use App\Models\IncompleteTestResult;
 use App\Models\TestResult;
+use App\Models\ARR\ARREnrollment;
+use App\Services\ARR\ARREligibilityService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class TestResultCompletionDispatcher
 {
-    protected OctopusApiService $octopusApi;
-
     protected ConsultCallEligibilityService $consultCallEligibilityService;
 
     protected AddOnResultLinkService $addOnResultLinkService;
 
+    protected ARREligibilityService $arrEligibilityService;
+
     public function __construct(
-        OctopusApiService $octopusApi,
         ConsultCallEligibilityService $consultCallEligibilityService,
-        AddOnResultLinkService $addOnResultLinkService
+        AddOnResultLinkService $addOnResultLinkService,
+        ARREligibilityService $arrEligibilityService
     ) {
-        $this->octopusApi = $octopusApi;
         $this->consultCallEligibilityService = $consultCallEligibilityService;
         $this->addOnResultLinkService = $addOnResultLinkService;
+        $this->arrEligibilityService = $arrEligibilityService;
     }
 
     /**
@@ -62,6 +64,17 @@ class TestResultCompletionDispatcher
         $this->linkAddOnResult($testResult);
 
         $this->checkConsultCallEligibility($testResult);
+
+        // ARR-enrolled (cluster patient with a cluster clinical condition): no AI
+        // review or MyHealth feed; ARR is handled outside this system.
+        if (ARREnrollment::existsForTestResult($testResult->id)) {
+            Log::info('AI review skipped: test result enrolled in ARR', [
+                'test_result_id' => $testResult->id,
+                'lab_no' => $testResult->lab_no ?? null,
+            ]);
+
+            return;
+        }
 
         if ($this->shouldHoldAiReview($testResult)) {
             $this->holdAiReview($testResult);
@@ -257,7 +270,8 @@ class TestResultCompletionDispatcher
                 return;
             }
 
-            // Gate 2: verify outlet eligibility via ref_id (Melaka, Johor, Kelantan).
+            // Gate 2: verify outlet eligibility via ref_id (regional outlet list, or
+            // ARR-active outlet clusters from ARREligibilityService::ARR_FROM).
             $refIdForConsult = $testResult->ref_id;
 
             if (! $refIdForConsult) {
@@ -271,7 +285,7 @@ class TestResultCompletionDispatcher
 
             $labCodeForConsult = $testResult->doctor->lab->code ?? null;
 
-            $eligibleCustomer = $this->octopusApi->eligibleConsultCallByOutlet($refIdForConsult, $labCodeForConsult);
+            $eligibleCustomer = $this->arrEligibilityService->eligibleCustomerByRefId($refIdForConsult, $labCodeForConsult);
 
             if (! $eligibleCustomer) {
                 Log::info('Consult call skipped: not an eligible outlet or customer not found by ref_id', [
@@ -285,9 +299,10 @@ class TestResultCompletionDispatcher
 
             $consultCustomerId = (int) $eligibleCustomer['customer_id'];
             $consultOutletId = isset($eligibleCustomer['outlet_id']) ? (int) $eligibleCustomer['outlet_id'] : null;
+            $consultIsCluster = (bool) ($eligibleCustomer['is_cluster'] ?? false);
 
             $this->consultCallEligibilityService->checkAndCreate(
-                $testResult, $patientId, $consultCustomerId, $consultOutletId
+                $testResult, $patientId, $consultCustomerId, $consultOutletId, $consultIsCluster
             );
         } catch (Throwable $e) {
             Log::error('Consult call eligibility check failed', [

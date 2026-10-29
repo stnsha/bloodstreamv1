@@ -4,8 +4,8 @@ namespace App\Console\Commands;
 
 use App\Models\ConsultCallDetails;
 use App\Models\TestResult;
+use App\Services\ARR\ARREligibilityService;
 use App\Services\ConsultCallEligibilityService;
-use App\Services\OctopusApiService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -58,8 +58,7 @@ class EnrollConsultCall extends Command
 
         try {
             $labCode = $testResult->doctor->lab->code ?? null;
-            $octopusApi = app(OctopusApiService::class);
-            $customer = $octopusApi->eligibleConsultCallByOutlet($testResult->ref_id, $labCode);
+            $customer = app(ARREligibilityService::class)->eligibleCustomerByRefId($testResult->ref_id, $labCode);
 
             if (! $customer) {
                 $this->warn('SKIPPED: not an eligible outlet customer (ref_id=' . $testResult->ref_id . ', lab_code=' . ($labCode ?? 'null') . ').');
@@ -74,12 +73,14 @@ class EnrollConsultCall extends Command
 
             $customerId = (int) $customer['customer_id'];
             $outletId = isset($customer['outlet_id']) ? (int) $customer['outlet_id'] : null;
+            $isCluster = (bool) ($customer['is_cluster'] ?? false);
 
             app(ConsultCallEligibilityService::class)->checkAndCreate(
                 $testResult,
                 $testResult->patient_id,
                 $customerId,
-                $outletId
+                $outletId,
+                $isCluster
             );
 
             $detail = ConsultCallDetails::where('test_result_id', $testResult->id)

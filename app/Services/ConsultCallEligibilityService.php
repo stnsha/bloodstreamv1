@@ -9,6 +9,7 @@ use App\Models\ConsultCallDetails;
 use App\Models\ConsultCallFollowUp;
 use App\Models\Patient;
 use App\Models\TestResult;
+use App\Services\ARR\ARREnrollmentService;
 use Throwable;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -25,16 +26,20 @@ class ConsultCallEligibilityService
 
     protected OctopusApiService $octopusApi;
 
+    protected ARREnrollmentService $arrEnrollmentService;
+
     public function __construct(
         ConditionEvaluatorService $conditionEvaluator,
         MyHealthService $myHealthService,
         PanelCompletenessService $panelCompletenessService,
-        OctopusApiService $octopusApi
+        OctopusApiService $octopusApi,
+        ARREnrollmentService $arrEnrollmentService
     ) {
         $this->conditionEvaluator = $conditionEvaluator;
         $this->myHealthService = $myHealthService;
         $this->panelCompletenessService = $panelCompletenessService;
         $this->octopusApi = $octopusApi;
+        $this->arrEnrollmentService = $arrEnrollmentService;
     }
 
     /**
@@ -123,13 +128,14 @@ class ConsultCallEligibilityService
      * @param  int  $customerId  The ODB customer ID
      * @param  int|null  $outletId  The ODB outlet ID
      */
-    public function checkAndCreate(TestResult $testResult, int $patientId, int $customerId, ?int $outletId = null): void
+    public function checkAndCreate(TestResult $testResult, int $patientId, int $customerId, ?int $outletId = null, bool $isCluster = false): void
     {
         Log::info('ConsultCallEligibilityService: Starting eligibility check', [
             'test_result_id' => $testResult->id,
             'patient_id' => $patientId,
             'customer_id' => $customerId,
             'outlet_id' => $outletId,
+            'is_cluster' => $isCluster,
         ]);
 
         // Re-eval guard: this test_result_id already has a ConsultCallDetails record.
@@ -234,10 +240,28 @@ class ConsultCallEligibilityService
         ];
 
         // Evaluate against all conditions
-        $conditionId = $this->conditionEvaluator->evaluateSinglePatient($patientData);
+        $conditionId = $this->conditionEvaluator->evaluateSinglePatient($patientData, $isCluster);
 
         if ($existingDetails) {
             $this->updateExistingDetailsIfChanged($existingDetails, $testResult, $conditionId);
+
+            return;
+        }
+
+        // Cluster (ARR) patient: enroll into arr_enrollments instead of a consult
+        // call. ARR documentation and follow-up are managed outside this system,
+        // so a healthy cluster patient is not enrolled.
+        if ($isCluster) {
+            if ($conditionId === null) {
+                Log::info('ConsultCallEligibilityService: Cluster patient is healthy, no ARR enrollment', [
+                    'test_result_id' => $testResult->id,
+                    'patient_id' => $patientId,
+                ]);
+
+                return;
+            }
+
+            $this->arrEnrollmentService->enroll($testResult, $patientId, $customerId, $outletId, $conditionId);
 
             return;
         }

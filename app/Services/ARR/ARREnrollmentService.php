@@ -1,0 +1,66 @@
+<?php
+
+namespace App\Services\ARR;
+
+use App\Models\ARR\ARREnrollment;
+use App\Models\TestResult;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
+
+class ARREnrollmentService
+{
+    /**
+     * Enroll a cluster (ARR) patient once a test result has passed the outlet
+     * cluster check and matched a cluster clinical condition. One enrollment per
+     * test result: a re-delivery of the same result returns the existing row.
+     *
+     * @throws Throwable when the enrollment cannot be stored
+     */
+    public function enroll(TestResult $testResult, int $patientId, int $customerId, ?int $outletId, int $conditionId): ARREnrollment
+    {
+        Log::info('ARREnrollmentService: starting enrollment', [
+            'test_result_id' => $testResult->id,
+            'patient_id' => $patientId,
+            'customer_id' => $customerId,
+            'outlet_id' => $outletId,
+            'clinical_condition_id' => $conditionId,
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $enrollment = ARREnrollment::firstOrCreate(
+                ['test_result_id' => $testResult->id],
+                [
+                    'patient_id' => $patientId,
+                    'customer_id' => $customerId,
+                    'outlet_id' => $outletId,
+                    'enrollment_date' => now(),
+                ]
+            );
+
+            DB::commit();
+        } catch (Throwable $e) {
+            DB::rollBack();
+
+            Log::error('ARREnrollmentService: enrollment failed', [
+                'test_result_id' => $testResult->id,
+                'patient_id' => $patientId,
+                'customer_id' => $customerId,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
+
+        Log::info('ARREnrollmentService: enrollment completed', [
+            'test_result_id' => $testResult->id,
+            'arr_enrollment_id' => $enrollment->id,
+            'already_enrolled' => ! $enrollment->wasRecentlyCreated,
+            'clinical_condition_id' => $conditionId,
+        ]);
+
+        return $enrollment;
+    }
+}

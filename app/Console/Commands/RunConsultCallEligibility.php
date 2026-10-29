@@ -4,8 +4,8 @@ namespace App\Console\Commands;
 
 use App\Models\ConsultCallDetails;
 use App\Models\TestResult;
+use App\Services\ARR\ARREligibilityService;
 use App\Services\ConsultCallEligibilityService;
-use App\Services\OctopusApiService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -69,7 +69,7 @@ class RunConsultCallEligibility extends Command
 
         $this->info("Found {$total} test results to process.");
 
-        $octopusApi = app(OctopusApiService::class);
+        $arrEligibilityService = app(ARREligibilityService::class);
         $eligibilityService = app(ConsultCallEligibilityService::class);
 
         $counters = [
@@ -90,7 +90,7 @@ class RunConsultCallEligibility extends Command
 
         foreach ($testResults as $testResult) {
             try {
-                [$result, $outletId] = $this->processTestResult($testResult, $octopusApi, $eligibilityService, $dryRun);
+                [$result, $outletId] = $this->processTestResult($testResult, $arrEligibilityService, $eligibilityService, $dryRun);
                 $counters[$result]++;
 
                 if ($result === 'eligible') {
@@ -165,13 +165,14 @@ class RunConsultCallEligibility extends Command
     /**
      * Process a single test result for consult call eligibility.
      *
-     * Uses outlet-based lookup (eligibleConsultCallByOutlet) — all eligible outlets.
+     * Uses outlet-based lookup via ARREligibilityService (regional outlet list, or
+     * ARR-active outlet clusters from ARREligibilityService::ARR_FROM).
      *
      * @return array{0: string, 1: int|null} Counter key and outlet ID
      */
     private function processTestResult(
         TestResult $testResult,
-        OctopusApiService $octopusApi,
+        ARREligibilityService $arrEligibilityService,
         ConsultCallEligibilityService $eligibilityService,
         bool $dryRun = false
     ): array {
@@ -192,7 +193,7 @@ class RunConsultCallEligibility extends Command
         }
 
         $labCode = $testResult->doctor->lab->code ?? null;
-        $customer = $octopusApi->eligibleConsultCallByOutlet($testResult->ref_id, $labCode);
+        $customer = $arrEligibilityService->eligibleCustomerByRefId($testResult->ref_id, $labCode);
 
         if (! $customer) {
             Log::info('RunConsultCallEligibility: Not an eligible outlet customer or ref_id not found', [
@@ -205,6 +206,7 @@ class RunConsultCallEligibility extends Command
 
         $customerId = (int) $customer['customer_id'];
         $outletId = isset($customer['outlet_id']) ? (int) $customer['outlet_id'] : null;
+        $isCluster = (bool) ($customer['is_cluster'] ?? false);
 
         $existedBefore = ConsultCallDetails::where('test_result_id', $testResult->id)->exists();
 
@@ -223,7 +225,7 @@ class RunConsultCallEligibility extends Command
             return ['eligible', $outletId];
         }
 
-        $eligibilityService->checkAndCreate($testResult, $testResult->patient_id, $customerId, $outletId);
+        $eligibilityService->checkAndCreate($testResult, $testResult->patient_id, $customerId, $outletId, $isCluster);
 
         $existsNow = ConsultCallDetails::where('test_result_id', $testResult->id)->exists();
 

@@ -6,6 +6,7 @@ use App\Jobs\SendToAIServer;
 use App\Models\AIReview;
 use App\Models\TestResult;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class ReconcileAIReviews extends Command
@@ -56,6 +57,13 @@ class ReconcileAIReviews extends Command
             $orphanedResults = TestResult::where('is_completed', true)
                 ->where('is_reviewed', false)
                 ->where('created_at', '>=', now()->subHours($hours))
+                // Skip ARR-enrolled results; they get no AI review.
+                ->whereNotExists(function ($query) {
+                    $query->select(DB::raw(1))
+                        ->from('arr_enrollments')
+                        ->whereColumn('arr_enrollments.test_result_id', 'test_results.id')
+                        ->whereNull('arr_enrollments.deleted_at');
+                })
                 ->whereDoesntHave('aiReview', function ($query) use ($staleThreshold) {
                     $query->where(function ($q) use ($staleThreshold) {
                         $q->where('processing_status', 'COMPLETED')

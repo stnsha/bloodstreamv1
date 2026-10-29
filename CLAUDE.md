@@ -70,6 +70,28 @@ php artisan ai:reconcile-reviews            # Find orphaned results and dispatch
 php artisan ai:retry-failed-reviews         # Retry failed AI reviews from ai_errors table
 ```
 
+**Panel Completeness Commands**
+```bash
+php artisan panels:master-reconcile --limit=200 --force   # Full 4-step reconciliation cycle (scheduled hourly)
+php artisan panels:recheck-incomplete       # Step 1: revert is_completed=1 records that no longer meet the threshold
+php artisan panels:reconcile-incomplete     # Step 2: promote incomplete_test_results rows that now meet the threshold
+php artisan panels:recheck-late-reviews     # Step 3: redispatch review + consult-call re-eval for late panel data
+php artisan panels:purge-stale-incomplete   # Step 4: delete incomplete rows of completed + reviewed records (--dry-run, --limit, --force)
+php artisan panels:sync-profile-counts      # Keep panel_profiles_count in sync (scheduled daily)
+```
+
+**Consult Call / Test Result Maintenance Commands**
+```bash
+php artisan consult-call:close-add-on-only --dry-run        # Close AO-only consult calls already called; releases held AI reviews
+php artisan test-result:revert-held-completion --dry-run    # Set is_completed=0 on results whose AI review is still held
+php artisan consult-call:backfill-ai-review-hold            # Backfill AI review holds on existing results
+```
+
+**MyHealth Feed Commands**
+```bash
+php artisan myhealth:send-feed {icno} --dry-run --mark-reviewed   # Send one patient to the MyHealth lab feed (testing tool)
+```
+
 ## Architecture Overview
 
 ### Project Purpose
@@ -118,6 +140,12 @@ Blood Stream is a comprehensive blood test result management and analysis system
 - Error tracking in `AIError` and `AIReview` models
 - Commands: `ai:dispatch-unreviewed-async`, `ai:reconcile-reviews`, `ai:retry-failed-reviews`
 - HTML review generation via `ReviewHtmlGenerator`
+- **Consult-call hold**: `TestResultCompletionDispatcher` holds the AI review for results enrolled in a consult call (CC / CC + AO / AO). A held result stays `is_completed=0` / `is_reviewed=0` with `ai_review_held_at` stamped, because add-on panels bought on the call arrive later under the same lab number.
+- **Release**: `TestResultCompletionDispatcher::releaseHeldAiReview()` stamps `ai_review_released_at` and promotes the result so `SendToAIServer` picks it up. Triggered by "Release Doctor Review? = Yes" on the consult-call edit screen, or automatically on the first transition of a case into Closed. The answer is stored in `consult_call_details.release_doctor_review` (nullable boolean; backfilled by `ReleaseDoctorReviewBackfillSeeder`). `TestResult` exposes `ai_review_on_hold` and `ai_review_released` accessors.
+- **Webhook on a held result**: `ProcessAIWebhookResult` stores the review as `SUPERSEDED` (not `COMPLETED`) and leaves `is_reviewed=0`, so the ODB report does not expose it before release.
+- `ai:dispatch-unreviewed-async` skips results updated within the last 5 minutes (`RECENT_UPDATE_GRACE_MINUTES`) so the hold decision is made before the sweep picks them up
+- **Cutover to MyHealth**: from `SendToAIServer::MYHEALTH_FEED_FROM` (`2026-11-13`, server time) `SendToAIServer` dispatches `SendToMyHealthFeed` instead of calling the AI server. The gate sits after the hold, completeness and idempotency checks, so every dispatch path switches over together.
+- **Testing overlap**: from `SendToAIServer::MYHEALTH_FEED_TEST_FROM` (`2026-11-01`) until `MYHEALTH_FEED_FROM` (end of `2026-11-12`), the AI review runs unchanged and, after the AI server accepts the request, `SendToMyHealthFeed` is also dispatched with `markReviewed = false`. The copy is sent even if the result is already reviewed, never sets `is_reviewed` (the AI review webhook keeps owning it), and its failure never affects the AI review. During this period (and before it) `GET /api/v1/insyte/updateCompletionByTestResultId` is accepted but ignored (`ignored: true`, `is_reviewed` unchanged); from `MYHEALTH_FEED_FROM` it sets `is_reviewed = 1`. Insyte = the MyHealth lab feed.
 
 #### 6. **PDF/Document Export** (`app/Http/Controllers/API/Innoquest/PDFController.php`)
 - Generates PDF reports for test results
@@ -144,6 +172,29 @@ Blood Stream is a comprehensive blood test result management and analysis system
 - Models: `ConsultCall`, `ConsultCallDetails`, `ConsultCallFollowUp`
 - ODB frontend authenticates via proxy (`api-jwt.php`) that reads ODB `staff` table
 - API documentation: `docs/consult-call-api.md`
+- **Add-on sales**: `AddOnResultLinkService` links Add-On invoices (ODB `blood_test_sales.id`) and their lab reports back to the consult call that recommended the add-ons. The lab returns the sales id inside `test_results.ref_id` as `<lab code><id>` (e.g. `INN123500`). A linked report marks the add-ons on that sale Completed. ODB merge/repoint support via `/api/odb/addOnSalesForMerge`, `repointAddOnSale`, `addOnParentSale`, `repointCustomer`.
+- **Outlet eligibility (ARR)**: `App\Services\ARR\ARREligibilityService::eligibleCustomerByRefId()` is the single entry point (dispatcher + `consult-call` eligibility commands). From `ARREligibilityService::ARR_FROM` (`2026-11-23`, server time) it makes one call to ODB `/eligibleConsultCallByOutletCluster.php`, which combines both rules and returns `is_cluster`: an outlet in ODB `outlet_cluster` with `arr_active = 1` gives `is_cluster = true` (ARR flow), any other outlet not on the consult call exclusion list gives `is_cluster = false` (consult call flow). Before `ARR_FROM` it calls `/eligibleConsultCallByOutlet.php` and `is_cluster` is always false. ARR-related code lives in `app/Services/ARR/` and `app/Models/ARR/`.
+- **Clinical condition scope**: `clinical_conditions.cluster_scope` (1 = consult call only, default; 2 = cluster/ARR only; 3 = both). `ARREligibilityService` tags the customer with `is_cluster`, which flows through `ConsultCallEligibilityService::checkAndCreate()` into `ConditionEvaluatorService::evaluateSinglePatient()` / `ClinicalCondition::getIdsSortedByPriority()` (scope `forFlow`). The healthy condition (risk_tier 0) is shared by both flows.
+- **ARR enrollment**: in `ConsultCallEligibilityService::checkAndCreate()`, a cluster patient (`is_cluster = true`) that matches a cluster clinical condition is enrolled into `arr_enrollments` (`App\Models\ARR\ARREnrollment`, via `App\Services\ARR\ARREnrollmentService::enroll()`, one row per `test_result_id`) instead of a consult call. Healthy cluster patients are not enrolled and go to AI review as usual. An ARR-enrolled result gets no AI review or MyHealth feed: skipped in `TestResultCompletionDispatcher::dispatch()`, gated in `SendToAIServer`, and excluded from `ai:dispatch-unreviewed-async` and `ai:reconcile-reviews`. ARR documentation and follow-up are managed outside this system.
+
+#### 10. **Panel Completeness** (`app/Services/PanelCompletenessService.php`)
+- Decides whether a test result has every expected panel (compares against ODB invoice packages via `OctopusApiService`)
+- Incomplete results are tracked in `incomplete_test_results` and shown on the ODB Incomplete Test Results page (`IncompleteTestResultsController`, which hides stale rows)
+- `resolve()` promotes a record to complete and marks any existing `COMPLETED` AI review as `STALE_AMENDED` so the review is regenerated
+- Reconciled hourly by `panels:master-reconcile` (see Panel Completeness Commands)
+
+#### 11. **Ref ID Verification** (`app/Services/RefIdVerificationService.php`)
+- Called from `ProcessPanelResults` before the result is stored
+- Verifies the lab `ref_id` (ODB `blood_test_sales.id`) belongs to the patient by comparing IC and name of the sale owner
+- Outcomes: `verified`, `corrected` (unique replacement sale found by IC and collected date), `unresolved` (ref_id set to null), `not_found`, `skipped`, `unavailable` (ODB lookup failed; fail-open)
+
+#### 12. **MyHealth Lab Feed** (`app/Services/MyHealthFeedService.php`)
+- Replaces the AI review for results completed or released on/after `SendToAIServer::MYHEALTH_FEED_FROM`
+- `SendToMyHealthFeed` job POSTs the patient profile; a successful POST sets `is_reviewed=1` so sweepers do not re-send
+- Payload: `{ "feed": { "success": true, "data": <PatientProfileService::build() output> } }`, limited to results collected within the last `FEED_HISTORY_YEARS` years. Same data as `GET /api/patients/by-icno/{icno}`.
+- Config: `services.myhealth_feed` (`MH_KEY_FEED_URL`, `MH_KEY_FEED`, `MH_KEY_FEED_TIMEOUT` default 60s)
+- Log channel: `myhealth-feed`
+- Manual testing: `php artisan myhealth:send-feed {icno} --dry-run`
 
 ### Data Models & Relationships
 
@@ -195,6 +246,12 @@ Blood Stream is a comprehensive blood test result management and analysis system
 - `TokenValidationService` / `TokenValidationRateLimiter` - JWT format pre-validation and per-IP rate limiting (used by `APIAuthMiddleware` only)
 - `PanelInterpretationService` - Evaluates panel-level interpretations
 - `ApiTokenService` / `TokenCacheService` - Token lifecycle helpers used by `BloodTestController`
+- `TestResultCompletionDispatcher` - Runs once a result passes completeness: links add-on results, runs consult-call eligibility, then holds or dispatches the AI review; also `releaseHeldAiReview()`
+- `PanelCompletenessService` - Panel completeness evaluation, incomplete tracking, resolve/undo/late-data review revert
+- `AddOnResultLinkService` - Add-On invoice and lab report linkage to consult calls; ODB sale merge/repoint helpers
+- `RefIdVerificationService` - Verifies/corrects lab `ref_id` against the patient's IC before storage
+- `PatientProfileService` - Builds the patient profile by IC number (used by `PatientController::byIcNo` and the MyHealth feed)
+- `MyHealthFeedService` - Builds and POSTs the MyHealth lab feed payload
 
 Services handle business logic—controllers remain thin by delegating to these services.
 
@@ -230,12 +287,16 @@ Decodes the JWT and enforces `token_type === 'consult_call'` to prevent API-auth
 - `ProcessMigrationReport` - Generate migration reports
 - `ExportBpJob` / `DynamicExportJob` - Background export jobs (tracked by UUID via `QueueJobTrackerService`)
 - `ProcessAIWebhookResult` - Handles incoming AI webhook payloads asynchronously
-- `SendToAIServer` - Dispatches test results to the AI review service
+- `SendToAIServer` - Dispatches test results to the AI review service (routes to `SendToMyHealthFeed` from `MYHEALTH_FEED_FROM`)
+- `SendToMyHealthFeed` - Sends the patient profile to the MyHealth lab feed
 
-**Post-result processing chain** (inside `ProcessPanelResults`, after `DB::commit()`):
-1. Patient matching via `OctopusApiService`
-2. Consult-call eligibility check via `ConsultCallEligibilityService` (uses `ConditionEvaluatorService` to evaluate `ClinicalCondition` rules; creates `ConsultCall` record automatically when a condition matches)
-3. AI review dispatch via `SendToAIServer`
+**Post-result processing chain** (inside `ProcessPanelResults`):
+1. Before storage: `ref_id` verification via `RefIdVerificationService`
+2. After `DB::commit()`: patient matching via `OctopusApiService`
+3. Once completeness passes, `TestResultCompletionDispatcher::dispatch()`:
+   - Add-on result linkage via `AddOnResultLinkService`
+   - Consult-call eligibility check via `ConsultCallEligibilityService` (uses `ConditionEvaluatorService` to evaluate `ClinicalCondition` rules; creates `ConsultCall` record automatically when a condition matches)
+   - AI review hold (consult-call enrolled) or dispatch via `SendToAIServer` (MyHealth feed from `2026-11-13`)
 
 Each of these post-transaction steps is wrapped in its own try/catch so a failure in one does not roll back the main transaction.
 
@@ -265,7 +326,8 @@ All use Maatwebsite Excel for Excel file handling.
 - `POST /api/result/patient` - Get patient lab results
 - `GET /api/result/{id}` - Get specific result
 - `POST /api/result/panel` - Get panel results
-- `POST /api/odb/*` - ODB operations (migration, search, update)
+- `POST /api/odb/*` - ODB operations (migration, search, update, consult-call checks, add-on sale merge: `addOnSalesForMerge`, `repointAddOnSale`, `addOnParentSale`, `repointCustomer`)
+- `GET /api/patients/by-icno/{icno}` - Patient profile by IC number (built by `PatientProfileService`)
 - `POST /api/pdf/export` - Generate PDF export
 - `GET /api/import/*` - Import reference data
 - `GET /api/export/*` - Export results
@@ -326,6 +388,7 @@ Every significant operation must log:
 | `bp-log` | `logs/bp-export.log` | BP export jobs |
 | `thyroid-export` | `logs/thyroid-export.log` | Thyroid export jobs |
 | `performance` | `logs/performance.log` | Performance timing |
+| `myhealth-feed` | `logs/myhealth-feed.log` | MyHealth lab feed dispatch and sends |
 
 All daily channels retain 3 days of logs. Default log level is driven by `LOG_LEVEL` env var (defaults to `warning` in production, `debug` locally).
 
@@ -367,8 +430,19 @@ All daily channels retain 3 days of logs. Default log level is driven by `LOG_LE
 
 ### Configuration Files
 - `.env.example` contains all required environment variables
-- Key integrations: ODB, Eurofins/Innoquest, AI Review service, SFTP
+- Key integrations: ODB, Eurofins/Innoquest, AI Review service, MyHealth lab feed (`MH_KEY_FEED_URL`, `MH_KEY_FEED`, `MH_KEY_FEED_TIMEOUT`), SFTP
 - L5 Swagger documentation auto-generated from code annotations
+
+### Scheduler (`app/Console/Kernel.php`)
+Periodic commands only; most are restricted to `environments(['production'])`:
+- `ai:reconcile-reviews --hours=6 --limit=200` - hourly
+- `ai:retry-failed-reviews --hours=12 --limit=50`
+- `ai:dispatch-unreviewed-async`, `ai:sweep-stale-pending`
+- `panels:sync-profile-counts` - daily 00:00
+- `panels:master-reconcile --limit=200 --force` - hourly at :40
+- `queue:auto-retry-failed --hours=24 --limit=100 --max-attempts=3`, `queue:prune-failed --hours=720`
+- `queue:work --queue=exports --stop-when-empty` - export queue drain
+- The daily `consult-call:daily-eligibility-sweep` was removed from the schedule (command still exists for manual runs)
 
 ## Common Workflows
 

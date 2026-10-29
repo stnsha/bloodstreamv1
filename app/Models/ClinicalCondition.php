@@ -11,10 +11,20 @@ class ClinicalCondition extends Model
 
     public $incrementing = false;
 
+    /**
+     * cluster_scope values: which consult-call flow evaluates the condition.
+     */
+    const SCOPE_CONSULT_CALL = 1;
+
+    const SCOPE_CLUSTER = 2;
+
+    const SCOPE_BOTH = 3;
+
     protected $fillable = [
         'id',
         'description',
         'type',
+        'cluster_scope',
         'evaluator',
         'risk_tier',
         'criteria_count',
@@ -24,6 +34,7 @@ class ClinicalCondition extends Model
 
     protected $casts = [
         'id' => 'integer',
+        'cluster_scope' => 'integer',
         'risk_tier' => 'integer',
         'criteria_count' => 'integer',
         'is_active' => 'boolean',
@@ -36,6 +47,18 @@ class ClinicalCondition extends Model
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    /**
+     * Scope to the conditions evaluated by one flow: cluster (ARR) patients get
+     * SCOPE_CLUSTER and SCOPE_BOTH, consult-call patients SCOPE_CONSULT_CALL and SCOPE_BOTH.
+     */
+    public function scopeForFlow($query, bool $isCluster)
+    {
+        return $query->whereIn('cluster_scope', [
+            $isCluster ? self::SCOPE_CLUSTER : self::SCOPE_CONSULT_CALL,
+            self::SCOPE_BOTH,
+        ]);
     }
 
     /**
@@ -77,12 +100,16 @@ class ClinicalCondition extends Model
     /**
      * Get condition IDs sorted by priority (highest risk_tier first, then highest criteria_count).
      * Excludes the healthy condition (criteria_count = 0) so it is never
-     * passed into the evaluator loop.
+     * passed into the evaluator loop. Limited to the conditions of one flow
+     * (consult call by default, cluster when $isCluster is true).
      */
-    public static function getIdsSortedByPriority(): array
+    public static function getIdsSortedByPriority(bool $isCluster = false): array
     {
-        return Cache::remember('clinical_conditions_sorted_evaluable', 3600, function () {
+        $cacheKey = $isCluster ? 'clinical_conditions_sorted_evaluable_cluster' : 'clinical_conditions_sorted_evaluable';
+
+        return Cache::remember($cacheKey, 3600, function () use ($isCluster) {
             return self::active()
+                ->forFlow($isCluster)
                 ->where('criteria_count', '>', 0)
                 ->where(function ($q) {
                     $q->whereNull('active_from')
@@ -104,5 +131,6 @@ class ClinicalCondition extends Model
         Cache::forget('clinical_conditions_all');
         Cache::forget('clinical_conditions_sorted');
         Cache::forget('clinical_conditions_sorted_evaluable');
+        Cache::forget('clinical_conditions_sorted_evaluable_cluster');
     }
 }

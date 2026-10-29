@@ -109,11 +109,13 @@ class ConditionEvaluatorService
      *                              tc, ldlc, egfr, hba1c_percent, alt, age, bmi,
      *                              gender, hae, rcc, pcv, mcv, mch, mchc, rdw, s_iron, ferritin,
      *                              ast, alp, corrected_calcium, phosphate
+     * @param  bool  $isCluster  True for a cluster (ARR) patient: evaluates the cluster
+     *                           conditions (cluster_scope 2 / 3) instead of the consult-call ones (1 / 3)
      * @return int|null The matching condition ID, or null if no condition matched
      */
-    public function evaluateSinglePatient(array $patientData): ?int
+    public function evaluateSinglePatient(array $patientData, bool $isCluster = false): ?int
     {
-        $sortedConditionIds = ClinicalCondition::getIdsSortedByPriority();
+        $sortedConditionIds = ClinicalCondition::getIdsSortedByPriority($isCluster);
 
         foreach ($sortedConditionIds as $conditionId) {
             if ($this->evaluateCondition($conditionId, $patientData)) {

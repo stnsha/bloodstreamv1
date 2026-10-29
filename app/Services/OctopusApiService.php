@@ -352,6 +352,63 @@ class OctopusApiService
     }
 
     /**
+     * Combined consult call / ARR eligibility lookup by reference ID. Eligible when
+     * the outlet is in an ARR-active clinic cluster (ODB outlet_cluster,
+     * arr_active = 1) or passes the consult call outlet rule. Same request shape as
+     * eligibleConsultCallByOutlet(); the customer array also carries is_cluster
+     * (true for a cluster outlet).
+     *
+     * @param string $refId The reference ID (e.g., INN10256)
+     * @param string|null $labCode The lab code prefix used for normalization (e.g., INN)
+     * @return array|null Customer data or null if not found
+     * @throws Exception
+     */
+    public function eligibleConsultCallByOutletCluster(string $refId, ?string $labCode = null): ?array
+    {
+        Log::info('OctopusApiService: Looking up eligible consult call customer by RefID (outlet cluster)', [
+            'refid'    => $refId,
+            'lab_code' => $labCode,
+        ]);
+
+        $data = [
+            'username' => $this->username,
+            'password' => $this->password,
+            'refid'    => $refId,
+            'lab_code' => $labCode ?? '',
+        ];
+
+        try {
+            $result = $this->callAPI('POST', '/eligibleConsultCallByOutletCluster.php', $data);
+
+            if (($result['status'] ?? '') !== 'success' || ! isset($result['customer'])) {
+                Log::info('OctopusApiService: Eligible consult call customer not found by RefID (outlet cluster)', [
+                    'refid'   => $refId,
+                    'message' => $result['message'] ?? null,
+                ]);
+
+                return null;
+            }
+
+            Log::info('OctopusApiService: Eligible consult call customer found by RefID (outlet cluster)', [
+                'refid'       => $refId,
+                'customer_id' => $result['customer']['customer_id'] ?? null,
+                'outlet_id'   => $result['customer']['outlet_id'] ?? null,
+                'is_cluster'  => $result['customer']['is_cluster'] ?? null,
+            ]);
+
+            return $result['customer'];
+
+        } catch (Exception $e) {
+            Log::error('OctopusApiService: Eligible consult call RefID lookup exception (outlet cluster)', [
+                'error' => $e->getMessage(),
+                'refid' => $refId,
+            ]);
+
+            throw $e;
+        }
+    }
+
+    /**
      * Look up eligible consult call customer by patient IC across non-Melaka outlets (regional_id IN 11, 5).
      * Returns null if no matching customer is found in those regions.
      *
