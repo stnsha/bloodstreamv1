@@ -458,10 +458,23 @@ class TestResultCompilerService
      */
     protected function appendSpecialTests(TestResult $testResult, array &$categorizedItems): void
     {
-        if ($testResult->testResultSpecialTests->isEmpty()) {
-            return;
-        }
+        $specialTests = $this->formatSpecialTests($testResult);
 
+        if (!empty($specialTests)) {
+            $categorizedItems['SPECIAL TESTS'] = $specialTests;
+        }
+    }
+
+    /**
+     * Special tests already stored for the result, in the compiled_results
+     * "SPECIAL TESTS" format: panel_item_name ("Name (CODE)"), result_value,
+     * interpretation. Never recalculates; an empty array when none are stored.
+     * Shared with the MyHealth feed (PatientProfileService) so both stay identical.
+     * Expects testResultSpecialTests.panelPanelItem.panelItem and
+     * testResultSpecialTests.panelInterpretation to be eager loaded.
+     */
+    public function formatSpecialTests(TestResult $testResult): array
+    {
         $specialTests = [];
         foreach ($testResult->testResultSpecialTests as $specialTest) {
             $panelItem = $specialTest->panelPanelItem?->panelItem;
@@ -481,9 +494,7 @@ class TestResultCompilerService
             ];
         }
 
-        if (!empty($specialTests)) {
-            $categorizedItems['SPECIAL TESTS'] = $specialTests;
-        }
+        return $specialTests;
     }
 
     /**

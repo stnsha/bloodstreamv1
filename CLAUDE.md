@@ -197,7 +197,7 @@ Blood Stream is a comprehensive blood test result management and analysis system
 #### 12. **MyHealth Lab Feed** (`app/Services/MyHealthFeedService.php`)
 - Replaces the AI review for results completed or released on/after `SendToAIServer::MYHEALTH_FEED_FROM`
 - `SendToMyHealthFeed` job POSTs the patient profile; a successful POST sets `is_reviewed=1` so sweepers do not re-send
-- Payload: `{ "feed": { "success": true, "data": <PatientProfileService::build() output> } }`, limited to results collected within the last `FEED_HISTORY_YEARS` years. Same data as `GET /api/patients/by-icno/{icno}`.
+- Payload: `{ "feed": { "success": true, "data": <PatientProfileService::build() output> } }`, limited to results collected within the last `FEED_HISTORY_YEARS` years. Same data as `GET /api/patients/by-icno/{icno}`. Each test result carries `special_tests`: the special tests already stored for it, in the same format as `ai_reviews.compiled_results` "SPECIAL TESTS" (`TestResultCompilerService::formatSpecialTests()`; never recalculated, `[]` when none).
 - Config: `services.myhealth_feed` (`MH_KEY_FEED_URL`, `MH_KEY_FEED`, `MH_KEY_FEED_TIMEOUT` default 60s)
 - Log channel: `myhealth-feed`
 - Manual testing: `php artisan myhealth:send-feed {icno} --dry-run`

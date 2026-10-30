@@ -19,18 +19,22 @@ class PatientProfileService
 
     protected TestResultHierarchyService $testResultHierarchy;
 
+    protected TestResultCompilerService $testResultCompiler;
+
     public function __construct(
         MyHealthService $myHealthService,
         OctopusApiService $octopusApiService,
         DoctorReviewMatcherService $doctorReviewMatcher,
         MyHealthMatcherService $myHealthMatcher,
-        TestResultHierarchyService $testResultHierarchy
+        TestResultHierarchyService $testResultHierarchy,
+        TestResultCompilerService $testResultCompiler
     ) {
         $this->myHealthService = $myHealthService;
         $this->octopusApiService = $octopusApiService;
         $this->doctorReviewMatcher = $doctorReviewMatcher;
         $this->myHealthMatcher = $myHealthMatcher;
         $this->testResultHierarchy = $testResultHierarchy;
+        $this->testResultCompiler = $testResultCompiler;
     }
 
     /**
@@ -40,6 +44,9 @@ class PatientProfileService
      * - every test result for the patient across all labs, with
      *   test_result_items formatted as Profile > Category > Panel > Panel
      *   Item, the same hierarchy used by the Innoquest PDF report
+     * - special_tests per test result: the special tests already stored for
+     *   it, in the same format as ai_reviews.compiled_results "SPECIAL TESTS"
+     *   (never recalculated; empty when none are stored)
      * - MyHealth check_record readings per test result: every reading
      *   within 14 days of that test result's collected_date, grouped by
      *   parameter
@@ -72,6 +79,8 @@ class PatientProfileService
                 'doctor',
                 'testResultItems.panelComments.masterPanelComment',
                 'testResultProfiles',
+                'testResultSpecialTests.panelPanelItem.panelItem',
+                'testResultSpecialTests.panelInterpretation',
                 'aiReview',
             ])
             ->orderByDesc('collected_date')
@@ -107,13 +116,14 @@ class PatientProfileService
             : $testResults;
 
         $testResultsWithReview = $selectedTestResults->map(function ($testResult) use ($matchedReviews, $myHealthByTestResult) {
-            $testResult->makeHidden(['testResultItems', 'testResultProfiles', 'profiles', 'aiReview']);
+            $testResult->makeHidden(['testResultItems', 'testResultProfiles', 'testResultSpecialTests', 'profiles', 'aiReview']);
 
             return [
                 'test_result' => $testResult,
                 'review' => $matchedReviews[$testResult->id] ?? null,
                 'myhealth' => $myHealthByTestResult[$testResult->id] ?? [],
                 'test_result_items' => $this->testResultHierarchy->build($testResult),
+                'special_tests' => $this->testResultCompiler->formatSpecialTests($testResult),
             ];
         })->values();
 
