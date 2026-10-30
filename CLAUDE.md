@@ -186,7 +186,9 @@ Blood Stream is a comprehensive blood test result management and analysis system
 #### 11. **Ref ID Verification** (`app/Services/RefIdVerificationService.php`)
 - Called from `ProcessPanelResults` before the result is stored
 - Verifies the lab `ref_id` (ODB `blood_test_sales.id`) belongs to the patient by comparing IC and name of the sale owner
-- Outcomes: `verified`, `corrected` (unique replacement sale found by IC and collected date), `unresolved` (ref_id set to null), `not_found`, `skipped`, `unavailable` (ODB lookup failed; fail-open)
+- Outcomes: `verified` (same IC, or IC within 2 characters plus a similar name or the delivered DOB), `corrected` (unique replacement sale found by IC and collected date), `filled` (no ref_id delivered; unique sale found by IC and collected date), `unresolved` (ref_id set to null), `not_found`, `skipped`, `unavailable` (ODB lookup failed; fail-open)
+- ODB endpoint `verifyRefIdByIc.php` accepts an empty `refid` (returns only `ic_sales`) for the fill case
+- `PatientIdentityService`: for `verified` / `corrected` / `filled` the ODB customer name (registered at the sale) replaces the patient name, because Innoquest sometimes syncs a wrong name. The IC is never changed automatically; a delivered IC that differs from the ODB customer IC is recorded in `failed_validations` (reason `ic_mismatch`, one row per lab_no) for manual review. Runs at ingestion (`ProcessPanelResults`) and again in `SendToMyHealthFeed` before the payload is built (`verifyForFeed()`: fills a missing ref_id, fixes the name, records an IC mismatch; never changes a stored non-empty ref_id; fail-open)
 
 #### 12. **MyHealth Lab Feed** (`app/Services/MyHealthFeedService.php`)
 - Replaces the AI review for results completed or released on/after `SendToAIServer::MYHEALTH_FEED_FROM`

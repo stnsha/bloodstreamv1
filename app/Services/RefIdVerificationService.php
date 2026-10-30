@@ -17,17 +17,27 @@ use Throwable;
  * (consult-call customer/outlet, invoice completeness) then silently attaches
  * the result to the wrong person. This service compares the ref_id owner's IC
  * and name with the patient's; on a mismatch it looks for the patient's own
- * sale by IC and substitutes it.
+ * sale by IC and substitutes it. A missing ref_id is filled the same way.
  *
  * Outcomes (the 'status' key of verify()):
- *  - verified:    ref_id owner matches the patient (same IC, or IC typo plus same name); ref_id kept
+ *  - verified:    ref_id owner matches the patient (same IC, or IC typo plus same
+ *                 name or same date of birth); ref_id kept
  *  - corrected:   mismatch; exactly one unused sale found for the patient IC
  *                 whose campaign date equals the collected date; ref_id replaced
+ *  - filled:      no ref_id delivered; exactly one unused sale found for the
+ *                 patient IC on the collected date; ref_id set from it
  *  - unresolved:  mismatch; no unique replacement; ref_id dropped (null) so it
  *                 cannot link the result to the wrong customer
  *  - not_found:   ref_id does not resolve to a sale and no unique replacement; ref_id kept
- *  - skipped:     nothing to verify (no ref_id, no usable patient IC, no lab code)
+ *  - skipped:     nothing to verify (no usable patient IC, no lab code, or no
+ *                 ref_id and no unique sale to fill it from)
  *  - unavailable: ODB lookup failed; ref_id kept (fail-open)
+ *
+ * For verified / corrected / filled the ODB customer behind the sale is returned
+ * as customer_name / customer_ic: the name registered at the sale is used as the
+ * patient name. ic_conflict is true when that customer's IC differs from the
+ * delivered IC (accepted as the same person); the caller records it for manual
+ * review instead of choosing either IC.
  */
 class RefIdVerificationService
 {
@@ -38,7 +48,7 @@ class RefIdVerificationService
 
     /**
      * Maximum IC edit distance still treated as a typo of the same IC (only
-     * accepted together with a matching name).
+     * accepted together with a matching name or date of birth).
      */
     const MAX_IC_TYPO_DISTANCE = 2;
 
@@ -47,6 +57,11 @@ class RefIdVerificationService
      * same lab_no do not repeat the ODB round trip.
      */
     const CACHE_TTL_SECONDS = 21600;
+
+    /**
+     * Statuses whose customer_name / customer_ic identify the patient.
+     */
+    const IDENTIFIED_STATUSES = ['verified', 'corrected', 'filled'];
 
     protected OctopusApiService $octopusApi;
 
@@ -59,7 +74,7 @@ class RefIdVerificationService
     }
 
     /**
-     * @return array{ref_id: string|null, status: string}
+     * @return array{ref_id: string|null, status: string, customer_name: string|null, customer_ic: string|null, ic_conflict: bool}
      */
     public function verify(
         ?string $refId,
@@ -67,17 +82,23 @@ class RefIdVerificationService
         ?string $patientIc,
         ?string $patientName,
         ?string $collectedDate,
-        ?string $labNo
+        ?string $labNo,
+        ?string $patientDob = null
     ): array {
-        if (! $refId || ! $labCode || ! $patientIc || str_starts_with($patientIc, 'N/A_')) {
-            return ['ref_id' => $refId, 'status' => 'skipped'];
+        if (! $labCode || ! $patientIc || str_starts_with($patientIc, 'N/A_')) {
+            return $this->outcome($refId, 'skipped');
         }
 
-        $cacheKey = 'ref_id_verification_'.md5(implode('|', [$labNo, $refId, $patientIc]));
+        // Without a ref_id the only thing to do is fill it, which needs the collected date.
+        if (! $refId && ! $collectedDate) {
+            return $this->outcome(null, 'skipped');
+        }
+
+        $cacheKey = 'ref_id_verification_v2_'.md5(implode('|', [$labNo, $refId, $patientIc, $collectedDate]));
         $cached = Cache::get($cacheKey);
 
         if (is_array($cached)) {
-            return $cached;
+            return $cached + $this->outcome($refId, 'skipped');
         }
 
         $context = [
@@ -97,23 +118,27 @@ class RefIdVerificationService
                 'error' => $e->getMessage(),
             ]);
 
-            return ['ref_id' => $refId, 'status' => 'unavailable'];
+            return $this->outcome($refId, 'unavailable');
         }
 
         if ($data === null) {
             Log::error('RefIdVerificationService: ODB lookup returned no data, keeping ref_id unverified', $context);
 
-            return ['ref_id' => $refId, 'status' => 'unavailable'];
+            return $this->outcome($refId, 'unavailable');
+        }
+
+        if (! $refId) {
+            return $this->remember($cacheKey, $this->fillMissingRefId($data['ic_sales'], $labCode, $patientIc, $collectedDate, $labNo, $context));
         }
 
         $refCustomer = $data['ref_customer'];
 
-        if ($refCustomer && $this->isSamePerson($refCustomer, $patientIc, $patientName)) {
+        if ($refCustomer && $this->isSamePerson($refCustomer, $patientIc, $patientName, $patientDob)) {
             Log::info('RefIdVerificationService: ref_id verified', $context + [
                 'customer_id' => $refCustomer['customer_id'] ?? null,
             ]);
 
-            return $this->remember($cacheKey, ['ref_id' => $refId, 'status' => 'verified']);
+            return $this->remember($cacheKey, $this->identifiedOutcome($refId, 'verified', $refCustomer, $patientIc));
         }
 
         $mismatchContext = $context + [
@@ -137,7 +162,7 @@ class RefIdVerificationService
                 'corrected_campaign_date' => $sale['campaign_date'] ?? null,
             ]);
 
-            return $this->remember($cacheKey, ['ref_id' => $correctedRefId, 'status' => 'corrected']);
+            return $this->remember($cacheKey, $this->identifiedOutcome($correctedRefId, 'corrected', $sale, $patientIc));
         }
 
         if (! $refCustomer) {
@@ -145,7 +170,7 @@ class RefIdVerificationService
                 'candidate_count' => count($candidates),
             ]);
 
-            return $this->remember($cacheKey, ['ref_id' => $refId, 'status' => 'not_found']);
+            return $this->remember($cacheKey, $this->outcome($refId, 'not_found'));
         }
 
         Log::error('RefIdVerificationService: ref_id belongs to a different customer and no unique replacement found, dropping ref_id', $mismatchContext + [
@@ -156,16 +181,47 @@ class RefIdVerificationService
             ),
         ]);
 
-        return $this->remember($cacheKey, ['ref_id' => null, 'status' => 'unresolved']);
+        return $this->remember($cacheKey, $this->outcome(null, 'unresolved'));
+    }
+
+    /**
+     * No ref_id delivered: take the patient's single unused sale whose campaign
+     * date is the collected date. Anything else leaves the ref_id empty.
+     */
+    protected function fillMissingRefId(array $icSales, string $labCode, string $patientIc, ?string $collectedDate, ?string $labNo, array $context): array
+    {
+        $candidates = $this->candidateSales($icSales, $labCode, $collectedDate, $labNo);
+
+        if (count($candidates) !== 1) {
+            Log::info('RefIdVerificationService: no ref_id delivered and no unique sale on the collected date, leaving ref_id empty', $context + [
+                'candidate_count' => count($candidates),
+            ]);
+
+            return $this->outcome(null, 'skipped');
+        }
+
+        $sale = $candidates[0];
+        $filledRefId = strtoupper($labCode.$sale['blood_test_sales_id']);
+
+        // error level so the fill stays visible under production LOG_LEVEL=error
+        Log::error('RefIdVerificationService: no ref_id delivered, filled from the patient sale on the collected date', $context + [
+            'filled_ref_id' => $filledRefId,
+            'customer_id' => $sale['customer_id'] ?? null,
+            'campaign_id' => $sale['campaign_id'] ?? null,
+            'campaign_date' => $sale['campaign_date'] ?? null,
+        ]);
+
+        return $this->identifiedOutcome($filledRefId, 'filled', $sale, $patientIc);
     }
 
     /**
      * Same person when the ODB customer's IC matches the patient IC, or (to
      * tolerate an IC typo on either side) when the ICs differ by at most
-     * MAX_IC_TYPO_DISTANCE characters and the names are near-identical. A
-     * similar name alone is not enough: common names collide across people.
+     * MAX_IC_TYPO_DISTANCE characters and either the names are near-identical
+     * or the customer IC carries the delivered date of birth. A similar name
+     * alone is not enough: common names collide across people.
      */
-    protected function isSamePerson(array $customer, string $patientIc, ?string $patientName): bool
+    protected function isSamePerson(array $customer, string $patientIc, ?string $patientName, ?string $patientDob = null): bool
     {
         $customerIc = $this->icNormalizer->normalize((string) ($customer['ic'] ?? ''));
         $normalizedPatientIc = $this->icNormalizer->normalize($patientIc);
@@ -182,7 +238,13 @@ class RefIdVerificationService
             return false;
         }
 
-        $customerName = $this->normalizeName($customer['customer_name'] ?? null);
+        return $this->namesMatch($customer['customer_name'] ?? null, $patientName)
+            || $this->icMatchesDob($customerIc, $patientDob);
+    }
+
+    protected function namesMatch(?string $customerName, ?string $patientName): bool
+    {
+        $customerName = $this->normalizeName($customerName);
         $name = $this->normalizeName($patientName);
 
         if ($customerName === '' || $name === '') {
@@ -194,7 +256,23 @@ class RefIdVerificationService
         return $percent >= self::NAME_SIMILARITY_THRESHOLD;
     }
 
-    protected function normalizeName(?string $name): string
+    /**
+     * True when a 12-digit NRIC starts with the delivered date of birth (YYMMDD).
+     */
+    protected function icMatchesDob(string $ic, ?string $dob): bool
+    {
+        if (! $dob || ! preg_match('/^[0-9]{12}$/', $ic)) {
+            return false;
+        }
+
+        try {
+            return substr($ic, 0, 6) === Carbon::parse($dob)->format('ymd');
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
+
+    public function normalizeName(?string $name): string
     {
         $name = strtoupper((string) $name);
         $name = preg_replace('/[^A-Z ]/', ' ', $name);
@@ -239,6 +317,36 @@ class RefIdVerificationService
             $sameCampaignDay,
             fn (array $sale) => ! in_array(strtoupper($labCode.$sale['blood_test_sales_id']), $usedRefIds, true)
         ));
+    }
+
+    protected function outcome(?string $refId, string $status): array
+    {
+        return [
+            'ref_id' => $refId,
+            'status' => $status,
+            'customer_name' => null,
+            'customer_ic' => null,
+            'ic_conflict' => false,
+        ];
+    }
+
+    /**
+     * Outcome carrying the ODB customer behind the sale (name and IC registered
+     * at the sale), with ic_conflict when that IC differs from the delivered IC.
+     */
+    protected function identifiedOutcome(string $refId, string $status, array $customer, string $patientIc): array
+    {
+        $customerIc = trim((string) ($customer['ic'] ?? ''));
+        $customerName = trim((string) ($customer['customer_name'] ?? ''));
+
+        return [
+            'ref_id' => $refId,
+            'status' => $status,
+            'customer_name' => $customerName !== '' ? $customerName : null,
+            'customer_ic' => $customerIc !== '' ? $customerIc : null,
+            'ic_conflict' => $customerIc !== ''
+                && $this->icNormalizer->normalize($customerIc) !== $this->icNormalizer->normalize($patientIc),
+        ];
     }
 
     protected function remember(string $cacheKey, array $outcome): array

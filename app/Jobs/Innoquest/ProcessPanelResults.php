@@ -26,6 +26,7 @@ use App\Services\MyHealthService;
 use App\Services\OctopusApiService;
 use App\Services\PanelCompletenessService;
 use App\Services\PanelInterpretationService;
+use App\Services\PatientIdentityService;
 use App\Services\RefIdVerificationService;
 use App\Services\TestResultCompletionDispatcher;
 use Carbon\Carbon;
@@ -59,6 +60,12 @@ class ProcessPanelResults implements ShouldQueue
     protected $receivedAt;
 
     protected $labId;
+
+    /**
+     * RefIdVerificationService outcome for this delivery (set by
+     * resolveVerifiedRefId), used to take the patient name from ODB.
+     */
+    protected $identityOutcome = [];
 
     public function __construct(array $validatedData, string $requestId, int $labId)
     {
@@ -667,15 +674,16 @@ class ProcessPanelResults implements ShouldQueue
     /**
      * The raw ref_id (first PlacerOrderNumber), checked against ODB so a
      * mistyped ref_id pointing at another customer's sale is corrected (or
-     * dropped) before it is stored. Fails open: any error keeps the raw ref_id.
+     * dropped) before it is stored, and a missing ref_id is filled from the
+     * patient's sale on the collected date. The outcome is kept in
+     * identityOutcome (ODB name for the patient) and an IC that differs from
+     * the ODB customer IC is recorded in failed_validations. Fails open: any
+     * error keeps the raw ref_id.
      */
     protected function resolveVerifiedRefId(array $validated, int $lab_id, $batch_id = null): ?string
     {
         $rawRefId = $this->extractRefId();
-
-        if ($rawRefId === null) {
-            return null;
-        }
+        $this->identityOutcome = [];
 
         try {
             $identity = $this->resolvePatientIdentity($validated['patient'], $batch_id);
@@ -696,7 +704,19 @@ class ProcessPanelResults implements ShouldQueue
                 $identity['icno'],
                 $validated['patient']['PatientLastName'] ?? null,
                 $collectedDate,
-                $this->extractLabNo()
+                $this->extractLabNo(),
+                $validated['patient']['PatientDOB'] ?? null
+            );
+
+            $this->identityOutcome = $outcome;
+
+            app(PatientIdentityService::class)->recordIcConflict(
+                (string) $this->requestId,
+                $lab_id,
+                $this->extractLabNo(),
+                $outcome,
+                $identity['icno'],
+                $validated['patient']['PatientLastName'] ?? null
             );
 
             if ($outcome['ref_id'] !== $rawRefId) {
@@ -755,7 +775,11 @@ class ProcessPanelResults implements ShouldQueue
         $patient_gender = $identity['gender'];
         $age = $identity['age'];
 
-        $patient_name = $patient['PatientLastName'];
+        $identityService = app(PatientIdentityService::class);
+        $odbName = $identityService->odbNameFromOutcome($this->identityOutcome);
+
+        // The name registered at the confirmed ODB sale wins over the delivered name.
+        $patient_name = $odbName ?? $patient['PatientLastName'];
         $patient_dob = filled($patient['PatientDOB']) ? $patient['PatientDOB'] : null;
         $gender = $patient['PatientGender'];
 
@@ -774,6 +798,14 @@ class ProcessPanelResults implements ShouldQueue
             ],
             $cacheKey
         );
+
+        // Existing patient stored with a wrong (Innoquest-synced) name: replace it with the ODB name
+        if ($identityService->applyOdbName($patient, $odbName, [
+            'request_id' => $this->requestId,
+            'lab_no' => $this->extractLabNo(),
+        ])) {
+            Cache::forget($cacheKey);
+        }
 
         // Update age if it was null and we now have a calculated age
         if ($patient->age === null && $age !== null) {

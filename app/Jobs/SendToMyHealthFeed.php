@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\TestResult;
 use App\Services\MyHealthFeedService;
+use App\Services\PatientIdentityService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -54,7 +55,7 @@ class SendToMyHealthFeed implements ShouldBeUnique, ShouldQueue
         return "send_to_myhealth_feed_{$this->testResultId}";
     }
 
-    public function handle(MyHealthFeedService $feedService): void
+    public function handle(MyHealthFeedService $feedService, PatientIdentityService $identityService): void
     {
         $startTime = microtime(true);
 
@@ -82,6 +83,11 @@ class SendToMyHealthFeed implements ShouldBeUnique, ShouldQueue
             'attempt' => $this->attempts(),
             'mark_reviewed' => $this->markReviewed,
         ]);
+
+        // Fill a missing ref_id and replace a wrong patient name with the ODB
+        // name before the profile is built; fail-open.
+        $identityService->verifyForFeed($testResult);
+        $testResult->refresh()->load('patient');
 
         try {
             $payload = $feedService->buildPayload($testResult);

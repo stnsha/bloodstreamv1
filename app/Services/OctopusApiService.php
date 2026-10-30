@@ -730,14 +730,16 @@ class OctopusApiService
      * the customer behind the ref_id's blood_test_sales row, and every
      * blood_test_sales row of customers whose IC equals the patient IC
      * (see verifyRefIdByIc.php). The match decision is left to the caller.
+     * Without a ref_id only ic_sales is returned (ref_customer null), used to
+     * fill a missing ref_id.
      *
-     * @param string $refId The lab ref_id (e.g., INN124856)
+     * @param string|null $refId The lab ref_id (e.g., INN124856), or null when none was delivered
      * @param string $patientIc The patient IC number
      * @param string|null $labCode The lab code prefix (e.g., INN)
      * @return array|null ['ref_customer' => array|null, 'ic_sales' => array] or null on non-success
      * @throws Exception
      */
-    public function verifyRefIdByIc(string $refId, string $patientIc, ?string $labCode = null): ?array
+    public function verifyRefIdByIc(?string $refId, string $patientIc, ?string $labCode = null): ?array
     {
         Log::info('OctopusApiService: Verifying ref_id against patient IC', [
             'refid' => $refId,
@@ -748,7 +750,7 @@ class OctopusApiService
         $data = [
             'username' => $this->username,
             'password' => $this->password,
-            'refid' => $refId,
+            'refid' => $refId ?? '',
             'patient_ic' => $patientIc,
             'lab_code' => $labCode ?? '',
         ];

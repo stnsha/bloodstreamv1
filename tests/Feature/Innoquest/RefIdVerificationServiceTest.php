@@ -75,21 +75,86 @@ class RefIdVerificationServiceTest extends TestCase
         return $service->verify('INN124856', 'INN', self::TAN_IC, 'TAN YONG JIAN', '2026-10-17 09:00:00', $labNo);
     }
 
+    private function assertOutcome(array $outcome, ?string $refId, string $status): void
+    {
+        $this->assertSame($refId, $outcome['ref_id']);
+        $this->assertSame($status, $outcome['status']);
+    }
+
     public function test_ref_id_owned_by_patient_is_verified(): void
     {
         $outcome = $this->service(['ref_customer' => $this->leeRefCustomer(), 'ic_sales' => []])
             ->verify('INN124856', 'INN', self::LEE_IC, 'LEE CHENG CHIM', '2026-10-17 09:30:00', 'TEST-REFID-2');
 
-        $this->assertSame(['ref_id' => 'INN124856', 'status' => 'verified'], $outcome);
+        $this->assertOutcome($outcome, 'INN124856', 'verified');
+        $this->assertFalse($outcome['ic_conflict']);
     }
 
-    public function test_ic_typo_with_matching_name_is_verified(): void
+    public function test_verified_outcome_returns_odb_customer_name_for_wrong_lab_name(): void
+    {
+        $outcome = $this->service(['ref_customer' => $this->leeRefCustomer(), 'ic_sales' => []])
+            ->verify('INN124856', 'INN', self::LEE_IC, 'SOMEONE ELSE', '2026-10-17 09:30:00', 'TEST-REFID-2');
+
+        $this->assertOutcome($outcome, 'INN124856', 'verified');
+        $this->assertSame('Lee Chee Chim', $outcome['customer_name']);
+        $this->assertSame(self::LEE_IC, $outcome['customer_ic']);
+    }
+
+    public function test_ic_typo_with_matching_name_is_verified_and_flagged_as_ic_conflict(): void
     {
         $outcome = $this->service(['ref_customer' => $this->leeRefCustomer(), 'ic_sales' => []])
             ->verify('INN124856', 'INN', '810506075031', 'LEE CHEE CHIM', '2026-10-17 09:30:00', 'TEST-REFID-2');
 
-        $this->assertSame('verified', $outcome['status']);
-        $this->assertSame('INN124856', $outcome['ref_id']);
+        $this->assertOutcome($outcome, 'INN124856', 'verified');
+        $this->assertTrue($outcome['ic_conflict']);
+        $this->assertSame(self::LEE_IC, $outcome['customer_ic']);
+    }
+
+    public function test_ic_typo_with_wrong_name_but_matching_dob_is_verified(): void
+    {
+        $outcome = $this->service(['ref_customer' => $this->leeRefCustomer(), 'ic_sales' => []])
+            ->verify('INN124856', 'INN', '810506075031', 'SOMEONE ELSE', '2026-10-17 09:30:00', 'TEST-REFID-2', '19810506');
+
+        $this->assertOutcome($outcome, 'INN124856', 'verified');
+        $this->assertTrue($outcome['ic_conflict']);
+        $this->assertSame('Lee Chee Chim', $outcome['customer_name']);
+    }
+
+    public function test_ic_typo_with_wrong_name_and_other_dob_is_not_verified(): void
+    {
+        $outcome = $this->service(['ref_customer' => $this->leeRefCustomer(), 'ic_sales' => []])
+            ->verify('INN124856', 'INN', '810506075031', 'SOMEONE ELSE', '2026-10-17 09:30:00', 'TEST-REFID-2', '19900101');
+
+        $this->assertOutcome($outcome, null, 'unresolved');
+    }
+
+    public function test_missing_ref_id_is_filled_from_patient_sale_on_collected_date(): void
+    {
+        $outcome = $this->service(['ref_customer' => null, 'ic_sales' => [$this->tanSale()]])
+            ->verify(null, 'INN', self::TAN_IC, 'WRONG NAME', '2026-10-17 09:00:00', 'TEST-REFID-4');
+
+        $this->assertOutcome($outcome, 'INN124586', 'filled');
+        $this->assertSame('Tan Yong Jian', $outcome['customer_name']);
+        $this->assertFalse($outcome['ic_conflict']);
+    }
+
+    public function test_missing_ref_id_without_unique_sale_stays_empty(): void
+    {
+        $outcome = $this->service(['ref_customer' => null, 'ic_sales' => [$this->tanSale(99999901), $this->tanSale(99999902)]])
+            ->verify(null, 'INN', self::TAN_IC, 'TAN YONG JIAN', '2026-10-17 09:00:00', 'TEST-REFID-5');
+
+        $this->assertOutcome($outcome, null, 'skipped');
+    }
+
+    public function test_missing_ref_id_without_collected_date_is_skipped_without_lookup(): void
+    {
+        $octopus = Mockery::mock(OctopusApiService::class);
+        $octopus->shouldNotReceive('verifyRefIdByIc');
+
+        $outcome = (new RefIdVerificationService($octopus, new IcNormalizerService))
+            ->verify(null, 'INN', self::TAN_IC, 'TAN YONG JIAN', null, 'TEST-REFID-6');
+
+        $this->assertOutcome($outcome, null, 'skipped');
     }
 
     public function test_ref_id_of_another_customer_is_corrected_to_patients_own_sale(): void
@@ -99,7 +164,8 @@ class RefIdVerificationServiceTest extends TestCase
             'ic_sales' => [$this->tanSale()],
         ]));
 
-        $this->assertSame(['ref_id' => 'INN124586', 'status' => 'corrected'], $outcome);
+        $this->assertOutcome($outcome, 'INN124586', 'corrected');
+        $this->assertSame('Tan Yong Jian', $outcome['customer_name']);
     }
 
     public function test_mismatch_without_patient_sale_drops_ref_id(): void
@@ -109,7 +175,7 @@ class RefIdVerificationServiceTest extends TestCase
             'ic_sales' => [],
         ]));
 
-        $this->assertSame(['ref_id' => null, 'status' => 'unresolved'], $outcome);
+        $this->assertOutcome($outcome, null, 'unresolved');
     }
 
     public function test_mismatch_with_sale_from_another_campaign_date_drops_ref_id(): void
@@ -163,14 +229,14 @@ class RefIdVerificationServiceTest extends TestCase
             'ic_sales' => [],
         ]));
 
-        $this->assertSame(['ref_id' => 'INN124856', 'status' => 'not_found'], $outcome);
+        $this->assertOutcome($outcome, 'INN124856', 'not_found');
     }
 
     public function test_odb_failure_keeps_delivered_ref_id(): void
     {
         $outcome = $this->verifyTan($this->service(null, new Exception('Connection Failure')));
 
-        $this->assertSame(['ref_id' => 'INN124856', 'status' => 'unavailable'], $outcome);
+        $this->assertOutcome($outcome, 'INN124856', 'unavailable');
     }
 
     public function test_placeholder_ic_is_skipped(): void
@@ -178,7 +244,7 @@ class RefIdVerificationServiceTest extends TestCase
         $outcome = $this->service(null)
             ->verify('INN124856', 'INN', 'N/A_BATCH1', 'UNKNOWN', '2026-10-17 09:00:00', 'TEST-REFID-3');
 
-        $this->assertSame(['ref_id' => 'INN124856', 'status' => 'skipped'], $outcome);
+        $this->assertOutcome($outcome, 'INN124856', 'skipped');
     }
 
     public function test_definitive_outcome_is_cached_per_lab_no(): void
