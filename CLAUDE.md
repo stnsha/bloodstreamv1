@@ -102,7 +102,7 @@ php artisan myhealth:purge-feed-payloads --days=30 --dry-run       # Clear store
 Blood Stream is a comprehensive blood test result management and analysis system. It integrates with multiple laboratory systems (ODB, Eurofins/Innoquest), generates AI-powered reviews, and exports/imports test data in various formats.
 
 ### Technology Stack
-- **Framework**: Laravel 10 with PHP 8.1
+- **Framework**: Laravel 10 with PHP 8.2 (production and local Laragon: PHP 8.2.35 TS x64)
 - **Authentication**: JWT (Tymon/JWT-Auth) with Sanctum support
 - **Frontend Build**: Vite with Tailwind CSS 4
 - **Database**: MySQL
@@ -492,7 +492,7 @@ The test environment (`phpunit.xml`) uses:
 
 ### 1. Framework & Runtime
 - Use **Laravel 10**
-- Use **PHP 8.1**
+- Use **PHP 8.2** (production runs 8.2.35 TS; required extensions: redis, zip, curl, mbstring, openssl, pdo_mysql)
 
 ### 2. Imports
 - Always use proper `use` import statements.

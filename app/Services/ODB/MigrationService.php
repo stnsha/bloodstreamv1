@@ -114,7 +114,7 @@ class MigrationService
         $this->masterPanelItemCache = [];
         $this->panelItemCache = [];
         $this->pivotIdCache = [];
-        $this->referenceRangeCache = [];
+        $this->refRangeCache = [];
         $this->masterCommentCache = [];
     }
 
