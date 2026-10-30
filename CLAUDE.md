@@ -89,7 +89,7 @@ php artisan consult-call:backfill-ai-review-hold            # Backfill AI review
 
 **MyHealth Feed Commands**
 ```bash
-php artisan myhealth:send-feed {icno} --dry-run --mark-reviewed   # Send one patient to the MyHealth lab feed (testing tool)
+php artisan myhealth:send-feed {icno} --dry-run --mark-reviewed   # Send one patient to the MyHealth lab feed (testing tool); a real send is recorded in myhealth_feed_deliveries against the latest result
 php artisan myhealth:reconcile-feeds --hours=6 --limit=200 --dry-run   # Testing overlap only: send missing feed copies for results whose AI review was accepted
 php artisan myhealth:retry-failed-feeds --hours=12 --limit=50 --dry-run  # Resend FAILED feed deliveries (no attempt cap)
 php artisan myhealth:sweep-stale-pending --dry-run                 # Deliveries stuck PENDING > 15 min become FAILED

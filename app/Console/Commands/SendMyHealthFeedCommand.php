@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Patient;
 use App\Models\TestResult;
+use App\Services\MyHealthFeedDeliveryService;
 use App\Services\MyHealthFeedService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -16,8 +17,11 @@ use Throwable;
  * SendToMyHealthFeed for a patient IC number and POSTs it synchronously,
  * printing the response.
  *
- * Unlike the job it ignores is_reviewed / the MYHEALTH_FEED_FROM date and
- * does not write to the database unless --mark-reviewed is given.
+ * Unlike the job it ignores is_reviewed / the MYHEALTH_FEED_FROM date. A real
+ * send (not --dry-run) is recorded in myhealth_feed_deliveries against the
+ * latest test result (feed.test_result_id): PENDING, then SENT or FAILED with
+ * the HTTP status and payload, so a FAILED send is picked up by
+ * myhealth:retry-failed-feeds. is_reviewed is only changed by --mark-reviewed.
  */
 class SendMyHealthFeedCommand extends Command
 {
@@ -28,7 +32,7 @@ class SendMyHealthFeedCommand extends Command
 
     protected $description = 'Send one patient to the MyHealth lab feed by IC number (testing tool)';
 
-    public function handle(MyHealthFeedService $feedService): int
+    public function handle(MyHealthFeedService $feedService, MyHealthFeedDeliveryService $deliveryService): int
     {
         $icno = trim((string) $this->argument('icno'));
         $dryRun = (bool) $this->option('dry-run');
@@ -91,9 +95,21 @@ class SendMyHealthFeedCommand extends Command
 
         $this->line('POST '.config('services.myhealth_feed.url'));
 
+        $deliveryTestResultId = $latestTestResult->id ?? null;
+
+        if ($deliveryTestResultId) {
+            $deliveryService->start($deliveryTestResultId);
+        } else {
+            $this->warn('No test result in the feed; the delivery is not recorded in myhealth_feed_deliveries.');
+        }
+
         try {
             $response = $feedService->send($payload['body']);
         } catch (Throwable $e) {
+            if ($deliveryTestResultId) {
+                $deliveryService->failed($deliveryTestResultId, null, $payload['body']);
+            }
+
             $this->error('Request failed: '.$e->getMessage());
             Log::channel('myhealth-feed')->error('myhealth:send-feed: request failed', [
                 'icno' => $icno,
@@ -108,6 +124,10 @@ class SendMyHealthFeedCommand extends Command
         $this->line('');
 
         if (! $feedService->isAccepted($response)) {
+            if ($deliveryTestResultId) {
+                $deliveryService->failed($deliveryTestResultId, $response->status(), $payload['body']);
+            }
+
             $this->error('MyHealth rejected the feed.');
             Log::channel('myhealth-feed')->error('myhealth:send-feed: feed rejected', [
                 'icno' => $icno,
@@ -116,6 +136,11 @@ class SendMyHealthFeedCommand extends Command
             ]);
 
             return self::FAILURE;
+        }
+
+        if ($deliveryTestResultId) {
+            $deliveryService->sent($deliveryTestResultId, $response->status(), $payload['body']);
+            $this->line('Delivery recorded in myhealth_feed_deliveries for test result '.$deliveryTestResultId.'.');
         }
 
         $this->info('MyHealth accepted the feed.');
