@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Jobs\SendToAIServer;
 use App\Models\AIReview;
 use App\Models\TestResult;
+use App\Services\MyHealthFeedDeliveryService;
 use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
@@ -232,6 +233,17 @@ class DispatchUnreviewedResultsAsync extends Command
                         ->from('arr_enrollments')
                         ->whereColumn('arr_enrollments.test_result_id', 'test_results.id')
                         ->whereNull('arr_enrollments.deleted_at');
+                })
+                // From MYHEALTH_FEED_FROM a result with a feed delivery attempted since
+                // then is owned by the myhealth:* commands (retry / sweep). Without this
+                // a feed that keeps failing would be re-picked here on every run.
+                ->when(MyHealthFeedDeliveryService::isLive(), function ($query) {
+                    $query->whereNotExists(function ($sub) {
+                        $sub->select(DB::raw(1))
+                            ->from('myhealth_feed_deliveries')
+                            ->whereColumn('myhealth_feed_deliveries.test_result_id', 'test_results.id')
+                            ->where('myhealth_feed_deliveries.updated_at', '>=', Carbon::parse(SendToAIServer::MYHEALTH_FEED_FROM)->startOfDay());
+                    });
                 })
                 ->whereNotExists(function ($query) use ($staleThreshold) {
                     $query->select(DB::raw(1))

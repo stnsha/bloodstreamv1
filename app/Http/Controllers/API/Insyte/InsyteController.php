@@ -21,16 +21,17 @@ class InsyteController extends Controller
     }
 
     /**
-     * GET /api/insyte/updateCompletionByTestResultId?test_result_id={id}
-     * Called by Insyte once a test result has been received. Sets
-     * test_results.is_reviewed = 1. Idempotent. During the Insyte testing period
-     * (before SendToAIServer::MYHEALTH_FEED_FROM) the call is ignored: the AI
-     * review owns is_reviewed.
+     * POST /api/v1/insyte/updateCompletionByTestResultId
+     * Body: { "test_result_id": 123, "http_status": 200 }
+     *
+     * Called by Insyte (MyHealth lab feed server) with how it processed a test
+     * result we sent. See InsyteService for what each http_status does.
      */
     public function updateCompletionByTestResultId(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->query(), [
+        $validator = Validator::make($request->all(), [
             'test_result_id' => 'required|integer|min:1',
+            'http_status' => 'required|integer|between:100,599',
         ]);
 
         if ($validator->fails()) {
@@ -45,17 +46,23 @@ class InsyteController extends Controller
             ], 422);
         }
 
-        $testResultId = (int) $request->query('test_result_id');
+        $testResultId = (int) $request->input('test_result_id');
+        $httpStatus = (int) $request->input('http_status');
 
         try {
-            Log::info('InsyteController@updateCompletionByTestResultId: received', ['test_result_id' => $testResultId]);
+            Log::info('InsyteController@updateCompletionByTestResultId: received', [
+                'test_result_id' => $testResultId,
+                'http_status' => $httpStatus,
+            ]);
 
-            $result = $this->insyteService->markReviewed($testResultId);
+            $result = $this->insyteService->handleCallback($testResultId, $httpStatus);
 
             $message = match (true) {
-                $result['ignored'] => 'Insyte testing period: is_reviewed not changed',
-                $result['already_reviewed'] => 'Test result already marked as reviewed',
-                default => 'Test result marked as reviewed',
+                $result['ignored'] => 'Insyte testing period: delivery recorded, is_reviewed not changed',
+                $result['outcome'] === InsyteService::OUTCOME_COMPLETED => 'Test result marked as completed',
+                $result['outcome'] === InsyteService::OUTCOME_PROCESSING => 'Processing acknowledged, awaiting final status',
+                $result['outcome'] === InsyteService::OUTCOME_REJECTED => 'Rejection recorded, will not be resent automatically',
+                default => 'Failure recorded, will be resent',
             };
 
             return response()->json([
@@ -75,6 +82,7 @@ class InsyteController extends Controller
         } catch (Throwable $e) {
             Log::error('InsyteController@updateCompletionByTestResultId: failed', [
                 'test_result_id' => $testResultId,
+                'http_status' => $httpStatus,
                 'error' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),

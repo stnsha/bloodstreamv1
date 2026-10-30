@@ -48,6 +48,32 @@ class Kernel extends ConsoleKernel
             ->environments(['production'])
             ->withoutOverlapping(8);
 
+        // MyHealth feed (Insyte) delivery tracking - see myhealth_feed_deliveries.
+        // Testing overlap only: send the feed copy for results whose AI review was
+        // accepted but no copy went out. No-op from SendToAIServer::MYHEALTH_FEED_FROM.
+        $schedule->command('myhealth:reconcile-feeds --hours=6 --limit=200')
+            ->hourlyAt(10)
+            ->environments(['production'])
+            ->withoutOverlapping(30);
+
+        // Resend FAILED feed deliveries - no attempt cap, keeps retrying until SENT.
+        $schedule->command('myhealth:retry-failed-feeds --hours=12 --limit=50')
+            ->hourlyAt(25)
+            ->environments(['production'])
+            ->withoutOverlapping(30);
+
+        // Feed deliveries stuck PENDING (job lost) become FAILED for the retry above.
+        $schedule->command('myhealth:sweep-stale-pending')
+            ->everyTenMinutes()
+            ->environments(['production'])
+            ->withoutOverlapping(8);
+
+        // Clear stored feed payloads older than 30 days; delivery rows are kept.
+        $schedule->command('myhealth:purge-feed-payloads --days=30')
+            ->dailyAt('02:30')
+            ->environments(['production'])
+            ->withoutOverlapping(60);
+
         // Dynamic CSV export queue worker — processes jobs from the 'exports' queue, exits when empty
         $schedule->command('queue:work --queue=exports --stop-when-empty --timeout=3600 --tries=1')
             ->everyMinute()

@@ -64,6 +64,9 @@ class SendMyHealthFeedCommand extends Command
         // Test results are ordered by collected_date descending, so the first is the latest.
         $latestTestResult = $payload['body']['feed']['data']['test_results'][0]['test_result'] ?? null;
 
+        // The feed is reported back by Insyte against this id.
+        $payload['body']['feed']['test_result_id'] = $latestTestResult->id ?? null;
+
         $json = json_encode($payload['body'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $payloadPath = "myhealth-feed/icno-{$icno}.json";
         Storage::disk('local')->put($payloadPath, $json);

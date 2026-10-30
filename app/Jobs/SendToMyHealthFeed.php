@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\TestResult;
+use App\Services\MyHealthFeedDeliveryService;
 use App\Services\MyHealthFeedService;
 use App\Services\PatientIdentityService;
 use Illuminate\Bus\Queueable;
@@ -26,6 +27,10 @@ use Throwable;
  * until MYHEALTH_FEED_FROM) the feed is a copy alongside the AI review: it is sent
  * even when the result is already reviewed and never changes is_reviewed, which
  * stays owned by the AI review.
+ *
+ * Every attempt is recorded in myhealth_feed_deliveries (PENDING, then SENT /
+ * FAILED / SKIPPED, with the HTTP status and the payload sent), which the
+ * myhealth:* scheduled commands use to retry and reconcile.
  */
 class SendToMyHealthFeed implements ShouldBeUnique, ShouldQueue
 {
@@ -55,8 +60,11 @@ class SendToMyHealthFeed implements ShouldBeUnique, ShouldQueue
         return "send_to_myhealth_feed_{$this->testResultId}";
     }
 
-    public function handle(MyHealthFeedService $feedService, PatientIdentityService $identityService): void
-    {
+    public function handle(
+        MyHealthFeedService $feedService,
+        PatientIdentityService $identityService,
+        MyHealthFeedDeliveryService $deliveryService
+    ): void {
         $startTime = microtime(true);
 
         $testResult = TestResult::with('patient')->find($this->testResultId);
@@ -84,6 +92,8 @@ class SendToMyHealthFeed implements ShouldBeUnique, ShouldQueue
             'mark_reviewed' => $this->markReviewed,
         ]);
 
+        $deliveryService->start($this->testResultId);
+
         // Fill a missing ref_id and replace a wrong patient name with the ODB
         // name before the profile is built; fail-open.
         $identityService->verifyForFeed($testResult);
@@ -99,12 +109,23 @@ class SendToMyHealthFeed implements ShouldBeUnique, ShouldQueue
                 'error' => $e->getMessage(),
             ]);
 
+            $deliveryService->skipped($this->testResultId);
+
             return;
         }
 
-        $response = $feedService->send($payload['body']);
+        try {
+            $response = $feedService->send($payload['body']);
+        } catch (Throwable $e) {
+            // Connection failure or feed not configured: no HTTP status
+            $deliveryService->failed($this->testResultId, null, $payload['body']);
+
+            throw $e;
+        }
 
         if (! $feedService->isAccepted($response)) {
+            $deliveryService->failed($this->testResultId, $response->status(), $payload['body']);
+
             throw new RuntimeException(sprintf(
                 'MyHealth feed rejected test result %d: HTTP %d %s',
                 $this->testResultId,
@@ -112,6 +133,8 @@ class SendToMyHealthFeed implements ShouldBeUnique, ShouldQueue
                 mb_substr($response->body(), 0, 1000)
             ));
         }
+
+        $deliveryService->sent($this->testResultId, $response->status(), $payload['body']);
 
         if (! $this->markReviewed) {
             Log::channel('myhealth-feed')->info('SendToMyHealthFeed: completed (testing overlap copy, is_reviewed left to the AI review)', array_merge([
@@ -155,5 +178,7 @@ class SendToMyHealthFeed implements ShouldBeUnique, ShouldQueue
             'test_result_id' => $this->testResultId,
             'error' => $exception->getMessage(),
         ]);
+
+        app(MyHealthFeedDeliveryService::class)->failedFinal($this->testResultId);
     }
 }

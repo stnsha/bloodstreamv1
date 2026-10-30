@@ -276,7 +276,7 @@ Route::middleware(['api.auth', 'throttle:api'])->group(function () {
     });
 
     Route::prefix('insyte')->controller(InsyteController::class)->group(function () {
-        Route::get('/updateCompletionByTestResultId', 'updateCompletionByTestResultId')->name('insyte.updateCompletionByTestResultId');
+        Route::post('/updateCompletionByTestResultId', 'updateCompletionByTestResultId')->name('insyte.updateCompletionByTestResultId');
     });
 
     Route::prefix('lab')->controller(LabController::class)->group(function () {

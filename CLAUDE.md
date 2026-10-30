@@ -90,6 +90,10 @@ php artisan consult-call:backfill-ai-review-hold            # Backfill AI review
 **MyHealth Feed Commands**
 ```bash
 php artisan myhealth:send-feed {icno} --dry-run --mark-reviewed   # Send one patient to the MyHealth lab feed (testing tool)
+php artisan myhealth:reconcile-feeds --hours=6 --limit=200 --dry-run   # Testing overlap only: send missing feed copies for results whose AI review was accepted
+php artisan myhealth:retry-failed-feeds --hours=12 --limit=50 --dry-run  # Resend FAILED feed deliveries (no attempt cap)
+php artisan myhealth:sweep-stale-pending --dry-run                 # Deliveries stuck PENDING > 15 min become FAILED
+php artisan myhealth:purge-feed-payloads --days=30 --dry-run       # Clear stored payloads older than 30 days (rows kept)
 ```
 
 ## Architecture Overview
@@ -145,7 +149,7 @@ Blood Stream is a comprehensive blood test result management and analysis system
 - **Webhook on a held result**: `ProcessAIWebhookResult` stores the review as `SUPERSEDED` (not `COMPLETED`) and leaves `is_reviewed=0`, so the ODB report does not expose it before release.
 - `ai:dispatch-unreviewed-async` skips results updated within the last 5 minutes (`RECENT_UPDATE_GRACE_MINUTES`) so the hold decision is made before the sweep picks them up
 - **Cutover to MyHealth**: from `SendToAIServer::MYHEALTH_FEED_FROM` (`2026-11-13`, server time) `SendToAIServer` dispatches `SendToMyHealthFeed` instead of calling the AI server. The gate sits after the hold, completeness and idempotency checks, so every dispatch path switches over together.
-- **Testing overlap**: from `SendToAIServer::MYHEALTH_FEED_TEST_FROM` (`2026-11-01`) until `MYHEALTH_FEED_FROM` (end of `2026-11-12`), the AI review runs unchanged and, after the AI server accepts the request, `SendToMyHealthFeed` is also dispatched with `markReviewed = false`. The copy is sent even if the result is already reviewed, never sets `is_reviewed` (the AI review webhook keeps owning it), and its failure never affects the AI review. During this period (and before it) `GET /api/v1/insyte/updateCompletionByTestResultId` is accepted but ignored (`ignored: true`, `is_reviewed` unchanged); from `MYHEALTH_FEED_FROM` it sets `is_reviewed = 1`. Insyte = the MyHealth lab feed.
+- **Testing overlap**: from `SendToAIServer::MYHEALTH_FEED_TEST_FROM` (`2026-11-01`) until `MYHEALTH_FEED_FROM` (end of `2026-11-12`), the AI review runs unchanged and, after the AI server accepts the request, `SendToMyHealthFeed` is also dispatched with `markReviewed = false`. The copy is sent even if the result is already reviewed, never sets `is_reviewed` (the AI review webhook keeps owning it), and its failure never affects the AI review. Insyte = the MyHealth lab feed. Insyte reports back through `POST /api/v1/insyte/updateCompletionByTestResultId` (`api.auth`) with body `{ "test_result_id": 123, "http_status": 200 }` (`InsyteService::handleCallback()`): 200/201/204/409 = completed (delivery SENT, `is_reviewed = 1` from `MYHEALTH_FEED_FROM` only; before that `ignored: true`), 202 = processing (no change), other 4xx = rejected (delivery SKIPPED, not resent), 5xx = failed (delivery FAILED, resent by `myhealth:retry-failed-feeds`).
 
 #### 6. **PDF/Document Export** (`app/Http/Controllers/API/Innoquest/PDFController.php`)
 - Generates PDF reports for test results
@@ -197,6 +201,9 @@ Blood Stream is a comprehensive blood test result management and analysis system
 - Config: `services.myhealth_feed` (`MH_KEY_FEED_URL`, `MH_KEY_FEED`, `MH_KEY_FEED_TIMEOUT` default 60s)
 - Log channel: `myhealth-feed`
 - Manual testing: `php artisan myhealth:send-feed {icno} --dry-run`
+- Feed body carries `feed.test_result_id` (the result the feed is sent for); Insyte reports back against it. Partner API doc: `docs/insyte-api.md`
+- **Delivery tracking**: `myhealth_feed_deliveries` (`MyHealthFeedDelivery`, one row per `test_result_id`): `status` PENDING / SENT / FAILED / SKIPPED, `http_status`, `attempts`, `payload` (2-year profile last sent, like `ai_reviews.compiled_results`; cleared after 30 days), `sent_at`. Written by `SendToMyHealthFeed` through `MyHealthFeedDeliveryService` (non-critical). SKIPPED = feed cannot be built (e.g. no IC) and is never retried.
+- **Scheduled** (production): `myhealth:reconcile-feeds` hourly at :10 (testing overlap only; from `MYHEALTH_FEED_FROM` missed results are picked up by `ai:dispatch-unreviewed-async` / `ai:reconcile-reviews`), `myhealth:retry-failed-feeds` hourly at :25, `myhealth:sweep-stale-pending` every 10 min, `myhealth:purge-feed-payloads` daily 02:30. From `MYHEALTH_FEED_FROM` the two AI sweepers skip results with a feed delivery attempted since that date, so a failing feed is retried only by the `myhealth:*` commands.
 
 ### Data Models & Relationships
 
@@ -440,6 +447,7 @@ Periodic commands only; most are restricted to `environments(['production'])`:
 - `ai:reconcile-reviews --hours=6 --limit=200` - hourly
 - `ai:retry-failed-reviews --hours=12 --limit=50`
 - `ai:dispatch-unreviewed-async`, `ai:sweep-stale-pending`
+- `myhealth:reconcile-feeds` (hourly :10), `myhealth:retry-failed-feeds` (hourly :25), `myhealth:sweep-stale-pending` (every 10 min), `myhealth:purge-feed-payloads --days=30` (daily 02:30)
 - `panels:sync-profile-counts` - daily 00:00
 - `panels:master-reconcile --limit=200 --force` - hourly at :40
 - `queue:auto-retry-failed --hours=24 --limit=100 --max-attempts=3`, `queue:prune-failed --hours=720`

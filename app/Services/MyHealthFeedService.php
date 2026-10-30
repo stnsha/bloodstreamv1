@@ -39,17 +39,19 @@ class MyHealthFeedService
             throw new RuntimeException("Test result {$testResult->id}: patient has no IC number, cannot build feed");
         }
 
-        return $this->buildPayloadForIcno($icno);
+        return $this->buildPayloadForIcno($icno, $testResult->id);
     }
 
     /**
-     * Build the request body for a patient by IC number.
+     * Build the request body for a patient by IC number. $testResultId is the
+     * result this feed is sent for; Insyte reports its processing status back
+     * for that id (POST /api/v1/insyte/updateCompletionByTestResultId).
      *
      * Returns ['body' => <request body>, 'stats' => <counts for logging>].
      *
      * @throws RuntimeException when no patient has this IC number
      */
-    public function buildPayloadForIcno(string $icno): array
+    public function buildPayloadForIcno(string $icno, ?int $testResultId = null): array
     {
         $profile = $this->patientProfileService->build(
             $icno,
@@ -64,6 +66,7 @@ class MyHealthFeedService
             'body' => [
                 'feed' => [
                     'success' => true,
+                    'test_result_id' => $testResultId,
                     'data' => $profile['data'],
                 ],
             ],
