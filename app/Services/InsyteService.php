@@ -2,10 +2,8 @@
 
 namespace App\Services;
 
-use App\Jobs\SendToAIServer;
 use App\Models\MyHealthFeedDelivery;
 use App\Models\TestResult;
-use Carbon\Carbon;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -22,9 +20,10 @@ use Throwable;
  *                                      would fail the same way; not retried)
  *  - 5xx                -> failed:     delivery FAILED (myhealth:retry-failed-feeds resends)
  *
- * Before SendToAIServer::MYHEALTH_FEED_FROM (Insyte testing period) the AI
- * review owns is_reviewed, so a completed callback never changes it
- * (ignored = true); the delivery status is still recorded.
+ * While the feed is not live (MyHealthFeedDeliveryService::isLive(): before
+ * SendToAIServer::MYHEALTH_FEED_FROM with the AI review enabled) the AI review
+ * owns is_reviewed, so a completed callback never changes it (ignored = true);
+ * the delivery status is still recorded.
  */
 class InsyteService
 {
@@ -120,11 +119,12 @@ class InsyteService
     }
 
     /**
-     * True before Insyte (MyHealth feed) replaces the AI review. During that period
-     * the AI review owns is_reviewed and Insyte callbacks must not change it.
+     * True while Insyte (MyHealth feed) does not replace the AI review
+     * (MyHealthFeedDeliveryService::isLive() false). During that period the AI
+     * review owns is_reviewed and Insyte callbacks must not change it.
      */
     public function isTestingPeriod(): bool
     {
-        return now()->lt(Carbon::parse(SendToAIServer::MYHEALTH_FEED_FROM)->startOfDay());
+        return ! MyHealthFeedDeliveryService::isLive();
     }
 }

@@ -18,20 +18,49 @@ use Throwable;
 class MyHealthFeedDeliveryService
 {
     /**
-     * True once the feed replaces the AI review (SendToAIServer::MYHEALTH_FEED_FROM).
-     * Before that every delivery is a testing copy that must not set is_reviewed.
+     * MyHealth feed switch (MH_KEY_FEED_ENABLED). False: no feed is sent by any
+     * automatic path, and from MYHEALTH_FEED_FROM results fall back to the AI review.
      */
-    public static function isLive(): bool
+    public static function isEnabled(): bool
     {
-        return now()->gte(Carbon::parse(SendToAIServer::MYHEALTH_FEED_FROM)->startOfDay());
+        return (bool) config('services.myhealth_feed.enabled', true);
     }
 
     /**
-     * True during the testing overlap (MYHEALTH_FEED_TEST_FROM until MYHEALTH_FEED_FROM).
+     * AI review switch (AI_REVIEW_ENABLED). False: no result is sent to the AI
+     * server; with the feed enabled the feed replaces the AI review right away.
+     */
+    public static function isAiReviewEnabled(): bool
+    {
+        return (bool) config('services.ai_review.enabled', true);
+    }
+
+    /**
+     * True when the feed replaces the AI review and owns is_reviewed: feed enabled,
+     * and the AI review is disabled or SendToAIServer::MYHEALTH_FEED_FROM is reached.
+     * Otherwise every delivery is a testing copy that must not set is_reviewed.
+     *
+     * feed on  + AI on  -> both (copy) before MYHEALTH_FEED_FROM, feed only from then
+     * feed on  + AI off -> feed only (live)
+     * feed off + AI on  -> AI review only
+     * feed off + AI off -> nothing is sent
+     */
+    public static function isLive(): bool
+    {
+        return self::isEnabled()
+            && (! self::isAiReviewEnabled()
+                || now()->gte(Carbon::parse(SendToAIServer::MYHEALTH_FEED_FROM)->startOfDay()));
+    }
+
+    /**
+     * True during the testing overlap (MYHEALTH_FEED_TEST_FROM until MYHEALTH_FEED_FROM)
+     * while both the feed and the AI review are enabled.
      */
     public static function isTesting(): bool
     {
-        return now()->gte(Carbon::parse(SendToAIServer::MYHEALTH_FEED_TEST_FROM)->startOfDay())
+        return self::isEnabled()
+            && self::isAiReviewEnabled()
+            && now()->gte(Carbon::parse(SendToAIServer::MYHEALTH_FEED_TEST_FROM)->startOfDay())
             && ! self::isLive();
     }
 

@@ -43,6 +43,13 @@ class ReconcileMyHealthFeeds extends Command
         $limit = (int) $this->option('limit');
         $dryRun = (bool) $this->option('dry-run');
 
+        if (! MyHealthFeedDeliveryService::isEnabled()) {
+            $this->info('MyHealth feed disabled (MH_KEY_FEED_ENABLED=false); nothing to reconcile.');
+            Log::channel('myhealth-feed')->info('myhealth:reconcile-feeds: feed disabled, nothing to do');
+
+            return self::SUCCESS;
+        }
+
         if (! MyHealthFeedDeliveryService::isTesting()) {
             $this->info('Not in the MyHealth feed testing period; nothing to reconcile.');
             Log::channel('myhealth-feed')->info('myhealth:reconcile-feeds: outside testing period, nothing to do');

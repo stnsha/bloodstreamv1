@@ -198,7 +198,13 @@ Blood Stream is a comprehensive blood test result management and analysis system
 - Replaces the AI review for results completed or released on/after `SendToAIServer::MYHEALTH_FEED_FROM`
 - `SendToMyHealthFeed` job POSTs the patient profile; a successful POST sets `is_reviewed=1` so sweepers do not re-send
 - Payload: `{ "feed": { "success": true, "data": <PatientProfileService::build() output> } }`, limited to results collected within the last `FEED_HISTORY_YEARS` years. Same data as `GET /api/patients/by-icno/{icno}`. Each test result carries `special_tests`: the special tests already stored for it, in the same format as `ai_reviews.compiled_results` "SPECIAL TESTS" (`TestResultCompilerService::formatSpecialTests()`; never recalculated, `[]` when none).
-- Config: `services.myhealth_feed` (`MH_KEY_FEED_URL`, `MH_KEY_FEED`, `MH_KEY_FEED_TIMEOUT` default 60s)
+- Config: `services.myhealth_feed` (`MH_KEY_FEED_URL`, `MH_KEY_FEED`, `MH_KEY_FEED_TIMEOUT` default 60s, `MH_KEY_FEED_ENABLED` default true)
+- **Switches** `MH_KEY_FEED_ENABLED` (`services.myhealth_feed.enabled`, `MyHealthFeedDeliveryService::isEnabled()`) and `AI_REVIEW_ENABLED` (`services.ai_review.enabled`, `isAiReviewEnabled()`), both default true, combined with the dates in `MyHealthFeedDeliveryService::isLive()`:
+  - feed on + AI on: both (feed copy, AI owns `is_reviewed`) before `MYHEALTH_FEED_FROM`, feed only from then
+  - feed on + AI off: feed only, live (`markReviewed = true`, Insyte callback sets `is_reviewed`), regardless of date
+  - feed off + AI on: AI review only, regardless of date
+  - feed off + AI off: nothing sent; results stay unreviewed (`SendToAIServer` logs a warning)
+  - Feed off: `SendToMyHealthFeed` returns without recording a delivery (also for jobs already queued); `myhealth:reconcile-feeds` / `myhealth:retry-failed-feeds` do nothing. While live, the AI sweepers skip results with a PENDING / FAILED / SKIPPED feed delivery (owned by `myhealth:*`). `myhealth:send-feed` (manual tool) and ODB-triggered `AIReviewService` calls are not affected. Run `php artisan config:clear` (or `config:cache`) and `queue:restart` after changing either.
 - Log channel: `myhealth-feed`
 - Manual testing: `php artisan myhealth:send-feed {icno} --dry-run`
 - Feed body carries `feed.test_result_id` (the result the feed is sent for); Insyte reports back against it. Partner API doc: `docs/insyte-api.md`

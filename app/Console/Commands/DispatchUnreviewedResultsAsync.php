@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Jobs\SendToAIServer;
 use App\Models\AIReview;
+use App\Models\MyHealthFeedDelivery;
 use App\Models\TestResult;
 use App\Services\MyHealthFeedDeliveryService;
 use Exception;
@@ -234,15 +235,17 @@ class DispatchUnreviewedResultsAsync extends Command
                         ->whereColumn('arr_enrollments.test_result_id', 'test_results.id')
                         ->whereNull('arr_enrollments.deleted_at');
                 })
-                // From MYHEALTH_FEED_FROM a result with a feed delivery attempted since
-                // then is owned by the myhealth:* commands (retry / sweep). Without this
-                // a feed that keeps failing would be re-picked here on every run.
+                // While the feed is live (MyHealthFeedDeliveryService::isLive()) a result
+                // with a PENDING / FAILED / SKIPPED feed delivery is owned by the
+                // myhealth:* commands (retry / sweep). Without this a feed that keeps
+                // failing would be re-picked here on every run. A SENT testing copy does
+                // not block it, so an unreviewed result still gets the live feed.
                 ->when(MyHealthFeedDeliveryService::isLive(), function ($query) {
                     $query->whereNotExists(function ($sub) {
                         $sub->select(DB::raw(1))
                             ->from('myhealth_feed_deliveries')
                             ->whereColumn('myhealth_feed_deliveries.test_result_id', 'test_results.id')
-                            ->where('myhealth_feed_deliveries.updated_at', '>=', Carbon::parse(SendToAIServer::MYHEALTH_FEED_FROM)->startOfDay());
+                            ->where('myhealth_feed_deliveries.status', '!=', MyHealthFeedDelivery::STATUS_SENT);
                     });
                 })
                 ->whereNotExists(function ($query) use ($staleThreshold) {

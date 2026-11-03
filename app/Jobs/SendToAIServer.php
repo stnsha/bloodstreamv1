@@ -8,6 +8,7 @@ use App\Models\ARR\ARREnrollment;
 use App\Models\TestResult;
 use App\Services\AIApiClient;
 use App\Services\ApiTokenService;
+use App\Services\MyHealthFeedDeliveryService;
 use App\Services\PanelCompletenessService;
 use App\Services\TestResultCompilerService;
 use Carbon\Carbon;
@@ -179,11 +180,24 @@ class SendToAIServer implements ShouldBeUnique, ShouldQueue
             // From MYHEALTH_FEED_FROM the MyHealth lab feed replaces the AI review.
             // Gated here, after the hold / completeness / idempotency checks, so
             // every dispatch path (completion, consult call release, sweepers,
-            // retry/requeue commands) switches over together.
-            if (now()->gte(Carbon::parse(self::MYHEALTH_FEED_FROM)->startOfDay())) {
+            // retry/requeue commands) switches over together. The .env switches
+            // MH_KEY_FEED_ENABLED / AI_REVIEW_ENABLED decide the route (see
+            // MyHealthFeedDeliveryService::isLive()).
+            if (MyHealthFeedDeliveryService::isLive()) {
                 SendToMyHealthFeed::dispatch($this->testResultId);
 
                 Log::channel('myhealth-feed')->info('SendToAIServer: routed to MyHealth feed instead of AI review', [
+                    'test_result_id' => $this->testResultId,
+                    'ai_review_enabled' => MyHealthFeedDeliveryService::isAiReviewEnabled(),
+                ]);
+
+                return;
+            }
+
+            if (! MyHealthFeedDeliveryService::isAiReviewEnabled()) {
+                // Not live and AI review disabled: the feed is disabled too, nothing
+                // is sent. The result stays unreviewed until a switch is turned on.
+                Log::channel('performance')->warning('SendToAIServer: AI review and MyHealth feed both disabled (AI_REVIEW_ENABLED / MH_KEY_FEED_ENABLED), skipping', [
                     'test_result_id' => $this->testResultId,
                 ]);
 
@@ -282,6 +296,14 @@ class SendToAIServer implements ShouldBeUnique, ShouldQueue
     protected function dispatchMyHealthFeedTestCopy(): void
     {
         if (now()->lt(Carbon::parse(self::MYHEALTH_FEED_TEST_FROM)->startOfDay())) {
+            return;
+        }
+
+        if (! MyHealthFeedDeliveryService::isEnabled()) {
+            Log::channel('myhealth-feed')->info('SendToAIServer: MyHealth feed disabled (MH_KEY_FEED_ENABLED=false), testing copy not dispatched', [
+                'test_result_id' => $this->testResultId,
+            ]);
+
             return;
         }
 

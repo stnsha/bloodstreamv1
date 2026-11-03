@@ -37,9 +37,19 @@ return [
             : env('ODB_API_URL_LOCAL'),
     ],
 
+    // AI review switch: enabled = false stops every send to the AI server
+    // (SendToAIServer). See MyHealthFeedDeliveryService::isLive() for how it
+    // combines with myhealth_feed.enabled. Default true.
+    'ai_review' => [
+        'enabled' => (bool) env('AI_REVIEW_ENABLED', true),
+    ],
+
     // MyHealth lab feed: replaces AI review dispatch for results completed or
     // released on/after SendToAIServer::MYHEALTH_FEED_FROM.
+    // enabled = false: no feed is sent at all (no testing copy; from
+    // MYHEALTH_FEED_FROM results stay on the AI review). Default true.
     'myhealth_feed' => [
+        'enabled' => (bool) env('MH_KEY_FEED_ENABLED', true),
         'url' => env('MH_KEY_FEED_URL'),
         'key' => env('MH_KEY_FEED'),
         'timeout' => (int) env('MH_KEY_FEED_TIMEOUT', 60),

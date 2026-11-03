@@ -67,6 +67,17 @@ class SendToMyHealthFeed implements ShouldBeUnique, ShouldQueue
     ): void {
         $startTime = microtime(true);
 
+        // Master switch: also stops jobs already queued before the feed was disabled.
+        // Nothing is recorded, so the result stays unreviewed for the AI sweepers.
+        if (! MyHealthFeedDeliveryService::isEnabled()) {
+            Log::channel('myhealth-feed')->warning('SendToMyHealthFeed: MyHealth feed disabled (MH_KEY_FEED_ENABLED=false), skipping', [
+                'test_result_id' => $this->testResultId,
+                'mark_reviewed' => $this->markReviewed,
+            ]);
+
+            return;
+        }
+
         $testResult = TestResult::with('patient')->find($this->testResultId);
 
         if (! $testResult) {

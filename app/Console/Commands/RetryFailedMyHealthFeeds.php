@@ -35,6 +35,13 @@ class RetryFailedMyHealthFeeds extends Command
         $dryRun = (bool) $this->option('dry-run');
         $live = MyHealthFeedDeliveryService::isLive();
 
+        if (! MyHealthFeedDeliveryService::isEnabled()) {
+            $this->info('MyHealth feed disabled (MH_KEY_FEED_ENABLED=false); nothing retried.');
+            Log::channel('myhealth-feed')->info('myhealth:retry-failed-feeds: feed disabled, nothing to do');
+
+            return self::SUCCESS;
+        }
+
         Log::channel('myhealth-feed')->info('myhealth:retry-failed-feeds: started', [
             'hours' => $hours,
             'limit' => $limit,
