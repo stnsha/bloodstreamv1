@@ -712,10 +712,29 @@ class ConsultCallController extends Controller
             }
         }
 
+        // Reopen: consent moves from Refused/Others back to Obtained. The refusal
+        // remarks and reason no longer apply, so clear them even if the client
+        // re-sends the stale values from the hidden Remarks/Reason fields.
+        $isReopening = in_array((int) $consultCall->consent_call_status, [
+                ConsultCall::CONSENT_STATUS_REFUSED,
+                ConsultCall::CONSENT_STATUS_OTHERS,
+            ], true)
+            && array_key_exists('consent_call_status', $validated)
+            && (int) $validated['consent_call_status'] === ConsultCall::CONSENT_STATUS_OBTAINED;
+
+        if ($isReopening) {
+            $validated['final_remarks'] = null;
+            $validated['reason'] = null;
+        }
+
         try {
             DB::beginTransaction();
 
             $consultCall->update($validated);
+
+            if ($isReopening) {
+                $this->reopenCancelledDetail($consultCall);
+            }
 
             // The Add On Recommendation checkbox dropdown always submits the complete
             // current selection; existing rows (and their invoice data) are kept.
@@ -745,6 +764,32 @@ class ConsultCallController extends Controller
                 'message' => 'Failed to update consult call.',
             ], 500);
         }
+    }
+
+    /**
+     * Undo what a cancellation did to the latest detail when the consult call is
+     * reopened (consent Refused/Others -> Obtained): a Cancelled detail goes back
+     * to Pending and Active so the doctor can consult again. Completed or No Show
+     * details are left untouched -- those are real outcomes, not side effects of
+     * the refusal.
+     */
+    private function reopenCancelledDetail(ConsultCall $consultCall): void
+    {
+        $latestDetail = $consultCall->details()->latest('id')->first();
+
+        if (!$latestDetail || (int) $latestDetail->consult_status !== ConsultCallDetails::CONSULT_STATUS_CANCELLED) {
+            return;
+        }
+
+        $latestDetail->update([
+            'consult_status' => ConsultCallDetails::CONSULT_STATUS_PENDING,
+            'process_status' => ConsultCallDetails::PROCESS_STATUS_ACTIVE,
+        ]);
+
+        Log::info('ConsultCall update: reopened cancelled detail', [
+            'id' => $consultCall->id,
+            'detail_id' => $latestDetail->id,
+        ]);
     }
 
     /**
