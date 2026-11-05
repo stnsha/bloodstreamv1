@@ -47,6 +47,10 @@ class PDFController extends Controller
             $mpdf->autoScriptToLang = true;
             $mpdf->autoLangToFont = true;
             $mpdf->allow_charset_conversion = true;
+            // Read header/footer images (img/...) from public/ on disk. Without a
+            // base path mPDF downloads them through the request host URL, which the
+            // production server cannot reach from itself (request hangs until timeout).
+            $mpdf->SetBasePath(public_path() . DIRECTORY_SEPARATOR);
 
             $header = $this->header($result);
             $footer = $this->footer();
@@ -629,6 +633,10 @@ class PDFController extends Controller
         $mpdf->autoScriptToLang = true;
         $mpdf->autoLangToFont = true;
         $mpdf->allow_charset_conversion = true;
+        // Read header/footer images (img/...) from public/ on disk. Without a
+        // base path mPDF downloads them through the request host URL, which the
+        // production server cannot reach from itself (request hangs until timeout).
+        $mpdf->SetBasePath(public_path() . DIRECTORY_SEPARATOR);
 
         $header = $this->header($result);
         $footer = $this->footer();
@@ -4317,6 +4325,10 @@ class PDFController extends Controller
             $mpdf->autoScriptToLang = true;
             $mpdf->autoLangToFont = true;
             $mpdf->allow_charset_conversion = true;
+            // Read header/footer images (img/...) from public/ on disk. Without a
+            // base path mPDF downloads them through the request host URL, which the
+            // production server cannot reach from itself (request hangs until timeout).
+            $mpdf->SetBasePath(public_path() . DIRECTORY_SEPARATOR);
 
             $header = $this->header($result);
             $footer = $this->footer();
