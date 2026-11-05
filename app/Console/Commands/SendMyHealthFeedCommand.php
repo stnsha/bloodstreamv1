@@ -76,6 +76,8 @@ class SendMyHealthFeedCommand extends Command
         Storage::disk('local')->put($payloadPath, $json);
 
         $this->line('Results in feed (last '.MyHealthFeedService::FEED_HISTORY_YEARS.' years): '.$payload['stats']['test_result_count']);
+        $this->line('Legacy results (blood-test-v8.1): '.$payload['stats']['legacy_test_result_count']
+            .' (API '.$payload['stats']['legacy_status'].', '.$payload['stats']['legacy_skipped_in_bsv1'].' already in bsv1)');
 
         if ($latestTestResult) {
             $this->line('Latest result: '.$latestTestResult->id.' (lab_no '.($latestTestResult->lab_no ?? 'null')

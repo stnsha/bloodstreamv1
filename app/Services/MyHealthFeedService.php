@@ -12,6 +12,8 @@ use RuntimeException;
  *
  * Body: { "feed": { "success": true, "data": <GET /api/patients/by-icno/{icno} data> } },
  * limited to test results collected within the last FEED_HISTORY_YEARS years.
+ * data.legacy_test_results adds the results of the same window that exist only
+ * in the legacy system (blood-test-v8.1), in that system's format.
  */
 class MyHealthFeedService
 {
@@ -19,9 +21,12 @@ class MyHealthFeedService
 
     protected PatientProfileService $patientProfileService;
 
-    public function __construct(PatientProfileService $patientProfileService)
+    protected LegacyBloodTestApiService $legacyBloodTestApi;
+
+    public function __construct(PatientProfileService $patientProfileService, LegacyBloodTestApiService $legacyBloodTestApi)
     {
         $this->patientProfileService = $patientProfileService;
+        $this->legacyBloodTestApi = $legacyBloodTestApi;
     }
 
     /**
@@ -53,24 +58,33 @@ class MyHealthFeedService
      */
     public function buildPayloadForIcno(string $icno, ?int $testResultId = null): array
     {
-        $profile = $this->patientProfileService->build(
-            $icno,
-            now()->subYears(self::FEED_HISTORY_YEARS)->startOfDay()
-        );
+        $since = now()->subYears(self::FEED_HISTORY_YEARS)->startOfDay();
+        $profile = $this->patientProfileService->build($icno, $since);
 
         if (! $profile) {
             throw new RuntimeException("Patient not found by IC number {$icno}, cannot build feed");
         }
+
+        // History kept only in the legacy system (blood-test-v8.1), in its own
+        // format; never fails the feed.
+        $legacy = $this->legacyBloodTestApi->resultsByIcno($icno, $since);
+
+        $data = $profile['data'];
+        $data['legacy_test_results'] = $legacy['test_results'];
 
         return [
             'body' => [
                 'feed' => [
                     'success' => true,
                     'test_result_id' => $testResultId,
-                    'data' => $profile['data'],
+                    'data' => $data,
                 ],
             ],
-            'stats' => $profile['stats'],
+            'stats' => $profile['stats'] + [
+                'legacy_status' => $legacy['status'],
+                'legacy_test_result_count' => count($legacy['test_results']),
+                'legacy_skipped_in_bsv1' => $legacy['skipped_in_bsv1'],
+            ],
         ];
     }
 

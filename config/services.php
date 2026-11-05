@@ -55,4 +55,16 @@ return [
         'timeout' => (int) env('MH_KEY_FEED_TIMEOUT', 60),
     ],
 
+    // Legacy Blood Stream (blood-test-v8.1) results API, read by the MyHealth
+    // feed to add history that exists only there (GET
+    // /api/legacy/results-by-icno/{icno}). token = a value from the legacy
+    // `token` table, sent as the raw Authorization header. Disabled or not
+    // configured: the feed is built without legacy history.
+    'blood_test_v1' => [
+        'enabled' => (bool) env('BTV1_API_ENABLED', true),
+        'url' => env('BTV1_API_URL'),
+        'token' => env('BTV1_API_TOKEN'),
+        'timeout' => (int) env('BTV1_API_TIMEOUT', 15),
+    ],
+
 ];
