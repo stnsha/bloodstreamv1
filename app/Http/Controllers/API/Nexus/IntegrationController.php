@@ -7,6 +7,7 @@ use App\Http\Controllers\API\Innoquest\PDFController;
 use App\Models\Patient;
 use App\Models\TestResult;
 use App\Services\Nexus\NexusPatientHistoryService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -131,14 +132,27 @@ class IntegrationController extends Controller
     {
         $validated = $request->validate([
             'icno' => 'required|string|max:50',
+            'from' => 'nullable|date_format:Y-m-d',
+            'to'   => array_filter([
+                'nullable',
+                'date_format:Y-m-d',
+                $request->filled('from') ? 'after_or_equal:from' : null,
+            ]),
         ]);
 
         $icno = $validated['icno'];
+        // Missing, null or empty from / to means no date limit: all results are returned.
+        $from = filled($validated['from'] ?? null) ? Carbon::createFromFormat('Y-m-d', $validated['from']) : null;
+        $to   = filled($validated['to'] ?? null) ? Carbon::createFromFormat('Y-m-d', $validated['to']) : null;
 
-        Log::info('Nexus getHistoryByICNo start', ['icno' => $icno]);
+        Log::info('Nexus getHistoryByICNo start', [
+            'icno' => $icno,
+            'from' => $validated['from'] ?? null,
+            'to'   => $validated['to'] ?? null,
+        ]);
 
         try {
-            $history = $historyService->build($icno);
+            $history = $historyService->build($icno, $from, $to);
 
             if ($history === null) {
                 Log::warning('Nexus getHistoryByICNo: patient not found', ['icno' => $icno]);

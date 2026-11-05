@@ -16,6 +16,11 @@
                 page-break-inside: avoid;
             }
 
+            .print-compact {
+                font-size: 10px !important;
+                line-height: 1.35 !important;
+            }
+
             tr {
                 break-inside: avoid;
                 page-break-inside: avoid;
@@ -722,7 +727,7 @@ Accept: application/json</code></pre>
                 <span class="font-mono text-sm">/api/v1/nexus/history</span>
             </div>
 
-            <p class="text-sm text-gray-700 mb-3">Returns every completed test result of the patient from all labs, newest first. Pending results are not returned. Each result carries its raw lab data under <code class="font-mono">blood_test_results</code>, grouped by panel name. Special tests, when stored, are listed under <code class="font-mono">"SPECIAL TESTS"</code>. Results with no valid items are returned with an empty <code class="font-mono">blood_test_results</code> object.</p>
+            <p class="text-sm text-gray-700 mb-3">Returns every completed test result of the patient from all labs, newest first. Pending results are not returned. Each result carries its raw lab data under <code class="font-mono">blood_test_results</code>, grouped by panel name. Special tests, when stored, are listed under <code class="font-mono">"SPECIAL TESTS"</code>. Results with no valid items are returned with an empty <code class="font-mono">blood_test_results</code> object. Use <code class="font-mono">from</code> and / or <code class="font-mono">to</code> to limit results by collected date; both dates are inclusive. Send only <code class="font-mono">from</code> to get all results since that date. When both are omitted, empty or null, all results are returned.</p>
 
             <div class="mb-3">
                 <span class="font-semibold text-sm pb-1 tracking-wide block">Key Required Fields:</span>
@@ -751,6 +756,34 @@ Accept: application/json</code></pre>
                                     <div class="text-xs sm:text-sm text-gray-700">Patient IC number (exact match).</div>
                                 </td>
                             </tr>
+                            <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                    <div class="text-xs sm:text-sm font-mono text-[#003049]">from</div>
+                                </td>
+                                <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                    <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                </td>
+                                <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">No</span>
+                                </td>
+                                <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                    <div class="text-xs sm:text-sm text-gray-700">Earliest collected date, <code class="font-mono">YYYY-MM-DD</code> (e.g. "2025-01-01"). Inclusive.</div>
+                                </td>
+                            </tr>
+                            <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                    <div class="text-xs sm:text-sm font-mono text-[#003049]">to</div>
+                                </td>
+                                <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                    <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                </td>
+                                <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">No</span>
+                                </td>
+                                <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                    <div class="text-xs sm:text-sm text-gray-700">Latest collected date, <code class="font-mono">YYYY-MM-DD</code> (e.g. "2026-06-30"). Inclusive. Must be on or after <code class="font-mono">from</code>.</div>
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -766,17 +799,19 @@ Accept: application/json</code></pre>
             <div class="mb-3">
                 <span class="font-semibold text-sm pb-1 tracking-wide block">Request Body Example:</span>
                 <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049]"><code>{
-  "icno": "901231045678"
+  "icno": "901231045678",
+  "from": "2025-01-01",
+  "to": "2026-06-30"
 }</code></pre>
             </div>
 
-            <div class="mb-3">
+            <div class="mb-3 print-page-break print-section">
                 <span class="font-semibold text-sm pb-1 tracking-wide block">CURL Example:</span>
                 <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049]"><code>curl -X POST "https://mytotalhealth.com.my/staging/api/v1/nexus/history" \
      -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..." \
      -H "Content-Type: application/json" \
      -H "Accept: application/json" \
-     -d '{"icno": "901231045678"}'</code></pre>
+     -d '{"icno": "901231045678", "from": "2025-01-01", "to": "2026-06-30"}'</code></pre>
             </div>
         </div>
     </div>
@@ -795,9 +830,9 @@ Accept: application/json</code></pre>
             </div>
         </div>
         <div class="p-4 sm:p-6">
-            <div class="mb-2">
+            <div class="mb-2 print-section">
                 <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold mr-2">200 Success</span>
-                <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049] mt-2"><code>{
+                <pre class="print-compact bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049] mt-2"><code>{
   "success": true,
   "data": {
     "patient": {
@@ -812,18 +847,34 @@ Accept: application/json</code></pre>
         "ref_id": "INN7568",
         "lab_no": "75-875356",
         "lab": { "code": "INN", "name": "Innoquest" },
-        "collected_date": "2024-05-15 09:30:00",
-        "reported_date": "2024-05-16 14:10:00",
+        "collected_date": "2026-03-28 09:30:00",
+        "reported_date": "2026-03-29 14:10:00",
         "status": "Completed",
-        "age": 33,
+        "age": 35,
         "blood_test_results": {
-          "LIPID STUDIES": [
+          "FULL BLOOD EXAMINATION": [
             {
-              "panel_item_name": "Total Cholesterol",
-              "result_value": "6.2",
-              "panel_item_unit": "mmol/L",
-              "result_status": "High",
-              "reference_range": "(< 5.2)",
+              "panel_item_name": "Haemoglobin",
+              "result_value": "128",
+              "panel_item_unit": "g/L",
+              "result_status": "N",
+              "reference_range": "115-160",
+              "comments": []
+            },
+            {
+              "panel_item_name": "White Cell Count",
+              "result_value": "6.4",
+              "panel_item_unit": "x 10*9/L",
+              "result_status": "N",
+              "reference_range": "4.0-10.0",
+              "comments": []
+            },
+            {
+              "panel_item_name": "Platelets",
+              "result_value": "186",
+              "panel_item_unit": "x 10*9/L",
+              "result_status": "N",
+              "reference_range": "150-410",
               "comments": []
             }
           ],
@@ -845,6 +896,15 @@ Accept: application/json</code></pre>
                 <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049] mt-2"><code>{
   "success": false,
   "message": "Patient not found."
+}</code></pre>
+            </div>
+            <div class="mb-2">
+                <span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-bold mr-2">422 Unprocessable</span>
+                <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049] mt-2"><code>{
+  "message": "The to field must be a date after or equal to from.",
+  "errors": {
+    "to": ["The to field must be a date after or equal to from."]
+  }
 }</code></pre>
             </div>
             <div>

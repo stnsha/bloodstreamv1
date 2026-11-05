@@ -32,8 +32,11 @@ class NexusPatientHistoryService
     /**
      * Returns ['data' => <response data>, 'stats' => <counts for logging>],
      * or null when no patient has this IC number.
+     *
+     * $from / $to filter on collected_date and are inclusive whole days:
+     * $from from 00:00:00, $to until 23:59:59. Either may be null.
      */
-    public function build(string $icno): ?array
+    public function build(string $icno, ?Carbon $from = null, ?Carbon $to = null): ?array
     {
         $patient = Patient::where('icno', $icno)->first();
 
@@ -43,6 +46,8 @@ class NexusPatientHistoryService
 
         $testResults = $patient->testResults()
             ->where('is_completed', true)
+            ->when($from, fn ($query) => $query->where('collected_date', '>=', $from->copy()->startOfDay()))
+            ->when($to, fn ($query) => $query->where('collected_date', '<=', $to->copy()->endOfDay()))
             ->with([...$this->compiler->getEagerLoadRelations(), 'doctor.lab'])
             ->orderByDesc('collected_date')
             ->get();
