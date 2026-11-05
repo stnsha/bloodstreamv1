@@ -27,6 +27,8 @@ class LegacyBloodTestApiService
 
     public const STATUS_FAILED = 'failed';
 
+    public const SOURCE = 'blood_test_v1';
+
     /**
      * @return array{status: string, test_results: array<int, array>, skipped_in_bsv1: int}
      */
@@ -84,5 +86,64 @@ class LegacyBloodTestApiService
             'test_results' => $kept,
             'skipped_in_bsv1' => count($testResults) - count($kept),
         ];
+    }
+
+    /**
+     * Shapes one legacy result like a PatientProfileService test_results entry
+     * so both can sit in the same list. Only what the legacy system has is
+     * filled: review = the newest legacy doctor_reviews row (HTML, like the
+     * blood_test_sales review shape); no MyHealth readings or special tests,
+     * and no profile/category grouping (panels only). test_result.id is null because
+     * the legacy id is not a bsv1 id; it is kept as legacy_test_result_id.
+     */
+    public function toFeedEntry(array $legacy): array
+    {
+        $panels = array_map(fn (array $panel) => [
+            'panel_id' => null,
+            'panel_code' => $panel['panel_code'] ?? null,
+            'panel_name' => $panel['panel_name'] ?? null,
+            'panel_comments' => [],
+            'panel_items' => array_map(fn (array $item) => [
+                'panel_item_name' => $item['panel_item_name'] ?? null,
+                'panel_item_unit' => $item['panel_item_unit'] ?? null,
+                'result_value' => $item['result_value'] ?? null,
+                'result_flag' => $item['result_flag'] ?? null,
+                'reference_range' => $item['reference_range'] ?? null,
+                'item_comments' => array_map(fn ($note) => ['comment' => $note], $item['notes'] ?? []),
+            ], $panel['items'] ?? []),
+        ], $legacy['panels'] ?? []);
+
+        return [
+            'test_result' => [
+                'id' => null,
+                'source' => self::SOURCE,
+                'legacy_test_result_id' => $legacy['id'] ?? null,
+                'lab_code' => $legacy['lab_code'] ?? null,
+                'lab_no' => $legacy['lab_no'] ?? null,
+                'ref_id' => $legacy['ref_id'] ?? null,
+                'collected_date' => $this->serializeDate($legacy['collected_date'] ?? null),
+                'received_date' => $this->serializeDate($legacy['received_date'] ?? null),
+                'reported_date' => $this->serializeDate($legacy['reported_date'] ?? null),
+            ],
+            'review' => empty($legacy['review']['review']) ? null : [
+                'source' => self::SOURCE,
+                'blood_test_sales_id' => null,
+                'match_method' => null,
+                'legacy_doctor_review_id' => $legacy['review']['doctor_review_id'] ?? null,
+                'review' => $legacy['review']['review'],
+            ],
+            'myhealth' => [],
+            'test_result_items' => ['panels' => $panels],
+            'special_tests' => [],
+        ];
+    }
+
+    /**
+     * Same date format as a serialized bsv1 TestResult (ISO 8601 UTC), so
+     * legacy and bsv1 entries in test_results look alike.
+     */
+    protected function serializeDate(?string $value): ?string
+    {
+        return $value ? Carbon::parse($value)->toJSON() : null;
     }
 }

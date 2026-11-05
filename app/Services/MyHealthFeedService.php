@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\TestResult;
+use Carbon\Carbon;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
@@ -12,8 +13,9 @@ use RuntimeException;
  *
  * Body: { "feed": { "success": true, "data": <GET /api/patients/by-icno/{icno} data> } },
  * limited to test results collected within the last FEED_HISTORY_YEARS years.
- * data.legacy_test_results adds the results of the same window that exist only
- * in the legacy system (blood-test-v8.1), in that system's format.
+ * data.test_results also holds the results of the same window that exist only
+ * in the legacy system (blood-test-v8.1), marked test_result.source =
+ * "blood_test_v1" (see LegacyBloodTestApiService::toFeedEntry()).
  */
 class MyHealthFeedService
 {
@@ -65,12 +67,15 @@ class MyHealthFeedService
             throw new RuntimeException("Patient not found by IC number {$icno}, cannot build feed");
         }
 
-        // History kept only in the legacy system (blood-test-v8.1), in its own
-        // format; never fails the feed.
+        // History kept only in the legacy system (blood-test-v8.1), merged into
+        // test_results (newest collected first); never fails the feed.
         $legacy = $this->legacyBloodTestApi->resultsByIcno($icno, $since);
 
         $data = $profile['data'];
-        $data['legacy_test_results'] = $legacy['test_results'];
+        $data['test_results'] = collect($data['test_results'])
+            ->concat(array_map([$this->legacyBloodTestApi, 'toFeedEntry'], $legacy['test_results']))
+            ->sortByDesc(fn ($entry) => $this->collectedTimestamp($entry))
+            ->values();
 
         return [
             'body' => [
@@ -86,6 +91,18 @@ class MyHealthFeedService
                 'legacy_skipped_in_bsv1' => $legacy['skipped_in_bsv1'],
             ],
         ];
+    }
+
+    /**
+     * Collected date of a feed test_results entry as a sortable timestamp
+     * (bsv1 entries carry a TestResult model, legacy entries an array).
+     */
+    protected function collectedTimestamp(array $entry): int
+    {
+        $testResult = $entry['test_result'] ?? null;
+        $collected = is_array($testResult) ? ($testResult['collected_date'] ?? null) : ($testResult->collected_date ?? null);
+
+        return $collected ? Carbon::parse($collected)->getTimestamp() : 0;
     }
 
     /**
