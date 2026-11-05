@@ -21,6 +21,7 @@ vite.config.js
 .htaccess
 server.php
 /storage/api-docs/api-docs.json
+/storage/postman
 .php-version
 .DS_STORE
 .claude

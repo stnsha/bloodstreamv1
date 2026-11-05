@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\API\Innoquest\PDFController;
 use App\Models\Patient;
 use App\Models\TestResult;
+use App\Services\Nexus\NexusPatientHistoryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -100,19 +101,8 @@ class IntegrationController extends Controller
                 ], 404);
             }
 
+            // Nexus may export results from every lab; no lab restriction is applied.
             $labId = $testResult->doctor?->lab_id;
-
-            if ($labId !== 2) {
-                Log::warning('Nexus getResultById: unsupported lab', [
-                    'test_result_id' => $id,
-                    'lab_id'         => $labId,
-                ]);
-
-                return response()->json([
-                    'success' => false,
-                    'message' => 'PDF export is not supported for this lab.',
-                ], 422);
-            }
 
             Log::info('Nexus getResultById: delegating to PDFController', [
                 'test_result_id' => $id,
@@ -129,6 +119,51 @@ class IntegrationController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to retrieve result.',
+            ], 500);
+        }
+    }
+
+    /**
+     * Full test result history of one patient across every lab, with the raw
+     * lab data of each result in the ai_reviews.compiled_results format.
+     */
+    public function getHistoryByICNo(Request $request, NexusPatientHistoryService $historyService): JsonResponse
+    {
+        $validated = $request->validate([
+            'icno' => 'required|string|max:50',
+        ]);
+
+        $icno = $validated['icno'];
+
+        Log::info('Nexus getHistoryByICNo start', ['icno' => $icno]);
+
+        try {
+            $history = $historyService->build($icno);
+
+            if ($history === null) {
+                Log::warning('Nexus getHistoryByICNo: patient not found', ['icno' => $icno]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Patient not found.',
+                ], 404);
+            }
+
+            Log::info('Nexus getHistoryByICNo complete', ['icno' => $icno] + $history['stats']);
+
+            return response()->json([
+                'success' => true,
+                'data'    => $history['data'],
+            ]);
+        } catch (Throwable $e) {
+            Log::error('Nexus getHistoryByICNo failed', [
+                'icno'  => $icno,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve patient history.',
             ], 500);
         }
     }

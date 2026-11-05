@@ -194,6 +194,23 @@ class TestResultCompilerService
     }
 
     /**
+     * Blood test items of one result in the ai_reviews.compiled_results
+     * "Blood Test Results" format: panel name => items, plus "SPECIAL TESTS"
+     * when special tests are stored. Unlike compileTestResultData(), it does not
+     * gather the MyHealth health history, so it never writes to the database.
+     * Expects getEagerLoadRelations() to be eager loaded on the result.
+     *
+     * @throws RuntimeException when the result has no valid test result items
+     */
+    public function compileBloodTestItems(TestResult $testResult): array
+    {
+        $categorizedItems = $this->categorizeTestResultItems($testResult);
+        $this->appendSpecialTests($testResult, $categorizedItems);
+
+        return $categorizedItems;
+    }
+
+    /**
      * Gather patient health history from MyHealth
      * AGGREGATES ALL RECORDS within 14 days to capture complete vitals
      */
@@ -500,7 +517,7 @@ class TestResultCompilerService
     /**
      * Get relationships to eager load
      */
-    protected function getEagerLoadRelations(): array
+    public function getEagerLoadRelations(): array
     {
         return [
             'patient',

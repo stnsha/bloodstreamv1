@@ -155,6 +155,7 @@ Route::middleware(['api.auth', 'throttle:api'])->group(function () {
     Route::prefix('nexus')->controller(IntegrationController::class)->group(function () {
         Route::post('/icno', 'getResultByICNo')->name('nexus.result-by-icno');
         Route::post('/id', 'getResultById')->name('nexus.result-by-id');
+        Route::post('/history', 'getHistoryByICNo')->name('nexus.history-by-icno');
     });
 
     Route::prefix('fixes')->controller(HotFixController::class)->group(function () {

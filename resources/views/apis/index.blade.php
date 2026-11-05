@@ -693,18 +693,165 @@ Accept: application/json</code></pre>
   "message": "Test result not found."
 }</code></pre>
             </div>
-            <div class="mb-2">
-                <span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-bold mr-2">422 Unprocessable</span>
+            <div>
+                <span class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold mr-2">500 Server Error</span>
                 <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049] mt-2"><code>{
   "success": false,
-  "message": "PDF export is not supported for this lab."
+  "message": "Failed to retrieve result."
+}</code></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- Nexus: Get Patient History by IC Number -->
+    <div class="print-page-break print-section bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden mt-6 sm:mt-8">
+        <div class="p-4 sm:p-6 border-b border-[#003049]/10">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
+                    <svg class="w-6 h-6 text-[#003049]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                </div>
+                <h2 class="text-lg sm:text-xl font-semibold text-[#003049]">Get Patient History by IC Number</h2>
+            </div>
+        </div>
+        <div class="p-4 sm:p-6">
+            <div class="flex items-center mb-2">
+                <span class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold mr-2">POST</span>
+                <span class="font-mono text-sm">/api/v1/nexus/history</span>
+            </div>
+
+            <p class="text-sm text-gray-700 mb-3">Returns every completed test result of the patient from all labs, newest first. Pending results are not returned. Each result carries its raw lab data under <code class="font-mono">blood_test_results</code>, grouped by panel name. Special tests, when stored, are listed under <code class="font-mono">"SPECIAL TESTS"</code>. Results with no valid items are returned with an empty <code class="font-mono">blood_test_results</code> object.</p>
+
+            <div class="mb-3">
+                <span class="font-semibold text-sm pb-1 tracking-wide block">Key Required Fields:</span>
+                <div class="overflow-x-auto">
+                    <table class="w-full border border-gray-200 rounded-md shadow-sm">
+                        <thead class="bg-[#003049]/5 border-b border-[#003049]/10">
+                            <tr>
+                                <th class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-semibold text-[#003049] uppercase tracking-wider">Field</th>
+                                <th class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-semibold text-[#003049] uppercase tracking-wider">Type</th>
+                                <th class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-semibold text-[#003049] uppercase tracking-wider">Required</th>
+                                <th class="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-semibold text-[#003049] uppercase tracking-wider">Description</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <tr class="hover:bg-[#003049]/5 transition-colors duration-200">
+                                <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                    <div class="text-xs sm:text-sm font-mono text-[#003049]">icno</div>
+                                </td>
+                                <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                    <div class="text-xs sm:text-sm text-gray-700">string</div>
+                                </td>
+                                <td class="px-3 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#991B1B]/10 text-[#991B1B] border border-[#991B1B]/20">Yes</span>
+                                </td>
+                                <td class="px-3 sm:px-6 py-2 sm:py-3">
+                                    <div class="text-xs sm:text-sm text-gray-700">Patient IC number (exact match).</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <span class="font-semibold text-sm pb-1 tracking-wide block">Headers:</span>
+                <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049]"><code>Authorization: Bearer {your_jwt_token}
+Content-Type: application/json
+Accept: application/json</code></pre>
+            </div>
+
+            <div class="mb-3">
+                <span class="font-semibold text-sm pb-1 tracking-wide block">Request Body Example:</span>
+                <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049]"><code>{
+  "icno": "901231045678"
+}</code></pre>
+            </div>
+
+            <div class="mb-3">
+                <span class="font-semibold text-sm pb-1 tracking-wide block">CURL Example:</span>
+                <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049]"><code>curl -X POST "https://mytotalhealth.com.my/staging/api/v1/nexus/history" \
+     -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..." \
+     -H "Content-Type: application/json" \
+     -H "Accept: application/json" \
+     -d '{"icno": "901231045678"}'</code></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- Nexus: Get Patient History by IC Number — Response Examples -->
+    <div class="print-page-break print-section bg-white rounded-2xl shadow-lg border border-[#003049]/10 overflow-hidden mt-6 sm:mt-8">
+        <div class="p-4 sm:p-6 border-b border-[#003049]/10">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-[#003049]/10 rounded-xl flex items-center justify-center">
+                    <svg class="w-6 h-6 text-[#003049]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                </div>
+                <h2 class="text-lg sm:text-xl font-semibold text-[#003049]">Response Examples</h2>
+            </div>
+        </div>
+        <div class="p-4 sm:p-6">
+            <div class="mb-2">
+                <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold mr-2">200 Success</span>
+                <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049] mt-2"><code>{
+  "success": true,
+  "data": {
+    "patient": {
+      "icno": "901231045678",
+      "name": "PATIENT NAME",
+      "gender": "M",
+      "dob": "19901231"
+    },
+    "test_results": [
+      {
+        "test_result_id": 1042,
+        "ref_id": "INN7568",
+        "lab_no": "75-875356",
+        "lab": { "code": "INN", "name": "Innoquest" },
+        "collected_date": "2024-05-15 09:30:00",
+        "reported_date": "2024-05-16 14:10:00",
+        "status": "Completed",
+        "age": 33,
+        "blood_test_results": {
+          "LIPID STUDIES": [
+            {
+              "panel_item_name": "Total Cholesterol",
+              "result_value": "6.2",
+              "panel_item_unit": "mmol/L",
+              "result_status": "High",
+              "reference_range": "(< 5.2)",
+              "comments": []
+            }
+          ],
+          "SPECIAL TESTS": [
+            {
+              "panel_item_name": "Atherogenic Coefficient (AC)",
+              "result_value": "3.8",
+              "interpretation": "High risk"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}</code></pre>
+            </div>
+            <div class="mb-2">
+                <span class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold mr-2">404 Not Found</span>
+                <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049] mt-2"><code>{
+  "success": false,
+  "message": "Patient not found."
 }</code></pre>
             </div>
             <div>
                 <span class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold mr-2">500 Server Error</span>
                 <pre class="bg-[#003049]/5 border border-[#003049]/10 p-3 rounded text-xs font-mono overflow-x-auto text-[#003049] mt-2"><code>{
   "success": false,
-  "message": "Failed to retrieve result."
+  "message": "Failed to retrieve patient history."
 }</code></pre>
             </div>
         </div>
